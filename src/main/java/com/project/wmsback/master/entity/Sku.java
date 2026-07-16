@@ -41,8 +41,8 @@ public class Sku extends BaseTimeEntity {
     @Column(name = "temp_zone", nullable = false, length = 10)
     private TempZone tempZone;
 
-    /** 제조일 기준 총 유통기한(일). 시더가 Lot 유통기한 생성 시 사용 */
-    @Column(name = "shelf_life_days", nullable = false)
+    /** 제조일 기준 총 유통기한(일). NULL = 유통기한 미관리(공산품 등). 시더가 Lot 유통기한 생성 시 사용 */
+    @Column(name = "shelf_life_days")
     private Integer shelfLifeDays;
 
     @Builder

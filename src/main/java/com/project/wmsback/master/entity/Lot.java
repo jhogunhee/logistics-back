@@ -44,8 +44,8 @@ public class Lot {
     @Column(name = "lot_no", nullable = false, length = 30)
     private String lotNo;
 
-    /** 유통기한. FEFO 정렬 키 + 잔여수명 비율 계산에 사용 */
-    @Column(name = "expiry_dt", nullable = false)
+    /** 유통기한. FEFO 정렬 키 + 잔여수명 비율 계산에 사용. NULL = 미관리 SKU의 Lot (FEFO 맨 뒤 정렬, 잔여수명 필터 대상 아님) */
+    @Column(name = "expiry_dt")
     private LocalDate expiryDt;
 
     @CreatedDate
