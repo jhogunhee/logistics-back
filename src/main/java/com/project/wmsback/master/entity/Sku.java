@@ -1,6 +1,6 @@
 package com.project.wmsback.master.entity;
 
-import com.project.wmsback.common.entity.BaseTimeEntity;
+import com.project.wmsback.common.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -21,7 +21,7 @@ import lombok.NoArgsConstructor;
 @Table(name = "sku")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Sku extends BaseTimeEntity {
+public class Sku extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

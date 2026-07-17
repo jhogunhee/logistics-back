@@ -1,8 +1,8 @@
 package com.project.wmsback.master.entity;
 
+import com.project.wmsback.common.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EntityListeners;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -15,11 +15,8 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 /**
  * Lot(입고 단위 묶음). 입고 처리 시 생성. 유통기한이 FEFO 할당과 납품기한 필터의 기준.
@@ -28,8 +25,7 @@ import java.time.LocalDateTime;
 @Table(name = "lot", uniqueConstraints = @UniqueConstraint(name = "uq_lot", columnNames = {"sku_id", "lot_no"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@EntityListeners(AuditingEntityListener.class)
-public class Lot {
+public class Lot extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -47,10 +43,6 @@ public class Lot {
     /** 유통기한. FEFO 정렬 키 + 잔여수명 비율 계산에 사용. NULL = 미관리 SKU의 Lot (FEFO 맨 뒤 정렬, 잔여수명 필터 대상 아님) */
     @Column(name = "expiry_dt")
     private LocalDate expiryDt;
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
 
     @Builder
     private Lot(Sku sku, String lotNo, LocalDate expiryDt) {

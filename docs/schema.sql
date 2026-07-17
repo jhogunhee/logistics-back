@@ -14,6 +14,8 @@
 --      expected→expct  received→rcvd  rejected→rjct  putaway→ptwy
 --      allocated/allocation→alloc  location→loc  history→hist
 --      code→cd  name→nm  date→dt  vendor→vndr  priority→prty
+--  - 공통 감사 컬럼: 모든 테이블에 created_at/created_by/updated_at/updated_by.
+--    작성자는 JPA Auditing(AuditorAware)이 채운다 (인증 도입 전까지 'admin' 고정)
 --
 -- 참고: 개발 중에는 JPA ddl-auto=update로 생성하므로 이 파일은
 --       "테이블 설계 기준 문서"다. 엔티티는 이 DDL에 맞춰 작성한다.
@@ -32,7 +34,9 @@ CREATE TABLE sku (
     temp_zone       VARCHAR2(10)    NOT NULL,
     shelf_life_days NUMBER(5),
     created_at      TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+    created_by      VARCHAR2(30)    DEFAULT 'admin' NOT NULL,
     updated_at      TIMESTAMP,
+    updated_by      VARCHAR2(30),
     CONSTRAINT uq_sku_cd UNIQUE (sku_cd),
     CONSTRAINT ck_sku_temp_zone CHECK (temp_zone IN ('DRY', 'CHL', 'FRZ'))
 );
@@ -56,6 +60,9 @@ CREATE TABLE loc (
     loc_type        VARCHAR2(10)    NOT NULL,
     pick_prty       NUMBER(5)       DEFAULT 0 NOT NULL,
     created_at      TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+    created_by      VARCHAR2(30)    DEFAULT 'admin' NOT NULL,
+    updated_at      TIMESTAMP,
+    updated_by      VARCHAR2(30),
     CONSTRAINT uq_loc_cd UNIQUE (loc_cd),
     CONSTRAINT ck_loc_temp_zone CHECK (temp_zone IN ('DRY', 'CHL', 'FRZ')),
     CONSTRAINT ck_loc_type CHECK (loc_type IN ('STAGE', 'STORAGE'))
@@ -75,6 +82,9 @@ CREATE TABLE lot (
     lot_no      VARCHAR2(30)    NOT NULL,
     expiry_dt   DATE,
     created_at  TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+    created_by  VARCHAR2(30)    DEFAULT 'admin' NOT NULL,
+    updated_at  TIMESTAMP,
+    updated_by  VARCHAR2(30),
     CONSTRAINT fk_lot_sku FOREIGN KEY (sku_id) REFERENCES sku (sku_id),
     CONSTRAINT uq_lot UNIQUE (sku_id, lot_no)
 );
@@ -92,7 +102,9 @@ CREATE TABLE store (
     store_nm        VARCHAR2(100)   NOT NULL,
     outb_life_rate  NUMBER(3)       DEFAULT 40 NOT NULL,
     created_at      TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+    created_by      VARCHAR2(30)    DEFAULT 'admin' NOT NULL,
     updated_at      TIMESTAMP,
+    updated_by      VARCHAR2(30),
     CONSTRAINT uq_store_cd UNIQUE (store_cd),
     CONSTRAINT ck_store_life_rate CHECK (outb_life_rate BETWEEN 0 AND 100)
 );
@@ -108,6 +120,9 @@ CREATE TABLE code_group (
     group_nm    VARCHAR2(100)   NOT NULL,
     description VARCHAR2(200),
     created_at  TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+    created_by  VARCHAR2(30)    DEFAULT 'admin' NOT NULL,
+    updated_at  TIMESTAMP,
+    updated_by  VARCHAR2(30),
     CONSTRAINT pk_code_group PRIMARY KEY (group_cd)
 );
 
@@ -123,6 +138,9 @@ CREATE TABLE code_detail (
     sort_ord    NUMBER(5)       DEFAULT 0 NOT NULL,
     use_yn      CHAR(1)         DEFAULT 'Y' NOT NULL,
     created_at  TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+    created_by  VARCHAR2(30)    DEFAULT 'admin' NOT NULL,
+    updated_at  TIMESTAMP,
+    updated_by  VARCHAR2(30),
     CONSTRAINT pk_code_detail PRIMARY KEY (group_cd, code_cd),
     CONSTRAINT ck_code_use_yn CHECK (use_yn IN ('Y', 'N'))
 );
@@ -159,7 +177,9 @@ CREATE TABLE ib_order (
     expct_dt    DATE            NOT NULL,
     closed_at   TIMESTAMP,
     created_at  TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+    created_by  VARCHAR2(30)    DEFAULT 'admin' NOT NULL,
     updated_at  TIMESTAMP,
+    updated_by  VARCHAR2(30),
     CONSTRAINT uq_ib_no UNIQUE (ib_no),
     CONSTRAINT ck_ib_order_status CHECK (status IN ('SCHEDULED', 'RECEIVING', 'RECEIVED', 'COMPLETED', 'CANCELLED'))
 );
@@ -180,6 +200,10 @@ CREATE TABLE ib_line (
     rcvd_qty    NUMBER(12)      DEFAULT 0 NOT NULL,
     rjct_qty    NUMBER(12)      DEFAULT 0 NOT NULL,
     ptwy_qty    NUMBER(12)      DEFAULT 0 NOT NULL,
+    created_at  TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+    created_by  VARCHAR2(30)    DEFAULT 'admin' NOT NULL,
+    updated_at  TIMESTAMP,
+    updated_by  VARCHAR2(30),
     CONSTRAINT fk_ib_line_order FOREIGN KEY (ib_order_id) REFERENCES ib_order (ib_order_id),
     CONSTRAINT fk_ib_line_sku FOREIGN KEY (sku_id) REFERENCES sku (sku_id),
     CONSTRAINT ck_ib_line_qty CHECK (
@@ -210,7 +234,10 @@ CREATE TABLE inv (
     on_hand_qty NUMBER(12)      DEFAULT 0 NOT NULL,
     alloc_qty   NUMBER(12)      DEFAULT 0 NOT NULL,
     version     NUMBER(19)      DEFAULT 0 NOT NULL,
+    created_at  TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+    created_by  VARCHAR2(30)    DEFAULT 'admin' NOT NULL,
     updated_at  TIMESTAMP,
+    updated_by  VARCHAR2(30),
     CONSTRAINT fk_inv_sku FOREIGN KEY (sku_id) REFERENCES sku (sku_id),
     CONSTRAINT fk_inv_loc FOREIGN KEY (loc_id) REFERENCES loc (loc_id),
     CONSTRAINT fk_inv_lot FOREIGN KEY (lot_id) REFERENCES lot (lot_id),
@@ -238,6 +265,9 @@ CREATE TABLE inv_hist (
     ref_doc_type VARCHAR2(10),
     ref_doc_no   VARCHAR2(30),
     created_at   TIMESTAMP      DEFAULT SYSTIMESTAMP NOT NULL,
+    created_by   VARCHAR2(30)   DEFAULT 'admin' NOT NULL,
+    updated_at   TIMESTAMP,
+    updated_by   VARCHAR2(30),
     CONSTRAINT fk_invh_sku FOREIGN KEY (sku_id) REFERENCES sku (sku_id),
     CONSTRAINT fk_invh_loc FOREIGN KEY (loc_id) REFERENCES loc (loc_id),
     CONSTRAINT fk_invh_lot FOREIGN KEY (lot_id) REFERENCES lot (lot_id),
@@ -270,7 +300,9 @@ CREATE TABLE outb_order (
     order_dt    DATE            NOT NULL,
     shipped_at  TIMESTAMP,
     created_at  TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+    created_by  VARCHAR2(30)    DEFAULT 'admin' NOT NULL,
     updated_at  TIMESTAMP,
+    updated_by  VARCHAR2(30),
     CONSTRAINT uq_outb_no UNIQUE (outb_no),
     CONSTRAINT fk_outb_order_store FOREIGN KEY (store_id) REFERENCES store (store_id),
     CONSTRAINT ck_outb_order_status CHECK (status IN ('CREATED', 'ALLOCATED', 'PICKING', 'PICKED', 'SHIPPED', 'CANCELLED'))
@@ -288,6 +320,10 @@ CREATE TABLE outb_line (
     outb_order_id NUMBER(19)    NOT NULL,
     sku_id        NUMBER(19)    NOT NULL,
     order_qty     NUMBER(12)    NOT NULL,
+    created_at    TIMESTAMP     DEFAULT SYSTIMESTAMP NOT NULL,
+    created_by    VARCHAR2(30)  DEFAULT 'admin' NOT NULL,
+    updated_at    TIMESTAMP,
+    updated_by    VARCHAR2(30),
     CONSTRAINT fk_outb_line_order FOREIGN KEY (outb_order_id) REFERENCES outb_order (outb_order_id),
     CONSTRAINT fk_outb_line_sku FOREIGN KEY (sku_id) REFERENCES sku (sku_id),
     CONSTRAINT ck_outb_line_qty CHECK (order_qty > 0)
@@ -306,6 +342,9 @@ CREATE TABLE outb_alloc (
     alloc_qty     NUMBER(12)    NOT NULL,
     picked_qty    NUMBER(12)    DEFAULT 0 NOT NULL,
     created_at    TIMESTAMP     DEFAULT SYSTIMESTAMP NOT NULL,
+    created_by    VARCHAR2(30)  DEFAULT 'admin' NOT NULL,
+    updated_at    TIMESTAMP,
+    updated_by    VARCHAR2(30),
     CONSTRAINT fk_alloc_line FOREIGN KEY (outb_line_id) REFERENCES outb_line (outb_line_id),
     CONSTRAINT fk_alloc_inv FOREIGN KEY (inv_id) REFERENCES inv (inv_id),
     CONSTRAINT ck_alloc_qty CHECK (alloc_qty > 0 AND picked_qty >= 0 AND picked_qty <= alloc_qty)

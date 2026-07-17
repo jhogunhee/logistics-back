@@ -1,5 +1,6 @@
 package com.project.wmsback.master.entity;
 
+import com.project.wmsback.common.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -18,7 +19,7 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @IdClass(CodeDetailId.class)
-public class CodeDetail {
+public class CodeDetail extends BaseEntity {
 
     /** 코드 그룹 코드 (예: TEMP_ZONE) */
     @Id

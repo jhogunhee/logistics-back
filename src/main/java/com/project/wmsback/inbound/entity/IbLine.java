@@ -1,5 +1,6 @@
 package com.project.wmsback.inbound.entity;
 
+import com.project.wmsback.common.entity.BaseEntity;
 import com.project.wmsback.master.entity.Sku;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -23,7 +24,7 @@ import lombok.NoArgsConstructor;
 @Table(name = "ib_line")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class IbLine {
+public class IbLine extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

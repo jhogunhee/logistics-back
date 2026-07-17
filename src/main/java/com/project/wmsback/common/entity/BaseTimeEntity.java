@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 
 /**
  * created_at / updated_at 감사 컬럼 공통화.
- * 두 컬럼을 모두 가진 테이블(SKU, IB_ORDER, OUTB_ORDER)만 상속한다.
+ * 엔티티는 보통 이걸 직접 상속하지 않고, 작성자 컬럼까지 포함한 BaseEntity를 상속한다.
  */
 @Getter
 @MappedSuperclass

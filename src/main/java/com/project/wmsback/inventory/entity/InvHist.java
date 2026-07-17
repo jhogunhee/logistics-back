@@ -1,11 +1,11 @@
 package com.project.wmsback.inventory.entity;
 
+import com.project.wmsback.common.entity.BaseEntity;
 import com.project.wmsback.master.entity.Loc;
 import com.project.wmsback.master.entity.Lot;
 import com.project.wmsback.master.entity.Sku;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EntityListeners;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
@@ -19,10 +19,6 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-
-import java.time.LocalDateTime;
 
 /**
  * 재고 수불 이력 (append-only 원장). 모든 물리 변동을 ±수량으로 기록.
@@ -33,8 +29,7 @@ import java.time.LocalDateTime;
 @Table(name = "inv_hist")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@EntityListeners(AuditingEntityListener.class)
-public class InvHist {
+public class InvHist extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -70,10 +65,6 @@ public class InvHist {
     /** 참조 문서 번호 (입고번호/출고번호). 이력 → 원인 문서 추적용 */
     @Column(name = "ref_doc_no", length = 30)
     private String refDocNo;
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
 
     @Builder
     private InvHist(TxType txType, Sku sku, Loc loc, Lot lot, Long qty, RefDocType refDocType, String refDocNo) {

@@ -1,6 +1,6 @@
 package com.project.wmsback.outbound.entity;
 
-import com.project.wmsback.common.entity.BaseTimeEntity;
+import com.project.wmsback.common.entity.BaseEntity;
 import com.project.wmsback.master.entity.Store;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -32,7 +32,7 @@ import java.util.List;
 @Table(name = "outb_order")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class OutbOrder extends BaseTimeEntity {
+public class OutbOrder extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
