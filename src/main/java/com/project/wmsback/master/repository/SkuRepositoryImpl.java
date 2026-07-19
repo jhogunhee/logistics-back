@@ -5,10 +5,12 @@ import com.project.wmsback.master.entity.Sku;
 import com.project.wmsback.master.entity.TempZone;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Optional;
 
 import static com.project.wmsback.master.entity.QSku.sku;
 
@@ -16,6 +18,16 @@ import static com.project.wmsback.master.entity.QSku.sku;
 public class SkuRepositoryImpl implements SkuRepositoryCustom {
 
     private final JPAQueryFactory queryFactory;
+
+    @Override
+    public Optional<Sku> findByIdForUpdate(Long id) {
+        return Optional.ofNullable(
+                queryFactory
+                        .selectFrom(sku)
+                        .where(sku.id.eq(id))
+                        .setLockMode(LockModeType.PESSIMISTIC_WRITE)
+                        .fetchOne());
+    }
 
     @Override
     public List<Sku> search(SkuSearchCond cond) {

@@ -40,14 +40,24 @@ public class Lot extends BaseEntity {
     @Column(name = "lot_no", nullable = false, length = 30)
     private String lotNo;
 
-    /** 유통기한. FEFO 정렬 키 + 잔여수명 비율 계산에 사용. NULL = 미관리 SKU의 Lot (FEFO 맨 뒤 정렬, 잔여수명 필터 대상 아님) */
+    /** 입고일자. SKU+입고일자+제조일자가 같으면 기존 Lot을 재사용한다 (증분 검수 시 배치 중복 생성 방지) */
+    @Column(name = "receipt_dt")
+    private LocalDate receiptDt;
+
+    /** 제조일자. 유통기한 미관리 SKU의 Lot(NOLOT)은 NULL */
+    @Column(name = "mfg_dt")
+    private LocalDate mfgDt;
+
+    /** 유통기한. 생성 시점의 SKU.shelfLifeDays로 계산해 저장한 스냅샷 (이후 SKU 마스터 변경에 소급 영향 없음). NULL = 미관리 SKU의 Lot (FEFO 맨 뒤 정렬, 잔여수명 필터 대상 아님) */
     @Column(name = "expiry_dt")
     private LocalDate expiryDt;
 
     @Builder
-    private Lot(Sku sku, String lotNo, LocalDate expiryDt) {
+    private Lot(Sku sku, String lotNo, LocalDate receiptDt, LocalDate mfgDt, LocalDate expiryDt) {
         this.sku = sku;
         this.lotNo = lotNo;
+        this.receiptDt = receiptDt;
+        this.mfgDt = mfgDt;
         this.expiryDt = expiryDt;
     }
 }
