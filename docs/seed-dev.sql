@@ -51,8 +51,10 @@ INSERT INTO sku (sku_cd, sku_nm, temp_zone, shelf_life_days)
 INSERT INTO sku (sku_cd, sku_nm, temp_zone, shelf_life_days)
     VALUES ('SKU-' || LPAD(sku_cd_seq.NEXTVAL, 4, '0'), '냉동 블루베리 1kg', 'FRZ', 720);
 
--- 로케이션 (입고 스테이징 1 + 온도대별 보관 로케이션)
+-- 로케이션 (입고 스테이징 1 + 출고 스테이징 1 + 온도대별 보관 로케이션)
+-- 스테이징의 temp_zone은 플레이스홀더(DRY) — 반출/적치 지점이라 온도 제약은 서비스에서 스킵
 INSERT INTO loc (loc_cd, zone_cd, temp_zone, loc_type, pick_prty) VALUES ('RCV-STAGE',   'RCV-STAGE', 'DRY', 'STAGE',   0);
+INSERT INTO loc (loc_cd, zone_cd, temp_zone, loc_type, pick_prty) VALUES ('SHIP-STAGE',  'SHIP-STAGE','DRY', 'STAGE',   0);
 INSERT INTO loc (loc_cd, zone_cd, temp_zone, loc_type, pick_prty) VALUES ('DRY-A-01-01', 'DRY',       'DRY', 'STORAGE', 1);
 INSERT INTO loc (loc_cd, zone_cd, temp_zone, loc_type, pick_prty) VALUES ('DRY-A-01-02', 'DRY',       'DRY', 'STORAGE', 2);
 INSERT INTO loc (loc_cd, zone_cd, temp_zone, loc_type, pick_prty) VALUES ('DRY-A-02-01', 'DRY',       'DRY', 'STORAGE', 3);
@@ -76,4 +78,40 @@ INSERT INTO store (store_cd, store_nm, outb_life_rate) VALUES ('ST-0004', '한�
 INSERT INTO store (store_cd, store_nm, outb_life_rate) VALUES ('ST-0005', '행복급식센터', 30);
 
 COMMIT;
+
+-- 입고예정(ASN). 전부 SCHEDULED — 검수/마감은 화면에서 진행해야 재고 불변식(이력 합계=스냅샷)이 지켜진다.
+DECLARE
+    v_id NUMBER;
+BEGIN
+    INSERT INTO ib_order (ib_no, status, vndr_nm, expct_dt)
+        VALUES ('IB-20260717-' || LPAD(ib_no_seq.NEXTVAL, 3, '0'), 'SCHEDULED', '서울식품', DATE '2026-07-17')
+        RETURNING ib_order_id INTO v_id;
+    INSERT INTO ib_line (ib_order_id, sku_id, expct_qty) VALUES (v_id, (SELECT sku_id FROM sku WHERE sku_nm = '서울우유 1L'), 50);
+    INSERT INTO ib_line (ib_order_id, sku_id, expct_qty) VALUES (v_id, (SELECT sku_id FROM sku WHERE sku_nm = '딸기 요거트 4입'), 40);
+    INSERT INTO ib_line (ib_order_id, sku_id, expct_qty) VALUES (v_id, (SELECT sku_id FROM sku WHERE sku_nm = '참치마요 삼각김밥'), 30);
+
+    INSERT INTO ib_order (ib_no, status, vndr_nm, expct_dt)
+        VALUES ('IB-20260717-' || LPAD(ib_no_seq.NEXTVAL, 3, '0'), 'SCHEDULED', '콜드체인프레시', DATE '2026-07-17')
+        RETURNING ib_order_id INTO v_id;
+    INSERT INTO ib_line (ib_order_id, sku_id, expct_qty) VALUES (v_id, (SELECT sku_id FROM sku WHERE sku_nm = '왕교자 만두 1kg'), 80);
+    INSERT INTO ib_line (ib_order_id, sku_id, expct_qty) VALUES (v_id, (SELECT sku_id FROM sku WHERE sku_nm = '냉동 새우살 500g'), 60);
+    INSERT INTO ib_line (ib_order_id, sku_id, expct_qty) VALUES (v_id, (SELECT sku_id FROM sku WHERE sku_nm = '붕어싸만코 (아이스크림)'), 120);
+
+    INSERT INTO ib_order (ib_no, status, vndr_nm, expct_dt)
+        VALUES ('IB-20260718-' || LPAD(ib_no_seq.NEXTVAL, 3, '0'), 'SCHEDULED', '대한물류', DATE '2026-07-18')
+        RETURNING ib_order_id INTO v_id;
+    INSERT INTO ib_line (ib_order_id, sku_id, expct_qty) VALUES (v_id, (SELECT sku_id FROM sku WHERE sku_nm = '제주 삼다수 2L'), 300);
+    INSERT INTO ib_line (ib_order_id, sku_id, expct_qty) VALUES (v_id, (SELECT sku_id FROM sku WHERE sku_nm = '햇반 백미 210g'), 200);
+    INSERT INTO ib_line (ib_order_id, sku_id, expct_qty) VALUES (v_id, (SELECT sku_id FROM sku WHERE sku_nm = '일회용 종이컵 1000입'), 100);
+
+    INSERT INTO ib_order (ib_no, status, vndr_nm, expct_dt)
+        VALUES ('IB-20260719-' || LPAD(ib_no_seq.NEXTVAL, 3, '0'), 'SCHEDULED', '한마음유통', DATE '2026-07-19')
+        RETURNING ib_order_id INTO v_id;
+    INSERT INTO ib_line (ib_order_id, sku_id, expct_qty) VALUES (v_id, (SELECT sku_id FROM sku WHERE sku_nm = '스팸 클래식 200g'), 150);
+    INSERT INTO ib_line (ib_order_id, sku_id, expct_qty) VALUES (v_id, (SELECT sku_id FROM sku WHERE sku_nm = '바나나우유 240ml'), 60);
+
+    COMMIT;
+END;
+/
+
 EXIT
