@@ -71,4 +71,83 @@ public class IbOrder extends BaseEntity {
         lines.add(line);
         line.assignOrder(this);
     }
+
+    /** 취소. 검수가 시작되면(SCHEDULED 이후) 불가 */
+    public void cancel() {
+        if (status != IbStatus.SCHEDULED) {
+            throw new IllegalStateException("검수가 시작된 입고는 취소할 수 없습니다: " + ibNo);
+        }
+        this.status = IbStatus.CANCELLED;
+    }
+
+    /** 검수 가능 상태 검증 + 첫 검수 시 SCHEDULED → RECEIVING 전이 */
+    public void startReceiving() {
+        if (status == IbStatus.SCHEDULED) {
+            this.status = IbStatus.RECEIVING;
+            return;
+        }
+        if (status != IbStatus.RECEIVING) {
+            throw new IllegalStateException("검수할 수 없는 상태입니다 (" + status.getLabel() + "): " + ibNo);
+        }
+    }
+
+    /** 입고 마감. 검수가 시작된(RECEIVING) 입고만 가능 — 잔량(예정-검수)은 미입고로 확정된다 */
+    public void close() {
+        if (status != IbStatus.RECEIVING) {
+            throw new IllegalStateException("검수가 시작된 입고만 마감할 수 있습니다 (" + status.getLabel() + "): " + ibNo);
+        }
+        transitionToReceived();
+    }
+
+    /**
+     * 검수 저장 시점마다 호출. 전 라인이 전량 검수(rcvdQty >= expctQty)됐으면
+     * 명시적 마감(close) 없이 바로 RECEIVING → RECEIVED로 전이한다.
+     * close()는 그 반대(더 안 오는 잔량을 미입고로 확정)로 끝내는 경우에만 쓰는 명시적 액션.
+     */
+    public void checkAndAutoReceive() {
+        if (status != IbStatus.RECEIVING) {
+            return;
+        }
+        if (allLinesFullyReceived()) {
+            transitionToReceived();
+        }
+    }
+
+    private boolean allLinesFullyReceived() {
+        return lines.stream().allMatch(l -> l.getRcvdQty() >= l.getExpctQty());
+    }
+
+    private void transitionToReceived() {
+        this.status = IbStatus.RECEIVED;
+        this.closedAt = LocalDateTime.now();
+        checkAndComplete(); // 이미 전량 적치돼 있었다면(적치는 마감과 무관하게 가능) 바로 COMPLETED
+    }
+
+    /**
+     * RECEIVED 상태이고 전 라인이 전량 적치(putawayQty == rcvdQty)됐으면 COMPLETED로 전이한다.
+     * 적치는 마감 여부와 무관하게 즉시 가능하므로, 마감(close)과 적치(putaway) 양쪽에서
+     * 각자 끝나는 시점에 이 메서드를 호출해 조건 충족 여부를 확인한다.
+     */
+    public void checkAndComplete() {
+        if (status != IbStatus.RECEIVED) {
+            return;
+        }
+        boolean allPutaway = lines.stream().allMatch(l -> l.getPtwyQty().equals(l.getRcvdQty()));
+        if (allPutaway) {
+            this.status = IbStatus.COMPLETED;
+        }
+    }
+
+    /**
+     * 검수 취소로 전량검수 상태가 깨졌으면 자동 마감(RECEIVED)을 되돌린다.
+     * 이게 없으면 RECEIVED로 자동 전이된 뒤 그 전이를 만든 검수 건을 취소했을 때,
+     * 상태는 계속 RECEIVED인데 rcvdQty < expctQty가 되어 startReceiving()이 막혀
+     * 남은 수량을 다시는 검수할 수 없는 상태로 고착된다.
+     */
+    public void reopenIfNoLongerFullyReceived() {
+        if (status == IbStatus.RECEIVED && !allLinesFullyReceived()) {
+            this.status = IbStatus.RECEIVING;
+            this.closedAt = null;
+        }
+    }
 }

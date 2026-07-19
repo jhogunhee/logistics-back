@@ -73,4 +73,14 @@ public class Inv extends BaseEntity {
     public long availableQty() {
         return onHandQty - allocQty;
     }
+
+    /** 물리 증가 (입고/이동 입). 반드시 InvHist 기록과 한 트랜잭션에서 호출한다 */
+    public void increaseOnHand(long qty) {
+        this.onHandQty += qty;
+    }
+
+    /** 물리 감소 (이동 출/검수 취소). 반드시 InvHist 기록과 한 트랜잭션에서 호출한다 */
+    public void decreaseOnHand(long qty) {
+        this.onHandQty -= qty;
+    }
 }

@@ -26,7 +26,7 @@ public class LocRepositoryImpl implements LocRepositoryCustom {
                         zoneCdEq(cond.getZoneCd()),
                         locTypeEq(cond.getLocType())
                 )
-                .orderBy(loc.id.asc())
+                .orderBy(loc.zoneCd.asc(), loc.locCd.asc())
                 .fetch();
     }
 

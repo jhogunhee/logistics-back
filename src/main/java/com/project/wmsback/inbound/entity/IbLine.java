@@ -43,13 +43,9 @@ public class IbLine extends BaseEntity {
     @Column(name = "expct_qty", nullable = false)
     private Long expctQty;
 
-    /** 검수 합격 후 실제 입고(스테이징 입) 수량 누계 */
+    /** 검수(개수 확인) 완료된 실제 입고(스테이징 입) 수량 누계 */
     @Column(name = "rcvd_qty", nullable = false)
     private Long rcvdQty;
-
-    /** 검수 불합격 수량 누계 (재고로 잡지 않음) */
-    @Column(name = "rjct_qty", nullable = false)
-    private Long rjctQty;
 
     /** 적치 완료 수량 누계 (스테이징 → 보관 MOVE 반영분) */
     @Column(name = "ptwy_qty", nullable = false)
@@ -60,11 +56,25 @@ public class IbLine extends BaseEntity {
         this.sku = sku;
         this.expctQty = expctQty;
         this.rcvdQty = 0L;
-        this.rjctQty = 0L;
         this.ptwyQty = 0L;
     }
 
     void assignOrder(IbOrder ibOrder) {
         this.ibOrder = ibOrder;
+    }
+
+    /** 검수 반영 (증분 누적). 검수한 수량은 전량 재고로 잡힌다 */
+    public void receive(long qty) {
+        this.rcvdQty += qty;
+    }
+
+    /** 검수 취소 (검수 건 하나를 되돌림) */
+    public void cancelReceive(long qty) {
+        this.rcvdQty -= qty;
+    }
+
+    /** 적치 반영 (증분 누적). 어떤 Lot에서 왔는지는 상관없이 이동한 총량만 더한다 (rcvdQty와 동일한 패턴) */
+    public void putaway(long qty) {
+        this.ptwyQty += qty;
     }
 }
