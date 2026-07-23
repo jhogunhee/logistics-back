@@ -7,6 +7,6 @@ import org.springframework.data.jpa.repository.Query;
 public interface OutbWaveRepository extends JpaRepository<OutbWave, Long>, OutbWaveRepositoryCustom {
 
     /** 웨이브번호 채번값 발급 (outb_wave_no_seq) */
-    @Query(value = "SELECT outb_wave_no_seq.NEXTVAL FROM dual", nativeQuery = true)
+    @Query(value = "SELECT nextval('outb_wave_no_seq')", nativeQuery = true)
     Long nextWaveNoSeq();
 }

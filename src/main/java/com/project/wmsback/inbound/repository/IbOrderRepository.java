@@ -11,6 +11,6 @@ public interface IbOrderRepository extends JpaRepository<IbOrder, Long>, IbOrder
      * QueryDSL은 JPA 엔티티 기반이라 "시퀀스.NEXTVAL"처럼 테이블/엔티티가 없는 스칼라 조회는
      * 표현할 대상이 없다 — 네이티브 쿼리로 남긴다.
      */
-    @Query(value = "SELECT ib_no_seq.NEXTVAL FROM dual", nativeQuery = true)
+    @Query(value = "SELECT nextval('ib_no_seq')", nativeQuery = true)
     Long nextIbNoSeq();
 }

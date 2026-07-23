@@ -12,6 +12,6 @@ public interface SkuRepository extends JpaRepository<Sku, Long>, SkuRepositoryCu
      * QueryDSL은 JPA 엔티티 기반 쿼리 빌더라 "시퀀스.NEXTVAL"처럼 테이블/엔티티가 없는
      * 스칼라 조회는 표현할 대상이 없다 — 네이티브 쿼리로 남긴다.
      */
-    @Query(value = "SELECT sku_cd_seq.NEXTVAL FROM dual", nativeQuery = true)
+    @Query(value = "SELECT nextval('sku_cd_seq')", nativeQuery = true)
     Long nextSkuCdSeq();
 }
