@@ -1,4 +1,0 @@
-# application-local.properties 로 복사한 뒤 값 채우기 (해당 파일은 .gitignore에 등록되어 커밋되지 않음)
-spring.datasource.url=jdbc:postgresql://aws-1-ap-south-1.pooler.supabase.com:5432/postgres
-spring.datasource.username=postgres.YOUR_PROJECT_REF
-spring.datasource.password=YOUR_PASSWORD
