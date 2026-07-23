@@ -53,6 +53,11 @@ public class OutbOrder extends BaseEntity {
     @JoinColumn(name = "store_id", nullable = false)
     private Store store;
 
+    /** 편성된 출고 웨이브. NULL = 아직 미편성. 할당은 이 웨이브의 릴리즈로만 일어난다 */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "wave_id")
+    private OutbWave wave;
+
     /** 주문일 */
     @Column(name = "order_dt", nullable = false)
     private LocalDate orderDt;
@@ -75,5 +80,33 @@ public class OutbOrder extends BaseEntity {
     public void addLine(OutbLine line) {
         lines.add(line);
         line.assignOrder(this);
+    }
+
+    /**
+     * 웨이브 편성. 아직 할당 전(CREATED)이고 다른 웨이브에 속하지 않은 주문만 담을 수 있다.
+     * 웨이브가 PLANNED인지는 호출 전 OutbWave.assertPlanned()로 검증한다.
+     */
+    public void assignWave(OutbWave wave) {
+        if (status != OutbStatus.CREATED) {
+            throw new IllegalStateException("할당 전(CREATED) 주문만 웨이브에 담을 수 있습니다: " + outbNo);
+        }
+        if (this.wave != null) {
+            throw new IllegalStateException("이미 웨이브에 편성된 주문입니다: " + outbNo);
+        }
+        this.wave = wave;
+    }
+
+    /** 웨이브에서 제외 (주문 빼기/웨이브 해체/취소 시) */
+    public void unassignWave() {
+        this.wave = null;
+    }
+
+    /** 취소. 할당 전(CREATED)만 가능 — 편성돼 있었다면 함께 웨이브에서 빠진다 */
+    public void cancel() {
+        if (status != OutbStatus.CREATED) {
+            throw new IllegalStateException("할당 전(CREATED) 주문만 취소할 수 있습니다: " + outbNo);
+        }
+        this.status = OutbStatus.CANCELLED;
+        this.wave = null;
     }
 }
