@@ -36,16 +36,16 @@ public class Store extends BaseEntity {
 
     /** 납품 허용 잔여수명 비율(%). 이 점포 출고 시 잔여 유통기한이 이 비율 미만인 Lot은 할당 제외 (FEFO 앞단 필터) */
     @Column(name = "outb_life_rate", nullable = false)
-    private Integer outbLifeRate;
+    private Short outbLifeRate;
 
     @Builder
-    private Store(String storeCd, String storeNm, Integer outbLifeRate) {
+    private Store(String storeCd, String storeNm, Short outbLifeRate) {
         this.storeCd = storeCd;
         this.storeNm = storeNm;
         this.outbLifeRate = outbLifeRate != null ? outbLifeRate : 40;
     }
 
-    public void update(String storeNm, Integer outbLifeRate) {
+    public void update(String storeNm, Short outbLifeRate) {
         this.storeNm = storeNm;
         this.outbLifeRate = outbLifeRate;
     }
