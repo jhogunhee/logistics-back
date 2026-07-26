@@ -1,0 +1,83 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## 명령어
+
+```bash
+./mvnw spring-boot:run                    # 애플리케이션 실행
+./mvnw compile                            # QueryDSL Q-class도 함께 재생성
+./mvnw test                               # 전체 테스트
+./mvnw test -Dtest=WmsBackApplicationTests            # 클래스 하나
+./mvnw test -Dtest=WmsBackApplicationTests#contextLoads  # 메서드 하나
+./mvnw clean package                      # jar 빌드
+```
+
+QueryDSL `Q*` 타입은 애노테이션 프로세서가 `target/generated-sources/annotations`에 생성한다. `@Entity`를 추가하거나 바꿨으면 `./mvnw compile`을 먼저 돌려야 `*RepositoryImpl`의 `Q*` import가 풀린다.
+
+## 데이터베이스
+
+PostgreSQL(Supabase). 접속 정보는 환경변수로 받고, 로컬 기본값은 `application.properties`에 있다.
+
+- `DB_URL` (기본 `jdbc:postgresql://localhost:5432/postgres`)
+- `DB_USERNAME` (기본 `postgres`)
+- `DB_PASSWORD` (기본 빈 값)
+
+`spring.jpa.hibernate.ddl-auto=none` — **Hibernate는 테이블을 만들지도 바꾸지도 않는다.** 스키마의 주인은 `docs/schema.sql`이고, 엔티티를 거기에 맞춰 쓴다(반대 방향이 아니다). 신규 DB는 `docs/schema.sql` 적용 후 `docs/seed-dev.sql`, 기존 DB는 해당하는 `docs/migration-*.sql` 증분만 적용한다.
+
+**Oracle → PostgreSQL 전환 이전 상태로 남아 있는 파일이 둘 있다** — `docker-compose.yml`(아직 Oracle)과 `README.md`의 기술 스택·실행 절차. 현재 설정과 맞지 않으니 그대로 따르면 안 된다.
+
+## 아키텍처
+
+### 한 레포에 두 애플리케이션, 의존은 한 방향
+
+- `com.project.wmsback` — 창고 작업 (입고 · 재고 · 출고 · 마스터)
+- `com.project.omsback` — 창고 작업문서를 발생시키는 주문 원장
+
+**`omsback`은 `wmsback`을 import해도 되지만 그 반대는 안 된다.** 나중에 OMS를 떼어낼 수 있게 하려는 의도다. 이 규칙을 실제로 떠받치는 지점이 `IbOrder.omsIbOrderId`인데, `@ManyToOne OmsIbOrder`가 아니라 **평범한 `Long` 스칼라**로 매핑돼 있다 — `wmsback`이 `omsback`을 import하지 않게 하기 위해서다. 도메인 간 참조를 건드릴 때 이 형태를 유지할 것.
+
+각 도메인 패키지는 `controller / dto / entity / repository / service` 구성을 따른다.
+
+### FK가 하나도 없다
+
+`docs/migration-drop-fks.sql`이 모든 FK를 제거했고 `docs/schema.sql`도 FK를 선언하지 않는다(`docs/migration-outb-wave.sql`의 `outb_wave`만 남은 예외). 참조 무결성은 애플리케이션 책임이다. DB가 여전히 막아주는 것은 `CHECK`와 `UNIQUE`뿐이므로 이것들을 약화시키면 안 된다 — `ck_inv_qty`(재고 음수·과할당 금지), `ck_ib_line_qty`, `uq_inv`, `uq_lot` 등.
+
+원래부터 의도적으로 FK가 아니었던 느슨한 참조 컬럼들도 있다: `inv_hist.ib_line_id`, `inv_hist.ref_doc_no`, `inv_hist.from_loc_id` / `to_loc_id`, `ib_order.oms_ib_order_id`.
+
+### 재고 모델 (핵심 불변식)
+
+- 재고 키는 **SKU + Location + Lot**. `inv`가 현재고 스냅샷이고, `inv_hist`는 모든 물리 변동을 ±수량으로 기록하는 append-only 원장이다.
+- **`inv_hist` 합계 = `inv` 스냅샷.** 재고를 건드리는 코드는 이력 1건 기록과 스냅샷 갱신을 **한 트랜잭션에서 함께** 한다. 둘 중 하나만 하는 코드를 쓰지 말 것.
+- `MOVE`는 **`inv_hist` 2행**이다(출발지 −, 도착지 +). 두 행 모두 같은 `from_loc_id`/`to_loc_id`를 가져서 한 행만 봐도 이동 전체를 알 수 있다.
+- 정정은 append-only다 — 검수 취소는 원본을 지우지 않고 `ADJUST(-수량)` 행을 추가한다.
+- `RCV-STAGE`는 입고 스테이징 로케이션이다. 코드값이 `IbLineRepositoryImpl` · `ReceivingService` · `PutawayService` 세 곳에 private 상수로 중복돼 있으니 바꿀 때 셋을 같이 고칠 것.
+
+### 상태와 수량의 분담
+
+헤더의 상태 컬럼은 **워크플로 단계만** 표현한다. 부분 상태(부분입고 · 부분할당)는 저장하지 않고 **라인 수량 비교로 파생**시킨다. `PARTIALLY_*` 같은 상태를 추가하지 말 것.
+
+### QueryDSL 리포지토리 패턴
+
+동적 쿼리는 세 파일로 나눈다 — `XxxRepository`(Spring Data)가 `XxxRepositoryCustom`을 상속하고, `XxxRepositoryImpl`이 `JPAQueryFactory`(`common/config/QuerydslConfig`의 빈)를 들고 구현한다. 기존 스타일을 따를 것: `Q*` static import, 선택 조건은 `BooleanExpression` 헬퍼 메서드, DTO 변환은 `Projections`.
+
+`BaseEntity` / `BaseTimeEntity`가 감사 컬럼 4종을 제공한다. 작성자 값은 `JpaConfig`의 `AuditorAware`가 채우는데, 인증 모델이 아직 없어서 `admin` 고정이다.
+
+## 네이밍
+
+`docs/schema.sql`에 약어 사전이 정의돼 있고, **새 컬럼도 반드시 이걸 따라야 한다**:
+
+```
+expected→expct  received→rcvd  rejected→rjct  putaway→ptwy
+allocated/allocation→alloc  location→loc  history→hist
+```
+
+테이블 접두는 주문 `OMS_*` / 입고 `IB_*` / 출고 `OUTB_*` / 재고 `INV*`이고 마스터는 접두가 없다. PK는 `{테이블명}_id`, FK 컬럼은 참조 테이블 PK명을 그대로 쓴다.
+
+## 문서
+
+- `docs/design.md` — 각 판단을 **왜** 그렇게 했는지(상태 전이 · 재고 모델 · 할당 동시성). 프로세스 설계를 바꾸기 전에 읽을 것.
+- `docs/schema.sql` — 스키마의 주인. 컬럼마다 근거 주석이 붙어 있다.
+- `docs/migration-*.sql` — 이미 만들어진 DB에 적용할 증분.
+- `docs/screen-list.html` — 화면 목록과 구현 현황.
+
+`docs/design.md`에는 **코드가 아직 따르지 않는 의도**가 섞여 있다. 예를 들어 수량 컬럼은 오직 `IbLine#recalcQty`를 거쳐서만 갱신한다고 못박았지만 그 메서드는 존재하지 않고 `accept()` · `cancelAccept()` · `putaway()`가 전부 직접 증분한다. 문서와 코드가 어긋나면 **어느 한쪽으로 조용히 맞추지 말고 물어볼 것.**
