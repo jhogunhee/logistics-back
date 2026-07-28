@@ -12,6 +12,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static com.project.wmsback.inbound.entity.QIbOrder.ibOrder;
+import static com.project.wmsback.master.entity.QVendor.vendor;
 
 @RequiredArgsConstructor
 public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {
@@ -20,10 +21,11 @@ public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {
 
     @Override
     public List<IbOrder> search(IbOrderSearchCond cond) {
-        // 목록 응답의 라인 집계(lineCount 등)에 필요한 라인을 fetch join으로 함께 로딩 (N+1 방지)
+        // 라인(집계용)과 벤더(응답의 벤더명)를 fetch join으로 함께 로딩 (N+1 방지)
         return queryFactory
                 .selectFrom(ibOrder).distinct()
                 .leftJoin(ibOrder.lines).fetchJoin()
+                .innerJoin(ibOrder.vendor, vendor).fetchJoin()
                 .where(
                         ibNoContains(cond.getIbNo()),
                         statusEq(cond.getStatus()),

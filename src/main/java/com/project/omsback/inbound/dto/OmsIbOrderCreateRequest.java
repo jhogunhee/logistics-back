@@ -1,4 +1,4 @@
-package com.project.wmsback.inbound.dto;
+package com.project.omsback.inbound.dto;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -7,13 +7,13 @@ import lombok.Setter;
 import java.time.LocalDate;
 import java.util.List;
 
-/** ASN 등록 요청. 입고번호는 서버가 채번한다 (IB-YYYYMMDD-NNN). */
+/** 입고주문 등록 요청. 주문번호는 서버가 채번한다 (PO-YYYYMMDD-NNN). */
 @Getter
 @Setter
 @NoArgsConstructor
-public class IbOrderCreateRequest {
+public class OmsIbOrderCreateRequest {
 
-    private String vndrNm;
+    private Long vendorId;
     private LocalDate expctDt;
     private List<LineRequest> lines;
 
@@ -21,7 +21,7 @@ public class IbOrderCreateRequest {
     @Setter
     @NoArgsConstructor
     public static class LineRequest {
-        private Long skuId;
-        private Long expctQty;
+        private Long prodId;
+        private Long orderQty;
     }
 }

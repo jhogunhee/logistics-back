@@ -16,7 +16,8 @@ import static com.project.wmsback.inbound.entity.QIbLine.ibLine;
 import static com.project.wmsback.inbound.entity.QIbOrder.ibOrder;
 import static com.project.wmsback.inventory.entity.QInvHist.invHist;
 import static com.project.wmsback.master.entity.QLot.lot;
-import static com.project.wmsback.master.entity.QSku.sku;
+import static com.project.wmsback.master.entity.QProd.prod;
+import static com.project.wmsback.master.entity.QVendor.vendor;
 
 @RequiredArgsConstructor
 public class IbLineRepositoryImpl implements IbLineRepositoryCustom {
@@ -27,10 +28,10 @@ public class IbLineRepositoryImpl implements IbLineRepositoryCustom {
     private final JPAQueryFactory queryFactory;
 
     @Override
-    public List<IbLine> findAllByOrderIdWithSku(Long ibOrderId) {
+    public List<IbLine> findAllByOrderIdWithProd(Long ibOrderId) {
         return queryFactory
                 .selectFrom(ibLine)
-                .innerJoin(ibLine.sku, sku).fetchJoin()
+                .innerJoin(ibLine.prod, prod).fetchJoin()
                 .where(ibLine.ibOrder.id.eq(ibOrderId))
                 .orderBy(ibLine.id.asc())
                 .fetch();
@@ -42,26 +43,27 @@ public class IbLineRepositoryImpl implements IbLineRepositoryCustom {
         // 스테이징 로케이션 한정으로 합산하면 그 배치의 미적치 잔량이 그대로 나온다.
         return queryFactory
                 .select(Projections.constructor(PutawayCandidateResponse.class,
-                        ibLine.id, ibOrder.id, ibOrder.ibNo, ibOrder.vndrNm,
-                        sku.skuCd, sku.skuNm, sku.tempZone,
+                        ibLine.id, ibOrder.id, ibOrder.ibNo, vendor.vndrNm,
+                        prod.prodCd, prod.prodNm, prod.tempZone,
                         lot.id, lot.lotNo, lot.receiptDt, lot.expiryDt,
                         invHist.qty.sum()))
                 .from(invHist)
                 .innerJoin(ibLine).on(invHist.ibLineId.eq(ibLine.id))
                 .innerJoin(ibLine.ibOrder, ibOrder)
-                .innerJoin(ibLine.sku, sku)
+                .innerJoin(ibOrder.vendor, vendor)
+                .innerJoin(ibLine.prod, prod)
                 .innerJoin(invHist.lot, lot)
                 .where(
                         invHist.loc.locCd.eq(STAGING_LOC_CD),
                         invHist.ibLineId.isNotNull(),
                         ibNoContains(cond.getIbNo()),
-                        skuCdContains(cond.getSkuCd()),
-                        skuNmContains(cond.getSkuNm()),
+                        prodCdContains(cond.getProdCd()),
+                        prodNmContains(cond.getProdNm()),
                         receiptDtGoe(cond.getDateFrom()),
                         receiptDtLoe(cond.getDateTo())
                 )
-                .groupBy(ibLine.id, ibOrder.id, ibOrder.ibNo, ibOrder.vndrNm,
-                        sku.skuCd, sku.skuNm, sku.tempZone,
+                .groupBy(ibLine.id, ibOrder.id, ibOrder.ibNo, vendor.vndrNm,
+                        prod.prodCd, prod.prodNm, prod.tempZone,
                         lot.id, lot.lotNo, lot.receiptDt, lot.expiryDt)
                 .having(invHist.qty.sum().gt(0L))
                 .orderBy(lot.expiryDt.asc().nullsLast(), ibLine.id.asc())
@@ -74,12 +76,12 @@ public class IbLineRepositoryImpl implements IbLineRepositoryCustom {
         return StringUtils.hasText(ibNo) ? ibOrder.ibNo.containsIgnoreCase(ibNo) : null;
     }
 
-    private BooleanExpression skuCdContains(String skuCd) {
-        return StringUtils.hasText(skuCd) ? sku.skuCd.containsIgnoreCase(skuCd) : null;
+    private BooleanExpression prodCdContains(String prodCd) {
+        return StringUtils.hasText(prodCd) ? prod.prodCd.containsIgnoreCase(prodCd) : null;
     }
 
-    private BooleanExpression skuNmContains(String skuNm) {
-        return StringUtils.hasText(skuNm) ? sku.skuNm.containsIgnoreCase(skuNm) : null;
+    private BooleanExpression prodNmContains(String prodNm) {
+        return StringUtils.hasText(prodNm) ? prod.prodNm.containsIgnoreCase(prodNm) : null;
     }
 
     private BooleanExpression receiptDtGoe(LocalDate dateFrom) {

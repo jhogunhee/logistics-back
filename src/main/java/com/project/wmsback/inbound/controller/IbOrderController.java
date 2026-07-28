@@ -1,7 +1,6 @@
 package com.project.wmsback.inbound.controller;
 
 import com.project.wmsback.inbound.dto.IbLineResponse;
-import com.project.wmsback.inbound.dto.IbOrderCreateRequest;
 import com.project.wmsback.inbound.dto.IbOrderResponse;
 import com.project.wmsback.inbound.dto.IbOrderSearchCond;
 import com.project.wmsback.inbound.dto.ReceiptResponse;
@@ -32,19 +31,15 @@ public class IbOrderController {
         return ibOrderService.list(cond);
     }
 
-    @PostMapping
-    public Long create(@RequestBody IbOrderCreateRequest req) {
-        return ibOrderService.create(req);
-    }
+    // ASN의 생성/취소 엔드포인트는 여기 없다 — 둘 다 OMS 입고주문이 주관한다.
+    //   생성: POST /oms/inbound-orders/{id}/convert
+    //   취소: POST /oms/inbound-orders/{id}/convert-cancel
+    // 창고가 예정을 스스로 만들거나 없앨 수 있으면 주문 상태와 어긋나기 때문이다.
+    // 여기 남은 것은 조회와 실제 창고 작업(검수/마감)뿐이다.
 
     @GetMapping("/{ibOrderId}/lines")
     public List<IbLineResponse> lines(@PathVariable Long ibOrderId) {
         return ibOrderService.lines(ibOrderId);
-    }
-
-    @PostMapping("/{ibOrderId}/cancel")
-    public void cancel(@PathVariable Long ibOrderId) {
-        ibOrderService.cancel(ibOrderId);
     }
 
     @PostMapping("/{ibOrderId}/receive")

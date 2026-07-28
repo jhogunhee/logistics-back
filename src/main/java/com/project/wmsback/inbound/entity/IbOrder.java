@@ -1,14 +1,18 @@
 package com.project.wmsback.inbound.entity;
 
 import com.project.wmsback.common.entity.BaseEntity;
+import com.project.wmsback.master.entity.Vendor;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
@@ -23,6 +27,7 @@ import java.util.List;
 
 /**
  * 입고예정(ASN) 헤더. 부분입고 여부는 상태가 아니라 라인 수량(expct vs rcvd)에서 파생.
+ * OMS 입고주문 확정 시에만 생성된다 (직접 등록 경로 없음).
  */
 @Entity
 @Table(name = "ib_order")
@@ -39,14 +44,24 @@ public class IbOrder extends BaseEntity {
     @Column(name = "ib_no", nullable = false, length = 30, unique = true)
     private String ibNo;
 
+    /**
+     * 이 ASN을 발생시킨 OMS 입고주문 ID. DB FK는 걸지 않는다(무결성은 애플리케이션이 보증) —
+     * JPA로도 연관관계가 아니라 스칼라로 매핑한다. @ManyToOne OmsIbOrder로 두면 wmsback이
+     * omsback을 import하게 되어 패키지 의존이 양방향이 되고, 나중에 OMS를 떼어낼 때
+     * 이 지점이 그대로 걸림돌이 된다. 의존은 omsback → wmsback 한 방향만 허용한다.
+     */
+    @Column(name = "oms_ib_order_id", nullable = false, updatable = false)
+    private Long omsIbOrderId;
+
     /** 워크플로 상태 (부분입고 상태 없음 — 라인 수량에서 파생) */
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 15)
     private IbStatus status;
 
-    /** 납품 벤더명 (v1은 벤더 마스터 없이 텍스트 보관) */
-    @Column(name = "vndr_nm", nullable = false, length = 100)
-    private String vndrNm;
+    /** 납품 벤더. 상위 입고주문의 벤더가 확정 시 그대로 넘어온다 */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vendor_id", nullable = false)
+    private Vendor vendor;
 
     /** 입고 예정일 */
     @Column(name = "expct_dt", nullable = false)
@@ -60,9 +75,10 @@ public class IbOrder extends BaseEntity {
     private List<IbLine> lines = new ArrayList<>();
 
     @Builder
-    private IbOrder(String ibNo, String vndrNm, LocalDate expctDt) {
+    private IbOrder(String ibNo, Long omsIbOrderId, Vendor vendor, LocalDate expctDt) {
         this.ibNo = ibNo;
-        this.vndrNm = vndrNm;
+        this.omsIbOrderId = omsIbOrderId;
+        this.vendor = vendor;
         this.expctDt = expctDt;
         this.status = IbStatus.SCHEDULED;
     }

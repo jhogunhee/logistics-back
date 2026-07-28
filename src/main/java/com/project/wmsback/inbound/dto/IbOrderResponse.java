@@ -30,7 +30,7 @@ public class IbOrderResponse {
         this.ibOrderId = order.getId();
         this.ibNo = order.getIbNo();
         this.status = order.getStatus();
-        this.vndrNm = order.getVndrNm();
+        this.vndrNm = order.getVendor().getVndrNm();
         this.expctDt = order.getExpctDt();
         this.lineCount = order.getLines().size();
         this.rcvdLineCount = (int) order.getLines().stream().filter(l -> l.getRcvdQty() > 0).count();

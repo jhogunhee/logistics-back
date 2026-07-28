@@ -90,19 +90,19 @@
 <tbody>
 <tr>
   <td class="name">입고주문</td>
-  <td>벤더 발주 등록 폼. 벤더/입고예정일/라인(SKU·수량) 입력</td>
-  <td class="st"><span class="badge todo">미구현</span></td>
-  <td>신규 — 주문 엔티티 필요<br><code>/oms/inbound-order</code></td>
+  <td>벤더 발주 등록 폼. 벤더/입고예정일/라인(상품·수량) 입력. 주문번호는 서버 채번(<code>PO-YYYYMMDD-NNN</code>)</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>POST /oms/inbound-orders</code><br><code>/oms/inbound-order</code></td>
 </tr>
 <tr>
   <td class="name">입고주문 관리</td>
-  <td>목록 검색(주문번호/벤더/상태/기간), 수정·취소, 상태별 진행. <strong>WMS 입고예정(ASN) 생성의 기점</strong></td>
-  <td class="st"><span class="badge todo">미구현</span></td>
-  <td>신규<br><code>/oms/inbound-orders</code></td>
+  <td>목록 검색(주문번호/벤더/상태/기간), <strong>확정</strong>·취소. 확정이 <strong>ASN 생성의 유일한 기점</strong>이며, 목록에 생성된 입고번호와 창고 진행상태를 함께 표시. 수정은 미구현</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>GET /oms/inbound-orders</code>, <code>/{id}/lines</code><br><code>POST /{id}/confirm</code>, <code>/{id}/cancel</code><br><code>/oms/inbound-orders</code></td>
 </tr>
 <tr>
   <td class="name">출고주문</td>
-  <td>점포 수주 등록 폼. 점포/납품일/라인(SKU·수량) 입력</td>
+  <td>점포 수주 등록 폼. 점포/납품일/라인(상품·수량) 입력</td>
   <td class="st"><span class="badge done">구현</span></td>
   <td><code>POST /outbound/orders</code>, <code>/{id}/lines</code><br><code>/oms/outbound-order</code></td>
 </tr>
@@ -115,7 +115,8 @@
 </tbody>
 </table>
 </div>
-<p class="note"><strong>미결정:</strong> OMS 입고주문과 WMS 입고예정(ASN)의 관계 — ① 주문 확정 시 ASN 자동 생성(ASN 화면은 조회·검수 전용이 되고 등록 기능 제거) ② ASN을 계속 독립 등록(주문 없이도 입고 가능) 중 택일 필요. 출고는 주문이 곧 WMS 작업 대상이라 이 문제가 없음.</p>
+<p class="note"><strong>결정됨 (2026-07-23):</strong> OMS 입고주문과 WMS 입고예정(ASN)의 관계는 <strong>① 주문 확정 시 ASN 자동 생성</strong>. <code>ib_order.oms_ib_order_id</code>가 NOT NULL이라 주문 없는 ASN은 존재할 수 없고, ASN 등록 화면·API(<code>POST /inbound/asns</code>)는 제거됐다. 확정과 ASN 생성은 <code>OmsIbOrderService.confirm()</code>에서 한 트랜잭션으로 처리한다.</p>
+<p class="note"><strong>남은 한계:</strong> ASN을 취소해도 상위 주문은 CONFIRMED로 남는다(역방향 상태 전파 없음). 확정 후 주문 취소·수정은 미지원 — 되돌리려면 ASN을 취소해야 한다. 패키지는 <code>com.project.omsback</code> / <code>com.project.wmsback</code>로 분리했고 의존은 <strong>omsback → wmsback 한 방향만</strong> 허용한다(그래서 <code>IbOrder</code>는 <code>OmsIbOrder</code>를 연관관계가 아닌 스칼라 ID로 참조).</p>
 
 <h2>2. 입고 (Inbound)</h2>
 <div class="tablebox">
@@ -124,9 +125,9 @@
 <tbody>
 <tr>
   <td class="name">입고예정(ASN) 관리</td>
-  <td>목록 검색(입고번호/벤더/상태/기간), 등록, 취소. 헤더–라인 2단 구조</td>
+  <td>목록 검색(입고번호/벤더/상태/기간), 취소. 헤더–라인 2단 구조. <strong>등록 기능 없음</strong> — ASN은 OMS 입고주문 확정으로만 생성된다</td>
   <td class="st"><span class="badge done">구현</span></td>
-  <td><code>GET/POST /inbound/asns</code><br><code>/{id}/lines</code>, <code>/{id}/cancel</code></td>
+  <td><code>GET /inbound/asns</code><br><code>/{id}/lines</code>, <code>/{id}/cancel</code></td>
 </tr>
 <tr>
   <td class="name">입고 검수</td>
@@ -163,7 +164,7 @@
 <tbody>
 <tr>
   <td class="name">현재고 조회</td>
-  <td>SKU + 로케이션 + Lot 단위 스냅샷. 가용재고(<code>onHand − alloc</code>) 파생 컬럼, 유통기한 임박 강조</td>
+  <td>상품 + 로케이션 + Lot 단위 스냅샷. 가용재고(<code>onHand − alloc</code>) 파생 컬럼, 유통기한 임박 강조</td>
   <td class="st"><span class="badge done">구현</span></td>
   <td><code>GET /inventory/stock</code></td>
 </tr>
@@ -181,13 +182,13 @@
 </tr>
 <tr>
   <td class="name">재고 보류</td>
-  <td>특정 재고(SKU+로케이션+Lot)를 <strong>보류 상태로 전환해 할당 대상에서 제외</strong>. 보류/보류해제, 사유 입력, 보류 재고 목록 조회. 유통기한 만료 Lot 자동 보류(배치) 여부는 추후 결정</td>
+  <td>특정 재고(상품+로케이션+Lot)를 <strong>보류 상태로 전환해 할당 대상에서 제외</strong>. 보류/보류해제, 사유 입력, 보류 재고 목록 조회. 유통기한 만료 Lot 자동 보류(배치) 여부는 추후 결정</td>
   <td class="st"><span class="badge todo">미구현</span></td>
   <td>신규 — <code>inv</code>에 재고상태 컬럼 추가 + <strong>할당 로직에서 보류 재고 제외</strong></td>
 </tr>
 <tr>
   <td class="name">재고조사 (실사)</td>
-  <td>조사 대상 지정(로케이션/존/SKU 범위) → 실사 수량 입력 → 전산 대비 차이 확인 → 확정 시 <code>ADJUST</code>로 스냅샷 보정</td>
+  <td>조사 대상 지정(로케이션/존/상품 범위) → 실사 수량 입력 → 전산 대비 차이 확인 → 확정 시 <code>ADJUST</code>로 스냅샷 보정</td>
   <td class="st"><span class="badge todo">미구현</span></td>
   <td>신규 — 조사 헤더/라인 엔티티 필요</td>
 </tr>
@@ -246,7 +247,7 @@
 <thead><tr><th style="width:150px">화면</th><th>주요 기능</th><th style="width:100px">상태</th><th style="width:260px">비고</th></tr></thead>
 <tbody>
 <tr>
-  <td class="name">SKU 관리</td>
+  <td class="name">상품 관리</td>
   <td>검색 + 그리드 편집(행추가/삭제/일괄저장), 보관 온도대</td>
   <td class="st"><span class="badge done">구현</span></td>
   <td>원본 패턴 — 다른 마스터 화면의 참고 기준</td>
@@ -265,7 +266,7 @@
 </tr>
 <tr>
   <td class="name">적치 전략관리</td>
-  <td>적치지시가 로케이션을 고르는 규칙 정의. 적용 조건(존/온도대/SKU 그룹) + 우선순위 + 배정 방식(동일 SKU 집약 / 빈 로케이션 우선 / <code>pick_prty</code> 순 등). 전략 시뮬레이션(이 배치면 어디로 가나) 있으면 유용</td>
+  <td>적치지시가 로케이션을 고르는 규칙 정의. 적용 조건(존/온도대/상품 그룹) + 우선순위 + 배정 방식(동일 상품 집약 / 빈 로케이션 우선 / <code>pick_prty</code> 순 등). 전략 시뮬레이션(이 배치면 어디로 가나) 있으면 유용</td>
   <td class="st"><span class="badge todo">미구현</span></td>
   <td>신규 — <strong>적치지시의 선행 조건</strong></td>
 </tr>
@@ -308,8 +309,8 @@
 <tbody>
 <tr><td class="name">모니터링</td><td>대시보드</td><td><code>/</code></td><td><code>pages/dashboard/Dashboard.jsx</code></td></tr>
 
-<tr><td class="name" rowspan="4">OMS</td><td>입고주문</td><td><code>/oms/inbound-order</code></td><td>Placeholder</td></tr>
-<tr><td>입고주문 관리</td><td><code>/oms/inbound-orders</code></td><td>Placeholder</td></tr>
+<tr><td class="name" rowspan="4">OMS</td><td>입고주문</td><td><code>/oms/inbound-order</code></td><td>InboundOrder.jsx</td></tr>
+<tr><td>입고주문 관리</td><td><code>/oms/inbound-orders</code></td><td>InboundOrderList.jsx</td></tr>
 <tr><td>출고주문</td><td><code>/oms/outbound-order</code></td><td>Placeholder — API는 있음</td></tr>
 <tr><td>출고주문 관리</td><td><code>/oms/outbound-orders</code></td><td>Placeholder — API는 있음</td></tr>
 
@@ -332,7 +333,7 @@
 <tr><td>피킹</td><td><code>/outbound/picking</code></td><td>Placeholder</td></tr>
 <tr><td>출고확정</td><td><code>/outbound/shipping</code></td><td>Placeholder</td></tr>
 
-<tr><td class="name" rowspan="4">마스터</td><td>SKU 관리</td><td><code>/master/sku</code></td><td><code>pages/master/SkuMaster.jsx</code></td></tr>
+<tr><td class="name" rowspan="4">마스터</td><td>상품 관리</td><td><code>/master/prod</code></td><td><code>pages/master/ProdMaster.jsx</code></td></tr>
 <tr><td>로케이션 관리</td><td><code>/master/location</code></td><td><code>pages/master/LocMaster.jsx</code></td></tr>
 <tr><td>점포 관리</td><td><code>/master/store</code></td><td>Placeholder — 직접 구현 예정</td></tr>
 <tr><td>적치 전략관리</td><td><code>/master/putaway-strategy</code></td><td>Placeholder</td></tr>
@@ -343,7 +344,7 @@
 
 <h2>추천 진행 순서</h2>
 <ol class="steps">
-  <li><strong>OMS ↔ WMS 경계 결정</strong> — 입고주문에서 ASN을 자동 생성할지, ASN 독립 등록을 유지할지. 이 결정에 따라 기존 ASN 등록 화면의 운명이 갈리므로 <strong>입고 쪽 손대기 전에</strong> 먼저 정한다. OMS 주문 엔티티 구현 자체는 뒤로 미뤄도 무방</li>
+  <li><s>OMS ↔ WMS 경계 결정</s> — <strong>완료(2026-07-23).</strong> ① 주문 확정 시 ASN 자동 생성으로 결정하고 입고주문 등록·관리 화면까지 구현. 다음 후보는 <strong>확정 후 주문 수정/취소</strong>(ASN 취소와의 연동 규칙 필요)</li>
   <li><strong>입고 상태 모델 재정의</strong> — 확정이 마지막 단계가 되면서 <code>RECEIVED</code>/<code>COMPLETED</code> 전이 지점이 바뀜. 코드 치기 전에 상태 기계부터 확정</li>
   <li><strong>적치 전략관리</strong> → <strong>적치지시</strong> → <strong>적치</strong> — 전략이 없으면 지시를 만들 수 없으므로 이 순서 고정. 기존 적치 API는 지시 기반으로 재작성</li>
   <li><strong>입고확정</strong> — 적치까지 붙은 뒤에야 결품 확정 화면이 의미를 가짐</li>
@@ -369,7 +370,7 @@
 <tr><td class="name">"할당은 오직 웨이브 릴리즈로만 일어난다"</td><td><strong>뒤집힘 — 할당은 주문 단위 화면에서만 일어난다.</strong> 웨이브 릴리즈는 v1 제외</td></tr>
 <tr><td class="name">"웨이브는 재고 할당의 단위다"</td><td><strong>웨이브는 피킹지시 발행 단위로 역할이 바뀐다.</strong> 할당은 주문 단위, 웨이브는 여러 주문의 집품을 한 번에 지시하는 그룹. 상태도 <code>PLANNED/RELEASED</code>가 아니라 "지시 발행 전/후"로 재정의 필요</td></tr>
 <tr><td class="name">주문 관리 화면은 WMS 입고/출고 메뉴 안에 있다</td><td><strong>OMS 그룹을 분리 신설.</strong> 입고주문·출고주문의 등록/관리를 OMS로 빼고, WMS 메뉴는 창고 작업(ASN·검수·적치·웨이브·피킹)만 남긴다. 기존 "출고주문 관리"는 <code>/oms/outbound-orders</code>로 이관</td></tr>
-<tr><td class="name">"피킹은 주문 단위 / 별도 지시 엔티티(pick_task)를 두지 않는다"</td><td><strong>뒤집힘 — 피킹지시 엔티티를 둔다.</strong> 웨이브 단위로 묶어 발행하려면 지시를 담을 레코드가 필요. 단, 집품은 지시 행(=할당 단위)대로 하고 <strong>SKU별 집약(배치 피킹)은 하지 않으므로</strong> 주문별 분류 공정은 여전히 불필요</td></tr>
+<tr><td class="name">"피킹은 주문 단위 / 별도 지시 엔티티(pick_task)를 두지 않는다"</td><td><strong>뒤집힘 — 피킹지시 엔티티를 둔다.</strong> 웨이브 단위로 묶어 발행하려면 지시를 담을 레코드가 필요. 단, 집품은 지시 행(=할당 단위)대로 하고 <strong>상품별 집약(배치 피킹)은 하지 않으므로</strong> 주문별 분류 공정은 여전히 불필요</td></tr>
 </tbody>
 </table>
 </div>
