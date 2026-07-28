@@ -25,8 +25,6 @@ CREATE SEQUENCE outb_wave_no_seq START WITH 1 INCREMENT BY 1;
 
 -- 3) 출고 주문에 wave_id 추가 (nullable — 미편성 허용)
 ALTER TABLE outb_order ADD COLUMN wave_id BIGINT;
-ALTER TABLE outb_order ADD CONSTRAINT fk_outb_order_wave
-    FOREIGN KEY (wave_id) REFERENCES outb_wave (outb_wave_id);
 CREATE INDEX ix_outb_order_wave ON outb_order (wave_id);
 
 -- 4) 출고 스테이징 로케이션 (피킹/확정 2단계 모델에서 사용 — 온도대는 플레이스홀더)

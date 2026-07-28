@@ -24,11 +24,37 @@ BEGIN;
 --     sku_id 를 들고 있는 6개 테이블이 함께 바뀐다.
 -- ---------------------------------------------------------------------
 
-ALTER TABLE sku RENAME TO prod;
+-- 이미 개명된 DB에 다시 돌려도 안전하도록 존재를 확인하고 넘어간다.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE c.relname = 'sku' AND c.relkind = 'r' AND n.nspname = current_schema()) THEN
+        ALTER TABLE sku RENAME TO prod;
+        RAISE NOTICE 'sku → prod 개명 완료';
+    ELSIF EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                   WHERE c.relname = 'prod' AND c.relkind = 'r' AND n.nspname = current_schema()) THEN
+        RAISE NOTICE 'prod 가 이미 있다 — 개명은 끝난 상태다. 건너뛴다';
+    ELSE
+        RAISE EXCEPTION 'sku 도 prod 도 없다. 스키마(%)에 docs/schema.sql 이 적용되지 않았거나 접속 스키마가 다르다', current_schema();
+    END IF;
+END $$;
 
-ALTER TABLE prod RENAME COLUMN sku_id TO prod_id;
-ALTER TABLE prod RENAME COLUMN sku_cd TO prod_cd;
-ALTER TABLE prod RENAME COLUMN sku_nm TO prod_nm;
+DO $$
+DECLARE
+    r record;
+BEGIN
+    FOR r IN
+        SELECT * FROM (VALUES
+            ('sku_id', 'prod_id'), ('sku_cd', 'prod_cd'), ('sku_nm', 'prod_nm')
+        ) AS v(old_nm, new_nm)
+    LOOP
+        IF EXISTS (SELECT 1 FROM information_schema.columns
+                    WHERE table_schema = current_schema()
+                      AND table_name = 'prod' AND column_name = r.old_nm) THEN
+            EXECUTE format('ALTER TABLE prod RENAME COLUMN %I TO %I', r.old_nm, r.new_nm);
+        END IF;
+    END LOOP;
+END $$;
 
 -- 남는 것 하나: prod_id 의 identity 내부 시퀀스는 생성 당시 이름(sku_sku_id_seq)을
 -- 그대로 유지한다. Postgres 가 자동 생성·관리하는 객체라 코드나 스키마가 이름으로
@@ -45,7 +71,8 @@ BEGIN
     LOOP
         IF EXISTS (
             SELECT 1 FROM information_schema.columns
-            WHERE table_name = t AND column_name = 'sku_id'
+            WHERE table_schema = current_schema()
+              AND table_name = t AND column_name = 'sku_id'
         ) THEN
             EXECUTE format('ALTER TABLE %I RENAME COLUMN sku_id TO prod_id', t);
         END IF;
@@ -58,7 +85,22 @@ END $$;
 --     현재값(last_value)이 그대로 따라와야 채번이 이어진다 — RENAME 은 값을 보존한다.
 -- ---------------------------------------------------------------------
 
-ALTER SEQUENCE sku_cd_seq RENAME TO prod_cd_seq;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE c.relname = 'sku_cd_seq' AND c.relkind = 'S' AND n.nspname = current_schema()) THEN
+        ALTER SEQUENCE sku_cd_seq RENAME TO prod_cd_seq;
+    ELSIF NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                       WHERE c.relname = 'prod_cd_seq' AND c.relkind = 'S' AND n.nspname = current_schema()) THEN
+        -- 이 DB는 과거에 sku_cd_seq 가 통째로 없어서 만들어 넣은 이력이 있다.
+        -- 없으면 채번이 죽으므로 여기서 만들어 둔다. START WITH 는 기존 최대 채번값 + 1.
+        RAISE NOTICE 'sku_cd_seq 도 prod_cd_seq 도 없다 — 새로 만든다';
+        EXECUTE 'CREATE SEQUENCE prod_cd_seq START WITH 1 INCREMENT BY 1';
+        PERFORM setval('prod_cd_seq',
+                       GREATEST(1, COALESCE((SELECT MAX(NULLIF(regexp_replace(prod_cd, '\D', '', 'g'), '')::bigint)
+                                               FROM prod), 0)));
+    END IF;
+END $$;
 
 -- ---------------------------------------------------------------------
 -- (C) 제약 · 인덱스
