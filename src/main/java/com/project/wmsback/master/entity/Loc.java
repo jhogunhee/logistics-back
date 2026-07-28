@@ -36,7 +36,7 @@ public class Loc extends BaseEntity {
     @Column(name = "zone_cd", nullable = false, length = 20)
     private String zoneCd;
 
-    /** 존 온도대. SKU 온도대와 불일치하면 적치·이동 차단 */
+    /** 존 온도대. 상품 온도대와 불일치하면 적치·이동 차단 */
     @Enumerated(EnumType.STRING)
     @Column(name = "temp_zone", nullable = false, length = 10)
     private TempZone tempZone;

@@ -1,7 +1,7 @@
 package com.project.wmsback.inbound.entity;
 
 import com.project.wmsback.common.entity.BaseEntity;
-import com.project.wmsback.master.entity.Sku;
+import com.project.wmsback.master.entity.Prod;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -36,8 +36,8 @@ public class IbLine extends BaseEntity {
     private IbOrder ibOrder;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sku_id", nullable = false)
-    private Sku sku;
+    @JoinColumn(name = "prod_id", nullable = false)
+    private Prod prod;
 
     /** 입고 예정 수량 */
     @Column(name = "expct_qty", nullable = false)
@@ -52,8 +52,8 @@ public class IbLine extends BaseEntity {
     private Long ptwyQty;
 
     @Builder
-    private IbLine(Sku sku, Long expctQty) {
-        this.sku = sku;
+    private IbLine(Prod prod, Long expctQty) {
+        this.prod = prod;
         this.expctQty = expctQty;
         this.rcvdQty = 0L;
         this.ptwyQty = 0L;

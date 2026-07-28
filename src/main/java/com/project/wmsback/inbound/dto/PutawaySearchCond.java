@@ -22,6 +22,6 @@ public class PutawaySearchCond {
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate dateTo;
 
-    private String skuCd;
-    private String skuNm;
+    private String prodCd;
+    private String prodNm;
 }

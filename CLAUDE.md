@@ -46,7 +46,7 @@ PostgreSQL(Supabase). 접속 정보는 환경변수로 받고, 로컬 기본값�
 
 ### 재고 모델 (핵심 불변식)
 
-- 재고 키는 **SKU + Location + Lot**. `inv`가 현재고 스냅샷이고, `inv_hist`는 모든 물리 변동을 ±수량으로 기록하는 append-only 원장이다.
+- 재고 키는 **상품 + Location + Lot**. `inv`가 현재고 스냅샷이고, `inv_hist`는 모든 물리 변동을 ±수량으로 기록하는 append-only 원장이다.
 - **`inv_hist` 합계 = `inv` 스냅샷.** 재고를 건드리는 코드는 이력 1건 기록과 스냅샷 갱신을 **한 트랜잭션에서 함께** 한다. 둘 중 하나만 하는 코드를 쓰지 말 것.
 - `MOVE`는 **`inv_hist` 2행**이다(출발지 −, 도착지 +). 두 행 모두 같은 `from_loc_id`/`to_loc_id`를 가져서 한 행만 봐도 이동 전체를 알 수 있다.
 - 정정은 append-only다 — 검수 취소는 원본을 지우지 않고 `ADJUST(-수량)` 행을 추가한다.
@@ -69,7 +69,10 @@ PostgreSQL(Supabase). 접속 정보는 환경변수로 받고, 로컬 기본값�
 ```
 expected→expct  received→rcvd  rejected→rjct  putaway→ptwy
 allocated/allocation→alloc  location→loc  history→hist
+product→prod
 ```
+
+상품 마스터는 원래 `sku`였고 `prod`로 개명했다(`docs/migration-sku-to-prod.sql`). 업무 용어를 「상품」으로 통일하면서 `docs/naming-dictionary.md`의 `상품 = PROD`를 따른 것이다. **코드·컬럼·화면 라벨 어디에도 SKU를 다시 쓰지 않는다.**
 
 테이블 접두는 주문 `OMS_*` / 입고 `IB_*` / 출고 `OUTB_*` / 재고 `INV*`이고 마스터는 접두가 없다. PK는 `{테이블명}_id`, FK 컬럼은 참조 테이블 PK명을 그대로 쓴다.
 

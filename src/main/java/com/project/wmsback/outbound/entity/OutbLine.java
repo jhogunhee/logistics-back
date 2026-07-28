@@ -1,7 +1,7 @@
 package com.project.wmsback.outbound.entity;
 
 import com.project.wmsback.common.entity.BaseEntity;
-import com.project.wmsback.master.entity.Sku;
+import com.project.wmsback.master.entity.Prod;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -36,16 +36,16 @@ public class OutbLine extends BaseEntity {
     private OutbOrder outbOrder;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sku_id", nullable = false)
-    private Sku sku;
+    @JoinColumn(name = "prod_id", nullable = false)
+    private Prod prod;
 
     /** 주문 수량 */
     @Column(name = "order_qty", nullable = false)
     private Long orderQty;
 
     @Builder
-    private OutbLine(Sku sku, Long orderQty) {
-        this.sku = sku;
+    private OutbLine(Prod prod, Long orderQty) {
+        this.prod = prod;
         this.orderQty = orderQty;
     }
 

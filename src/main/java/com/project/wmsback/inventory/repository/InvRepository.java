@@ -7,6 +7,6 @@ import java.util.Optional;
 
 public interface InvRepository extends JpaRepository<Inv, Long>, InvRepositoryCustom {
 
-    /** 재고 키(SKU+Loc+Lot)로 스냅샷 조회 (uq_inv) */
-    Optional<Inv> findBySkuIdAndLocIdAndLotId(Long skuId, Long locId, Long lotId);
+    /** 재고 키(상품+Loc+Lot)로 스냅샷 조회 (uq_inv) */
+    Optional<Inv> findByProdIdAndLocIdAndLotId(Long prodId, Long locId, Long lotId);
 }

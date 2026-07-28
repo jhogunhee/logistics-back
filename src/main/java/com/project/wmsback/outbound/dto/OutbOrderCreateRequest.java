@@ -21,7 +21,7 @@ public class OutbOrderCreateRequest {
     @Setter
     @NoArgsConstructor
     public static class LineRequest {
-        private Long skuId;
+        private Long prodId;
         private Long orderQty;
     }
 }

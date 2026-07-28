@@ -16,8 +16,8 @@ public class InvHistResponse {
 
     private final Long invHistId;
     private final TxType txType;
-    private final String skuCd;
-    private final String skuNm;
+    private final String prodCd;
+    private final String prodNm;
     private final String locCd;
     private final String zoneCd;
     private final TempZone tempZone;
@@ -31,14 +31,14 @@ public class InvHistResponse {
     private final String createdBy;
     private final LocalDateTime createdAt;
 
-    public InvHistResponse(Long invHistId, TxType txType, String skuCd, String skuNm,
+    public InvHistResponse(Long invHistId, TxType txType, String prodCd, String prodNm,
                             String locCd, String zoneCd, TempZone tempZone, String lotNo, Long qty,
                             RefDocType refDocType, String refDocNo, String fromLocCd, String toLocCd,
                             String createdBy, LocalDateTime createdAt) {
         this.invHistId = invHistId;
         this.txType = txType;
-        this.skuCd = skuCd;
-        this.skuNm = skuNm;
+        this.prodCd = prodCd;
+        this.prodNm = prodNm;
         this.locCd = locCd;
         this.zoneCd = zoneCd;
         this.tempZone = tempZone;

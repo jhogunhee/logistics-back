@@ -8,18 +8,18 @@ import lombok.Getter;
 public class OutbLineResponse {
 
     private final Long outbLineId;
-    private final Long skuId;
-    private final String skuCd;
-    private final String skuNm;
+    private final Long prodId;
+    private final String prodCd;
+    private final String prodNm;
     private final TempZone tempZone;
     private final Long orderQty;
 
     private OutbLineResponse(OutbLine line) {
         this.outbLineId = line.getId();
-        this.skuId = line.getSku().getId();
-        this.skuCd = line.getSku().getSkuCd();
-        this.skuNm = line.getSku().getSkuNm();
-        this.tempZone = line.getSku().getTempZone();
+        this.prodId = line.getProd().getId();
+        this.prodCd = line.getProd().getProdCd();
+        this.prodNm = line.getProd().getProdNm();
+        this.tempZone = line.getProd().getTempZone();
         this.orderQty = line.getOrderQty();
     }
 

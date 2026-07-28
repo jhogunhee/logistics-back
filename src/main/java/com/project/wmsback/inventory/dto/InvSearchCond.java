@@ -12,8 +12,8 @@ import lombok.Setter;
 @NoArgsConstructor
 public class InvSearchCond {
 
-    private String skuCd;
-    private String skuNm;
+    private String prodCd;
+    private String prodNm;
     private String locCd;
     private String lotNo;
     private TempZone tempZone;

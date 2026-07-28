@@ -1,8 +1,8 @@
 package com.project.wmsback.outbound.service;
 
-import com.project.wmsback.master.entity.Sku;
+import com.project.wmsback.master.entity.Prod;
 import com.project.wmsback.master.entity.Store;
-import com.project.wmsback.master.repository.SkuRepository;
+import com.project.wmsback.master.repository.ProdRepository;
 import com.project.wmsback.master.repository.StoreRepository;
 import com.project.wmsback.outbound.dto.OutbLineResponse;
 import com.project.wmsback.outbound.dto.OutbOrderCreateRequest;
@@ -27,7 +27,7 @@ public class OutbOrderService {
     private final OutbOrderRepository outbOrderRepository;
     private final OutbLineRepository outbLineRepository;
     private final StoreRepository storeRepository;
-    private final SkuRepository skuRepository;
+    private final ProdRepository prodRepository;
 
     public List<OutbOrderResponse> list(OutbOrderSearchCond cond) {
         return outbOrderRepository.search(cond).stream()
@@ -39,7 +39,7 @@ public class OutbOrderService {
         if (!outbOrderRepository.existsById(outbOrderId)) {
             throw new IllegalArgumentException("존재하지 않는 출고 주문입니다: " + outbOrderId);
         }
-        return outbLineRepository.findAllByOutbOrderIdWithSku(outbOrderId).stream()
+        return outbLineRepository.findAllByOutbOrderIdWithProd(outbOrderId).stream()
                 .map(OutbLineResponse::from)
                 .toList();
     }
@@ -61,10 +61,10 @@ public class OutbOrderService {
                 .orderDt(req.getOrderDt())
                 .build();
         for (OutbOrderCreateRequest.LineRequest line : req.getLines()) {
-            Sku sku = skuRepository.findById(line.getSkuId())
-                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 SKU입니다: " + line.getSkuId()));
+            Prod prod = prodRepository.findById(line.getProdId())
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다: " + line.getProdId()));
             order.addLine(OutbLine.builder()
-                    .sku(sku)
+                    .prod(prod)
                     .orderQty(line.getOrderQty())
                     .build());
         }
@@ -91,8 +91,8 @@ public class OutbOrderService {
             throw new IllegalArgumentException("출고 라인은 최소 1건 필요합니다.");
         }
         for (OutbOrderCreateRequest.LineRequest line : req.getLines()) {
-            if (line.getSkuId() == null) {
-                throw new IllegalArgumentException("라인의 SKU는 필수입니다.");
+            if (line.getProdId() == null) {
+                throw new IllegalArgumentException("라인의 상품은 필수입니다.");
             }
             if (line.getOrderQty() == null || line.getOrderQty() < 1) {
                 throw new IllegalArgumentException("주문 수량은 1 이상이어야 합니다.");

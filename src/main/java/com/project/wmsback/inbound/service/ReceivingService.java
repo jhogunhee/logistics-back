@@ -15,10 +15,10 @@ import com.project.wmsback.inventory.repository.InvHistRepository;
 import com.project.wmsback.inventory.repository.InvRepository;
 import com.project.wmsback.master.entity.Loc;
 import com.project.wmsback.master.entity.Lot;
-import com.project.wmsback.master.entity.Sku;
+import com.project.wmsback.master.entity.Prod;
 import com.project.wmsback.master.repository.LocRepository;
 import com.project.wmsback.master.repository.LotRepository;
-import com.project.wmsback.master.repository.SkuRepository;
+import com.project.wmsback.master.repository.ProdRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,7 +48,7 @@ public class ReceivingService {
     private final LocRepository locRepository;
     private final InvRepository invRepository;
     private final InvHistRepository invHistRepository;
-    private final SkuRepository skuRepository;
+    private final ProdRepository prodRepository;
 
     /** 검수 저장 (증분). 요청 라인 중 한 건이라도 실패하면 전체 롤백 */
     @Transactional
@@ -77,10 +77,10 @@ public class ReceivingService {
             throw new IllegalArgumentException("다른 입고의 라인입니다: " + line.getIbLineId());
         }
 
-        Sku sku = ibLine.getSku();
+        Prod prod = ibLine.getProd();
         long inspect = line.getInspectQty() != null ? line.getInspectQty() : 0;
         if (inspect < 1) {
-            throw new IllegalArgumentException("검수수량은 1 이상이어야 합니다: " + sku.getSkuCd());
+            throw new IllegalArgumentException("검수수량은 1 이상이어야 합니다: " + prod.getProdCd());
         }
 
         ibLine.receive(inspect);
@@ -89,13 +89,13 @@ public class ReceivingService {
         LocalDate receiptDt = line.getReceiptDt() != null ? line.getReceiptDt() : LocalDate.now();
 
         // 검수분: Lot 확보 → 스테이징 스냅샷 증가 → 재고 이력. 셋이 항상 한 트랜잭션
-        Lot lot = findOrCreateLot(sku, line.getMfgDt(), receiptDt);
-        Inv inv = invRepository.findBySkuIdAndLocIdAndLotId(sku.getId(), staging.getId(), lot.getId())
-                .orElseGet(() -> invRepository.save(Inv.builder().sku(sku).loc(staging).lot(lot).build()));
+        Lot lot = findOrCreateLot(prod, line.getMfgDt(), receiptDt);
+        Inv inv = invRepository.findByProdIdAndLocIdAndLotId(prod.getId(), staging.getId(), lot.getId())
+                .orElseGet(() -> invRepository.save(Inv.builder().prod(prod).loc(staging).lot(lot).build()));
         inv.increaseOnHand(inspect);
         invHistRepository.save(InvHist.builder()
                 .txType(TxType.RECEIVE)
-                .sku(sku).loc(staging).lot(lot)
+                .prod(prod).loc(staging).lot(lot)
                 .qty(inspect)
                 .refDocType(RefDocType.INBOUND)
                 .refDocNo(order.getIbNo())
@@ -104,33 +104,33 @@ public class ReceivingService {
     }
 
     /**
-     * 같은 배치(SKU+입고일자+제조일자)는 같은 Lot을 재사용한다
+     * 같은 배치(상품+입고일자+제조일자)는 같은 Lot을 재사용한다
      * (증분 검수로 같은 라인을 여러 번 나눠 검수해도 Lot이 쪼개지지 않도록).
-     * 유통기한 미관리 SKU는 제조일자가 항상 null이라 사실상 SKU+입고일자로만 구분된다.
+     * 유통기한 미관리 상품은 제조일자가 항상 null이라 사실상 상품+입고일자로만 구분된다.
      */
-    private Lot findOrCreateLot(Sku sku, LocalDate mfgDt, LocalDate receiptDt) {
-        boolean tracksShelfLife = sku.getShelfLifeDays() != null;
+    private Lot findOrCreateLot(Prod prod, LocalDate mfgDt, LocalDate receiptDt) {
+        boolean tracksShelfLife = prod.getShelfLifeDays() != null;
         if (tracksShelfLife) {
             if (mfgDt == null) {
-                throw new IllegalArgumentException("제조일자는 필수입니다: " + sku.getSkuCd());
+                throw new IllegalArgumentException("제조일자는 필수입니다: " + prod.getProdCd());
             }
             if (mfgDt.isAfter(receiptDt)) {
-                throw new IllegalArgumentException("제조일자가 입고일자보다 미래일 수 없습니다: " + sku.getSkuCd());
+                throw new IllegalArgumentException("제조일자가 입고일자보다 미래일 수 없습니다: " + prod.getProdCd());
             }
         }
         LocalDate effectiveMfgDt = tracksShelfLife ? mfgDt : null;
 
-        // SKU 로우 락: 동시 검수로 같은 SKU의 "재사용 조회 → 건수 세기 → 채번"이 겹치지 않게 직렬화
-        skuRepository.findByIdForUpdate(sku.getId());
+        // 상품 로우 락: 동시 검수로 같은 상품의 "재사용 조회 → 건수 세기 → 채번"이 겹치지 않게 직렬화
+        prodRepository.findByIdForUpdate(prod.getId());
 
-        return lotRepository.findBySkuIdAndReceiptDtAndMfgDt(sku.getId(), receiptDt, effectiveMfgDt)
+        return lotRepository.findByProdIdAndReceiptDtAndMfgDt(prod.getId(), receiptDt, effectiveMfgDt)
                 .orElseGet(() -> {
-                    long seq = lotRepository.countBySkuIdAndReceiptDt(sku.getId(), receiptDt) + 1;
+                    long seq = lotRepository.countByProdIdAndReceiptDt(prod.getId(), receiptDt) + 1;
                     String lotNo = String.format("LOT-%s-%03d",
                             receiptDt.format(DateTimeFormatter.ofPattern("yyMMdd")), seq);
-                    LocalDate expiryDt = tracksShelfLife ? effectiveMfgDt.plusDays(sku.getShelfLifeDays()) : null;
+                    LocalDate expiryDt = tracksShelfLife ? effectiveMfgDt.plusDays(prod.getShelfLifeDays()) : null;
                     return lotRepository.save(Lot.builder()
-                            .sku(sku)
+                            .prod(prod)
                             .lotNo(lotNo)
                             .receiptDt(receiptDt)
                             .mfgDt(effectiveMfgDt)
@@ -195,19 +195,19 @@ public class ReceivingService {
             throw new IllegalStateException("적치가 완료되지 않은 입고만 검수를 취소할 수 있습니다 (" + order.getStatus().getLabel() + "): " + order.getIbNo());
         }
 
-        Sku sku = receipt.getSku();
+        Prod prod = receipt.getProd();
         long qty = receipt.getQty();
-        Inv inv = invRepository.findBySkuIdAndLocIdAndLotId(sku.getId(), receipt.getLoc().getId(), receipt.getLot().getId())
-                .orElseThrow(() -> new IllegalStateException("스테이징 재고를 찾을 수 없습니다: " + sku.getSkuCd()));
+        Inv inv = invRepository.findByProdIdAndLocIdAndLotId(prod.getId(), receipt.getLoc().getId(), receipt.getLot().getId())
+                .orElseThrow(() -> new IllegalStateException("스테이징 재고를 찾을 수 없습니다: " + prod.getProdCd()));
         if (inv.getOnHandQty() < qty) {
-            throw new IllegalStateException("이미 적치된 수량이 있어 검수를 취소할 수 없습니다: " + sku.getSkuCd());
+            throw new IllegalStateException("이미 적치된 수량이 있어 검수를 취소할 수 없습니다: " + prod.getProdCd());
         }
 
         inv.decreaseOnHand(qty);
         ibLine.cancelReceive(qty);
         invHistRepository.save(InvHist.builder()
                 .txType(TxType.ADJUST)
-                .sku(sku).loc(receipt.getLoc()).lot(receipt.getLot())
+                .prod(prod).loc(receipt.getLoc()).lot(receipt.getLot())
                 .qty(-qty)
                 .refDocType(RefDocType.INBOUND)
                 .refDocNo(order.getIbNo())

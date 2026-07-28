@@ -17,7 +17,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 재고 할당 레코드. 어떤 주문라인이 어떤 재고(SKU+Loc+Lot)를 몇 개 예약했는지.
+ * 재고 할당 레코드. 어떤 주문라인이 어떤 재고(상품+Loc+Lot)를 몇 개 예약했는지.
  * FEFO(+ 납품기한 필터) 결과가 기록된다. 할당 취소 시 삭제 + Inv.allocQty 복원.
  */
 @Entity

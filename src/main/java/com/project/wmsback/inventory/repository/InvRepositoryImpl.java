@@ -15,7 +15,7 @@ import java.util.List;
 import static com.project.wmsback.inventory.entity.QInv.inv;
 import static com.project.wmsback.master.entity.QLoc.loc;
 import static com.project.wmsback.master.entity.QLot.lot;
-import static com.project.wmsback.master.entity.QSku.sku;
+import static com.project.wmsback.master.entity.QProd.prod;
 
 @RequiredArgsConstructor
 public class InvRepositoryImpl implements InvRepositoryCustom {
@@ -27,18 +27,18 @@ public class InvRepositoryImpl implements InvRepositoryCustom {
         return queryFactory
                 .select(Projections.constructor(InvResponse.class,
                         inv.id,
-                        sku.skuCd, sku.skuNm, sku.tempZone,
+                        prod.prodCd, prod.prodNm, prod.tempZone,
                         loc.locCd, loc.zoneCd, loc.locType,
                         lot.lotNo, lot.expiryDt,
                         inv.onHandQty, inv.allocQty,
                         inv.onHandQty.subtract(inv.allocQty)))
                 .from(inv)
-                .innerJoin(inv.sku, sku)
+                .innerJoin(inv.prod, prod)
                 .innerJoin(inv.loc, loc)
                 .innerJoin(inv.lot, lot)
                 .where(
-                        skuCdContains(cond.getSkuCd()),
-                        skuNmContains(cond.getSkuNm()),
+                        prodCdContains(cond.getProdCd()),
+                        prodNmContains(cond.getProdNm()),
                         locCdContains(cond.getLocCd()),
                         lotNoContains(cond.getLotNo()),
                         tempZoneEq(cond.getTempZone()),
@@ -46,19 +46,19 @@ public class InvRepositoryImpl implements InvRepositoryCustom {
                         // 보유 0 행은 재고가 빠지는 시점에 삭제되지만, 과거 데이터의 잔여 0 행이 화면에 뜨지 않도록 방어적으로 항상 제외
                         inv.onHandQty.gt(0L)
                 )
-                // FEFO 관점에서 유통기한 임박 순이 유용하지만, 조회 화면은 SKU→로케이션→유통기한 순이 읽기 편하다
-                .orderBy(sku.skuCd.asc(), loc.locCd.asc(), lot.expiryDt.asc().nullsLast())
+                // FEFO 관점에서 유통기한 임박 순이 유용하지만, 조회 화면은 상품→로케이션→유통기한 순이 읽기 편하다
+                .orderBy(prod.prodCd.asc(), loc.locCd.asc(), lot.expiryDt.asc().nullsLast())
                 .fetch();
     }
 
     // 조건 메서드가 null을 반환하면 where()가 그 조건을 무시한다 — QueryDSL 동적 쿼리 관례
 
-    private BooleanExpression skuCdContains(String skuCd) {
-        return StringUtils.hasText(skuCd) ? sku.skuCd.containsIgnoreCase(skuCd) : null;
+    private BooleanExpression prodCdContains(String prodCd) {
+        return StringUtils.hasText(prodCd) ? prod.prodCd.containsIgnoreCase(prodCd) : null;
     }
 
-    private BooleanExpression skuNmContains(String skuNm) {
-        return StringUtils.hasText(skuNm) ? sku.skuNm.containsIgnoreCase(skuNm) : null;
+    private BooleanExpression prodNmContains(String prodNm) {
+        return StringUtils.hasText(prodNm) ? prod.prodNm.containsIgnoreCase(prodNm) : null;
     }
 
     private BooleanExpression locCdContains(String locCd) {
@@ -70,7 +70,7 @@ public class InvRepositoryImpl implements InvRepositoryCustom {
     }
 
     private BooleanExpression tempZoneEq(TempZone tempZone) {
-        return tempZone != null ? sku.tempZone.eq(tempZone) : null;
+        return tempZone != null ? prod.tempZone.eq(tempZone) : null;
     }
 
     private BooleanExpression locTypeEq(LocType locType) {

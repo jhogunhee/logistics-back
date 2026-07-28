@@ -7,15 +7,15 @@ import lombok.Getter;
 import java.time.LocalDate;
 
 /**
- * 현재고 스냅샷 1건(SKU+Loc+Lot) = 화면 1행.
+ * 현재고 스냅샷 1건(상품+Loc+Lot) = 화면 1행.
  * QueryDSL Projections.constructor로 직접 채워지므로 생성자가 public이다 (가용수량은 쿼리에서 onHand-alloc으로 계산).
  */
 @Getter
 public class InvResponse {
 
     private final Long invId;
-    private final String skuCd;
-    private final String skuNm;
+    private final String prodCd;
+    private final String prodNm;
     private final TempZone tempZone;
     private final String locCd;
     private final String zoneCd;
@@ -27,12 +27,12 @@ public class InvResponse {
     /** 가용재고 = 보유 - 할당 (파생값). 쿼리에서 계산해 내려준다 */
     private final Long availableQty;
 
-    public InvResponse(Long invId, String skuCd, String skuNm, TempZone tempZone,
+    public InvResponse(Long invId, String prodCd, String prodNm, TempZone tempZone,
                        String locCd, String zoneCd, LocType locType, String lotNo, LocalDate expiryDt,
                        Long onHandQty, Long allocQty, Long availableQty) {
         this.invId = invId;
-        this.skuCd = skuCd;
-        this.skuNm = skuNm;
+        this.prodCd = prodCd;
+        this.prodNm = prodNm;
         this.tempZone = tempZone;
         this.locCd = locCd;
         this.zoneCd = zoneCd;

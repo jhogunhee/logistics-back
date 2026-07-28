@@ -18,23 +18,23 @@ import lombok.NoArgsConstructor;
  * 상품 마스터. 보관/출고 규칙(온도대, 납품 허용 잔여수명)을 상품 단위로 정의.
  */
 @Entity
-@Table(name = "sku")
+@Table(name = "prod")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Sku extends BaseEntity {
+public class Prod extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "sku_id")
+    @Column(name = "prod_id")
     private Long id;
 
-    /** 상품 코드 (업무 식별자, 예: SKU-0001) */
-    @Column(name = "sku_cd", nullable = false, length = 30, unique = true)
-    private String skuCd;
+    /** 상품 코드 (업무 식별자, 예: PROD-0001) */
+    @Column(name = "prod_cd", nullable = false, length = 30, unique = true)
+    private String prodCd;
 
     /** 상품명 */
-    @Column(name = "sku_nm", nullable = false, length = 100)
-    private String skuNm;
+    @Column(name = "prod_nm", nullable = false, length = 100)
+    private String prodNm;
 
     /** 보관 온도대. 적치·이동 시 로케이션 온도대와 일치 검증 */
     @Enumerated(EnumType.STRING)
@@ -46,15 +46,15 @@ public class Sku extends BaseEntity {
     private Integer shelfLifeDays;
 
     @Builder
-    private Sku(String skuCd, String skuNm, TempZone tempZone, Integer shelfLifeDays) {
-        this.skuCd = skuCd;
-        this.skuNm = skuNm;
+    private Prod(String prodCd, String prodNm, TempZone tempZone, Integer shelfLifeDays) {
+        this.prodCd = prodCd;
+        this.prodNm = prodNm;
         this.tempZone = tempZone;
         this.shelfLifeDays = shelfLifeDays;
     }
 
-    public void update(String skuNm, TempZone tempZone, Integer shelfLifeDays) {
-        this.skuNm = skuNm;
+    public void update(String prodNm, TempZone tempZone, Integer shelfLifeDays) {
+        this.prodNm = prodNm;
         this.tempZone = tempZone;
         this.shelfLifeDays = shelfLifeDays;
     }

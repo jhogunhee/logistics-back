@@ -14,7 +14,7 @@ import com.project.wmsback.master.dto.LocResponse;
 import com.project.wmsback.master.entity.Loc;
 import com.project.wmsback.master.entity.LocType;
 import com.project.wmsback.master.entity.Lot;
-import com.project.wmsback.master.entity.Sku;
+import com.project.wmsback.master.entity.Prod;
 import com.project.wmsback.master.repository.LocRepository;
 import com.project.wmsback.master.repository.LotRepository;
 import lombok.RequiredArgsConstructor;
@@ -46,11 +46,11 @@ public class PutawayService {
         return ibLineRepository.findAllPendingPutawayBatches(cond);
     }
 
-    /** 대상 로케이션 후보 (SKU 온도대와 일치하는 STORAGE, pick_prty 오름차순 추천) */
+    /** 대상 로케이션 후보 (상품 온도대와 일치하는 STORAGE, pick_prty 오름차순 추천) */
     public List<LocResponse> candidateLocs(Long ibLineId) {
         IbLine ibLine = ibLineRepository.findById(ibLineId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고 라인입니다: " + ibLineId));
-        return locRepository.findAllByTempZoneAndLocTypeOrderByPickPrtyAsc(ibLine.getSku().getTempZone(), LocType.STORAGE)
+        return locRepository.findAllByTempZoneAndLocTypeOrderByPickPrtyAsc(ibLine.getProd().getTempZone(), LocType.STORAGE)
                 .stream().map(LocResponse::from).toList();
     }
 
@@ -65,7 +65,7 @@ public class PutawayService {
         }
         IbLine ibLine = ibLineRepository.findById(ibLineId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고 라인입니다: " + ibLineId));
-        Sku sku = ibLine.getSku();
+        Prod prod = ibLine.getProd();
         Lot lot = lotRepository.findById(lotId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 Lot입니다: " + lotId));
 
@@ -76,24 +76,24 @@ public class PutawayService {
         if (target.getLocType() != LocType.STORAGE) {
             throw new IllegalArgumentException("보관 로케이션이 아닙니다: " + target.getLocCd());
         }
-        if (target.getTempZone() != sku.getTempZone()) {
-            throw new IllegalArgumentException("온도대가 일치하지 않습니다 (SKU " + sku.getTempZone() + " / 로케이션 " + target.getTempZone() + "): " + target.getLocCd());
+        if (target.getTempZone() != prod.getTempZone()) {
+            throw new IllegalArgumentException("온도대가 일치하지 않습니다 (상품 " + prod.getTempZone() + " / 로케이션 " + target.getTempZone() + "): " + target.getLocCd());
         }
 
-        Inv stagingInv = invRepository.findBySkuIdAndLocIdAndLotId(sku.getId(), staging.getId(), lot.getId())
-                .orElseThrow(() -> new IllegalStateException("스테이징 재고를 찾을 수 없습니다: " + sku.getSkuCd()));
+        Inv stagingInv = invRepository.findByProdIdAndLocIdAndLotId(prod.getId(), staging.getId(), lot.getId())
+                .orElseThrow(() -> new IllegalStateException("스테이징 재고를 찾을 수 없습니다: " + prod.getProdCd()));
         if (qty > stagingInv.getOnHandQty()) {
-            throw new IllegalArgumentException("적치수량이 이 배치의 미적치 잔량을 초과했습니다 (다른 주문과 공유된 Lot이 먼저 적치됐을 수 있습니다): " + sku.getSkuCd());
+            throw new IllegalArgumentException("적치수량이 이 배치의 미적치 잔량을 초과했습니다 (다른 주문과 공유된 Lot이 먼저 적치됐을 수 있습니다): " + prod.getProdCd());
         }
 
         stagingInv.decreaseOnHand(qty);
-        Inv targetInv = invRepository.findBySkuIdAndLocIdAndLotId(sku.getId(), target.getId(), lot.getId())
-                .orElseGet(() -> invRepository.save(Inv.builder().sku(sku).loc(target).lot(lot).build()));
+        Inv targetInv = invRepository.findByProdIdAndLocIdAndLotId(prod.getId(), target.getId(), lot.getId())
+                .orElseGet(() -> invRepository.save(Inv.builder().prod(prod).loc(target).lot(lot).build()));
         targetInv.increaseOnHand(qty);
 
         invHistRepository.save(InvHist.builder()
                 .txType(TxType.MOVE)
-                .sku(sku).loc(staging).lot(lot)
+                .prod(prod).loc(staging).lot(lot)
                 .qty(-qty)
                 .refDocType(RefDocType.INBOUND)
                 .refDocNo(ibLine.getIbOrder().getIbNo())
@@ -102,7 +102,7 @@ public class PutawayService {
                 .build());
         invHistRepository.save(InvHist.builder()
                 .txType(TxType.MOVE)
-                .sku(sku).loc(target).lot(lot)
+                .prod(prod).loc(target).lot(lot)
                 .qty(qty)
                 .refDocType(RefDocType.INBOUND)
                 .refDocNo(ibLine.getIbOrder().getIbNo())

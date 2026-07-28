@@ -8,9 +8,9 @@ import lombok.Getter;
 public class IbLineResponse {
 
     private final Long ibLineId;
-    private final Long skuId;
-    private final String skuCd;
-    private final String skuNm;
+    private final Long prodId;
+    private final String prodCd;
+    private final String prodNm;
     private final TempZone tempZone;
     /** 유통기한(일). 검수 화면이 유통기한 기본값(검수일+일수)을 제안할 때 사용. NULL = 미관리 */
     private final Integer shelfLifeDays;
@@ -20,11 +20,11 @@ public class IbLineResponse {
 
     private IbLineResponse(IbLine line) {
         this.ibLineId = line.getId();
-        this.skuId = line.getSku().getId();
-        this.skuCd = line.getSku().getSkuCd();
-        this.skuNm = line.getSku().getSkuNm();
-        this.tempZone = line.getSku().getTempZone();
-        this.shelfLifeDays = line.getSku().getShelfLifeDays();
+        this.prodId = line.getProd().getId();
+        this.prodCd = line.getProd().getProdCd();
+        this.prodNm = line.getProd().getProdNm();
+        this.tempZone = line.getProd().getTempZone();
+        this.shelfLifeDays = line.getProd().getShelfLifeDays();
         this.expctQty = line.getExpctQty();
         this.rcvdQty = line.getRcvdQty();
         this.ptwyQty = line.getPtwyQty();

@@ -1,9 +1,9 @@
 package com.project.wmsback.master.controller;
 
-import com.project.wmsback.master.dto.SkuResponse;
-import com.project.wmsback.master.dto.SkuSaveRequest;
-import com.project.wmsback.master.dto.SkuSearchCond;
-import com.project.wmsback.master.service.SkuService;
+import com.project.wmsback.master.dto.ProdResponse;
+import com.project.wmsback.master.dto.ProdSaveRequest;
+import com.project.wmsback.master.dto.ProdSearchCond;
+import com.project.wmsback.master.service.ProdService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -15,19 +15,19 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@RequestMapping("/master/skus")
+@RequestMapping("/master/prods")
 @RequiredArgsConstructor
-public class SkuController {
+public class ProdController {
 
-    private final SkuService skuService;
+    private final ProdService prodService;
 
     @GetMapping
-    public List<SkuResponse> list(@ModelAttribute SkuSearchCond cond) {
-        return skuService.list(cond);
+    public List<ProdResponse> list(@ModelAttribute ProdSearchCond cond) {
+        return prodService.list(cond);
     }
 
     @PostMapping("/bulk")
-    public void saveAll(@RequestBody List<SkuSaveRequest> rows) {
-        skuService.saveAll(rows);
+    public void saveAll(@RequestBody List<ProdSaveRequest> rows) {
+        prodService.saveAll(rows);
     }
 }

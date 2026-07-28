@@ -3,7 +3,7 @@ package com.project.wmsback.inventory.entity;
 import com.project.wmsback.common.entity.BaseEntity;
 import com.project.wmsback.master.entity.Loc;
 import com.project.wmsback.master.entity.Lot;
-import com.project.wmsback.master.entity.Sku;
+import com.project.wmsback.master.entity.Prod;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -21,11 +21,11 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 현재고 스냅샷. 키: SKU+Loc+Lot. 가용재고 = onHand - alloc (파생값, 컬럼 아님).
+ * 현재고 스냅샷. 키: 상품+Loc+Lot. 가용재고 = onHand - alloc (파생값, 컬럼 아님).
  * 할당 시 락을 거는 지점 (비관적/낙관적 락 비교 대상).
  */
 @Entity
-@Table(name = "inv", uniqueConstraints = @UniqueConstraint(name = "uq_inv", columnNames = {"sku_id", "loc_id", "lot_id"}))
+@Table(name = "inv", uniqueConstraints = @UniqueConstraint(name = "uq_inv", columnNames = {"prod_id", "loc_id", "lot_id"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Inv extends BaseEntity {
@@ -36,8 +36,8 @@ public class Inv extends BaseEntity {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sku_id", nullable = false)
-    private Sku sku;
+    @JoinColumn(name = "prod_id", nullable = false)
+    private Prod prod;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "loc_id", nullable = false)
@@ -61,8 +61,8 @@ public class Inv extends BaseEntity {
     private Long version;
 
     @Builder
-    private Inv(Sku sku, Loc loc, Lot lot) {
-        this.sku = sku;
+    private Inv(Prod prod, Loc loc, Lot lot) {
+        this.prod = prod;
         this.loc = loc;
         this.lot = lot;
         this.onHandQty = 0L;

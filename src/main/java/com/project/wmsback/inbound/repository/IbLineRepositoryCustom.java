@@ -8,8 +8,8 @@ import java.util.List;
 
 public interface IbLineRepositoryCustom {
 
-    /** 라인 + SKU를 한 번에 로딩 (라인 응답이 SKU 코드/명/온도대를 쓰므로 N+1 방지) */
-    List<IbLine> findAllByOrderIdWithSku(Long ibOrderId);
+    /** 라인 + 상품을 한 번에 로딩 (라인 응답이 상품 코드/명/온도대를 쓰므로 N+1 방지) */
+    List<IbLine> findAllByOrderIdWithProd(Long ibOrderId);
 
     /**
      * 적치 대상 (라인, Lot) 배치 전체 — 주문 구분 없이 적치 화면에서 조회.

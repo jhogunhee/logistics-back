@@ -38,7 +38,7 @@ public class GlobalExceptionHandler {
                 .body(Map.of("message", e.getMessage()));
     }
 
-    /** DB 제약 위반 (다른 데이터가 참조 중인 SKU 삭제, 중복 코드 등) */
+    /** DB 제약 위반 (다른 데이터가 참조 중인 상품 삭제, 중복 코드 등) */
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, Object>> handleDataIntegrityViolationException(DataIntegrityViolationException e) {
         return ResponseEntity

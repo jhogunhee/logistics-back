@@ -3,7 +3,7 @@ package com.project.wmsback.inventory.entity;
 import com.project.wmsback.common.entity.BaseEntity;
 import com.project.wmsback.master.entity.Loc;
 import com.project.wmsback.master.entity.Lot;
-import com.project.wmsback.master.entity.Sku;
+import com.project.wmsback.master.entity.Prod;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -42,8 +42,8 @@ public class InvHist extends BaseEntity {
     private TxType txType;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sku_id", nullable = false)
-    private Sku sku;
+    @JoinColumn(name = "prod_id", nullable = false)
+    private Prod prod;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "loc_id", nullable = false)
@@ -76,7 +76,7 @@ public class InvHist extends BaseEntity {
     /**
      * MOVE의 출발지/도착지 로케이션 ID. 화면에서 "출발지 → 도착지"를 보여주기 위한 것으로, 두 다리(출발 -건 / 도착 +건)
      * 모두 똑같은 값을 갖는다 — 그래서 어느 한 행만 봐도 상대를 찾는 조인 없이 바로 전체 그림을 알 수 있다.
-     * 재고 키(SKU+Loc+Lot)와 이력 합계=스냅샷 불변식은 그대로 loc/qty가 담당하고, 이 둘은 표시 전용 부가 정보다.
+     * 재고 키(상품+Loc+Lot)와 이력 합계=스냅샷 불변식은 그대로 loc/qty가 담당하고, 이 둘은 표시 전용 부가 정보다.
      * FK 없는 느슨한 참조 (ib_line_id/ref_doc_no와 동일 패턴). MOVE가 아닌 나머지 타입은 항상 null.
      */
     @Column(name = "from_loc_id")
@@ -94,10 +94,10 @@ public class InvHist extends BaseEntity {
     private Long cancelsInvHistId;
 
     @Builder
-    private InvHist(TxType txType, Sku sku, Loc loc, Lot lot, Long qty, RefDocType refDocType, String refDocNo,
+    private InvHist(TxType txType, Prod prod, Loc loc, Lot lot, Long qty, RefDocType refDocType, String refDocNo,
                     Long ibLineId, Long fromLocId, Long toLocId, Long cancelsInvHistId) {
         this.txType = txType;
-        this.sku = sku;
+        this.prod = prod;
         this.loc = loc;
         this.lot = lot;
         this.qty = qty;

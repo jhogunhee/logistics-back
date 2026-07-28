@@ -17,7 +17,7 @@ import java.util.List;
 import static com.project.wmsback.inventory.entity.QInvHist.invHist;
 import static com.project.wmsback.master.entity.QLoc.loc;
 import static com.project.wmsback.master.entity.QLot.lot;
-import static com.project.wmsback.master.entity.QSku.sku;
+import static com.project.wmsback.master.entity.QProd.prod;
 
 @RequiredArgsConstructor
 public class InvHistRepositoryImpl implements InvHistRepositoryCustom {
@@ -42,7 +42,7 @@ public class InvHistRepositoryImpl implements InvHistRepositoryCustom {
         return queryFactory
                 .select(Projections.constructor(InvHistResponse.class,
                         invHist.id, invHist.txType,
-                        sku.skuCd, sku.skuNm,
+                        prod.prodCd, prod.prodNm,
                         loc.locCd, loc.zoneCd, loc.tempZone,
                         lot.lotNo,
                         invHist.qty,
@@ -50,15 +50,15 @@ public class InvHistRepositoryImpl implements InvHistRepositoryCustom {
                         fromLocAlias.locCd, toLocAlias.locCd,
                         invHist.createdBy, invHist.createdAt))
                 .from(invHist)
-                .innerJoin(invHist.sku, sku)
+                .innerJoin(invHist.prod, prod)
                 .innerJoin(invHist.loc, loc)
                 .innerJoin(invHist.lot, lot)
                 // from_loc_id/to_loc_id는 FK 없는 느슨한 참조라 연관관계 조인이 아니라 값으로 직접 붙인다
                 .leftJoin(fromLocAlias).on(fromLocAlias.id.eq(invHist.fromLocId))
                 .leftJoin(toLocAlias).on(toLocAlias.id.eq(invHist.toLocId))
                 .where(
-                        skuCdContains(cond.getSkuCd()),
-                        skuNmContains(cond.getSkuNm()),
+                        prodCdContains(cond.getProdCd()),
+                        prodNmContains(cond.getProdNm()),
                         locCdContains(cond.getLocCd()),
                         txTypeEq(cond.getTxType()),
                         refDocNoContains(cond.getRefDocNo()),
@@ -71,12 +71,12 @@ public class InvHistRepositoryImpl implements InvHistRepositoryCustom {
 
     // 조건 메서드가 null을 반환하면 where()가 그 조건을 무시한다 — QueryDSL 동적 쿼리 관례
 
-    private BooleanExpression skuCdContains(String skuCd) {
-        return StringUtils.hasText(skuCd) ? sku.skuCd.containsIgnoreCase(skuCd) : null;
+    private BooleanExpression prodCdContains(String prodCd) {
+        return StringUtils.hasText(prodCd) ? prod.prodCd.containsIgnoreCase(prodCd) : null;
     }
 
-    private BooleanExpression skuNmContains(String skuNm) {
-        return StringUtils.hasText(skuNm) ? sku.skuNm.containsIgnoreCase(skuNm) : null;
+    private BooleanExpression prodNmContains(String prodNm) {
+        return StringUtils.hasText(prodNm) ? prod.prodNm.containsIgnoreCase(prodNm) : null;
     }
 
     private BooleanExpression locCdContains(String locCd) {

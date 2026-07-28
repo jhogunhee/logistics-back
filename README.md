@@ -26,7 +26,7 @@ DB 접속 정보 기본값은 `wms` / `wms1234` (`application.properties`에서 
 
 - [x] 프로세스 설계 (상태 전이 / 재고 모델 / 할당 전략) — [docs/design.md](docs/design.md)
 - [x] 프로젝트 초기 설정 (Boot + JPA + QueryDSL + Oracle)
-- [ ] 마스터 데이터 (SKU / Location / Lot)
+- [ ] 마스터 데이터 (상품 / Location / Lot)
 - [ ] 입고 (입고예정 → 검수/입고 → 마감 → 적치)
 - [ ] 재고 (현재고 스냅샷 + 재고 이력, 이동/조정)
 - [ ] 출고 (주문 → 할당 → 피킹 → 출고확정)

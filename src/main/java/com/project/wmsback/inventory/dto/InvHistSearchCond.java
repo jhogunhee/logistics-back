@@ -14,8 +14,8 @@ import java.time.LocalDate;
 @NoArgsConstructor
 public class InvHistSearchCond {
 
-    private String skuCd;
-    private String skuNm;
+    private String prodCd;
+    private String prodNm;
     private String locCd;
     private TxType txType;
 
