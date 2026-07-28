@@ -79,5 +79,13 @@ allocated/allocation→alloc  location→loc  history→hist
 - `docs/schema.sql` — 스키마의 주인. 컬럼마다 근거 주석이 붙어 있다.
 - `docs/migration-*.sql` — 이미 만들어진 DB에 적용할 증분.
 - `docs/screen-list.html` — 화면 목록과 구현 현황.
+- `docs/naming-dictionary.md` — 표준 단어 사전(한글 · 약어 · 영문명)과 이름 조합 규칙.
 
 `docs/design.md`에는 **코드가 아직 따르지 않는 의도**가 섞여 있다. 예를 들어 수량 컬럼은 오직 `IbLine#recalcQty`를 거쳐서만 갱신한다고 못박았지만 그 메서드는 존재하지 않고 `accept()` · `cancelAccept()` · `putaway()`가 전부 직접 증분한다. 문서와 코드가 어긋나면 **어느 한쪽으로 조용히 맞추지 말고 물어볼 것.**
+
+
+## 명명규칙
+
+`docs/naming-dictionary.md`의 표준 단어 사전(216개)을 기준으로 변수명·필드명을 생성한다. 이름의 재료는 **약어**이고(`예정 EXPCT` + `수량 QTY` → `expctQty` / `expct_qty`), 사전에 없는 단어는 사전에 먼저 추가한 뒤 쓴다.
+
+**약어 사전이 지금 두 벌이다.** 위 「네이밍」의 `docs/schema.sql` 사전과 `docs/naming-dictionary.md`가 `적치`(`ptwy` vs `PTAWY`)·`할당`(`alloc` vs `ALOC`) 등에서 충돌한다. 어긋나는 항목 전체는 `docs/naming-dictionary.md` 하단에 정리돼 있으니, **기존 컬럼명을 사전 쪽으로 일괄 개명하지 말고 물어볼 것.**
