@@ -12,7 +12,7 @@ public class ProdResponse {
     private final Long prodId;
     private final String prodCd;
     private final String prodNm;
-    private final TempZone tempZone;
+    private final TempZone tmpZon;
     private final Integer shelfLifeDays;
     private final String createdBy;
     private final LocalDateTime createdAt;
@@ -23,7 +23,7 @@ public class ProdResponse {
         this.prodId = prod.getId();
         this.prodCd = prod.getProdCd();
         this.prodNm = prod.getProdNm();
-        this.tempZone = prod.getTempZone();
+        this.tmpZon = prod.getTmpZon();
         this.shelfLifeDays = prod.getShelfLifeDays();
         this.createdBy = prod.getCreatedBy();
         this.createdAt = prod.getCreatedAt();

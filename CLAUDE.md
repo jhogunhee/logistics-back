@@ -23,7 +23,9 @@ PostgreSQL(Supabase). 접속 정보는 환경변수로 받고, 로컬 기본값�
 - `DB_USERNAME` (기본 `postgres`)
 - `DB_PASSWORD` (기본 빈 값)
 
-`spring.jpa.hibernate.ddl-auto=none` — **Hibernate는 테이블을 만들지도 바꾸지도 않는다.** 스키마의 주인은 `docs/schema.sql`이고, 엔티티를 거기에 맞춰 쓴다(반대 방향이 아니다). 신규 DB는 `docs/schema.sql` 적용 후 `docs/seed-dev.sql`, 기존 DB는 해당하는 `docs/migration-*.sql` 증분만 적용한다.
+`spring.jpa.hibernate.ddl-auto=none` — **Hibernate는 테이블을 만들지도 바꾸지도 않는다.** 스키마의 주인은 `docs/schema.sql`이고, 엔티티를 거기에 맞춰 쓴다(반대 방향이 아니다). 신규 DB는 `docs/schema.sql` 적용 후 `docs/seed-dev.sql`, 기존 DB는 `docs/migration-catchup-to-schema.sql`을 적용한다(재실행 안전).
+
+SQL은 Supabase 대시보드가 아니라 **DBeaver**로 돌린다. 그래서 마이그레이션은 `BEGIN;`/`COMMIT;`으로 감싸지 않고 **전체를 `DO $tag$ … $tag$` 블록 하나로** 쓴다 — `BEGIN;`을 쓰면 실패 시 연결에 죽은 트랜잭션이 남아 이후 모든 쿼리가 `25P02`를 뱉는다.
 
 **Oracle → PostgreSQL 전환 이전 상태로 남아 있는 파일이 둘 있다** — `docker-compose.yml`(아직 Oracle)과 `README.md`의 기술 스택·실행 절차. 현재 설정과 맞지 않으니 그대로 따르면 안 된다.
 
@@ -40,9 +42,9 @@ PostgreSQL(Supabase). 접속 정보는 환경변수로 받고, 로컬 기본값�
 
 ### FK가 하나도 없다
 
-`docs/migration-drop-fks.sql`이 모든 FK를 제거했고 `docs/schema.sql`도 FK를 선언하지 않는다(`docs/migration-outb-wave.sql`의 `outb_wave`만 남은 예외). 참조 무결성은 애플리케이션 책임이다. DB가 여전히 막아주는 것은 `CHECK`와 `UNIQUE`뿐이므로 이것들을 약화시키면 안 된다 — `ck_inv_qty`(재고 음수·과할당 금지), `ck_ib_line_qty`, `uq_inv`, `uq_lot` 등.
+`docs/schema.sql`은 FK를 하나도 선언하지 않고, 라이브 DB에도 FK가 0건이다(`docs/migration-catchup-to-schema.sql`이 카탈로그를 훑어 전량 제거했다 — 예외 없음). 참조 무결성은 애플리케이션 책임이다. DB가 여전히 막아주는 것은 `CHECK`와 `UNIQUE`뿐이므로 이것들을 약화시키면 안 된다 — `ck_inv_qty`(재고 음수·과할당 금지), `ck_ib_line_qty`, `uq_inv`, `uq_lot` 등.
 
-원래부터 의도적으로 FK가 아니었던 느슨한 참조 컬럼들도 있다: `inv_hist.ib_line_id`, `inv_hist.ref_doc_no`, `inv_hist.from_loc_id` / `to_loc_id`, `ib_order.oms_ib_order_id`.
+원래부터 의도적으로 FK가 아니었던 느슨한 참조 컬럼들도 있다: `inv_hist.ib_line_id`, `inv_hist.rfn_doc_no`, `inv_hist.from_loc_id` / `to_loc_id`, `ib_order.oms_ib_order_id`.
 
 ### 재고 모델 (핵심 불변식)
 
@@ -67,10 +69,22 @@ PostgreSQL(Supabase). 접속 정보는 환경변수로 받고, 로컬 기본값�
 `docs/schema.sql`에 약어 사전이 정의돼 있고, **새 컬럼도 반드시 이걸 따라야 한다**:
 
 ```
-expected→expct  received→rcvd  rejected→rjct  putaway→ptwy
-allocated/allocation→alloc  location→loc  history→hist
-product→prod
+expected→expct  received→rcvd  rejected→rjct  location→loc  history→hist
+product→prod  putaway→ptawy  allocated/allocation→aloc  picking→pikng
+type→typ  zone→zon  temperature→tmp  group→grp  use→us  description→dscr
+reference→rfn  order→odr  wave→wav  sort+sequence→srt_seq  person in charge→pic
+date→de(일자)  datetime→dt(일시)  cancel→cncl  close→clos  complete→cmpl  shipment→shmt
 ```
+
+**이 사전은 `docs/naming-dictionary.md`(216단어)의 부분집합이고, 둘은 이제 어긋나지 않는다.** 예전에 두 벌이 충돌하던 항목(`ptwy` vs `PTAWY`, `alloc` vs `ALOC` 등)은 `docs/migration-rename-columns-to-dictionary.sql`이 사전 쪽으로 통일했다. 새 이름은 반드시 `docs/naming-dictionary.md`에서 단어를 찾아 조합하고, **사전에 없는 단어는 사전에 먼저 추가한 뒤 쓴다.**
+
+의도적으로 사전을 따르지 않는 예외가 셋 있다. 바꾸지 말 것:
+
+- **`status`** (사전은 `ST`) — 두 글자로는 state/street/start 중 무엇인지 알 수 없다.
+- **`code_cd` · `code_nm`** (사전은 `CD`) — `cd_cd`가 되어 같은 단어가 겹친다.
+- **감사 컬럼 4종** `created_at`/`created_by`/`updated_at`/`updated_by` — 「생성자」가 사전에 없고 `CRTR`은 이미 「기준(Criteria)」이 쓰고 있어 이름을 지을 수 없다. `BaseEntity`·`AuditorAware`와도 묶여 있다.
+
+또한 테이블명·PK·FK 컬럼은 사전보다 위 규칙이 우선한다 — 그래서 `inv`는 `invn`이 되지 않았고 `prod_id`·`loc_id` 등도 그대로다.
 
 상품 마스터는 원래 `sku`였고 `prod`로 개명했다(`docs/migration-sku-to-prod.sql`). 업무 용어를 「상품」으로 통일하면서 `docs/naming-dictionary.md`의 `상품 = PROD`를 따른 것이다. **코드·컬럼·화면 라벨 어디에도 SKU를 다시 쓰지 않는다.**
 
@@ -80,7 +94,7 @@ product→prod
 
 - `docs/design.md` — 각 판단을 **왜** 그렇게 했는지(상태 전이 · 재고 모델 · 할당 동시성). 프로세스 설계를 바꾸기 전에 읽을 것.
 - `docs/schema.sql` — 스키마의 주인. 컬럼마다 근거 주석이 붙어 있다.
-- `docs/migration-*.sql` — 이미 만들어진 DB에 적용할 증분.
+- `docs/migration-*.sql` — 이미 만들어진 DB에 적용할 증분. **순서대로 재생할 수 있다고 가정하지 말 것** — 라이브 DB는 `migration-catchup-to-schema.sql`까지 적용된 상태이고, 실행 불가가 된 옛 증분들은 삭제했다(이력은 git에 있다). 새 증분은 "현재 라이브 상태 → `schema.sql` 상태"로 쓰고, 존재 확인을 걸어 재실행 가능하게 만든다.
 - `docs/screen-list.html` — 화면 목록과 구현 현황.
 - `docs/naming-dictionary.md` — 표준 단어 사전(한글 · 약어 · 영문명)과 이름 조합 규칙.
 
@@ -91,4 +105,4 @@ product→prod
 
 `docs/naming-dictionary.md`의 표준 단어 사전(216개)을 기준으로 변수명·필드명을 생성한다. 이름의 재료는 **약어**이고(`예정 EXPCT` + `수량 QTY` → `expctQty` / `expct_qty`), 사전에 없는 단어는 사전에 먼저 추가한 뒤 쓴다.
 
-**약어 사전이 지금 두 벌이다.** 위 「네이밍」의 `docs/schema.sql` 사전과 `docs/naming-dictionary.md`가 `적치`(`ptwy` vs `PTAWY`)·`할당`(`alloc` vs `ALOC`) 등에서 충돌한다. 어긋나는 항목 전체는 `docs/naming-dictionary.md` 하단에 정리돼 있으니, **기존 컬럼명을 사전 쪽으로 일괄 개명하지 말고 물어볼 것.**
+**두 벌이던 약어 사전은 통일됐다.** 예전에 `적치`(`ptwy` vs `PTAWY`)·`할당`(`alloc` vs `ALOC`) 등에서 충돌하던 것을 `docs/migration-rename-columns-to-dictionary.sql`이 사전 쪽으로 개명했다. 남은 예외 셋(`status` · `code_cd`/`code_nm` · 감사 컬럼)은 위 「네이밍」에 이유와 함께 적어뒀고, **이 셋은 사전을 따르지 않는 것이 결정된 사항이다.**

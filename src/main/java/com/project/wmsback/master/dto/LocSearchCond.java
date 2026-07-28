@@ -12,6 +12,6 @@ import lombok.Setter;
 public class LocSearchCond {
 
     private String locCd;
-    private String zoneCd;
-    private LocType locType;
+    private String zonCd;
+    private LocType locTyp;
 }

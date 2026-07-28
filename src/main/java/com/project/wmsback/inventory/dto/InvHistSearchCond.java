@@ -17,10 +17,10 @@ public class InvHistSearchCond {
     private String prodCd;
     private String prodNm;
     private String locCd;
-    private TxType txType;
+    private TxType txTyp;
 
     /** 참조문서번호 (입고번호/출고번호) — 특정 문서가 만든 이력만 추적할 때 */
-    private String refDocNo;
+    private String rfnDocNo;
 
     /** 발생일시 범위 (from ~ to). createdAt 기준 */
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)

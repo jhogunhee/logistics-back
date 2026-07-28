@@ -71,20 +71,20 @@ public class OmsIbOrderService {
         }
 
         String omsIbNo = String.format("PO-%s-%03d",
-                req.getExpctDt().format(DateTimeFormatter.BASIC_ISO_DATE),
+                req.getExpctDe().format(DateTimeFormatter.BASIC_ISO_DATE),
                 omsIbOrderRepository.nextOmsIbNoSeq());
 
         OmsIbOrder order = OmsIbOrder.builder()
                 .omsIbNo(omsIbNo)
                 .vendor(vendor)
-                .expctDt(req.getExpctDt())
+                .expctDe(req.getExpctDe())
                 .build();
         for (OmsIbOrderCreateRequest.LineRequest line : req.getLines()) {
             Prod prod = prodRepository.findById(line.getProdId())
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다: " + line.getProdId()));
             order.addLine(OmsIbLine.builder()
                     .prod(prod)
-                    .orderQty(line.getOrderQty())
+                    .odrQty(line.getOdrQty())
                     .build());
         }
         omsIbOrderRepository.save(order); // cascade로 라인까지 함께 저장
@@ -107,19 +107,19 @@ public class OmsIbOrderService {
         order.convert(); // 재변환 차단은 엔티티가 한다
 
         String ibNo = String.format("IB-%s-%03d",
-                order.getExpctDt().format(DateTimeFormatter.BASIC_ISO_DATE),
+                order.getExpctDe().format(DateTimeFormatter.BASIC_ISO_DATE),
                 ibOrderRepository.nextIbNoSeq());
 
         IbOrder asn = IbOrder.builder()
                 .ibNo(ibNo)
                 .omsIbOrderId(order.getId())
                 .vendor(order.getVendor())
-                .expctDt(order.getExpctDt())
+                .expctDe(order.getExpctDe())
                 .build();
         for (OmsIbLine line : order.getLines()) {
             asn.addLine(IbLine.builder()
                     .prod(line.getProd())
-                    .expctQty(line.getOrderQty()) // 발주 수량이 그대로 입고 예정 수량이 된다
+                    .expctQty(line.getOdrQty()) // 발주 수량이 그대로 입고 예정 수량이 된다
                     .build());
         }
         ibOrderRepository.save(asn); // cascade로 라인까지 함께 저장
@@ -159,7 +159,7 @@ public class OmsIbOrderService {
         if (req.getVendorId() == null) {
             throw new IllegalArgumentException("벤더는 필수입니다.");
         }
-        if (req.getExpctDt() == null) {
+        if (req.getExpctDe() == null) {
             throw new IllegalArgumentException("입고 예정일은 필수입니다.");
         }
         if (req.getLines() == null || req.getLines().isEmpty()) {
@@ -169,7 +169,7 @@ public class OmsIbOrderService {
             if (line.getProdId() == null) {
                 throw new IllegalArgumentException("라인의 상품은 필수입니다.");
             }
-            if (line.getOrderQty() == null || line.getOrderQty() < 1) {
+            if (line.getOdrQty() == null || line.getOdrQty() < 1) {
                 throw new IllegalArgumentException("발주 수량은 1 이상이어야 합니다.");
             }
         }

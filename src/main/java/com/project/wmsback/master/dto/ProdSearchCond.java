@@ -13,5 +13,5 @@ public class ProdSearchCond {
 
     private String prodCd;
     private String prodNm;
-    private TempZone tempZone;
+    private TempZone tmpZon;
 }

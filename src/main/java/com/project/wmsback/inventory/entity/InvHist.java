@@ -38,8 +38,8 @@ public class InvHist extends BaseEntity {
 
     /** 유형 */
     @Enumerated(EnumType.STRING)
-    @Column(name = "tx_type", nullable = false, length = 10)
-    private TxType txType;
+    @Column(name = "tx_typ", nullable = false, length = 10)
+    private TxType txTyp;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "prod_id", nullable = false)
@@ -59,16 +59,16 @@ public class InvHist extends BaseEntity {
 
     /** 참조 문서 유형 (수동 조정 시 null) */
     @Enumerated(EnumType.STRING)
-    @Column(name = "ref_doc_type", length = 10)
-    private RefDocType refDocType;
+    @Column(name = "rfn_doc_typ", length = 10)
+    private RefDocType rfnDocTyp;
 
     /** 참조 문서 번호 (입고번호/출고번호). 이력 → 원인 문서 추적용 */
-    @Column(name = "ref_doc_no", length = 30)
-    private String refDocNo;
+    @Column(name = "rfn_doc_no", length = 30)
+    private String rfnDocNo;
 
     /**
      * 입고 라인 ID. RECEIVE(및 그 취소 ADJUST) 건에만 채워짐.
-     * ref_doc_no(주문 단위)로는 라인을 못 좁히므로 별도로 둔다 (FK 없는 느슨한 참조 — ref_doc_no와 동일 패턴).
+     * rfn_doc_no(주문 단위)로는 라인을 못 좁히므로 별도로 둔다 (FK 없는 느슨한 참조 — ref_doc_no와 동일 패턴).
      */
     @Column(name = "ib_line_id")
     private Long ibLineId;
@@ -90,22 +90,22 @@ public class InvHist extends BaseEntity {
      * 이게 없으면 화면이 "이미 취소된 RECEIVE"를 구분 못 해서 취소된 건도 다시 취소 가능한 것처럼 보여준다.
      * FK 없는 느슨한 참조 (ib_line_id/ref_doc_no와 동일 패턴).
      */
-    @Column(name = "cancels_inv_hist_id")
-    private Long cancelsInvHistId;
+    @Column(name = "cncl_inv_hist_id")
+    private Long cnclInvHistId;
 
     @Builder
-    private InvHist(TxType txType, Prod prod, Loc loc, Lot lot, Long qty, RefDocType refDocType, String refDocNo,
-                    Long ibLineId, Long fromLocId, Long toLocId, Long cancelsInvHistId) {
-        this.txType = txType;
+    private InvHist(TxType txTyp, Prod prod, Loc loc, Lot lot, Long qty, RefDocType rfnDocTyp, String rfnDocNo,
+                    Long ibLineId, Long fromLocId, Long toLocId, Long cnclInvHistId) {
+        this.txTyp = txTyp;
         this.prod = prod;
         this.loc = loc;
         this.lot = lot;
         this.qty = qty;
-        this.refDocType = refDocType;
-        this.refDocNo = refDocNo;
+        this.rfnDocTyp = rfnDocTyp;
+        this.rfnDocNo = rfnDocNo;
         this.ibLineId = ibLineId;
         this.fromLocId = fromLocId;
         this.toLocId = toLocId;
-        this.cancelsInvHistId = cancelsInvHistId;
+        this.cnclInvHistId = cnclInvHistId;
     }
 }

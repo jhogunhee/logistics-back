@@ -45,16 +45,16 @@ public class VendorService {
         vendorRepository.save(Vendor.builder()
                 .vndrCd(vndrCd)
                 .vndrNm(row.getVndrNm())
-                .mgrNm(row.getMgrNm())
+                .picNm(row.getPicNm())
                 .telNo(row.getTelNo())
-                .useYn(row.getUseYn())
+                .usYn(row.getUsYn())
                 .build());
     }
 
     private void update(VendorSaveRequest row) {
         Vendor vendor = vendorRepository.findById(row.getVendorId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 벤더입니다: " + row.getVendorId()));
-        vendor.update(row.getVndrNm(), row.getMgrNm(), row.getTelNo(), row.getUseYn());
+        vendor.update(row.getVndrNm(), row.getPicNm(), row.getTelNo(), row.getUsYn());
     }
 
     private void delete(VendorSaveRequest row) {
@@ -67,7 +67,7 @@ public class VendorService {
         if (row.getVndrNm() == null || row.getVndrNm().isBlank()) {
             throw new IllegalArgumentException("벤더명은 필수입니다.");
         }
-        if (row.getUseYn() != null && !row.getUseYn().equals("Y") && !row.getUseYn().equals("N")) {
+        if (row.getUsYn() != null && !row.getUsYn().equals("Y") && !row.getUsYn().equals("N")) {
             throw new IllegalArgumentException("사용여부는 Y 또는 N이어야 합니다: " + row.getVndrNm());
         }
     }

@@ -8,12 +8,12 @@ public class CodeResponse {
 
     private final String codeCd;
     private final String codeNm;
-    private final Integer sortOrd;
+    private final Integer srtSeq;
 
     private CodeResponse(CodeDetail codeDetail) {
         this.codeCd = codeDetail.getCodeCd();
         this.codeNm = codeDetail.getCodeNm();
-        this.sortOrd = codeDetail.getSortOrd();
+        this.srtSeq = codeDetail.getSrtSeq();
     }
 
     public static CodeResponse from(CodeDetail codeDetail) {

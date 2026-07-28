@@ -38,24 +38,24 @@ public class Prod extends BaseEntity {
 
     /** 보관 온도대. 적치·이동 시 로케이션 온도대와 일치 검증 */
     @Enumerated(EnumType.STRING)
-    @Column(name = "temp_zone", nullable = false, length = 10)
-    private TempZone tempZone;
+    @Column(name = "tmp_zon", nullable = false, length = 10)
+    private TempZone tmpZon;
 
     /** 제조일 기준 총 유통기한(일). NULL = 유통기한 미관리(공산품 등). 시더가 Lot 유통기한 생성 시 사용 */
     @Column(name = "shelf_life_days")
     private Integer shelfLifeDays;
 
     @Builder
-    private Prod(String prodCd, String prodNm, TempZone tempZone, Integer shelfLifeDays) {
+    private Prod(String prodCd, String prodNm, TempZone tmpZon, Integer shelfLifeDays) {
         this.prodCd = prodCd;
         this.prodNm = prodNm;
-        this.tempZone = tempZone;
+        this.tmpZon = tmpZon;
         this.shelfLifeDays = shelfLifeDays;
     }
 
-    public void update(String prodNm, TempZone tempZone, Integer shelfLifeDays) {
+    public void update(String prodNm, TempZone tmpZon, Integer shelfLifeDays) {
         this.prodNm = prodNm;
-        this.tempZone = tempZone;
+        this.tmpZon = tmpZon;
         this.shelfLifeDays = shelfLifeDays;
     }
 }

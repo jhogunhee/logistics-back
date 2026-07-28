@@ -15,7 +15,7 @@ import lombok.NoArgsConstructor;
 /**
  * 벤더(납품처) 마스터. 입고주문·입고예정이 참조한다.
  *
- * 거래 종료된 벤더도 과거 주문이 참조하므로 삭제 대신 useYn='N'으로 막는다
+ * 거래 종료된 벤더도 과거 주문이 참조하므로 삭제 대신 usYn='N'으로 막는다
  * (실제 삭제는 참조가 하나도 없을 때만 FK가 허용한다).
  */
 @Entity
@@ -38,35 +38,35 @@ public class Vendor extends BaseEntity {
     private String vndrNm;
 
     /** 담당자명 */
-    @Column(name = "mgr_nm", length = 50)
-    private String mgrNm;
+    @Column(name = "pic_nm", length = 50)
+    private String picNm;
 
     /** 연락처 */
     @Column(name = "tel_no", length = 30)
     private String telNo;
 
     /** 사용 여부. 'N'이면 신규 주문에서 선택 불가 (과거 주문은 그대로 유지) */
-    @Column(name = "use_yn", nullable = false, length = 1)
-    private String useYn;
+    @Column(name = "us_yn", nullable = false, length = 1)
+    private String usYn;
 
     @Builder
-    private Vendor(String vndrCd, String vndrNm, String mgrNm, String telNo, String useYn) {
+    private Vendor(String vndrCd, String vndrNm, String picNm, String telNo, String usYn) {
         this.vndrCd = vndrCd;
         this.vndrNm = vndrNm;
-        this.mgrNm = mgrNm;
+        this.picNm = picNm;
         this.telNo = telNo;
-        this.useYn = useYn != null ? useYn : "Y";
+        this.usYn = usYn != null ? usYn : "Y";
     }
 
-    public void update(String vndrNm, String mgrNm, String telNo, String useYn) {
+    public void update(String vndrNm, String picNm, String telNo, String usYn) {
         this.vndrNm = vndrNm;
-        this.mgrNm = mgrNm;
+        this.picNm = picNm;
         this.telNo = telNo;
-        this.useYn = useYn;
+        this.usYn = usYn;
     }
 
     /** 주문에 담을 수 있는 벤더인지. 사용중지 벤더로 새 주문을 만드는 걸 막는다 */
     public boolean isUsable() {
-        return "Y".equals(useYn);
+        return "Y".equals(usYn);
     }
 }

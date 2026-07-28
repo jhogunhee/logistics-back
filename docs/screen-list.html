@@ -227,7 +227,7 @@
 </tr>
 <tr>
   <td class="name">피킹</td>
-  <td>발행된 피킹지시를 보고 집품 → 수량 입력 → 보관 → <code>SHIP-STAGE</code> MOVE(<code>tx_type=PICK</code>). 지시 소진. 전 할당의 <code>picked_qty == alloc_qty</code>가 되면 주문 <code>PICKED</code> 전이</td>
+  <td>발행된 피킹지시를 보고 집품 → 수량 입력 → 보관 → <code>SHIP-STAGE</code> MOVE(<code>tx_typ=PICK</code>). 지시 소진. 전 할당의 <code>pikng_qty == aloc_qty</code>가 되면 주문 <code>PICKED</code> 전이</td>
   <td class="st"><span class="badge todo">미구현</span></td>
   <td>신규 — 지시 기반</td>
 </tr>
@@ -266,7 +266,7 @@
 </tr>
 <tr>
   <td class="name">적치 전략관리</td>
-  <td>적치지시가 로케이션을 고르는 규칙 정의. 적용 조건(존/온도대/상품 그룹) + 우선순위 + 배정 방식(동일 상품 집약 / 빈 로케이션 우선 / <code>pick_prty</code> 순 등). 전략 시뮬레이션(이 배치면 어디로 가나) 있으면 유용</td>
+  <td>적치지시가 로케이션을 고르는 규칙 정의. 적용 조건(존/온도대/상품 그룹) + 우선순위 + 배정 방식(동일 상품 집약 / 빈 로케이션 우선 / <code>pikng_prty</code> 순 등). 전략 시뮬레이션(이 배치면 어디로 가나) 있으면 유용</td>
   <td class="st"><span class="badge todo">미구현</span></td>
   <td>신규 — <strong>적치지시의 선행 조건</strong></td>
 </tr>

@@ -20,7 +20,7 @@ public class VendorSaveRequest {
 
     private Long vendorId;
     private String vndrNm;
-    private String mgrNm;
+    private String picNm;
     private String telNo;
-    private String useYn;
+    private String usYn;
 }

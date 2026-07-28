@@ -25,10 +25,10 @@ public class InvHistRepositoryImpl implements InvHistRepositoryCustom {
     private final JPAQueryFactory queryFactory;
 
     @Override
-    public List<InvHist> findAllByIbLineIdAndTxTypeOrderByCreatedAtDesc(Long ibLineId, TxType txType) {
+    public List<InvHist> findAllByIbLineIdAndTxTypeOrderByCreatedAtDesc(Long ibLineId, TxType txTyp) {
         return queryFactory
                 .selectFrom(invHist)
-                .where(invHist.ibLineId.eq(ibLineId), invHist.txType.eq(txType))
+                .where(invHist.ibLineId.eq(ibLineId), invHist.txTyp.eq(txTyp))
                 .orderBy(invHist.createdAt.desc())
                 .fetch();
     }
@@ -41,12 +41,12 @@ public class InvHistRepositoryImpl implements InvHistRepositoryCustom {
 
         return queryFactory
                 .select(Projections.constructor(InvHistResponse.class,
-                        invHist.id, invHist.txType,
+                        invHist.id, invHist.txTyp,
                         prod.prodCd, prod.prodNm,
-                        loc.locCd, loc.zoneCd, loc.tempZone,
+                        loc.locCd, loc.zonCd, loc.tmpZon,
                         lot.lotNo,
                         invHist.qty,
-                        invHist.refDocType, invHist.refDocNo,
+                        invHist.rfnDocTyp, invHist.rfnDocNo,
                         fromLocAlias.locCd, toLocAlias.locCd,
                         invHist.createdBy, invHist.createdAt))
                 .from(invHist)
@@ -60,8 +60,8 @@ public class InvHistRepositoryImpl implements InvHistRepositoryCustom {
                         prodCdContains(cond.getProdCd()),
                         prodNmContains(cond.getProdNm()),
                         locCdContains(cond.getLocCd()),
-                        txTypeEq(cond.getTxType()),
-                        refDocNoContains(cond.getRefDocNo()),
+                        txTypeEq(cond.getTxTyp()),
+                        refDocNoContains(cond.getRfnDocNo()),
                         createdAtGoe(cond.getDateFrom()),
                         createdAtLt(cond.getDateTo())
                 )
@@ -83,12 +83,12 @@ public class InvHistRepositoryImpl implements InvHistRepositoryCustom {
         return StringUtils.hasText(locCd) ? loc.locCd.containsIgnoreCase(locCd) : null;
     }
 
-    private BooleanExpression txTypeEq(TxType txType) {
-        return txType != null ? invHist.txType.eq(txType) : null;
+    private BooleanExpression txTypeEq(TxType txTyp) {
+        return txTyp != null ? invHist.txTyp.eq(txTyp) : null;
     }
 
-    private BooleanExpression refDocNoContains(String refDocNo) {
-        return StringUtils.hasText(refDocNo) ? invHist.refDocNo.containsIgnoreCase(refDocNo) : null;
+    private BooleanExpression refDocNoContains(String rfnDocNo) {
+        return StringUtils.hasText(rfnDocNo) ? invHist.rfnDocNo.containsIgnoreCase(rfnDocNo) : null;
     }
 
     // 화면은 날짜만 입력받지만 created_at은 TIMESTAMP이므로 하루 단위 범위로 변환한다

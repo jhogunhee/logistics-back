@@ -40,13 +40,13 @@ public class OutbLine extends BaseEntity {
     private Prod prod;
 
     /** 주문 수량 */
-    @Column(name = "order_qty", nullable = false)
-    private Long orderQty;
+    @Column(name = "odr_qty", nullable = false)
+    private Long odrQty;
 
     @Builder
-    private OutbLine(Prod prod, Long orderQty) {
+    private OutbLine(Prod prod, Long odrQty) {
         this.prod = prod;
-        this.orderQty = orderQty;
+        this.odrQty = odrQty;
     }
 
     void assignOrder(OutbOrder outbOrder) {

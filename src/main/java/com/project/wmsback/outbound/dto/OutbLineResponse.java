@@ -11,16 +11,16 @@ public class OutbLineResponse {
     private final Long prodId;
     private final String prodCd;
     private final String prodNm;
-    private final TempZone tempZone;
-    private final Long orderQty;
+    private final TempZone tmpZon;
+    private final Long odrQty;
 
     private OutbLineResponse(OutbLine line) {
         this.outbLineId = line.getId();
         this.prodId = line.getProd().getId();
         this.prodCd = line.getProd().getProdCd();
         this.prodNm = line.getProd().getProdNm();
-        this.tempZone = line.getProd().getTempZone();
-        this.orderQty = line.getOrderQty();
+        this.tmpZon = line.getProd().getTmpZon();
+        this.odrQty = line.getOdrQty();
     }
 
     public static OutbLineResponse from(OutbLine line) {

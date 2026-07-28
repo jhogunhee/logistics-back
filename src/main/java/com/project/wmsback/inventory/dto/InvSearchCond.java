@@ -16,6 +16,6 @@ public class InvSearchCond {
     private String prodNm;
     private String locCd;
     private String lotNo;
-    private TempZone tempZone;
-    private LocType locType;
+    private TempZone tmpZon;
+    private LocType locTyp;
 }

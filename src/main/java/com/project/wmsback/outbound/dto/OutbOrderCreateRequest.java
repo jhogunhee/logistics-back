@@ -14,7 +14,7 @@ import java.util.List;
 public class OutbOrderCreateRequest {
 
     private Long storeId;
-    private LocalDate orderDt;
+    private LocalDate odrDe;
     private List<LineRequest> lines;
 
     @Getter
@@ -22,6 +22,6 @@ public class OutbOrderCreateRequest {
     @NoArgsConstructor
     public static class LineRequest {
         private Long prodId;
-        private Long orderQty;
+        private Long odrQty;
     }
 }

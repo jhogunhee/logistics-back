@@ -15,7 +15,7 @@ public class IbOrderResponse {
     private final String ibNo;
     private final IbStatus status;
     private final String vndrNm;
-    private final LocalDate expctDt;
+    private final LocalDate expctDe;
     /** 전체 라인 수 (저장값이 아니라 라인에서 파생) */
     private final int lineCount;
     /** 검수(입고)된 라인 수 — rcvdQty > 0 */
@@ -31,7 +31,7 @@ public class IbOrderResponse {
         this.ibNo = order.getIbNo();
         this.status = order.getStatus();
         this.vndrNm = order.getVendor().getVndrNm();
-        this.expctDt = order.getExpctDt();
+        this.expctDe = order.getExpctDe();
         this.lineCount = order.getLines().size();
         this.rcvdLineCount = (int) order.getLines().stream().filter(l -> l.getRcvdQty() > 0).count();
         this.totalExpctQty = order.getLines().stream().mapToLong(IbLine::getExpctQty).sum();

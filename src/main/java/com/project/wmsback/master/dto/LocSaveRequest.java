@@ -22,8 +22,8 @@ public class LocSaveRequest {
 
     private Long locId;
     private String locCd;
-    private String zoneCd;
-    private TempZone tempZone;
-    private LocType locType;
-    private Integer pickPrty;
+    private String zonCd;
+    private TempZone tmpZon;
+    private LocType locTyp;
+    private Integer pikngPrty;
 }

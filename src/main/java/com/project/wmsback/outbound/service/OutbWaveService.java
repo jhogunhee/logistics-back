@@ -33,42 +33,42 @@ public class OutbWaveService {
                 .toList();
     }
 
-    public OutbWaveResponse detail(Long waveId) {
-        OutbWave wave = outbWaveRepository.findById(waveId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 웨이브입니다: " + waveId));
+    public OutbWaveResponse detail(Long wavId) {
+        OutbWave wave = outbWaveRepository.findById(wavId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 웨이브입니다: " + wavId));
         return OutbWaveResponse.from(wave);
     }
 
     /** 웨이브 생성. 웨이브번호는 생성일 + 시퀀스로 채번 (예: WV-20260718-001). 초기 주문 목록은 선택 */
     @Transactional
     public Long create(OutbWaveOrdersRequest req) {
-        String waveNo = String.format("WV-%s-%03d",
+        String wavNo = String.format("WV-%s-%03d",
                 LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE),
                 outbWaveRepository.nextWaveNoSeq());
 
-        OutbWave wave = outbWaveRepository.save(OutbWave.builder().waveNo(waveNo).build());
+        OutbWave wave = outbWaveRepository.save(OutbWave.builder().wavNo(wavNo).build());
         assignOrders(wave, req.getOrderIds());
         return wave.getId();
     }
 
     /** 주문 추가 편성 */
     @Transactional
-    public void addOrders(Long waveId, OutbWaveOrdersRequest req) {
-        OutbWave wave = outbWaveRepository.findById(waveId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 웨이브입니다: " + waveId));
+    public void addOrders(Long wavId, OutbWaveOrdersRequest req) {
+        OutbWave wave = outbWaveRepository.findById(wavId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 웨이브입니다: " + wavId));
         wave.assertPlanned();
         assignOrders(wave, req.getOrderIds());
     }
 
     /** 주문 1건 편성 해제 */
     @Transactional
-    public void removeOrder(Long waveId, Long outbOrderId) {
-        OutbWave wave = outbWaveRepository.findById(waveId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 웨이브입니다: " + waveId));
+    public void removeOrder(Long wavId, Long outbOrderId) {
+        OutbWave wave = outbWaveRepository.findById(wavId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 웨이브입니다: " + wavId));
         wave.assertPlanned();
         OutbOrder order = outbOrderRepository.findById(outbOrderId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 출고 주문입니다: " + outbOrderId));
-        if (order.getWave() == null || !order.getWave().getId().equals(waveId)) {
+        if (order.getWave() == null || !order.getWave().getId().equals(wavId)) {
             throw new IllegalArgumentException("이 웨이브에 편성된 주문이 아닙니다: " + outbOrderId);
         }
         order.unassignWave();
@@ -76,11 +76,11 @@ public class OutbWaveService {
 
     /** 웨이브 해체. 소속 주문을 모두 편성 해제하고 웨이브를 삭제한다 (PLANNED만) */
     @Transactional
-    public void disband(Long waveId) {
-        OutbWave wave = outbWaveRepository.findById(waveId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 웨이브입니다: " + waveId));
+    public void disband(Long wavId) {
+        OutbWave wave = outbWaveRepository.findById(wavId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 웨이브입니다: " + wavId));
         wave.assertPlanned();
-        outbOrderRepository.findByWaveId(waveId).forEach(OutbOrder::unassignWave);
+        outbOrderRepository.findByWaveId(wavId).forEach(OutbOrder::unassignWave);
         outbWaveRepository.delete(wave);
     }
 

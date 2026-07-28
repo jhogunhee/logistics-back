@@ -64,22 +64,22 @@ public class IbOrder extends BaseEntity {
     private Vendor vendor;
 
     /** 입고 예정일 */
-    @Column(name = "expct_dt", nullable = false)
-    private LocalDate expctDt;
+    @Column(name = "expct_de", nullable = false)
+    private LocalDate expctDe;
 
     /** 입고 마감(close) 시각. 마감은 미입고 잔량을 확정하는 명시적 액션 */
-    @Column(name = "closed_at")
-    private LocalDateTime closedAt;
+    @Column(name = "clos_dt")
+    private LocalDateTime closDt;
 
     @OneToMany(mappedBy = "ibOrder", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<IbLine> lines = new ArrayList<>();
 
     @Builder
-    private IbOrder(String ibNo, Long omsIbOrderId, Vendor vendor, LocalDate expctDt) {
+    private IbOrder(String ibNo, Long omsIbOrderId, Vendor vendor, LocalDate expctDe) {
         this.ibNo = ibNo;
         this.omsIbOrderId = omsIbOrderId;
         this.vendor = vendor;
-        this.expctDt = expctDt;
+        this.expctDe = expctDe;
         this.status = IbStatus.SCHEDULED;
     }
 
@@ -135,7 +135,7 @@ public class IbOrder extends BaseEntity {
 
     private void transitionToReceived() {
         this.status = IbStatus.RECEIVED;
-        this.closedAt = LocalDateTime.now();
+        this.closDt = LocalDateTime.now();
         checkAndComplete(); // 이미 전량 적치돼 있었다면(적치는 마감과 무관하게 가능) 바로 COMPLETED
     }
 
@@ -148,7 +148,7 @@ public class IbOrder extends BaseEntity {
         if (status != IbStatus.RECEIVED) {
             return;
         }
-        boolean allPutaway = lines.stream().allMatch(l -> l.getPtwyQty().equals(l.getRcvdQty()));
+        boolean allPutaway = lines.stream().allMatch(l -> l.getPtawyQty().equals(l.getRcvdQty()));
         if (allPutaway) {
             this.status = IbStatus.COMPLETED;
         }
@@ -163,7 +163,7 @@ public class IbOrder extends BaseEntity {
     public void reopenIfNoLongerFullyReceived() {
         if (status == IbStatus.RECEIVED && !allLinesFullyReceived()) {
             this.status = IbStatus.RECEIVING;
-            this.closedAt = null;
+            this.closDt = null;
         }
     }
 }

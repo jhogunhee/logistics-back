@@ -24,15 +24,15 @@ public class OutbWaveRepositoryImpl implements OutbWaveRepositoryCustom {
                 .selectFrom(outbWave).distinct()
                 .leftJoin(outbWave.orders).fetchJoin()
                 .where(
-                        waveNoContains(cond.getWaveNo()),
+                        waveNoContains(cond.getWavNo()),
                         statusEq(cond.getStatus())
                 )
                 .orderBy(outbWave.id.desc())
                 .fetch();
     }
 
-    private BooleanExpression waveNoContains(String waveNo) {
-        return StringUtils.hasText(waveNo) ? outbWave.waveNo.containsIgnoreCase(waveNo) : null;
+    private BooleanExpression waveNoContains(String wavNo) {
+        return StringUtils.hasText(wavNo) ? outbWave.wavNo.containsIgnoreCase(wavNo) : null;
     }
 
     private BooleanExpression statusEq(WaveStatus status) {

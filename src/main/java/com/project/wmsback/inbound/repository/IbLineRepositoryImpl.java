@@ -44,7 +44,7 @@ public class IbLineRepositoryImpl implements IbLineRepositoryCustom {
         return queryFactory
                 .select(Projections.constructor(PutawayCandidateResponse.class,
                         ibLine.id, ibOrder.id, ibOrder.ibNo, vendor.vndrNm,
-                        prod.prodCd, prod.prodNm, prod.tempZone,
+                        prod.prodCd, prod.prodNm, prod.tmpZon,
                         lot.id, lot.lotNo, lot.receiptDt, lot.expiryDt,
                         invHist.qty.sum()))
                 .from(invHist)
@@ -63,7 +63,7 @@ public class IbLineRepositoryImpl implements IbLineRepositoryCustom {
                         receiptDtLoe(cond.getDateTo())
                 )
                 .groupBy(ibLine.id, ibOrder.id, ibOrder.ibNo, vendor.vndrNm,
-                        prod.prodCd, prod.prodNm, prod.tempZone,
+                        prod.prodCd, prod.prodNm, prod.tmpZon,
                         lot.id, lot.lotNo, lot.receiptDt, lot.expiryDt)
                 .having(invHist.qty.sum().gt(0L))
                 .orderBy(lot.expiryDt.asc().nullsLast(), ibLine.id.asc())

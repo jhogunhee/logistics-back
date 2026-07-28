@@ -48,15 +48,15 @@ public class IbLine extends BaseEntity {
     private Long rcvdQty;
 
     /** 적치 완료 수량 누계 (스테이징 → 보관 MOVE 반영분) */
-    @Column(name = "ptwy_qty", nullable = false)
-    private Long ptwyQty;
+    @Column(name = "ptawy_qty", nullable = false)
+    private Long ptawyQty;
 
     @Builder
     private IbLine(Prod prod, Long expctQty) {
         this.prod = prod;
         this.expctQty = expctQty;
         this.rcvdQty = 0L;
-        this.ptwyQty = 0L;
+        this.ptawyQty = 0L;
     }
 
     void assignOrder(IbOrder ibOrder) {
@@ -75,6 +75,6 @@ public class IbLine extends BaseEntity {
 
     /** 적치 반영 (증분 누적). 어떤 Lot에서 왔는지는 상관없이 이동한 총량만 더한다 (rcvdQty와 동일한 패턴) */
     public void putaway(long qty) {
-        this.ptwyQty += qty;
+        this.ptawyQty += qty;
     }
 }

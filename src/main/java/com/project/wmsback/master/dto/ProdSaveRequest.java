@@ -21,6 +21,6 @@ public class ProdSaveRequest {
 
     private Long prodId;
     private String prodNm;
-    private TempZone tempZone;
+    private TempZone tmpZon;
     private Integer shelfLifeDays;
 }

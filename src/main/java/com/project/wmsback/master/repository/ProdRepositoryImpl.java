@@ -36,7 +36,7 @@ public class ProdRepositoryImpl implements ProdRepositoryCustom {
                 .where(
                         prodCdContains(cond.getProdCd()),
                         prodNmContains(cond.getProdNm()),
-                        tempZoneEq(cond.getTempZone())
+                        tempZoneEq(cond.getTmpZon())
                 )
                 .orderBy(prod.id.asc())
                 .fetch();
@@ -52,7 +52,7 @@ public class ProdRepositoryImpl implements ProdRepositoryCustom {
         return StringUtils.hasText(prodNm) ? prod.prodNm.containsIgnoreCase(prodNm) : null;
     }
 
-    private BooleanExpression tempZoneEq(TempZone tempZone) {
-        return tempZone != null ? prod.tempZone.eq(tempZone) : null;
+    private BooleanExpression tempZoneEq(TempZone tmpZon) {
+        return tmpZon != null ? prod.tmpZon.eq(tmpZon) : null;
     }
 }

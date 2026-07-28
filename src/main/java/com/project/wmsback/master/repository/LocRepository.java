@@ -15,5 +15,5 @@ public interface LocRepository extends JpaRepository<Loc, Long>, LocRepositoryCu
     Optional<Loc> findByLocCd(String locCd);
 
     /** 적치 대상 로케이션 후보 (상품 온도대와 일치하는 STORAGE, 우선순위 오름차순 추천) */
-    List<Loc> findAllByTempZoneAndLocTypeOrderByPickPrtyAsc(TempZone tempZone, LocType locType);
+    List<Loc> findAllByTempZoneAndLocTypeOrderByPickPrtyAsc(TempZone tmpZon, LocType locTyp);
 }

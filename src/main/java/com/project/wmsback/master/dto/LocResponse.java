@@ -12,10 +12,10 @@ public class LocResponse {
 
     private final Long locId;
     private final String locCd;
-    private final String zoneCd;
-    private final TempZone tempZone;
-    private final LocType locType;
-    private final Integer pickPrty;
+    private final String zonCd;
+    private final TempZone tmpZon;
+    private final LocType locTyp;
+    private final Integer pikngPrty;
     private final String createdBy;
     private final LocalDateTime createdAt;
     private final String updatedBy;
@@ -24,10 +24,10 @@ public class LocResponse {
     private LocResponse(Loc loc) {
         this.locId = loc.getId();
         this.locCd = loc.getLocCd();
-        this.zoneCd = loc.getZoneCd();
-        this.tempZone = loc.getTempZone();
-        this.locType = loc.getLocType();
-        this.pickPrty = loc.getPickPrty();
+        this.zonCd = loc.getZonCd();
+        this.tmpZon = loc.getTmpZon();
+        this.locTyp = loc.getLocTyp();
+        this.pikngPrty = loc.getPikngPrty();
         this.createdBy = loc.getCreatedBy();
         this.createdAt = loc.getCreatedAt();
         this.updatedBy = loc.getUpdatedBy();

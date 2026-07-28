@@ -70,10 +70,10 @@ public class OmsIbOrderRepositoryImpl implements OmsIbOrderRepositoryCustom {
     }
 
     private BooleanExpression expctDtGoe(LocalDate dateFrom) {
-        return dateFrom != null ? omsIbOrder.expctDt.goe(dateFrom) : null;
+        return dateFrom != null ? omsIbOrder.expctDe.goe(dateFrom) : null;
     }
 
     private BooleanExpression expctDtLoe(LocalDate dateTo) {
-        return dateTo != null ? omsIbOrder.expctDt.loe(dateTo) : null;
+        return dateTo != null ? omsIbOrder.expctDe.loe(dateTo) : null;
     }
 }

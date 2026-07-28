@@ -14,7 +14,7 @@ import java.util.List;
 public class OmsIbOrderCreateRequest {
 
     private Long vendorId;
-    private LocalDate expctDt;
+    private LocalDate expctDe;
     private List<LineRequest> lines;
 
     @Getter
@@ -22,6 +22,6 @@ public class OmsIbOrderCreateRequest {
     @NoArgsConstructor
     public static class LineRequest {
         private Long prodId;
-        private Long orderQty;
+        private Long odrQty;
     }
 }

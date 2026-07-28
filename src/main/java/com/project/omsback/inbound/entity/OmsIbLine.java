@@ -40,13 +40,13 @@ public class OmsIbLine extends BaseEntity {
     private Prod prod;
 
     /** 발주 수량. 확정 시 ASN 라인의 expct_qty로 복사된다 */
-    @Column(name = "order_qty", nullable = false)
-    private Long orderQty;
+    @Column(name = "odr_qty", nullable = false)
+    private Long odrQty;
 
     @Builder
-    private OmsIbLine(Prod prod, Long orderQty) {
+    private OmsIbLine(Prod prod, Long odrQty) {
         this.prod = prod;
-        this.orderQty = orderQty;
+        this.odrQty = odrQty;
     }
 
     void assignOrder(OmsIbOrder omsIbOrder) {

@@ -39,8 +39,8 @@ public class OutbWave extends BaseEntity {
     private Long id;
 
     /** 웨이브 번호 (업무 식별자, 예: WV-20260718-001) */
-    @Column(name = "wave_no", nullable = false, length = 30, unique = true)
-    private String waveNo;
+    @Column(name = "wav_no", nullable = false, length = 30, unique = true)
+    private String wavNo;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 15)
@@ -54,15 +54,15 @@ public class OutbWave extends BaseEntity {
     private List<OutbOrder> orders = new ArrayList<>();
 
     @Builder
-    private OutbWave(String waveNo) {
-        this.waveNo = waveNo;
+    private OutbWave(String wavNo) {
+        this.wavNo = wavNo;
         this.status = WaveStatus.PLANNED;
     }
 
     /** 편성 변경(주문 담기/빼기/해체)은 릴리즈 전(PLANNED)에만 허용 */
     public void assertPlanned() {
         if (status != WaveStatus.PLANNED) {
-            throw new IllegalStateException("이미 릴리즈된 웨이브는 편성을 변경할 수 없습니다: " + waveNo);
+            throw new IllegalStateException("이미 릴리즈된 웨이브는 편성을 변경할 수 없습니다: " + wavNo);
         }
     }
 }

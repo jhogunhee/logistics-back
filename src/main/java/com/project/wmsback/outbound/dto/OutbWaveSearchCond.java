@@ -11,6 +11,6 @@ import lombok.Setter;
 @NoArgsConstructor
 public class OutbWaveSearchCond {
 
-    private String waveNo;
+    private String wavNo;
     private WaveStatus status;
 }

@@ -18,7 +18,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * 재고 할당 레코드. 어떤 주문라인이 어떤 재고(상품+Loc+Lot)를 몇 개 예약했는지.
- * FEFO(+ 납품기한 필터) 결과가 기록된다. 할당 취소 시 삭제 + Inv.allocQty 복원.
+ * FEFO(+ 납품기한 필터) 결과가 기록된다. 할당 취소 시 삭제 + Inv.alocQty 복원.
  */
 @Entity
 @Table(name = "outb_alloc")
@@ -40,18 +40,18 @@ public class OutbAlloc extends BaseEntity {
     private Inv inv;
 
     /** 할당 수량 (부분할당 허용: 라인 orderQty보다 합계가 작을 수 있음) */
-    @Column(name = "alloc_qty", nullable = false)
-    private Long allocQty;
+    @Column(name = "aloc_qty", nullable = false)
+    private Long alocQty;
 
     /** 피킹 완료 수량. 피킹 리스트는 할당을 로케이션 순으로 정렬해 생성 */
-    @Column(name = "picked_qty", nullable = false)
-    private Long pickedQty;
+    @Column(name = "pikng_qty", nullable = false)
+    private Long pikngQty;
 
     @Builder
-    private OutbAlloc(OutbLine outbLine, Inv inv, Long allocQty) {
+    private OutbAlloc(OutbLine outbLine, Inv inv, Long alocQty) {
         this.outbLine = outbLine;
         this.inv = inv;
-        this.allocQty = allocQty;
-        this.pickedQty = 0L;
+        this.alocQty = alocQty;
+        this.pikngQty = 0L;
     }
 }

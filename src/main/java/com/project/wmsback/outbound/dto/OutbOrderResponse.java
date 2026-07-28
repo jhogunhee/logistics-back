@@ -17,10 +17,10 @@ public class OutbOrderResponse {
     private final Long storeId;
     private final String storeCd;
     private final String storeNm;
-    private final LocalDate orderDt;
+    private final LocalDate odrDe;
     /** 편성된 웨이브 (미편성이면 NULL) */
-    private final Long waveId;
-    private final String waveNo;
+    private final Long wavId;
+    private final String wavNo;
     /** 전체 라인 수 (라인에서 파생) */
     private final int lineCount;
     /** 주문 수량 합계 (라인 파생) */
@@ -34,11 +34,11 @@ public class OutbOrderResponse {
         this.storeId = order.getStore().getId();
         this.storeCd = order.getStore().getStoreCd();
         this.storeNm = order.getStore().getStoreNm();
-        this.orderDt = order.getOrderDt();
-        this.waveId = order.getWave() != null ? order.getWave().getId() : null;
-        this.waveNo = order.getWave() != null ? order.getWave().getWaveNo() : null;
+        this.odrDe = order.getOdrDe();
+        this.wavId = order.getWave() != null ? order.getWave().getId() : null;
+        this.wavNo = order.getWave() != null ? order.getWave().getWavNo() : null;
         this.lineCount = order.getLines().size();
-        this.totalOrderQty = order.getLines().stream().mapToLong(OutbLine::getOrderQty).sum();
+        this.totalOrderQty = order.getLines().stream().mapToLong(OutbLine::getOdrQty).sum();
         this.createdAt = order.getCreatedAt();
     }
 

@@ -477,30 +477,47 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | `ZON` | 존 | Zone |
 
 
-## 이미 쓰고 있는 이름과 어긋나는 곳 (확인 필요)
+## 이미 쓰고 있는 이름과 어긋나는 곳
 
-`docs/schema.sql`과 엔티티가 이미 쓰는 약어 중 이 사전과 다른 것들이 있다. **`CLAUDE.md`는 문서와 코드가 어긋날 때 조용히 한쪽으로 맞추지 말라고 못박았으니, 아래 항목은 손대기 전에 물어볼 것.** 이 파일을 근거로 기존 컬럼명을 일괄 개명하지 않는다.
+원래 여기 16개 항목이 「확인 필요」로 올라와 있었다. `docs/migration-rename-columns-to-dictionary.sql`이 그중 해소 가능한 것을 사전 쪽으로 개명했다(컬럼 · 엔티티 필드 · DTO · 프론트 JSON 필드까지 함께).
 
-| 단어 | 이 사전 | 지금 쓰는 이름 | 나타나는 곳 |
+### 해소됨 — 사전대로 개명 완료
+
+| 단어 | 사전 | 옛 이름 → 새 이름 |
+|---|---|---|
+| 적치 | `PTAWY` | `ptwy_qty` → `ptawy_qty` |
+| 할당 | `ALOC` | `alloc_qty` → `aloc_qty` |
+| 설명 | `DSCR` | `description` → `dscr` |
+| 유형 | `TYP` | `loc_type`·`ref_doc_type`·`tx_type` → `loc_typ`·`rfn_doc_typ`·`tx_typ` |
+| 존 | `ZON` | `zone_cd` → `zon_cd` |
+| 온도 | `TMP` | `temp_zone` → `tmp_zon` |
+| 그룹 | `GRP` | `group_cd`·`group_nm` → `grp_cd`·`grp_nm` |
+| 웨이브 | `WAV` | `wave_no`·`wave_id` → `wav_no`·`wav_id` |
+| 피킹 | `PIKNG` | `pick_prty`·`picked_qty` → `pikng_prty`·`pikng_qty` |
+| 정렬 + 순서 | `SRT` + `SEQ` | `sort_ord` → `srt_seq` |
+| 사용 | `US` | `use_yn` → `us_yn` |
+| 참조 | `RFN` | `ref_doc_no` → `rfn_doc_no` |
+| 주문 | `ODR` | `order_qty`·`order_dt` → `odr_qty`·`odr_de` |
+| 담당자 | `PIC` | `mgr_nm` → `pic_nm` |
+| 취소 | `CNCL` | `cancels_inv_hist_id` → `cncl_inv_hist_id` |
+| 일자 `DE` · 일시 `DT` | | `expct_dt` → `expct_de`(DATE), `closed_at`·`completed_at`·`shipped_at` → `clos_dt`·`cmpl_dt`·`shmt_dt` |
+
+### 따르지 않기로 결정한 것
+
+| 단어 | 사전 | 유지하는 이름 | 이유 |
 |---|---|---|---|
-| 적치 | `PTAWY` | `ptwy` | `ib_line.ptwy_qty`, `IbLine.ptwyQty` |
-| 할당 | `ALOC` | `alloc` | `outb_line.alloc_qty`, `outb_alloc` |
-| 재고 | `INVN` | `inv` | `inv`, `inv_hist`, `inv_id` |
-| 상태 | `ST` | `status` | `ib_order.status` 등 헤더 전반 |
-| 설명 | `DSCR` | `description` | `code_group.description` |
-| 유형 | `TYP` | `type` | `loc_type`, `ref_doc_type`, `tx_type` |
-| 존 | `ZON` | `zone` | `zone_cd`, `temp_zone` |
-| 온도 | `TMP` | `temp` | `temp_zone` |
-| 코드 | `CD` | `code` | `code_detail.code_cd` · `code_nm` (테이블명 `code_detail` 자체) |
-| 그룹 | `GRP` | `group` | `code_group.group_cd` · `group_nm` (테이블명 `code_group` 자체) |
-| 웨이브 | `WAV` | `wave` | `wave_no`, `wave_id`, `outb_wave` |
-| 피킹 | `PIKNG` | `pick` / `picked` | `pick_prty`, `picked_qty` |
-| 정렬 + 순서 | `SRT` + `SEQ` | `sort_ord` (`ord`는 사전에 없다) | `code_detail.sort_ord` |
-| 사용 | `US` | `use` | `code_detail.use_yn` |
-| 일자 · 일시 | `DE` · `DT` | `_dt` / `_at` 혼용 | `expct_dt`, `order_dt` vs `created_at`, `closed_at` |
-| 생성 · 수정 | `CRT` · `UPD` | `created` · `updated` | `BaseEntity`의 감사 컬럼 4종 |
+| 재고 | `INVN` | `inv`, `inv_hist`, `inv_id` | **규칙 5가 우선.** 테이블 접두(`INV*`)와 PK명은 사전보다 위다 |
+| 상태 | `ST` | `status` | 두 글자로는 state/street/start 중 무엇인지 알 수 없다 |
+| 코드 | `CD` | `code_detail.code_cd` · `code_nm` | `cd_cd`가 되어 같은 단어가 겹친다 |
+| 생성 · 수정 | `CRT` · `UPD` | `created_*` · `updated_*` | 「생성자」가 사전에 없고 `CRTR`은 이미 「기준(Criteria)」이 쓴다. `BaseEntity`·`AuditorAware`와도 묶여 있다 |
 
-사전에 아예 없는데 스키마가 쓰는 약어도 있다 — `rcvd`(received) · `rjct`(rejected) · `hist`(history) · `ord`(order) · `tx`(transaction) · `ref_doc` · `on_hand` · `mfg` · `expiry` · `shelf_life`. 이 중 `expct` · `rcvd` · `rjct` · `ptwy` · `alloc` · `loc` · `hist`는 `CLAUDE.md`와 `docs/schema.sql` 머리말에 별도 약어 사전으로 이미 박혀 있다. 즉 **약어 사전이 지금 두 벌**이고, `적치`와 `할당` 두 단어에서 서로 충돌한다.
+### 아직 사전에 없는 단어
+
+스키마가 쓰지만 사전에 등재되지 않은 것들이다. 규칙 6에 따라 **이름을 바꾸려면 사전 등재가 먼저다.**
+
+`rcvd`(검수/입고수량) · `rjct`(rejected) · `hist`(history) · `tx`(transaction) · `doc`(문서) · `on_hand`(보유) · `mfg`(제조) · `expiry`(유통기한) · `shelf_life` · `rate`(비율) · `days`(일수) · `version` · `converted`(전환) · `released`(발행) · `receipt`
+
+이 중 `expct` · `rcvd` · `rjct` · `loc` · `hist`는 `CLAUDE.md`와 `docs/schema.sql` 머리말의 약어 사전에 이미 박혀 있다.
 
 ## 원본 표에 대한 메모
 

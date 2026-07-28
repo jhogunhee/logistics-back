@@ -56,8 +56,8 @@ public class OmsIbOrder extends BaseEntity {
     private Vendor vendor;
 
     /** 입고 예정일. ASN의 입고번호 채번(IB-YYYYMMDD-NNN) 기준일이기도 하다 */
-    @Column(name = "expct_dt", nullable = false)
-    private LocalDate expctDt;
+    @Column(name = "expct_de", nullable = false)
+    private LocalDate expctDe;
 
     /** 변환(ASN 생성) 시각. 변환취소하면 다시 null이 된다 */
     @Column(name = "converted_at")
@@ -67,10 +67,10 @@ public class OmsIbOrder extends BaseEntity {
     private List<OmsIbLine> lines = new ArrayList<>();
 
     @Builder
-    private OmsIbOrder(String omsIbNo, Vendor vendor, LocalDate expctDt) {
+    private OmsIbOrder(String omsIbNo, Vendor vendor, LocalDate expctDe) {
         this.omsIbNo = omsIbNo;
         this.vendor = vendor;
-        this.expctDt = expctDt;
+        this.expctDe = expctDe;
         this.status = OmsIbStatus.CREATED;
     }
 

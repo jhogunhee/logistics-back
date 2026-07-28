@@ -11,9 +11,9 @@ public class VendorResponse {
     private final Long vendorId;
     private final String vndrCd;
     private final String vndrNm;
-    private final String mgrNm;
+    private final String picNm;
     private final String telNo;
-    private final String useYn;
+    private final String usYn;
     private final String createdBy;
     private final LocalDateTime createdAt;
     private final String updatedBy;
@@ -23,9 +23,9 @@ public class VendorResponse {
         this.vendorId = vendor.getId();
         this.vndrCd = vendor.getVndrCd();
         this.vndrNm = vendor.getVndrNm();
-        this.mgrNm = vendor.getMgrNm();
+        this.picNm = vendor.getPicNm();
         this.telNo = vendor.getTelNo();
-        this.useYn = vendor.getUseYn();
+        this.usYn = vendor.getUsYn();
         this.createdBy = vendor.getCreatedBy();
         this.createdAt = vendor.getCreatedAt();
         this.updatedBy = vendor.getUpdatedBy();

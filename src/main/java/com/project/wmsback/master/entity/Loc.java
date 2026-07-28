@@ -33,36 +33,36 @@ public class Loc extends BaseEntity {
     private String locCd;
 
     /** 존 코드 (RCV-STAGE / DRY / CHL / FRZ) */
-    @Column(name = "zone_cd", nullable = false, length = 20)
-    private String zoneCd;
+    @Column(name = "zon_cd", nullable = false, length = 20)
+    private String zonCd;
 
     /** 존 온도대. 상품 온도대와 불일치하면 적치·이동 차단 */
     @Enumerated(EnumType.STRING)
-    @Column(name = "temp_zone", nullable = false, length = 10)
-    private TempZone tempZone;
+    @Column(name = "tmp_zon", nullable = false, length = 10)
+    private TempZone tmpZon;
 
     /** STAGE: 입고 스테이징(적치 대기) / STORAGE: 보관(할당 대상) */
     @Enumerated(EnumType.STRING)
-    @Column(name = "loc_type", nullable = false, length = 10)
-    private LocType locType;
+    @Column(name = "loc_typ", nullable = false, length = 10)
+    private LocType locTyp;
 
     /** 할당 시 동일 유통기한(FEFO 동순위) 간 로케이션 우선순위. 낮을수록 먼저 할당 */
-    @Column(name = "pick_prty", nullable = false)
-    private Integer pickPrty;
+    @Column(name = "pikng_prty", nullable = false)
+    private Integer pikngPrty;
 
     @Builder
-    private Loc(String locCd, String zoneCd, TempZone tempZone, LocType locType, Integer pickPrty) {
+    private Loc(String locCd, String zonCd, TempZone tmpZon, LocType locTyp, Integer pikngPrty) {
         this.locCd = locCd;
-        this.zoneCd = zoneCd;
-        this.tempZone = tempZone;
-        this.locType = locType;
-        this.pickPrty = pickPrty != null ? pickPrty : 0;
+        this.zonCd = zonCd;
+        this.tmpZon = tmpZon;
+        this.locTyp = locTyp;
+        this.pikngPrty = pikngPrty != null ? pikngPrty : 0;
     }
 
-    public void update(String zoneCd, TempZone tempZone, LocType locType, Integer pickPrty) {
-        this.zoneCd = zoneCd;
-        this.tempZone = tempZone;
-        this.locType = locType;
-        this.pickPrty = pickPrty;
+    public void update(String zonCd, TempZone tmpZon, LocType locTyp, Integer pikngPrty) {
+        this.zonCd = zonCd;
+        this.tmpZon = tmpZon;
+        this.locTyp = locTyp;
+        this.pikngPrty = pikngPrty;
     }
 }

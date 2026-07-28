@@ -18,7 +18,7 @@ public class OmsIbOrderResponse {
     private final Long vendorId;
     private final String vndrCd;
     private final String vndrNm;
-    private final LocalDate expctDt;
+    private final LocalDate expctDe;
     /** 라인 수 (저장값이 아니라 라인에서 파생) */
     private final int lineCount;
     /** 발주 수량 합계 (라인 파생) */
@@ -38,9 +38,9 @@ public class OmsIbOrderResponse {
         this.vendorId = order.getVendor().getId();
         this.vndrCd = order.getVendor().getVndrCd();
         this.vndrNm = order.getVendor().getVndrNm();
-        this.expctDt = order.getExpctDt();
+        this.expctDe = order.getExpctDe();
         this.lineCount = order.getLines().size();
-        this.totalOrderQty = order.getLines().stream().mapToLong(OmsIbLine::getOrderQty).sum();
+        this.totalOrderQty = order.getLines().stream().mapToLong(OmsIbLine::getOdrQty).sum();
         this.convertedAt = order.getConvertedAt();
         this.createdAt = order.getCreatedAt();
 

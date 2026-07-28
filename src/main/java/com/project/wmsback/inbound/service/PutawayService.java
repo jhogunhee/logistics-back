@@ -46,11 +46,11 @@ public class PutawayService {
         return ibLineRepository.findAllPendingPutawayBatches(cond);
     }
 
-    /** 대상 로케이션 후보 (상품 온도대와 일치하는 STORAGE, pick_prty 오름차순 추천) */
+    /** 대상 로케이션 후보 (상품 온도대와 일치하는 STORAGE, pikng_prty 오름차순 추천) */
     public List<LocResponse> candidateLocs(Long ibLineId) {
         IbLine ibLine = ibLineRepository.findById(ibLineId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고 라인입니다: " + ibLineId));
-        return locRepository.findAllByTempZoneAndLocTypeOrderByPickPrtyAsc(ibLine.getProd().getTempZone(), LocType.STORAGE)
+        return locRepository.findAllByTempZoneAndLocTypeOrderByPickPrtyAsc(ibLine.getProd().getTmpZon(), LocType.STORAGE)
                 .stream().map(LocResponse::from).toList();
     }
 
@@ -73,11 +73,11 @@ public class PutawayService {
                 .orElseThrow(() -> new IllegalStateException("입고 스테이징 로케이션(RCV-STAGE)이 없습니다."));
         Loc target = locRepository.findById(targetLocId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 로케이션입니다: " + targetLocId));
-        if (target.getLocType() != LocType.STORAGE) {
+        if (target.getLocTyp() != LocType.STORAGE) {
             throw new IllegalArgumentException("보관 로케이션이 아닙니다: " + target.getLocCd());
         }
-        if (target.getTempZone() != prod.getTempZone()) {
-            throw new IllegalArgumentException("온도대가 일치하지 않습니다 (상품 " + prod.getTempZone() + " / 로케이션 " + target.getTempZone() + "): " + target.getLocCd());
+        if (target.getTmpZon() != prod.getTmpZon()) {
+            throw new IllegalArgumentException("온도대가 일치하지 않습니다 (상품 " + prod.getTmpZon() + " / 로케이션 " + target.getTmpZon() + "): " + target.getLocCd());
         }
 
         Inv stagingInv = invRepository.findByProdIdAndLocIdAndLotId(prod.getId(), staging.getId(), lot.getId())
@@ -92,27 +92,27 @@ public class PutawayService {
         targetInv.increaseOnHand(qty);
 
         invHistRepository.save(InvHist.builder()
-                .txType(TxType.MOVE)
+                .txTyp(TxType.MOVE)
                 .prod(prod).loc(staging).lot(lot)
                 .qty(-qty)
-                .refDocType(RefDocType.INBOUND)
-                .refDocNo(ibLine.getIbOrder().getIbNo())
+                .rfnDocTyp(RefDocType.INBOUND)
+                .rfnDocNo(ibLine.getIbOrder().getIbNo())
                 .ibLineId(ibLineId)
                 .fromLocId(staging.getId()).toLocId(target.getId())
                 .build());
         invHistRepository.save(InvHist.builder()
-                .txType(TxType.MOVE)
+                .txTyp(TxType.MOVE)
                 .prod(prod).loc(target).lot(lot)
                 .qty(qty)
-                .refDocType(RefDocType.INBOUND)
-                .refDocNo(ibLine.getIbOrder().getIbNo())
+                .rfnDocTyp(RefDocType.INBOUND)
+                .rfnDocNo(ibLine.getIbOrder().getIbNo())
                 .ibLineId(ibLineId)
                 .fromLocId(staging.getId()).toLocId(target.getId())
                 .build());
 
         // 스테이징 재고가 0이 되면 스냅샷 행을 삭제한다 (재고 테이블엔 실물이 있는 행만 남긴다).
         // 이력 합계=스냅샷 불변식은 유지된다 — 이력 SUM=0 ↔ 스냅샷 행 없음(=0).
-        if (stagingInv.getOnHandQty() == 0 && stagingInv.getAllocQty() == 0) {
+        if (stagingInv.getOnHandQty() == 0 && stagingInv.getAlocQty() == 0) {
             invRepository.delete(stagingInv);
         }
 

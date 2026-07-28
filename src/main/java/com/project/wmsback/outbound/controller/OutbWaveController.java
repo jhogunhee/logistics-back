@@ -33,23 +33,23 @@ public class OutbWaveController {
         return outbWaveService.create(req);
     }
 
-    @GetMapping("/{waveId}")
-    public OutbWaveResponse detail(@PathVariable Long waveId) {
-        return outbWaveService.detail(waveId);
+    @GetMapping("/{wavId}")
+    public OutbWaveResponse detail(@PathVariable Long wavId) {
+        return outbWaveService.detail(wavId);
     }
 
-    @PostMapping("/{waveId}/orders")
-    public void addOrders(@PathVariable Long waveId, @RequestBody OutbWaveOrdersRequest req) {
-        outbWaveService.addOrders(waveId, req);
+    @PostMapping("/{wavId}/orders")
+    public void addOrders(@PathVariable Long wavId, @RequestBody OutbWaveOrdersRequest req) {
+        outbWaveService.addOrders(wavId, req);
     }
 
-    @DeleteMapping("/{waveId}/orders/{outbOrderId}")
-    public void removeOrder(@PathVariable Long waveId, @PathVariable Long outbOrderId) {
-        outbWaveService.removeOrder(waveId, outbOrderId);
+    @DeleteMapping("/{wavId}/orders/{outbOrderId}")
+    public void removeOrder(@PathVariable Long wavId, @PathVariable Long outbOrderId) {
+        outbWaveService.removeOrder(wavId, outbOrderId);
     }
 
-    @DeleteMapping("/{waveId}")
-    public void disband(@PathVariable Long waveId) {
-        outbWaveService.disband(waveId);
+    @DeleteMapping("/{wavId}")
+    public void disband(@PathVariable Long wavId) {
+        outbWaveService.disband(wavId);
     }
 }

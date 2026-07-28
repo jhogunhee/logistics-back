@@ -55,25 +55,25 @@ public class OutbOrder extends BaseEntity {
 
     /** 편성된 출고 웨이브. NULL = 아직 미편성. 할당은 이 웨이브의 릴리즈로만 일어난다 */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "wave_id")
+    @JoinColumn(name = "wav_id")
     private OutbWave wave;
 
     /** 주문일 */
-    @Column(name = "order_dt", nullable = false)
-    private LocalDate orderDt;
+    @Column(name = "odr_de", nullable = false)
+    private LocalDate odrDe;
 
     /** 출고 확정 시각 */
-    @Column(name = "shipped_at")
-    private LocalDateTime shippedAt;
+    @Column(name = "shmt_dt")
+    private LocalDateTime shmtDt;
 
     @OneToMany(mappedBy = "outbOrder", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OutbLine> lines = new ArrayList<>();
 
     @Builder
-    private OutbOrder(String outbNo, Store store, LocalDate orderDt) {
+    private OutbOrder(String outbNo, Store store, LocalDate odrDe) {
         this.outbNo = outbNo;
         this.store = store;
-        this.orderDt = orderDt;
+        this.odrDe = odrDe;
         this.status = OutbStatus.CREATED;
     }
 

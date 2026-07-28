@@ -52,20 +52,20 @@ public class OutbOrderService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 점포입니다: " + req.getStoreId()));
 
         String outbNo = String.format("OB-%s-%03d",
-                req.getOrderDt().format(DateTimeFormatter.BASIC_ISO_DATE),
+                req.getOdrDe().format(DateTimeFormatter.BASIC_ISO_DATE),
                 outbOrderRepository.nextOutbNoSeq());
 
         OutbOrder order = OutbOrder.builder()
                 .outbNo(outbNo)
                 .store(store)
-                .orderDt(req.getOrderDt())
+                .odrDe(req.getOdrDe())
                 .build();
         for (OutbOrderCreateRequest.LineRequest line : req.getLines()) {
             Prod prod = prodRepository.findById(line.getProdId())
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다: " + line.getProdId()));
             order.addLine(OutbLine.builder()
                     .prod(prod)
-                    .orderQty(line.getOrderQty())
+                    .odrQty(line.getOdrQty())
                     .build());
         }
         outbOrderRepository.save(order); // cascade로 라인까지 함께 저장
@@ -84,7 +84,7 @@ public class OutbOrderService {
         if (req.getStoreId() == null) {
             throw new IllegalArgumentException("출고처 점포는 필수입니다.");
         }
-        if (req.getOrderDt() == null) {
+        if (req.getOdrDe() == null) {
             throw new IllegalArgumentException("주문일은 필수입니다.");
         }
         if (req.getLines() == null || req.getLines().isEmpty()) {
@@ -94,7 +94,7 @@ public class OutbOrderService {
             if (line.getProdId() == null) {
                 throw new IllegalArgumentException("라인의 상품은 필수입니다.");
             }
-            if (line.getOrderQty() == null || line.getOrderQty() < 1) {
+            if (line.getOdrQty() == null || line.getOdrQty() < 1) {
                 throw new IllegalArgumentException("주문 수량은 1 이상이어야 합니다.");
             }
         }

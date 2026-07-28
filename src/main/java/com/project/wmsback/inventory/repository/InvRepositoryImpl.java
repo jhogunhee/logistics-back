@@ -27,11 +27,11 @@ public class InvRepositoryImpl implements InvRepositoryCustom {
         return queryFactory
                 .select(Projections.constructor(InvResponse.class,
                         inv.id,
-                        prod.prodCd, prod.prodNm, prod.tempZone,
-                        loc.locCd, loc.zoneCd, loc.locType,
+                        prod.prodCd, prod.prodNm, prod.tmpZon,
+                        loc.locCd, loc.zonCd, loc.locTyp,
                         lot.lotNo, lot.expiryDt,
-                        inv.onHandQty, inv.allocQty,
-                        inv.onHandQty.subtract(inv.allocQty)))
+                        inv.onHandQty, inv.alocQty,
+                        inv.onHandQty.subtract(inv.alocQty)))
                 .from(inv)
                 .innerJoin(inv.prod, prod)
                 .innerJoin(inv.loc, loc)
@@ -41,8 +41,8 @@ public class InvRepositoryImpl implements InvRepositoryCustom {
                         prodNmContains(cond.getProdNm()),
                         locCdContains(cond.getLocCd()),
                         lotNoContains(cond.getLotNo()),
-                        tempZoneEq(cond.getTempZone()),
-                        locTypeEq(cond.getLocType()),
+                        tempZoneEq(cond.getTmpZon()),
+                        locTypeEq(cond.getLocTyp()),
                         // 보유 0 행은 재고가 빠지는 시점에 삭제되지만, 과거 데이터의 잔여 0 행이 화면에 뜨지 않도록 방어적으로 항상 제외
                         inv.onHandQty.gt(0L)
                 )
@@ -69,11 +69,11 @@ public class InvRepositoryImpl implements InvRepositoryCustom {
         return StringUtils.hasText(lotNo) ? lot.lotNo.containsIgnoreCase(lotNo) : null;
     }
 
-    private BooleanExpression tempZoneEq(TempZone tempZone) {
-        return tempZone != null ? prod.tempZone.eq(tempZone) : null;
+    private BooleanExpression tempZoneEq(TempZone tmpZon) {
+        return tmpZon != null ? prod.tmpZon.eq(tmpZon) : null;
     }
 
-    private BooleanExpression locTypeEq(LocType locType) {
-        return locType != null ? loc.locType.eq(locType) : null;
+    private BooleanExpression locTypeEq(LocType locTyp) {
+        return locTyp != null ? loc.locTyp.eq(locTyp) : null;
     }
 }

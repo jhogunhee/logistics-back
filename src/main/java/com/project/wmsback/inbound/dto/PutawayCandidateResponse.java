@@ -18,7 +18,7 @@ public class PutawayCandidateResponse {
     private final String vndrNm;
     private final String prodCd;
     private final String prodNm;
-    private final TempZone tempZone;
+    private final TempZone tmpZon;
     private final Long lotId;
     private final String lotNo;
     private final LocalDate receiptDt;
@@ -26,7 +26,7 @@ public class PutawayCandidateResponse {
     private final Long pendingQty;
 
     public PutawayCandidateResponse(Long ibLineId, Long ibOrderId, String ibNo, String vndrNm,
-                                     String prodCd, String prodNm, TempZone tempZone,
+                                     String prodCd, String prodNm, TempZone tmpZon,
                                      Long lotId, String lotNo, LocalDate receiptDt, LocalDate expiryDt,
                                      Long pendingQty) {
         this.ibLineId = ibLineId;
@@ -35,7 +35,7 @@ public class PutawayCandidateResponse {
         this.vndrNm = vndrNm;
         this.prodCd = prodCd;
         this.prodNm = prodNm;
-        this.tempZone = tempZone;
+        this.tmpZon = tmpZon;
         this.lotId = lotId;
         this.lotNo = lotNo;
         this.receiptDt = receiptDt;

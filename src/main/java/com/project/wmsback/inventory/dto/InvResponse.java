@@ -16,31 +16,31 @@ public class InvResponse {
     private final Long invId;
     private final String prodCd;
     private final String prodNm;
-    private final TempZone tempZone;
+    private final TempZone tmpZon;
     private final String locCd;
-    private final String zoneCd;
-    private final LocType locType;
+    private final String zonCd;
+    private final LocType locTyp;
     private final String lotNo;
     private final LocalDate expiryDt;
     private final Long onHandQty;
-    private final Long allocQty;
+    private final Long alocQty;
     /** 가용재고 = 보유 - 할당 (파생값). 쿼리에서 계산해 내려준다 */
     private final Long availableQty;
 
-    public InvResponse(Long invId, String prodCd, String prodNm, TempZone tempZone,
-                       String locCd, String zoneCd, LocType locType, String lotNo, LocalDate expiryDt,
-                       Long onHandQty, Long allocQty, Long availableQty) {
+    public InvResponse(Long invId, String prodCd, String prodNm, TempZone tmpZon,
+                       String locCd, String zonCd, LocType locTyp, String lotNo, LocalDate expiryDt,
+                       Long onHandQty, Long alocQty, Long availableQty) {
         this.invId = invId;
         this.prodCd = prodCd;
         this.prodNm = prodNm;
-        this.tempZone = tempZone;
+        this.tmpZon = tmpZon;
         this.locCd = locCd;
-        this.zoneCd = zoneCd;
-        this.locType = locType;
+        this.zonCd = zonCd;
+        this.locTyp = locTyp;
         this.lotNo = lotNo;
         this.expiryDt = expiryDt;
         this.onHandQty = onHandQty;
-        this.allocQty = allocQty;
+        this.alocQty = alocQty;
         this.availableQty = availableQty;
     }
 }

@@ -47,10 +47,10 @@ public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {
     }
 
     private BooleanExpression expctDtGoe(LocalDate dateFrom) {
-        return dateFrom != null ? ibOrder.expctDt.goe(dateFrom) : null;
+        return dateFrom != null ? ibOrder.expctDe.goe(dateFrom) : null;
     }
 
     private BooleanExpression expctDtLoe(LocalDate dateTo) {
-        return dateTo != null ? ibOrder.expctDt.loe(dateTo) : null;
+        return dateTo != null ? ibOrder.expctDe.loe(dateTo) : null;
     }
 }

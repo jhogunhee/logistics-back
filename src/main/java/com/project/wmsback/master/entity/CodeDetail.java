@@ -23,10 +23,10 @@ public class CodeDetail extends BaseEntity {
 
     /** 코드 그룹 코드 (예: TEMP_ZONE) */
     @Id
-    @Column(name = "group_cd", length = 30)
-    private String groupCd;
+    @Column(name = "grp_cd", length = 30)
+    private String grpCd;
 
-    /** 코드 값 (예: DRY). 로직에서 리터럴로 참조하므로 변경 금지, 폐기는 use_yn=N */
+    /** 코드 값 (예: DRY). 로직에서 리터럴로 참조하므로 변경 금지, 폐기는 us_yn=N */
     @Id
     @Column(name = "code_cd", length = 30)
     private String codeCd;
@@ -36,10 +36,10 @@ public class CodeDetail extends BaseEntity {
     private String codeNm;
 
     /** 화면 표시 정렬 순서 */
-    @Column(name = "sort_ord", nullable = false)
-    private Integer sortOrd;
+    @Column(name = "srt_seq", nullable = false)
+    private Integer srtSeq;
 
     /** 사용 여부. 과거 데이터가 참조하므로 삭제 대신 N 처리 */
-    @Column(name = "use_yn", nullable = false)
-    private char useYn;
+    @Column(name = "us_yn", nullable = false)
+    private char usYn;
 }

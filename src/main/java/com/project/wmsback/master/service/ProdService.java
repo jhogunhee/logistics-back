@@ -45,7 +45,7 @@ public class ProdService {
         prodRepository.save(Prod.builder()
                 .prodCd(prodCd)
                 .prodNm(row.getProdNm())
-                .tempZone(row.getTempZone())
+                .tmpZon(row.getTmpZon())
                 .shelfLifeDays(row.getShelfLifeDays())
                 .build());
     }
@@ -53,7 +53,7 @@ public class ProdService {
     private void update(ProdSaveRequest row) {
         Prod prod = prodRepository.findById(row.getProdId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다: " + row.getProdId()));
-        prod.update(row.getProdNm(), row.getTempZone(), row.getShelfLifeDays());
+        prod.update(row.getProdNm(), row.getTmpZon(), row.getShelfLifeDays());
     }
 
     private void delete(ProdSaveRequest row) {
@@ -66,7 +66,7 @@ public class ProdService {
         if (row.getProdNm() == null || row.getProdNm().isBlank()) {
             throw new IllegalArgumentException("상품명은 필수입니다.");
         }
-        if (row.getTempZone() == null) {
+        if (row.getTmpZon() == null) {
             throw new IllegalArgumentException("온도대는 필수입니다: " + row.getProdNm());
         }
         // NULL = 유통기한 미관리(공산품 등). 값이 있으면 1 이상이어야 한다.

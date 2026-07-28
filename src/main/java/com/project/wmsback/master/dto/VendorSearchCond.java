@@ -14,5 +14,5 @@ public class VendorSearchCond {
     private String vndrNm;
 
     /** 'Y'/'N'. 비우면 전체 (주문 등록용 조회는 'Y'만 넘긴다) */
-    private String useYn;
+    private String usYn;
 }

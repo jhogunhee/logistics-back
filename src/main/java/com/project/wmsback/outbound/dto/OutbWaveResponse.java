@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 public class OutbWaveResponse {
 
     private final Long outbWaveId;
-    private final String waveNo;
+    private final String wavNo;
     private final WaveStatus status;
     /** 편성된 주문 수 (orders 매핑에서 파생) */
     private final int orderCount;
@@ -19,7 +19,7 @@ public class OutbWaveResponse {
 
     private OutbWaveResponse(OutbWave wave) {
         this.outbWaveId = wave.getId();
-        this.waveNo = wave.getWaveNo();
+        this.wavNo = wave.getWavNo();
         this.status = wave.getStatus();
         this.orderCount = wave.getOrders().size();
         this.releasedAt = wave.getReleasedAt();

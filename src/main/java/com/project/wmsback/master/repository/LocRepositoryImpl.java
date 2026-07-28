@@ -23,10 +23,10 @@ public class LocRepositoryImpl implements LocRepositoryCustom {
                 .selectFrom(loc)
                 .where(
                         locCdContains(cond.getLocCd()),
-                        zoneCdEq(cond.getZoneCd()),
-                        locTypeEq(cond.getLocType())
+                        zoneCdEq(cond.getZonCd()),
+                        locTypeEq(cond.getLocTyp())
                 )
-                .orderBy(loc.zoneCd.asc(), loc.locCd.asc())
+                .orderBy(loc.zonCd.asc(), loc.locCd.asc())
                 .fetch();
     }
 
@@ -36,11 +36,11 @@ public class LocRepositoryImpl implements LocRepositoryCustom {
         return StringUtils.hasText(locCd) ? loc.locCd.containsIgnoreCase(locCd) : null;
     }
 
-    private BooleanExpression zoneCdEq(String zoneCd) {
-        return StringUtils.hasText(zoneCd) ? loc.zoneCd.eq(zoneCd) : null;
+    private BooleanExpression zoneCdEq(String zonCd) {
+        return StringUtils.hasText(zonCd) ? loc.zonCd.eq(zonCd) : null;
     }
 
-    private BooleanExpression locTypeEq(LocType locType) {
-        return locType != null ? loc.locType.eq(locType) : null;
+    private BooleanExpression locTypeEq(LocType locTyp) {
+        return locTyp != null ? loc.locTyp.eq(locTyp) : null;
     }
 }

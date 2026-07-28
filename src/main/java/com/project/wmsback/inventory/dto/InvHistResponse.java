@@ -15,37 +15,37 @@ import java.time.LocalDateTime;
 public class InvHistResponse {
 
     private final Long invHistId;
-    private final TxType txType;
+    private final TxType txTyp;
     private final String prodCd;
     private final String prodNm;
     private final String locCd;
-    private final String zoneCd;
-    private final TempZone tempZone;
+    private final String zonCd;
+    private final TempZone tmpZon;
     private final String lotNo;
     private final Long qty;
-    private final RefDocType refDocType;
-    private final String refDocNo;
+    private final RefDocType rfnDocTyp;
+    private final String rfnDocNo;
     /** MOVE의 출발/도착 로케이션 코드 (양쪽 다리 모두 동일 값). MOVE가 아니면 둘 다 null */
     private final String fromLocCd;
     private final String toLocCd;
     private final String createdBy;
     private final LocalDateTime createdAt;
 
-    public InvHistResponse(Long invHistId, TxType txType, String prodCd, String prodNm,
-                            String locCd, String zoneCd, TempZone tempZone, String lotNo, Long qty,
-                            RefDocType refDocType, String refDocNo, String fromLocCd, String toLocCd,
+    public InvHistResponse(Long invHistId, TxType txTyp, String prodCd, String prodNm,
+                            String locCd, String zonCd, TempZone tmpZon, String lotNo, Long qty,
+                            RefDocType rfnDocTyp, String rfnDocNo, String fromLocCd, String toLocCd,
                             String createdBy, LocalDateTime createdAt) {
         this.invHistId = invHistId;
-        this.txType = txType;
+        this.txTyp = txTyp;
         this.prodCd = prodCd;
         this.prodNm = prodNm;
         this.locCd = locCd;
-        this.zoneCd = zoneCd;
-        this.tempZone = tempZone;
+        this.zonCd = zonCd;
+        this.tmpZon = tmpZon;
         this.lotNo = lotNo;
         this.qty = qty;
-        this.refDocType = refDocType;
-        this.refDocNo = refDocNo;
+        this.rfnDocTyp = rfnDocTyp;
+        this.rfnDocNo = rfnDocNo;
         this.fromLocCd = fromLocCd;
         this.toLocCd = toLocCd;
         this.createdBy = createdBy;

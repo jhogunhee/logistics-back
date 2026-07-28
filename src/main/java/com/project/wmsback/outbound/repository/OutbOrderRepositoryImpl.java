@@ -31,7 +31,7 @@ public class OutbOrderRepositoryImpl implements OutbOrderRepositoryCustom {
                         outbNoContains(cond.getOutbNo()),
                         statusEq(cond.getStatus()),
                         storeIdEq(cond.getStoreId()),
-                        waveIdEq(cond.getWaveId()),
+                        waveIdEq(cond.getWavId()),
                         unassigned(cond.getUnassigned()),
                         orderDtGoe(cond.getDateFrom()),
                         orderDtLoe(cond.getDateTo())
@@ -54,8 +54,8 @@ public class OutbOrderRepositoryImpl implements OutbOrderRepositoryCustom {
         return storeId != null ? outbOrder.store.id.eq(storeId) : null;
     }
 
-    private BooleanExpression waveIdEq(Long waveId) {
-        return waveId != null ? outbOrder.wave.id.eq(waveId) : null;
+    private BooleanExpression waveIdEq(Long wavId) {
+        return wavId != null ? outbOrder.wave.id.eq(wavId) : null;
     }
 
     /** 웨이브 편성 화면의 후보 조회용 — 미편성(TRUE)/편성됨(FALSE) 필터 */
@@ -67,10 +67,10 @@ public class OutbOrderRepositoryImpl implements OutbOrderRepositoryCustom {
     }
 
     private BooleanExpression orderDtGoe(LocalDate dateFrom) {
-        return dateFrom != null ? outbOrder.orderDt.goe(dateFrom) : null;
+        return dateFrom != null ? outbOrder.odrDe.goe(dateFrom) : null;
     }
 
     private BooleanExpression orderDtLoe(LocalDate dateTo) {
-        return dateTo != null ? outbOrder.orderDt.loe(dateTo) : null;
+        return dateTo != null ? outbOrder.odrDe.loe(dateTo) : null;
     }
 }

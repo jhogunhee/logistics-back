@@ -46,18 +46,18 @@ public class LocService {
         }
         locRepository.save(Loc.builder()
                 .locCd(row.getLocCd())
-                .zoneCd(row.getZoneCd())
-                .tempZone(row.getTempZone())
-                .locType(row.getLocType())
-                .pickPrty(row.getPickPrty())
+                .zonCd(row.getZonCd())
+                .tmpZon(row.getTmpZon())
+                .locTyp(row.getLocTyp())
+                .pikngPrty(row.getPikngPrty())
                 .build());
     }
 
     private void update(LocSaveRequest row) {
         Loc loc = locRepository.findById(row.getLocId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 로케이션입니다: " + row.getLocId()));
-        loc.update(row.getZoneCd(), row.getTempZone(), row.getLocType(),
-                row.getPickPrty() != null ? row.getPickPrty() : 0);
+        loc.update(row.getZonCd(), row.getTmpZon(), row.getLocTyp(),
+                row.getPikngPrty() != null ? row.getPikngPrty() : 0);
     }
 
     private void delete(LocSaveRequest row) {
@@ -70,20 +70,20 @@ public class LocService {
         if (row.getLocCd() == null || row.getLocCd().isBlank()) {
             throw new IllegalArgumentException("로케이션 코드는 필수입니다.");
         }
-        if (row.getZoneCd() == null || row.getZoneCd().isBlank()) {
+        if (row.getZonCd() == null || row.getZonCd().isBlank()) {
             throw new IllegalArgumentException("존은 필수입니다: " + row.getLocCd());
         }
-        if (row.getTempZone() == null) {
+        if (row.getTmpZon() == null) {
             throw new IllegalArgumentException("온도대는 필수입니다: " + row.getLocCd());
         }
-        if (row.getLocType() == null) {
+        if (row.getLocTyp() == null) {
             throw new IllegalArgumentException("유형은 필수입니다: " + row.getLocCd());
         }
         // 보관 로케이션은 존=온도대여야 적치·이동 시 온도대 일치 검증이 성립한다
-        if (row.getLocType() == LocType.STORAGE && !row.getZoneCd().equals(row.getTempZone().name())) {
+        if (row.getLocTyp() == LocType.STORAGE && !row.getZonCd().equals(row.getTmpZon().name())) {
             throw new IllegalArgumentException("보관 로케이션은 존과 온도대가 일치해야 합니다: " + row.getLocCd());
         }
-        if (row.getPickPrty() != null && row.getPickPrty() < 0) {
+        if (row.getPikngPrty() != null && row.getPikngPrty() < 0) {
             throw new IllegalArgumentException("피킹 우선순위는 0 이상이어야 합니다: " + row.getLocCd());
         }
     }

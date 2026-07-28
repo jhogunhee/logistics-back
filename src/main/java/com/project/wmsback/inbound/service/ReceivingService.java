@@ -94,11 +94,11 @@ public class ReceivingService {
                 .orElseGet(() -> invRepository.save(Inv.builder().prod(prod).loc(staging).lot(lot).build()));
         inv.increaseOnHand(inspect);
         invHistRepository.save(InvHist.builder()
-                .txType(TxType.RECEIVE)
+                .txTyp(TxType.RECEIVE)
                 .prod(prod).loc(staging).lot(lot)
                 .qty(inspect)
-                .refDocType(RefDocType.INBOUND)
-                .refDocNo(order.getIbNo())
+                .rfnDocTyp(RefDocType.INBOUND)
+                .rfnDocNo(order.getIbNo())
                 .ibLineId(ibLine.getId())
                 .build());
     }
@@ -157,7 +157,7 @@ public class ReceivingService {
         List<InvHist> receiveRows = invHistRepository.findAllByIbLineIdAndTxTypeOrderByCreatedAtDesc(ibLineId, TxType.RECEIVE);
         Set<Long> cancelledIds = invHistRepository.findAllByIbLineIdAndTxTypeOrderByCreatedAtDesc(ibLineId, TxType.ADJUST)
                 .stream()
-                .map(InvHist::getCancelsInvHistId)
+                .map(InvHist::getCnclInvHistId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
         return receiveRows.stream()
@@ -173,12 +173,12 @@ public class ReceivingService {
     public void cancelReceipt(Long ibOrderId, Long invHistId) {
         InvHist receipt = invHistRepository.findById(invHistId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 검수 이력입니다: " + invHistId));
-        if (receipt.getTxType() != TxType.RECEIVE) {
+        if (receipt.getTxTyp() != TxType.RECEIVE) {
             throw new IllegalArgumentException("검수 이력이 아닙니다: " + invHistId);
         }
         boolean alreadyCancelled = invHistRepository.findAllByIbLineIdAndTxTypeOrderByCreatedAtDesc(receipt.getIbLineId(), TxType.ADJUST)
                 .stream()
-                .anyMatch(a -> invHistId.equals(a.getCancelsInvHistId()));
+                .anyMatch(a -> invHistId.equals(a.getCnclInvHistId()));
         if (alreadyCancelled) {
             throw new IllegalStateException("이미 취소된 검수 이력입니다: " + invHistId);
         }
@@ -206,16 +206,16 @@ public class ReceivingService {
         inv.decreaseOnHand(qty);
         ibLine.cancelReceive(qty);
         invHistRepository.save(InvHist.builder()
-                .txType(TxType.ADJUST)
+                .txTyp(TxType.ADJUST)
                 .prod(prod).loc(receipt.getLoc()).lot(receipt.getLot())
                 .qty(-qty)
-                .refDocType(RefDocType.INBOUND)
-                .refDocNo(order.getIbNo())
+                .rfnDocTyp(RefDocType.INBOUND)
+                .rfnDocNo(order.getIbNo())
                 .ibLineId(ibLine.getId())
-                .cancelsInvHistId(receipt.getId())
+                .cnclInvHistId(receipt.getId())
                 .build());
         // 스테이징 재고가 0이 되면 스냅샷 행을 삭제한다 (재고 테이블엔 실물이 있는 행만 남긴다)
-        if (inv.getOnHandQty() == 0 && inv.getAllocQty() == 0) {
+        if (inv.getOnHandQty() == 0 && inv.getAlocQty() == 0) {
             invRepository.delete(inv);
         }
         order.reopenIfNoLongerFullyReceived(); // 전량검수로 자동 마감됐던 게 이 취소로 깨졌으면 RECEIVING으로 되돌림

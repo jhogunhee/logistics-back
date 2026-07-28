@@ -52,8 +52,8 @@ public class Inv extends BaseEntity {
     private Long onHandQty;
 
     /** 할당(예약) 수량. 물리 이동이 아니므로 이력에 기록하지 않음 */
-    @Column(name = "alloc_qty", nullable = false)
-    private Long allocQty;
+    @Column(name = "aloc_qty", nullable = false)
+    private Long alocQty;
 
     /** 낙관적 락 버전. 비관적 락과의 비교 실험 대상 */
     @Version
@@ -66,12 +66,12 @@ public class Inv extends BaseEntity {
         this.loc = loc;
         this.lot = lot;
         this.onHandQty = 0L;
-        this.allocQty = 0L;
+        this.alocQty = 0L;
     }
 
     /** 가용재고 (파생값) */
     public long availableQty() {
-        return onHandQty - allocQty;
+        return onHandQty - alocQty;
     }
 
     /** 물리 증가 (입고/이동 입). 반드시 InvHist 기록과 한 트랜잭션에서 호출한다 */

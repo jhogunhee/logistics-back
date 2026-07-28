@@ -17,8 +17,8 @@ public class CodeController {
 
     private final CodeService codeService;
 
-    @GetMapping("/{groupCd}")
-    public List<CodeResponse> list(@PathVariable String groupCd) {
-        return codeService.list(groupCd);
+    @GetMapping("/{grpCd}")
+    public List<CodeResponse> list(@PathVariable String grpCd) {
+        return codeService.list(grpCd);
     }
 }
