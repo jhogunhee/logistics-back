@@ -253,10 +253,16 @@
   <td>원본 패턴 — 다른 마스터 화면의 참고 기준</td>
 </tr>
 <tr>
+  <td class="name">존 관리</td>
+  <td>존코드/존명/온도구분/보관유형/업무구분 편집. 로케이션의 상위 그룹</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>/master/zons</code>, <code>/bulk</code>. 삭제는 하위 로케이션이 없을 때만. 존코드는 <code>loc.zon_cd</code>가 문자열로 참조하므로 등록 후 수정 불가</td>
+</tr>
+<tr>
   <td class="name">로케이션 관리</td>
   <td>존/온도대/로케이션타입/피킹 우선순위 편집</td>
   <td class="st"><span class="badge done">구현</span></td>
-  <td><code>/master/locs</code>, <code>/bulk</code></td>
+  <td><code>/master/locs</code>, <code>/bulk</code>. 존 드롭다운은 존 마스터에서 조회(하드코딩 <code>ZONE_CODES</code> 제거). 보관 로케이션은 <strong>존의 온도구분</strong>과 온도대가 일치해야 한다</td>
 </tr>
 <tr>
   <td class="name">점포(Store) 관리</td>
@@ -333,7 +339,8 @@
 <tr><td>피킹</td><td><code>/outbound/picking</code></td><td>Placeholder</td></tr>
 <tr><td>출고확정</td><td><code>/outbound/shipping</code></td><td>Placeholder</td></tr>
 
-<tr><td class="name" rowspan="4">마스터</td><td>상품 관리</td><td><code>/master/prod</code></td><td><code>pages/master/ProdMaster.jsx</code></td></tr>
+<tr><td class="name" rowspan="5">마스터</td><td>상품 관리</td><td><code>/master/prod</code></td><td><code>pages/master/ProdMaster.jsx</code></td></tr>
+<tr><td>존 관리</td><td><code>/master/zone</code></td><td><code>pages/master/ZonMaster.jsx</code></td></tr>
 <tr><td>로케이션 관리</td><td><code>/master/location</code></td><td><code>pages/master/LocMaster.jsx</code></td></tr>
 <tr><td>점포 관리</td><td><code>/master/store</code></td><td>Placeholder — 직접 구현 예정</td></tr>
 <tr><td>적치 전략관리</td><td><code>/master/putaway-strategy</code></td><td>Placeholder</td></tr>

@@ -17,7 +17,7 @@ public class CodeService {
 
     /** 그룹의 사용중(Y) 코드 목록 (srt_seq 순) */
     public List<CodeResponse> list(String grpCd) {
-        return codeDetailRepository.findByGroupCdAndUseYnOrderBySortOrd(grpCd, 'Y').stream()
+        return codeDetailRepository.findByGrpCdAndUsYnOrderBySrtSeq(grpCd, 'Y').stream()
                 .map(CodeResponse::from)
                 .toList();
     }

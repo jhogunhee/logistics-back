@@ -50,7 +50,7 @@ public class PutawayService {
     public List<LocResponse> candidateLocs(Long ibLineId) {
         IbLine ibLine = ibLineRepository.findById(ibLineId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고 라인입니다: " + ibLineId));
-        return locRepository.findAllByTempZoneAndLocTypeOrderByPickPrtyAsc(ibLine.getProd().getTmpZon(), LocType.STORAGE)
+        return locRepository.findAllByTmpZonAndLocTypOrderByPikngPrtyAsc(ibLine.getProd().getTmpZon(), LocType.STORAGE)
                 .stream().map(LocResponse::from).toList();
     }
 

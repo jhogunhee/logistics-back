@@ -8,5 +8,5 @@ import java.util.List;
 
 public interface CodeDetailRepository extends JpaRepository<CodeDetail, CodeDetailId> {
 
-    List<CodeDetail> findByGroupCdAndUseYnOrderBySortOrd(String grpCd, char usYn);
+    List<CodeDetail> findByGrpCdAndUsYnOrderBySrtSeq(String grpCd, char usYn);
 }

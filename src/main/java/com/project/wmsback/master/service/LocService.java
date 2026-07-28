@@ -5,12 +5,17 @@ import com.project.wmsback.master.dto.LocSaveRequest;
 import com.project.wmsback.master.dto.LocSearchCond;
 import com.project.wmsback.master.entity.Loc;
 import com.project.wmsback.master.entity.LocType;
+import com.project.wmsback.master.entity.Zon;
 import com.project.wmsback.master.repository.LocRepository;
+import com.project.wmsback.master.repository.ZonRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -18,6 +23,7 @@ import java.util.List;
 public class LocService {
 
     private final LocRepository locRepository;
+    private final ZonRepository zonRepository;
 
     public List<LocResponse> list(LocSearchCond cond) {
         return locRepository.search(cond).stream()
@@ -28,10 +34,14 @@ public class LocService {
     /** 신규(C)/수정(U)/삭제(D) 행 일괄 저장. 한 건이라도 실패하면 전체 롤백. */
     @Transactional
     public void saveAll(List<LocSaveRequest> rows) {
+        // 존 마스터는 작고 엑셀 업로드는 수백 행을 한 번에 보내므로, 행마다 조회하지 않고 한 번만 읽어 쓴다
+        Map<String, Zon> zonMap = zonRepository.findAll().stream()
+                .collect(Collectors.toMap(Zon::getZonCd, Function.identity()));
+
         for (LocSaveRequest row : rows) {
             switch (row.getStatus()) {
-                case "C" -> { validate(row); create(row); }
-                case "U" -> { validate(row); update(row); }
+                case "C" -> { validate(row, zonMap); create(row); }
+                case "U" -> { validate(row, zonMap); update(row); }
                 case "D" -> delete(row);
                 default -> throw new IllegalArgumentException("알 수 없는 행 상태입니다: " + row.getStatus());
             }
@@ -66,7 +76,7 @@ public class LocService {
         locRepository.delete(loc);
     }
 
-    private void validate(LocSaveRequest row) {
+    private void validate(LocSaveRequest row, Map<String, Zon> zonMap) {
         if (row.getLocCd() == null || row.getLocCd().isBlank()) {
             throw new IllegalArgumentException("로케이션 코드는 필수입니다.");
         }
@@ -79,9 +89,15 @@ public class LocService {
         if (row.getLocTyp() == null) {
             throw new IllegalArgumentException("유형은 필수입니다: " + row.getLocCd());
         }
-        // 보관 로케이션은 존=온도대여야 적치·이동 시 온도대 일치 검증이 성립한다
-        if (row.getLocTyp() == LocType.STORAGE && !row.getZonCd().equals(row.getTmpZon().name())) {
-            throw new IllegalArgumentException("보관 로케이션은 존과 온도대가 일치해야 합니다: " + row.getLocCd());
+        // 모든 로케이션은 존 마스터에 등록된 존에 속해야 한다 (loc.zon_cd는 FK가 없어 DB가 막지 않는다)
+        Zon zon = zonMap.get(row.getZonCd());
+        if (zon == null) {
+            throw new IllegalArgumentException("존재하지 않는 존입니다: " + row.getZonCd());
+        }
+        // 보관 로케이션은 존과 온도대가 같아야 적치·이동 시 온도대 일치 검증이 성립한다
+        // (스테이징은 전 온도대 재고가 거쳐 가는 지점이라 예외)
+        if (row.getLocTyp() == LocType.STORAGE && zon.getTmpZon() != row.getTmpZon()) {
+            throw new IllegalArgumentException("보관 로케이션의 온도대는 존의 온도대와 같아야 합니다: " + row.getLocCd());
         }
         if (row.getPikngPrty() != null && row.getPikngPrty() < 0) {
             throw new IllegalArgumentException("피킹 우선순위는 0 이상이어야 합니다: " + row.getLocCd());

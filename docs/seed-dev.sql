@@ -57,6 +57,13 @@ INSERT INTO prod (prod_cd, prod_nm, tmp_zon, shelf_life_days)
 -- 받을 때 이미 40%면 점포에 내보낼 수 있는 창이 남지 않는다.
 UPDATE prod SET ib_life_rate = 70 WHERE shelf_life_days IS NOT NULL;
 
+-- 존 (로케이션의 상위 그룹). loc.zon_cd가 참조하므로 로케이션보다 먼저 넣는다.
+INSERT INTO zon (zon_cd, zon_nm, tmp_zon, strg_typ, biz_dvsn) VALUES ('RCV-STAGE',  '입고 스테이징', 'DRY', 'VRTL', 'INB');
+INSERT INTO zon (zon_cd, zon_nm, tmp_zon, strg_typ, biz_dvsn) VALUES ('SHIP-STAGE', '출고 스테이징', 'DRY', 'VRTL', 'OUTB');
+INSERT INTO zon (zon_cd, zon_nm, tmp_zon, strg_typ, biz_dvsn) VALUES ('DRY',        '상온 보관존',   'DRY', 'RACK', 'STRG');
+INSERT INTO zon (zon_cd, zon_nm, tmp_zon, strg_typ, biz_dvsn) VALUES ('CHL',        '냉장 보관존',   'CHL', 'RACK', 'STRG');
+INSERT INTO zon (zon_cd, zon_nm, tmp_zon, strg_typ, biz_dvsn) VALUES ('FRZ',        '냉동 보관존',   'FRZ', 'RACK', 'STRG');
+
 -- 로케이션 (입고 스테이징 1 + 출고 스테이징 1 + 온도대별 보관 로케이션)
 -- 스테이징의 temp_zone은 플레이스홀더(DRY) — 반출/적치 지점이라 온도 제약은 서비스에서 스킵
 INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty) VALUES ('RCV-STAGE',   'RCV-STAGE', 'DRY', 'STAGE',   0);
