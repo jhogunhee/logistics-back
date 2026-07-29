@@ -3,19 +3,10 @@ package com.project.wmsback.inbound.repository;
 import com.project.wmsback.inbound.entity.IbOrder;
 import com.project.wmsback.inbound.entity.IbStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
 
 import java.util.Optional;
 
 public interface IbOrderRepository extends JpaRepository<IbOrder, Long>, IbOrderRepositoryCustom {
-
-    /**
-     * 입고번호 채번값 발급. 시퀀스는 DB가 원자적으로 증가시키므로 동시 등록에도 중복이 없다.
-     * QueryDSL은 JPA 엔티티 기반이라 "시퀀스.NEXTVAL"처럼 테이블/엔티티가 없는 스칼라 조회는
-     * 표현할 대상이 없다 — 네이티브 쿼리로 남긴다.
-     */
-    @Query(value = "SELECT nextval('ib_no_seq')", nativeQuery = true)
-    Long nextIbNoSeq();
 
     /**
      * 주문이 현재 붙들고 있는 유효한 ASN. 변환취소 대상을 찾을 때 쓴다.
