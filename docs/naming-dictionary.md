@@ -4,7 +4,7 @@
 
 DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있다. 필드와 컬럼이 1:1로 붙어 있는 구조라 두 사전이 겹치는 자리가 생기는데, 어긋나는 항목은 아래 「이미 쓰고 있는 이름과 어긋나는 곳」에 모아뒀다.
 
-216개 단어이며 한글·약어 모두 중복이 없다.
+218개 단어이며 한글·약어 모두 중복이 없다.
 
 ## 이름 만드는 규칙
 
@@ -56,6 +56,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 국문 | `KOR` | Korean |
 | 권역 | `RGN` | Region |
 | 규격 | `STND` | Standard |
+| 규칙 | `RULE` | Rule |
 | 그룹 | `GRP` | Group |
 | 기간 | `TRM` | Term |
 | 기능 | `FUNC` | Function |
@@ -230,6 +231,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 툴팁 | `TLTP` | Tooltip |
 | 파라미터 | `PARA` | Parameter |
 | 팝업 | `PPUP` | Popup |
+| 패턴 | `PTRN` | Pattern |
 | 팩스 | `FAX` | Fax |
 | 편수 | `FLTNO` | Fltno |
 | 포장 | `PKGNG` | Packaging |
@@ -408,6 +410,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | `PSTN` | 자리 | Position |
 | `PTAWY` | 적치 | Put Away |
 | `PTH` | 경로 | Path |
+| `PTRN` | 패턴 | Pattern |
 | `PWD` | 비밀번호 | Password |
 | `QRY` | 쿼리 | Query |
 | `QTY` | 수량 | Quantity |
@@ -426,6 +429,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | `RSPS` | 응답 | Response |
 | `RSTRCT` | 제약 | Restriction |
 | `RTNGS` | 반품 | Returning Goods |
+| `RULE` | 규칙 | Rule |
 | `SEQ` | 순서 | Sequence |
 | `SHMT` | 출하 | Shipment |
 | `SHOTGE` | 결품 | Shortage |
