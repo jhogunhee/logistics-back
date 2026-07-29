@@ -12,6 +12,6 @@ public class OmsIbLineSaveRequest {
 
     private Long prodId;
 
-    /** 발주 수량. 입고단위({@code prod.inb_uom_cd}) 기준이다 — ASN 변환 시 출고단위로 환산된다 */
+    /** 발주 수량. 입고단위({@code prod.inb_uom_cd}) 기준이다 — ASN 생성(주문확정) 시 출고단위로 환산된다 */
     private Long odrQty;
 }

@@ -90,15 +90,16 @@
 <tbody>
 <tr>
   <td class="name">입고주문</td>
-  <td>벤더 발주 <strong>등록·수정</strong> 폼. 벤더/입고예정일/발주구분/담당자/비고 + 라인(상품·수량) 입력. 주문번호는 서버 채번(<code>PO-YYYYMMDD-NNN</code>)이고 수정해도 바뀌지 않는다. 경로에 id가 있으면 수정 모드(<code>/oms/inbound-order/:id</code>) — <strong>작성(CREATED) 상태만 편집 가능</strong>하고 변환·취소된 주문은 화면이 잠긴다</td>
+  <td>벤더 발주 <strong>등록·수정</strong> 폼. 벤더/입고예정일/발주구분/담당자/비고 + 라인(상품·수량) 입력. 주문번호는 서버 채번(<code>PO-YYYYMMDD-NNN</code>)이고 수정해도 바뀌지 않는다. 경로에 id가 있으면 수정 모드(<code>/oms/inbound-order/:id</code>) — <strong>작성(CREATED) 상태만 편집 가능</strong>하고 확정된 주문은 화면이 잠긴다</td>
   <td class="st"><span class="badge done">구현</span></td>
   <td><code>POST /oms/inbound-orders</code><br><code>/oms/inbound-order</code></td>
 </tr>
 <tr>
   <td class="name">입고주문 관리</td>
-  <td>목록 검색(주문번호/벤더/상태/기간), <strong>변환</strong>·변환취소·취소. 변환이 <strong>ASN 생성의 유일한 기점</strong>이며, 목록에 생성된 입고번호와 창고 진행상태를 함께 표시. <strong>주문번호를 누르면 수정 화면으로</strong> 이동한다</td>
+  <td>목록 검색(주문번호/벤더/상태/기간), <strong>주문확정</strong>·확정취소·주문삭제. 확정이 <strong>ASN 생성의 유일한 기점</strong>이며, 목록에 생성된 입고번호와 창고 진행상태를 함께 표시. <strong>주문번호를 누르면 수정 화면으로</strong> 이동한다.
+  <br>상태는 <code>CREATED ↔ CONFIRMED</code> 둘뿐이다 — <strong>취소 상태를 두지 않는다.</strong> 없앨 주문은 지우고(확정 전만), 확정된 주문은 확정취소로 되돌린 뒤 지운다. 삭제는 되돌릴 수 없으므로 확인 모달에 라인 건수를 함께 보여준다</td>
   <td class="st"><span class="badge done">구현</span></td>
-  <td><code>GET /oms/inbound-orders</code>, <code>/{id}/lines</code><br><code>POST /{id}/confirm</code>, <code>/{id}/cancel</code><br><code>/oms/inbound-orders</code></td>
+  <td><code>GET /oms/inbound-orders</code>, <code>/{id}/lines</code><br><code>POST /{id}/confirm</code>, <code>/{id}/confirm-cancel</code><br><code>DELETE /{id}</code><br><code>/oms/inbound-orders</code></td>
 </tr>
 <tr>
   <td class="name">출고주문</td>
@@ -258,7 +259,7 @@
   <td class="st"><span class="badge done">구현</span></td>
   <td>조회·저장 <code>GET·POST /master/prod-uoms</code>. 단위 콤보박스는 <code>GET /master/codes/UOM</code>(공통코드 UOM 그룹)에서 받는다 — 단위 <em>코드 목록</em>의 주인은 공통코드이고, 이 화면은 그 코드를 상품에 붙이는 곳이다. 엑셀 양식·업로드는 존·로케이션과 같은 형태다([상품코드 | 단위 | 낱개수량 | 중량(kg)], 둘째 시트에 코드표). <strong>입고/출고단위는 양식에 두지 않는다</strong> — 상품마다 하나씩이라 여러 행에 표시하면 어느 행이 이기는지 정할 수 없다.
   <br><strong>입고/출고단위는 체크박스가 아니라 라디오다</strong> — <code>prod</code>가 각각 한 칸씩만 갖기 때문에 상품 안에서 하나만 켜지고, 끄는 조작 없이 다른 포장으로 옮기는 것만 된다. 둘은 서로 독립이라 같은 행이 둘 다 켜질 수 있다(낱개로 받아 낱개로 내보내는 상품이 EA 행에 둘 다 붙은 모습이 정상). 서버는 <code>true</code>인 행만 반영한다 — 새 포장을 지정하면 이전 포장은 저절로 풀린다.
-  <br>저장은 <strong>C·U를 전부 처리한 뒤 D를 돌린다</strong>. 입고단위를 다른 포장으로 옮기면서 원래 포장을 지우는 조작이 한 번에 되어야 하는데, 행 순서대로 처리하면 삭제가 먼저 실행될 때 아직 입고단위라 가드에 걸린다. 마지막에 손댄 상품마다 <code>입고 낱개수량 % 출고 낱개수량 == 0</code>을 확인한다 — 안 떨어지면 발주→ASN 변환의 정수 나눗셈이 수량을 조용히 깎는다</td>
+  <br>저장은 <strong>C·U를 전부 처리한 뒤 D를 돌린다</strong>. 입고단위를 다른 포장으로 옮기면서 원래 포장을 지우는 조작이 한 번에 되어야 하는데, 행 순서대로 처리하면 삭제가 먼저 실행될 때 아직 입고단위라 가드에 걸린다. 마지막에 손댄 상품마다 <code>입고 낱개수량 % 출고 낱개수량 == 0</code>을 확인한다 — 안 떨어지면 발주→ASN 생성 시 정수 나눗셈이 수량을 조용히 깎는다</td>
 </tr>
 <tr>
   <td class="name">존 관리</td>

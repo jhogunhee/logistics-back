@@ -36,7 +36,7 @@ public class IbOrderService {
     }
 
     // ASN의 생성도 취소도 여기 없다. 둘 다 OmsIbOrderService가 주문 상태 전이와 한 트랜잭션에서 처리한다
-    // (convert / cancelConvert). 창고가 예정을 스스로 만들거나 없애면 주문 상태와 어긋나기 때문이다.
+    // (confirm / cancelConfirm). 창고가 예정을 스스로 만들거나 없애면 주문 상태와 어긋나기 때문이다.
     // 취소 가능 여부 판정 자체는 여전히 IbOrder.cancel()이 갖는다 — 규칙의 주인은 ASN이고,
     // 호출 시점만 OMS가 정한다.
 }

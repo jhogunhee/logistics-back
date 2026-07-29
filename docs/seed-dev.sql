@@ -61,7 +61,7 @@ INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life
     VALUES ('PROD-0021', '냉동 블루베리 1kg', 'FRZ', 'BOX', 'EA', 720);
 
 -- 상품 포장. 위 상품이 inb_uom_cd · outb_uom_cd로 가리키는 단위는 반드시 여기 있어야 한다
--- (ProdService가 지키는 규칙이고, 없으면 ASN 변환이 IllegalStateException으로 죽는다).
+-- (ProdService가 지키는 규칙이고, 없으면 ASN 생성이 IllegalStateException으로 죽는다).
 --
 -- ea_qty는 「이 단위 1개 = 낱개 몇 개」이고, 환산은 ea_qty(입고) / ea_qty(출고)로 파생된다.
 -- 낱개(EA)를 매개로 삼기 때문에 EA 행은 언제나 1이고 모든 상품이 갖는다.
@@ -210,7 +210,7 @@ VALUES ('ST-0005', '행복급식센터', 30) ON CONFLICT (store_cd) DO NOTHING;
 COMMIT;
 
 -- =====================================================================
--- 입고주문(OMS) → 변환 시 입고예정(ASN) 생성
+-- 입고주문(OMS) → 확정 시 입고예정(ASN) 생성
 --
 -- ASN을 직접 INSERT하지 않는 이유: ib_order.oms_ib_order_id가 NOT NULL이라 상위 주문 없이는 못 만든다.
 -- 생성된 ASN은 전부 SCHEDULED — 검수/마감은 화면에서 진행해야 재고 불변식(이력 합계=스냅샷)이 지켜진다.
@@ -284,8 +284,8 @@ CROSS JOIN (VALUES
 ) AS v(prod_nm, odr_qty)
 JOIN prod ON prod.prod_nm = v.prod_nm;
 
--- 미변환(CREATED)으로 남길 주문 1건 — 화면에서 'ASN 변환' 버튼을 눌러보기 위한 시드.
--- 예정일이 07-20이라 아래 변환 대상 조건(< 2026-07-20)에서 빠진다.
+-- 미확정(CREATED)으로 남길 주문 1건 — 화면에서 '주문확정' 버튼을 눌러보기 위한 시드.
+-- 예정일이 07-20이라 아래 확정 대상 조건(< 2026-07-20)에서 빠진다.
 WITH new_order AS (
     INSERT INTO oms_ib_order (oms_ib_no, status, vendor_id, expct_de, odr_dvsn, pic_nm, rmk)
     SELECT 'PO-20260720-001', 'CREATED', v.vendor_id, DATE '2026-07-20', 'RTNGS', '정성호', '점포 반품분 재입고'
@@ -296,13 +296,13 @@ INSERT INTO oms_ib_line (oms_ib_order_id, prod_id, odr_qty)
 SELECT new_order.oms_ib_order_id, prod.prod_id, v.odr_qty
 FROM new_order
 CROSS JOIN (VALUES
-    ('서울우유 1L', 20),               -- 변환하면 240 EA
-    ('햇반 백미 210g', 10)             -- 변환하면 240 EA
+    ('서울우유 1L', 20),               -- 확정하면 240 EA
+    ('햇반 백미 210g', 10)             -- 확정하면 240 EA
 ) AS v(prod_nm, odr_qty)
 JOIN prod ON prod.prod_nm = v.prod_nm;
 
 
--- 변환. OmsIbOrderService.convert()와 같은 일을 한 문장에서 한다
+-- 확정. OmsIbOrderService.confirm()과 같은 일을 한 문장에서 한다
 -- (ASN 헤더 생성 → 라인 복사 → 주문 상태 전이).
 -- WITH 안의 데이터 변경문은 참조되지 않아도 반드시 실행되므로 copied를 따로 읽지 않아도 된다.
 -- 라인 복사가 oms_ib_line을 읽을 수 있는 건 그게 앞선 문장에서 이미 커밋됐기 때문이다.
@@ -332,11 +332,11 @@ copied AS (
     RETURNING ib_line_id
 )
 UPDATE oms_ib_order o
-SET status = 'CONVERTED', converted_at = CURRENT_TIMESTAMP
+SET status = 'CONFIRMED', cfm_dt = CURRENT_TIMESTAMP
 WHERE o.oms_ib_order_id IN (SELECT oms_ib_order_id FROM to_convert);
 
 -- OMS_IB_NO/IB_NO 채번 카운터도 시드 건수만큼 날짜별로 맞춘다. 07-17엔 2건, 나머지는 1건씩.
--- 07-20 예정 주문은 미변환 상태로 남으므로 IB_NO에는 07-20 행이 없다.
+-- 07-20 예정 주문은 미확정 상태로 남으므로 IB_NO에는 07-20 행이 없다.
 INSERT INTO nbr_seq (rule_cd, dync_ky, seq) VALUES
     ('OMS_IB_NO', '20260717', 2),
     ('OMS_IB_NO', '20260718', 1),

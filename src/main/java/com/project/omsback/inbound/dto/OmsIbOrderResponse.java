@@ -27,7 +27,7 @@ public class OmsIbOrderResponse {
     private final int lineCount;
     /** 발주 수량 합계 (라인 파생) */
     private final long totalOrderQty;
-    private final LocalDateTime convertedAt;
+    private final LocalDateTime cfmDt;
     private final LocalDateTime createdAt;
 
     /** 확정으로 생성된 ASN. 미확정(CREATED)·취소 주문은 전부 null */
@@ -48,7 +48,7 @@ public class OmsIbOrderResponse {
         this.rmk = order.getRmk();
         this.lineCount = order.getLines().size();
         this.totalOrderQty = order.getLines().stream().mapToLong(OmsIbLine::getOdrQty).sum();
-        this.convertedAt = order.getConvertedAt();
+        this.cfmDt = order.getCfmDt();
         this.createdAt = order.getCreatedAt();
 
         this.ibOrderId = asn != null ? asn.ibOrderId() : null;

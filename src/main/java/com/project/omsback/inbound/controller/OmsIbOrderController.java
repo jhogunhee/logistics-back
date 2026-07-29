@@ -6,6 +6,7 @@ import com.project.omsback.inbound.dto.OmsIbOrderResponse;
 import com.project.omsback.inbound.dto.OmsIbOrderSearchCond;
 import com.project.omsback.inbound.service.OmsIbOrderService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -34,7 +35,7 @@ public class OmsIbOrderController {
         return omsIbOrderService.create(req);
     }
 
-    /** 수정. 작성(CREATED) 상태만 가능 — 변환된 주문은 변환취소가 먼저다 (판정은 엔티티) */
+    /** 수정. 작성(CREATED) 상태만 가능 — 확정된 주문은 확정취소가 먼저다 (판정은 엔티티) */
     @PutMapping("/{omsIbOrderId}")
     public void update(@PathVariable Long omsIbOrderId, @RequestBody OmsIbOrderSaveRequest req) {
         omsIbOrderService.update(omsIbOrderId, req);
@@ -45,20 +46,20 @@ public class OmsIbOrderController {
         return omsIbOrderService.lines(omsIbOrderId);
     }
 
-    /** 변환 → WMS 입고예정(ASN) 생성. 반환값은 생성된 ASN의 ib_order_id */
-    @PostMapping("/{omsIbOrderId}/convert")
-    public Long convert(@PathVariable Long omsIbOrderId) {
-        return omsIbOrderService.convert(omsIbOrderId);
+    /** 확정 → WMS 입고예정(ASN) 생성. 반환값은 생성된 ASN의 ib_order_id */
+    @PostMapping("/{omsIbOrderId}/confirm")
+    public Long confirm(@PathVariable Long omsIbOrderId) {
+        return omsIbOrderService.confirm(omsIbOrderId);
     }
 
-    /** 변환취소 → ASN을 취소하고 주문을 작성 상태로 원복 (재변환 가능) */
-    @PostMapping("/{omsIbOrderId}/convert-cancel")
-    public void cancelConvert(@PathVariable Long omsIbOrderId) {
-        omsIbOrderService.cancelConvert(omsIbOrderId);
+    /** 확정취소 → ASN을 취소하고 주문을 작성 상태로 원복 (재확정 가능) */
+    @PostMapping("/{omsIbOrderId}/confirm-cancel")
+    public void cancelConfirm(@PathVariable Long omsIbOrderId) {
+        omsIbOrderService.cancelConfirm(omsIbOrderId);
     }
 
-    @PostMapping("/{omsIbOrderId}/cancel")
-    public void cancel(@PathVariable Long omsIbOrderId) {
-        omsIbOrderService.cancel(omsIbOrderId);
+    @DeleteMapping("/{omsIbOrderId}")
+    public void delete(@PathVariable Long omsIbOrderId) {
+        omsIbOrderService.delete(omsIbOrderId);
     }
 }

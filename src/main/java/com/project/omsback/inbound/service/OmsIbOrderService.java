@@ -86,8 +86,8 @@ public class OmsIbOrderService {
     /**
      * 입고주문 수정. 벤더 · 예정일 · 라인을 통째로 갈아끼운다.
      * <p>
-     * 작성(CREATED) 상태만 가능하고 그 판정은 엔티티가 한다 — 변환된 주문을 고치면 이미 나간
-     * ASN의 예정수량과 어긋나기 때문이다(고치려면 변환취소가 먼저).
+     * 작성(CREATED) 상태만 가능하고 그 판정은 엔티티가 한다 — 확정된 주문을 고치면 이미 나간
+     * ASN의 예정수량과 어긋나기 때문이다(고치려면 확정취소가 먼저).
      * <p>
      * 주문번호는 바꾸지 않는다. 예정일을 고쳐도 마찬가지다 — 번호는 채번 시점의 식별자이지
      * 예정일을 따라다니는 값이 아니고, 이미 그 번호로 주고받은 이력이 어긋난다.
@@ -131,8 +131,8 @@ public class OmsIbOrderService {
     }
 
     /**
-     * WMS 작업문서(ASN)로 변환. 주문 상태 전이와 ASN 생성이 한 트랜잭션에서 끝난다 —
-     * 둘이 갈라지면 "변환됐는데 창고엔 예정이 없는" 주문이 남는다.
+     * WMS 작업문서(ASN) 생성을 동반하는 확정. 주문 상태 전이와 ASN 생성이 한 트랜잭션에서 끝난다 —
+     * 둘이 갈라지면 "확정됐는데 창고엔 예정이 없는" 주문이 남는다.
      * 입고번호는 ASN 쪽 규칙(IB-YYYYMMDD-NNN, 예정일 기준)을 그대로 따른다.
      *
      * ASN 생성 경로는 여기 하나뿐이다 (WMS에는 등록 엔드포인트가 없다).
@@ -140,10 +140,10 @@ public class OmsIbOrderService {
      * @return 생성된 ASN의 ib_order_id
      */
     @Transactional
-    public Long convert(Long omsIbOrderId) {
+    public Long confirm(Long omsIbOrderId) {
         OmsIbOrder order = omsIbOrderRepository.findById(omsIbOrderId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고주문입니다: " + omsIbOrderId));
-        order.convert(); // 재변환 차단은 엔티티가 한다
+        order.confirm(); // 재확정 차단은 엔티티가 한다
 
         String ibNo = nbrService.issue("IB_NO", order.getExpctDe());
 
@@ -167,32 +167,40 @@ public class OmsIbOrderService {
     }
 
     /**
-     * 변환취소. 생성된 ASN을 취소하고 주문을 작성 상태로 원복한다 — 고치고 다시 변환할 수 있다.
+     * 확정취소. 생성된 ASN을 취소하고 주문을 작성 상태로 원복한다 — 고치고 다시 확정할 수 있다.
      *
      * ASN 취소 경로도 여기 하나뿐이다. WMS에 취소 엔드포인트를 두면 주문 상태를 모르는 채로
-     * ASN만 죽어서, 주문은 '변환완료'인데 유효한 예정이 없는 상태로 고착된다.
+     * ASN만 죽어서, 주문은 '확정'인데 유효한 예정이 없는 상태로 고착된다.
      * 검수가 시작된 ASN인지는 IbOrder.cancel()이 판정해 막는다.
      */
     @Transactional
-    public void cancelConvert(Long omsIbOrderId) {
+    public void cancelConfirm(Long omsIbOrderId) {
         OmsIbOrder order = omsIbOrderRepository.findById(omsIbOrderId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고주문입니다: " + omsIbOrderId));
 
         IbOrder asn = ibOrderRepository
                 .findByOmsIbOrderIdAndStatusNot(omsIbOrderId, IbStatus.CANCELLED)
                 .orElseThrow(() -> new IllegalStateException(
-                        "변환취소할 입고예정이 없습니다: " + order.getOmsIbNo()));
+                        "확정취소할 입고예정이 없습니다: " + order.getOmsIbNo()));
 
         asn.cancel();          // 검수 시작 후면 여기서 막힌다
-        order.revertConvert(); // ASN을 물린 뒤에야 주문을 되돌린다
+        order.revertConfirm(); // ASN을 물린 뒤에야 주문을 되돌린다
     }
 
-    /** 주문 취소. 변환 전(CREATED)만 가능 — 상태 검증은 엔티티가 한다 */
+    /**
+     * 주문 삭제. 확정 전(CREATED)만 가능 — 상태 검증은 엔티티가 한다.
+     * 라인은 cascade + orphanRemoval이 함께 지운다.
+     * <p>
+     * 취소 상태를 두지 않고 지우는 이유는 {@link com.project.omsback.inbound.entity.OmsIbStatus} 참고.
+     * 확정된 적 있는 주문이라도 확정취소를 거치면 지울 수 있다 — 그때 ASN은 CANCELLED로 남아
+     * "예정이 나갔다가 물렸다"는 사실은 보존된다.
+     */
     @Transactional
-    public void cancel(Long omsIbOrderId) {
+    public void delete(Long omsIbOrderId) {
         OmsIbOrder order = omsIbOrderRepository.findById(omsIbOrderId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고주문입니다: " + omsIbOrderId));
-        order.cancel();
+        order.requireDeletable();
+        omsIbOrderRepository.delete(order);
     }
 
     private void validate(OmsIbOrderSaveRequest req) {

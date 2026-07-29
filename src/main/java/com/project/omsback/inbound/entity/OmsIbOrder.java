@@ -62,7 +62,7 @@ public class OmsIbOrder extends BaseEntity {
     /**
      * 발주구분 (공통코드 {@code ODR_DVSN}: NRML 정상 / URGT 긴급 / RTNGS 반품입고).
      * 지금은 표시·분류용이라 창고 작업 흐름을 바꾸지 않는다 — 긴급을 적치·피킹 우선순위에
-     * 반영하려면 변환 시 ASN까지 값을 넘겨야 하고, 그건 별개의 결정이다.
+     * 반영하려면 확정 시 ASN까지 값을 넘겨야 하고, 그건 별개의 결정이다.
      */
     @Column(name = "odr_dvsn", nullable = false, length = 10)
     private String odrDvsn;
@@ -71,13 +71,13 @@ public class OmsIbOrder extends BaseEntity {
     @Column(name = "pic_nm", length = 30)
     private String picNm;
 
-    /** 비고. 벤더 전달사항 등 자유 입력. 변환 시 ASN으로 넘기지 않는다 */
+    /** 비고. 벤더 전달사항 등 자유 입력. 확정 시 ASN으로 넘기지 않는다 */
     @Column(name = "rmk", length = 200)
     private String rmk;
 
-    /** 변환(ASN 생성) 시각. 변환취소하면 다시 null이 된다 */
-    @Column(name = "converted_at")
-    private LocalDateTime convertedAt;
+    /** 확정(ASN 생성) 시각. 확정취소하면 다시 null이 된다 */
+    @Column(name = "cfm_dt")
+    private LocalDateTime cfmDt;
 
     @OneToMany(mappedBy = "omsIbOrder", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OmsIbLine> lines = new ArrayList<>();
@@ -102,8 +102,8 @@ public class OmsIbOrder extends BaseEntity {
     /**
      * 주문 내용 수정. 작성(CREATED) 상태만 가능하다.
      * <p>
-     * 변환된 주문을 고치면 이미 나간 ASN의 예정수량과 어긋난다 — 창고는 옛 수량으로 물건을
-     * 받을 준비를 한 상태이고, 주문만 바꿔도 그 예정이 따라오지 않는다. 고치려면 변환취소가
+     * 확정된 주문을 고치면 이미 나간 ASN의 예정수량과 어긋난다 — 창고는 옛 수량으로 물건을
+     * 받을 준비를 한 상태이고, 주문만 바꿔도 그 예정이 따라오지 않는다. 고치려면 확정취소가
      * 먼저다. 취소된 주문은 되살리는 개념이 없으므로 역시 막는다.
      * <p>
      * 라인은 통째로 갈아끼운다. 어느 라인이 남고 어느 라인이 바뀌었는지를 클라이언트가
@@ -113,7 +113,7 @@ public class OmsIbOrder extends BaseEntity {
                        List<OmsIbLine> newLines) {
         if (status != OmsIbStatus.CREATED) {
             throw new IllegalStateException(
-                    "작성 상태의 주문만 수정할 수 있습니다. 변환된 주문은 변환취소가 먼저입니다 ("
+                    "작성 상태의 주문만 수정할 수 있습니다. 확정된 주문은 확정취소가 먼저입니다 ("
                             + status.getLabel() + "): " + omsIbNo);
         }
         this.vendor = vendor;
@@ -126,41 +126,40 @@ public class OmsIbOrder extends BaseEntity {
     }
 
     /**
-     * WMS 작업문서(ASN)로 변환. ASN 생성 자체는 서비스가 이어서 수행한다 (엔티티는 상태 전이만 책임).
-     * 재변환을 막는 게 핵심 — 통과시키면 같은 주문으로 ASN이 여러 건 생겨 예정수량이 부풀려진다.
+     * WMS 작업문서(ASN) 생성을 동반하는 확정. ASN 생성 자체는 서비스가 이어서 수행한다 (엔티티는 상태 전이만 책임).
+     * 재확정을 막는 게 핵심 — 통과시키면 같은 주문으로 ASN이 여러 건 생겨 예정수량이 부풀려진다.
      * (동시 요청은 상태 검사만으로 못 막으므로 ib_order의 유니크 인덱스가 최후 방어선이다)
      */
-    public void convert() {
+    public void confirm() {
         if (status != OmsIbStatus.CREATED) {
-            throw new IllegalStateException("작성 상태의 주문만 변환할 수 있습니다 (" + status.getLabel() + "): " + omsIbNo);
+            throw new IllegalStateException("작성 상태의 주문만 확정할 수 있습니다 (" + status.getLabel() + "): " + omsIbNo);
         }
-        this.status = OmsIbStatus.CONVERTED;
-        this.convertedAt = LocalDateTime.now();
+        this.status = OmsIbStatus.CONFIRMED;
+        this.cfmDt = LocalDateTime.now();
     }
 
     /**
-     * 변환취소. 생성된 ASN을 되돌리고 주문을 작성 상태로 원복해 재변환이 가능해진다.
+     * 확정취소. 생성된 ASN을 되돌리고 주문을 작성 상태로 원복해 재확정이 가능해진다.
      * ASN을 물릴 수 있는 상태인지(검수 시작 전)는 ASN 엔티티가 판정한다.
      */
-    public void revertConvert() {
-        if (status != OmsIbStatus.CONVERTED) {
-            throw new IllegalStateException("변환된 주문만 변환취소할 수 있습니다 (" + status.getLabel() + "): " + omsIbNo);
+    public void revertConfirm() {
+        if (status != OmsIbStatus.CONFIRMED) {
+            throw new IllegalStateException("확정된 주문만 확정취소할 수 있습니다 (" + status.getLabel() + "): " + omsIbNo);
         }
         this.status = OmsIbStatus.CREATED;
-        this.convertedAt = null;
+        this.cfmDt = null;
     }
 
     /**
-     * 주문 취소. 변환 전(CREATED)만 가능.
-     * 변환 뒤에는 이미 ASN이 나가 창고가 물건을 받을 준비를 한 상태라, 주문만 무르면
-     * 예정 없는 입고가 남는다. 변환취소를 먼저 거쳐야 한다.
+     * 지울 수 있는 주문인지. 확정 전(CREATED)만 가능하다.
+     * 확정 뒤에는 이미 ASN이 나가 창고가 물건을 받을 준비를 한 상태라, 주문만 없애면
+     * 예정 없는 입고가 남는다. 확정취소를 먼저 거쳐야 한다.
      */
-    public void cancel() {
+    public void requireDeletable() {
         if (status != OmsIbStatus.CREATED) {
             throw new IllegalStateException(
-                    "작성 상태의 주문만 취소할 수 있습니다. 변환된 주문은 변환취소가 먼저입니다 ("
+                    "작성 상태의 주문만 삭제할 수 있습니다. 확정된 주문은 확정취소가 먼저입니다 ("
                             + status.getLabel() + "): " + omsIbNo);
         }
-        this.status = OmsIbStatus.CANCELLED;
     }
 }

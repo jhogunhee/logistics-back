@@ -503,6 +503,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 웨이브 | `WAV` | `wave_no`·`wave_id` → `wav_no`·`wav_id` |
 | 피킹 | `PIKNG` | `pick_prty`·`picked_qty` → `pikng_prty`·`pikng_qty` |
 | 정렬 + 순서 | `SRT` + `SEQ` | `sort_ord` → `srt_seq` |
+| 확정 | `CFM` | `converted_at` → `cfm_dt` (상태값도 `CONVERTED` → `CONFIRMED`). 「변환」은 사전에 없는 단어였고 `CNVR`(환산)과 헷갈렸다 — 사용자가 하는 행위가 「발주 확정」이라 사전의 확정을 쓴다 |
 | 사용 | `US` | ~~`use_yn` → `us_yn`~~ — 이후 사용여부 컬럼 자체를 전 테이블에서 제거했다(`docs/migration-drop-us-yn.sql`). 마스터는 물리삭제로 운용하므로 지금 이 단어를 쓰는 컬럼은 없다 |
 | 참조 | `RFN` | `ref_doc_no` → `rfn_doc_no` |
 | 주문 | `ODR` | `order_qty`·`order_dt` → `odr_qty`·`odr_de` |
