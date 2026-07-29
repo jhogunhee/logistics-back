@@ -1,11 +1,15 @@
 package com.project.wmsback.master.service;
 
+import com.project.wmsback.master.dto.CodeGroupResponse;
+import com.project.wmsback.master.dto.CodeGroupSaveRequest;
 import com.project.wmsback.master.dto.CodeResponse;
 import com.project.wmsback.master.dto.CodeSaveRequest;
 import com.project.wmsback.master.dto.CodeSearchCond;
 import com.project.wmsback.master.entity.CodeDetail;
+import com.project.wmsback.master.entity.CodeGroup;
 import com.project.wmsback.master.entity.CodeDetailId;
 import com.project.wmsback.master.repository.CodeDetailRepository;
+import com.project.wmsback.master.repository.CodeGroupRepository;
 import com.project.wmsback.master.repository.ProdRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,8 +25,77 @@ public class CodeService {
     /** 계량단위 그룹. 이 그룹만 하위 참조(상품·포장)가 있어 삭제 가드가 붙는다 */
     private static final String UOM_GRP_CD = "UOM";
 
+
     private final CodeDetailRepository codeDetailRepository;
+    private final CodeGroupRepository codeGroupRepository;
     private final ProdRepository prodRepository;
+
+    /** 그룹 목록. 공통코드 관리 화면이 어느 그룹을 편집할지 고르는 데 쓴다 */
+    public List<CodeGroupResponse> groups() {
+        return codeGroupRepository.findAllByOrderByGrpCd().stream()
+                .map(CodeGroupResponse::from)
+                .toList();
+    }
+
+    /**
+     * 그룹 일괄 저장. 코드와 같은 C/U/D 그리드 규약이다.
+     * <p>
+     * 그룹 코드는 PK이자 로직이 리터럴로 참조하는 값이라 수정 대상에서 제외한다 —
+     * 이름과 설명만 고친다. 삭제는 하위 코드가 없을 때만 되는데, FK가 없어 DB가 막아주지
+     * 않기 때문에 여기서 직접 확인한다(지우면 그 코드들이 어느 그룹에도 속하지 않게 된다).
+     */
+    @Transactional
+    public void saveAllGroups(List<CodeGroupSaveRequest> rows) {
+        for (CodeGroupSaveRequest row : rows) {
+            if (row.getGrpCd() == null || row.getGrpCd().isBlank()) {
+                throw new IllegalArgumentException("그룹 코드는 필수입니다.");
+            }
+            switch (row.getStatus()) {
+                case "C" -> createGroup(row);
+                case "U" -> updateGroup(row);
+                case "D" -> deleteGroup(row);
+                default -> throw new IllegalArgumentException("알 수 없는 행 상태입니다: " + row.getStatus());
+            }
+        }
+        codeGroupRepository.flush();
+    }
+
+    private void createGroup(CodeGroupSaveRequest row) {
+        requireGroupNm(row);
+        if (codeGroupRepository.existsById(row.getGrpCd())) {
+            throw new IllegalArgumentException("이미 존재하는 그룹입니다: " + row.getGrpCd());
+        }
+        codeGroupRepository.save(CodeGroup.builder()
+                .grpCd(row.getGrpCd())
+                .grpNm(row.getGrpNm())
+                .description(row.getDescription())
+                .build());
+    }
+
+    private void updateGroup(CodeGroupSaveRequest row) {
+        requireGroupNm(row);
+        findGroup(row.getGrpCd()).update(row.getGrpNm(), row.getDescription());
+    }
+
+    private void deleteGroup(CodeGroupSaveRequest row) {
+        CodeGroup group = findGroup(row.getGrpCd());
+        if (codeDetailRepository.existsByGrpCd(group.getGrpCd())) {
+            throw new IllegalArgumentException(
+                    "코드가 남아 있는 그룹은 삭제할 수 없습니다. 코드를 먼저 지우세요: " + group.getGrpCd());
+        }
+        codeGroupRepository.delete(group);
+    }
+
+    private CodeGroup findGroup(String grpCd) {
+        return codeGroupRepository.findById(grpCd)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 그룹입니다: " + grpCd));
+    }
+
+    private void requireGroupNm(CodeGroupSaveRequest row) {
+        if (row.getGrpNm() == null || row.getGrpNm().isBlank()) {
+            throw new IllegalArgumentException("그룹명은 필수입니다: " + row.getGrpCd());
+        }
+    }
 
     /** 그룹의 코드 목록 (srt_seq 순). 화면 콤보박스가 쓴다 */
     public List<CodeResponse> list(String grpCd) {
