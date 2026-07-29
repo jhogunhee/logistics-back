@@ -170,9 +170,17 @@ NbrService.preview(String ptrn, DyncKyTyp dyncKyTyp):
 
 1. `nbr_rule` 6행 INSERT (위 표).
 2. `PROD_CD`/`VNDR_CD`: `nbr_seq(rule_cd, '-', seq)`를 각 시퀀스의 현재값(`last_value`)으로 시딩 — 번호가 끊기지 않고 이어지게 함.
-3. `OMS_IB_NO`/`IB_NO`/`OUTB_NO`: **오늘 날짜분만이 아니라, 기존 번호에 실제로 박혀 있는 날짜마다 각각** `nbr_seq` 행을 시딩한다. `oms_ib_no`/`ib_no`는 예정일(`expctDe`), `outb_no`는 주문일(`odrDe`) 기준이라 아직 안 끝난 미래예정 주문이 여러 날짜에 걸쳐 있을 수 있다 — `SELECT substring(ib_no from 4 for 8) AS de, max(right(ib_no,3))::bigint AS seq FROM ib_order GROUP BY 1` 같은 조회로 날짜별 최대 채번값을 뽑아 각각 시딩해야 한다(패턴은 각각 `PO-`/`IB-`/`OB-` 접두). 이걸 건너뛰면 이미 번호가 나간 미래 날짜에서 마이그레이션 후 중복 채번이 난다.
-4. `OUTB_WAV_NO`: 유일하게 진짜 "오늘" 기준이라 마이그레이션 시점 오늘 날짜분만 시딩하면 된다.
-5. 옛 시퀀스 6개(`prod_cd_seq`, `vndr_cd_seq`, `oms_ib_no_seq`, `ib_no_seq`, `outb_no_seq`, `outb_wave_no_seq`) `DROP SEQUENCE`.
+3. `OMS_IB_NO`/`IB_NO`/`OUTB_NO`/`OUTB_WAV_NO`: **오늘 날짜분만이 아니라, 기존 번호에 실제로 박혀 있는 날짜마다 각각** `nbr_seq` 행을 시딩한다 — 네 개 다 같은 방식. `oms_ib_no`/`ib_no`는 예정일(`expctDe`), `outb_no`는 주문일(`odrDe`) 기준이라 아직 안 끝난 미래예정 주문이나 소급 등록된 과거 주문이 여러 날짜에 걸쳐 있을 수 있다(`outb_wave_no`는 항상 생성 당일이라 이론적으로는 "오늘"만 있으면 되지만, 굳이 특례를 두지 않고 나머지 셋과 같은 방식으로 전체 날짜를 훑는 편이 스크립트가 더 단순하고 견고하다). 예:
+
+   ```sql
+   INSERT INTO nbr_seq (rule_cd, dync_ky, seq)
+   SELECT 'IB_NO', split_part(ib_no, '-', 2), max(split_part(ib_no, '-', 3)::bigint)
+     FROM ib_order GROUP BY split_part(ib_no, '-', 2)
+   ON CONFLICT (rule_cd, dync_ky) DO NOTHING;
+   ```
+
+   `right(ib_no, 3)` 대신 `split_part(..., '-', 3)`을 쓰는 이유: 채번값이 언젠가 999를 넘으면 자릿수가 늘어나 마지막 3자리 고정 추출이 깨진다 — `-`로 분리하면 자릿수와 무관하게 안전하다. 이걸 건너뛰면 이미 번호가 나간 날짜에서 마이그레이션 후 중복 채번이 난다.
+4. 옛 시퀀스 6개(`prod_cd_seq`, `vndr_cd_seq`, `oms_ib_no_seq`, `ib_no_seq`, `outb_no_seq`, `outb_wave_no_seq`) `DROP SEQUENCE`.
 
 애플리케이션 코드 변경(실행 계획 단계에서 구체화):
 
