@@ -118,27 +118,36 @@ CREATE TABLE nbr_seq (
 
 ### 발급 흐름 (동시성)
 
+**`DATE` 타입의 동적키는 서버가 강제 산출하지 않는다.** 원래 PRD의 "서버 현재일자 강제 산출(클라이언트 값 무시)"은 REST로 들어오는 값을 못 믿는다는 위변조 방지 취지였는데, 실제 마이그레이션 대상 4곳 중 3곳(`oms_ib_no`/`ib_no`/`outb_no`)은 `LocalDate.now()`가 아니라 **호출자가 이미 들고 있는 업무 일자**(예정일 `expctDe`, 주문일 `odrDe`)를 쓴다 — 이게 리셋 키이기도 해서, 서버가 오늘 날짜로 덮어쓰면 미래 예정 ASN 번호가 오늘 날짜로 나오고 리셋 단위 자체가 달라진다. 신뢰된 서버 내부 Java 호출에는 위변조 우려가 없으므로, `LocalDate`를 호출자가 넘기는 오버로드를 둔다:
+
 ```
-NbrService.issue(String ruleCd):
+NbrService.issue(String ruleCd)                  // NONE 규칙 전용. DATE 규칙에 쓰면 IllegalStateException
+NbrService.issue(String ruleCd, LocalDate de)     // DATE 규칙 전용. de가 리셋 키이자 토큰 렌더링 기준
+
+내부 흐름 (issue(ruleCd, de) 기준):
   1. rule = nbrRuleRepository.findById(ruleCd)
      없으면 IllegalArgumentException (400)
   2. rule.usYn == 'N' 이면 IllegalStateException (409)
-  3. dyncKy 결정
-       NONE -> "-"
-       DATE -> LocalDate.now()를 yyyyMMdd로 고정 포맷 (일 단위 리셋 고정, 월/년 단위는 범위 밖)
-  4. row = nbrSeqRepository.findByIdForUpdate(ruleCd, dyncKy)
-     없으면:
-       NbrSeq(ruleCd, dyncKy, seq=0) insert 시도
-       PK 충돌(DataIntegrityViolationException) 시 — 동시 첫 발급 경쟁 —
-       findByIdForUpdate 재조회 (먼저 커밋한 트랜잭션이 만든 행을 잠그고 받음)
-  5. row.seq += 1; save
-  6. 패턴 렌더링(오늘 날짜 + row.seq) 후 문자열 반환
+  3. rule.dyncKyTyp과 호출한 오버로드가 안 맞으면 IllegalStateException
+     (NONE 규칙에 issue(ruleCd, de) 호출 / DATE 규칙에 issue(ruleCd) 호출)
+  4. dyncKy 결정 — NONE이면 "-", DATE면 de를 yyyyMMdd로 고정 포맷
+  5. row = nbrSeqRepository.findByIdForUpdate(ruleCd, dyncKy)
+     비어 있으면: nbrSeqRepository.insertIfAbsent(ruleCd, dyncKy) (네이티브 INSERT ... ON CONFLICT DO NOTHING)
+                 후 findByIdForUpdate 재조회
+     (DataIntegrityViolationException을 catch하는 방식은 쓰지 않는다 — PK 충돌 시 PostgreSQL이
+      트랜잭션을 즉시 abort 상태로 만들어(25P02) 같은 트랜잭션의 후속 조회까지 실패한다.
+      CLAUDE.md가 마이그레이션에서 BEGIN;을 금지하는 것과 같은 이유. ON CONFLICT DO NOTHING은
+      예외를 던지지 않으므로 이 문제 자체가 없다)
+  6. row.increment(); (seq += 1, JPA dirty checking으로 반영)
+  7. 패턴 렌더링(de + row.seq) 후 문자열 반환
 
-NbrService.preview(String ptrn):
+NbrService.preview(String ptrn, DyncKyTyp dyncKyTyp):
   DB 접근 없이 오늘 날짜 + seq=1로 렌더링만 (패턴 검증 로직 재사용)
 ```
 
-파라미터가 있는 `issue(ruleCd, dynamicKey)` 오버로드는 두지 않는다 — `DATE`도 서버가 강제 산출하므로 현재는 클라이언트가 넘길 동적키가 없다. `CUSTOM` 타입이 생기면 그때 추가한다(YAGNI).
+`DyncKyTyp`은 날짜 계산을 갖지 않는다(어떤 오버로드를 써야 하는지만 구분) — 실제 `LocalDate` 결정은 호출부 책임이다. `outb_wave_no`(유일하게 진짜 "오늘"인 규칙)는 호출부에서 `LocalDate.now()`를 그대로 넘긴다. 보조 REST `/{ruleCd}/issue` 엔드포인트만 원래 PRD 취지대로 항상 `LocalDate.now()`를 고정 사용해 위변조 우려를 막는다(외부 HTTP 호출은 신뢰된 서버 내부 호출이 아니므로).
+
+`CUSTOM`(자유 문자열) 동적키 타입은 여전히 두지 않는다(YAGNI) — 지금 필요한 건 "서버 시각이 아니라 호출자가 정한 날짜"뿐이고, 부서 같은 임의 문자열 키가 필요한 도메인은 아직 없다.
 
 **기존 방식과의 차이**: PostgreSQL SEQUENCE의 `nextval`은 트랜잭션 롤백에 영향받지 않는(non-transactional) 반면, `nbr_seq` 갱신은 일반 UPDATE라 같은 트랜잭션이 롤백되면 채번도 함께 롤백된다 — 결번이 안 생기는 대신, 락 보유 시간이 "발급 순간"이 아니라 "그 트랜잭션 전체 길이"로 늘어난다. 지금 6개 호출부는 모두 번호 발급 직후 바로 저장하는 짧은 트랜잭션이라 실질 영향은 적지만, 향후 채번을 트랜잭션 앞부분에 두고 뒤에 무거운 작업을 넣는 코드가 생기지 않도록 주의가 필요하다(PRD 5.2절의 "발번 전용 짧은 트랜잭션 원칙"과 동일한 취지).
 
@@ -161,13 +170,16 @@ NbrService.preview(String ptrn):
 
 1. `nbr_rule` 6행 INSERT (위 표).
 2. `PROD_CD`/`VNDR_CD`: `nbr_seq(rule_cd, '-', seq)`를 각 시퀀스의 현재값(`last_value`)으로 시딩 — 번호가 끊기지 않고 이어지게 함.
-3. `OMS_IB_NO`/`IB_NO`/`OUTB_NO`/`OUTB_WAV_NO`: 마이그레이션 시점 **오늘 날짜분만** `nbr_seq(rule_cd, 오늘yyyyMMdd, seq)`를 "오늘 이미 발급된 건수"로 시딩(예: `ib_no LIKE 'IB-'||to_char(current_date,'YYYYMMDD')||'-%'` 카운트). 안 하면 마이그레이션 당일 중복 채번으로 `uq_ib_no` 등 UNIQUE 위반이 발생한다.
-4. 옛 시퀀스 6개(`prod_cd_seq`, `vndr_cd_seq`, `oms_ib_no_seq`, `ib_no_seq`, `outb_no_seq`, `outb_wave_no_seq`) `DROP SEQUENCE`.
+3. `OMS_IB_NO`/`IB_NO`/`OUTB_NO`: **오늘 날짜분만이 아니라, 기존 번호에 실제로 박혀 있는 날짜마다 각각** `nbr_seq` 행을 시딩한다. `oms_ib_no`/`ib_no`는 예정일(`expctDe`), `outb_no`는 주문일(`odrDe`) 기준이라 아직 안 끝난 미래예정 주문이 여러 날짜에 걸쳐 있을 수 있다 — `SELECT substring(ib_no from 4 for 8) AS de, max(right(ib_no,3))::bigint AS seq FROM ib_order GROUP BY 1` 같은 조회로 날짜별 최대 채번값을 뽑아 각각 시딩해야 한다(패턴은 각각 `PO-`/`IB-`/`OB-` 접두). 이걸 건너뛰면 이미 번호가 나간 미래 날짜에서 마이그레이션 후 중복 채번이 난다.
+4. `OUTB_WAV_NO`: 유일하게 진짜 "오늘" 기준이라 마이그레이션 시점 오늘 날짜분만 시딩하면 된다.
+5. 옛 시퀀스 6개(`prod_cd_seq`, `vndr_cd_seq`, `oms_ib_no_seq`, `ib_no_seq`, `outb_no_seq`, `outb_wave_no_seq`) `DROP SEQUENCE`.
 
 애플리케이션 코드 변경(실행 계획 단계에서 구체화):
 
 - `ProdRepository`/`VendorRepository`/`IbOrderRepository`/`OutbOrderRepository`/`OutbWaveRepository`의 `nextval` 네이티브 쿼리 메서드 제거.
-- `ProdService.create`, `VendorService.create`, `OmsIbOrderService`(주문번호·입고번호 2곳), `OutbOrderService.create`, `OutbWaveService.create` — `String.format(...)` + `nextXxxSeq()` 조합을 `nbrService.issue("...")` 호출로 교체.
+- `ProdService.create`, `VendorService.create` — `nbrService.issue("PROD_CD")` / `issue("VNDR_CD")` (NONE, 인자 없는 오버로드).
+- `OmsIbOrderService`(주문번호·입고번호 2곳), `OutbOrderService.create` — `nbrService.issue("OMS_IB_NO", req.getExpctDe())` 등 **기존에 쓰던 그 날짜 값을 그대로 두 번째 인자로 전달** (DATE, `LocalDate` 오버로드). `String.format(...)` + `nextXxxSeq()` 조합을 대체.
+- `OutbWaveService.create` — `nbrService.issue("OUTB_WAV_NO", LocalDate.now())`.
 - `docs/schema.sql`의 해당 시퀀스 정의 및 주석 제거, `nbr_rule`/`nbr_seq` 테이블 정의 추가.
 
 ## 8. API 표면
@@ -176,15 +188,15 @@ NbrService.preview(String ptrn):
 
 경로는 이 프로젝트 컨트롤러 컨벤션(`/api` 접두 없음, `/{도메인}/{리소스 복수형}`, 액션은 `/{id}/동사`, id 변수는 필드명 그대로, 다단어는 kebab-case)을 따른다 — `ZonController`(`/master/zons`), `IbOrderController`(`/inbound/asns`, `/{ibOrderId}/receive`) 등과 동일한 톤.
 
+실제로는 `Zon`/`Prod`/`Vendor` 등 기존 마스터 화면 전부가 개별 등록/수정/삭제 엔드포인트가 아니라 **그리드 일괄 저장 하나**(`GET` 목록 + `POST /bulk`, 행마다 `_status`: C/U/D)로 되어 있다 — 별도 상세 조회 GET도, PUT도 없다. 이 컨벤션을 그대로 따른다:
+
 | 메서드 | 경로 | 용도 |
 |---|---|---|
 | GET | `/master/nbr-rules` | 목록 조회 |
-| GET | `/master/nbr-rules/{ruleCd}` | 상세 |
-| POST | `/master/nbr-rules` | 등록 (패턴 검증 포함) |
-| PUT | `/master/nbr-rules/{ruleCd}` | 수정 (`ruleNm`/`ptrn`/`usYn`만, `dyncKyTyp` 변경 불가) |
+| POST | `/master/nbr-rules/bulk` | 신규(C)/수정(U)/삭제(D) 행 일괄 저장. 등록 시 패턴 검증, 수정 시 `dyncKyTyp` 변경 거부 |
 | GET | `/master/nbr-rules/{ruleCd}/seqs` | `nbr_seq` 읽기전용 목록 |
-| POST | `/master/nbr-rules/{ruleCd}/issue` | 발급 (테스트/외부 호출용) |
-| POST | `/master/nbr-rules/preview` | 미리보기 (`{ ptrn }` → `{ number }`, DB 미접근) |
+| POST | `/master/nbr-rules/{ruleCd}/issue` | 발급 (테스트/외부 호출용). 항상 `LocalDate.now()` 기준 — 내부 Java 호출(`issue(ruleCd, LocalDate)`)과 달리 클라이언트가 날짜를 넘길 수 없다 |
+| POST | `/master/nbr-rules/preview` | 미리보기 (`{ ptrn, dyncKyTyp }` → `{ number }`, DB 미접근, 오늘 날짜 + seq=1로 렌더링) |
 
 ## 9. 에러 처리
 
@@ -198,7 +210,7 @@ NbrService.preview(String ptrn):
 
 ## 10. 화면
 
-PRD 원안 그대로 화면 1개(채번규칙 관리): 목록 그리드, 상세/편집 폼, 패턴 미리보기(`/master/nbr-rules/preview` 호출, 프론트에 파싱 로직 복제하지 않음), 선택 규칙의 `nbr_seq` 읽기전용 목록. `docs/screen-list.html`에 행 추가.
+화면 1개(채번규칙 관리): 목록 그리드(다른 마스터 화면과 같은 행추가/삭제/일괄저장 편집 — 별도 상세/편집 폼 없음), 패턴 미리보기(`/master/nbr-rules/preview` 호출, 프론트에 파싱 로직 복제하지 않음), 선택 규칙의 `nbr_seq` 읽기전용 목록. `docs/screen-list.html`에 행 추가.
 
 ## 11. 비범위
 
