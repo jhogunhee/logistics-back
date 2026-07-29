@@ -249,6 +249,9 @@ CREATE TABLE code_detail (
     code_cd     VARCHAR(30)     NOT NULL,
     code_nm     VARCHAR(100)    NOT NULL,
     srt_seq    INTEGER         DEFAULT 0 NOT NULL,
+    ref1        VARCHAR(100),
+    ref2        VARCHAR(100),
+    ref3        VARCHAR(100),
     created_at  TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
     created_by  VARCHAR(30)     DEFAULT 'admin' NOT NULL,
     updated_at  TIMESTAMP,
@@ -261,6 +264,17 @@ CREATE TABLE code_detail (
 COMMENT ON TABLE  code_detail IS '공통코드 상세. 그룹 내 개별 코드와 표시명/정렬 순서';
 COMMENT ON COLUMN code_detail.code_cd  IS '코드 값 (예: DRY). 로직에서 리터럴로 참조하므로 변경 금지';
 COMMENT ON COLUMN code_detail.srt_seq IS '화면 표시 정렬 순서';
+-- 참조값 3칸. 코드마다 딸린 자잘한 속성을 새 컬럼 없이 얹는 자리다 (공통코드의 관행).
+-- 뜻이 그룹마다 다르므로 컬럼 이름으로는 알 수 없다 — 무엇을 담았는지는 그 값을 읽는 쪽과
+-- code_group.description 에 남긴다. 표시 스타일(뱃지 색 등)은 여기 담지 않는다:
+-- 그건 프론트 상수가 갖기로 이미 정한 사항이다 (code_group 테이블 주석 참고).
+-- 참조값 3칸. 코드마다 딸린 자잘한 속성을 새 컬럼 없이 얹으려는 자리다 (공통코드의 관행).
+-- 뜻은 그룹마다 다르므로 이 컬럼 자체로는 알 수 없다 — 무엇을 담았는지는 그 값을 읽는 쪽에
+-- 적어 두고, code_group.description 에도 남긴다. 표시 스타일(뱃지 색 등)은 여기 담지 않는다:
+-- 그건 프론트 상수가 갖기로 이미 정한 사항이다 (code_group 테이블 주석 참고).
+COMMENT ON COLUMN code_detail.ref1    IS '참조값1. 뜻은 그룹마다 다르다 (해당 그룹의 description 참고)';
+COMMENT ON COLUMN code_detail.ref2    IS '참조값2';
+COMMENT ON COLUMN code_detail.ref3    IS '참조값3';
 
 -- 채번 규칙. code_group과 같은 자연키 코드 테이블 — 항상 코드로 조회한다.
 CREATE TABLE nbr_rule (

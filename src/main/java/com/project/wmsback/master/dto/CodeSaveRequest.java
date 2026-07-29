@@ -23,4 +23,9 @@ public class CodeSaveRequest {
 
     private String codeNm;
     private Integer srtSeq;
+
+    /** 참조값 3칸. 뜻은 그룹마다 다르다 */
+    private String ref1;
+    private String ref2;
+    private String ref3;
 }

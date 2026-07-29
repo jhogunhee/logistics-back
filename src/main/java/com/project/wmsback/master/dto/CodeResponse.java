@@ -16,6 +16,9 @@ public class CodeResponse {
     private final String codeCd;
     private final String codeNm;
     private final Integer srtSeq;
+    private final String ref1;
+    private final String ref2;
+    private final String ref3;
     private final String createdBy;
     private final LocalDateTime createdAt;
     private final String updatedBy;
@@ -26,6 +29,9 @@ public class CodeResponse {
         this.codeCd = codeDetail.getCodeCd();
         this.codeNm = codeDetail.getCodeNm();
         this.srtSeq = codeDetail.getSrtSeq();
+        this.ref1 = codeDetail.getRef1();
+        this.ref2 = codeDetail.getRef2();
+        this.ref3 = codeDetail.getRef3();
         this.createdBy = codeDetail.getCreatedBy();
         this.createdAt = codeDetail.getCreatedAt();
         this.updatedBy = codeDetail.getUpdatedBy();

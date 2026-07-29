@@ -42,17 +42,39 @@ public class CodeDetail extends BaseEntity {
     @Column(name = "srt_seq", nullable = false)
     private Integer srtSeq;
 
+    /**
+     * 참조값 3칸. 코드마다 딸린 자잘한 속성을 새 컬럼 없이 얹는 자리다.
+     * <p>
+     * 뜻이 그룹마다 다르므로 이 필드만 보고는 알 수 없다 — 무엇을 담았는지는 값을 읽는 쪽과
+     * {@code code_group.description} 에 남긴다. 표시 스타일은 여기 담지 않는다(프론트 상수 담당).
+     */
+    @Column(name = "ref1", length = 100)
+    private String ref1;
+
+    @Column(name = "ref2", length = 100)
+    private String ref2;
+
+    @Column(name = "ref3", length = 100)
+    private String ref3;
+
     @Builder
-    private CodeDetail(String grpCd, String codeCd, String codeNm, Integer srtSeq) {
+    private CodeDetail(String grpCd, String codeCd, String codeNm, Integer srtSeq,
+                       String ref1, String ref2, String ref3) {
         this.grpCd = grpCd;
         this.codeCd = codeCd;
         this.codeNm = codeNm;
         this.srtSeq = srtSeq;
+        this.ref1 = ref1;
+        this.ref2 = ref2;
+        this.ref3 = ref3;
     }
 
     /** 그룹 코드와 코드 값은 PK이자 로직이 리터럴로 참조하는 값이라 수정 대상에서 제외한다 */
-    public void update(String codeNm, Integer srtSeq) {
+    public void update(String codeNm, Integer srtSeq, String ref1, String ref2, String ref3) {
         this.codeNm = codeNm;
         this.srtSeq = srtSeq;
+        this.ref1 = ref1;
+        this.ref2 = ref2;
+        this.ref3 = ref3;
     }
 }

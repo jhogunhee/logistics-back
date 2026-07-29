@@ -214,7 +214,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 진행 | `PRGR` | Progress |
 | 차량 | `VHCL` | Vehicle |
 | 차수 | `TMO` | Time Ordinary |
-| 참조 | `RFN` | Reference |
+| 참조 | `REF` | Reference |
 | 채번 | `NBR` | Numbering |
 | 처 | `PLC` | Place |
 | 처리 | `PROC` | Process |
@@ -422,7 +422,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | `REGR` | 등록자 | Register |
 | `REP` | 대표 | Representative |
 | `REQ` | 요청 | Request |
-| `RFN` | 참조 | Reference |
+| `REF` | 참조 | Reference |
 | `RGN` | 권역 | Region |
 | `RLZ` | 해제 | Release |
 | `RMK` | 비고 | Remark |
@@ -505,7 +505,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 정렬 + 순서 | `SRT` + `SEQ` | `sort_ord` → `srt_seq` |
 | 확정 | `CFM` | `converted_at` → `cfm_dt` (상태값도 `CONVERTED` → `CONFIRMED`). 「변환」은 사전에 없는 단어였고 `CNVR`(환산)과 헷갈렸다 — 사용자가 하는 행위가 「발주 확정」이라 사전의 확정을 쓴다 |
 | 사용 | `US` | ~~`use_yn` → `us_yn`~~ — 이후 사용여부 컬럼 자체를 전 테이블에서 제거했다(`docs/migration-drop-us-yn.sql`). 마스터는 물리삭제로 운용하므로 지금 이 단어를 쓰는 컬럼은 없다 |
-| 참조 | `RFN` | `ref_doc_no` → `rfn_doc_no` |
+| 참조 | `REF` | ~~`ref_doc_no` → `rfn_doc_no`~~ — 이후 `REF`로 되돌렸다(아래 특기사항). 기존 `inv_hist.rfn_doc_typ`·`rfn_doc_no`는 아직 옛 표기다 |
 | 주문 | `ODR` | `order_qty`·`order_dt` → `odr_qty`·`odr_de` |
 | 담당자 | `PIC` | `mgr_nm` → `pic_nm` |
 | 취소 | `CNCL` | `cancels_inv_hist_id` → `cncl_inv_hist_id` |
@@ -540,5 +540,5 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 
 - `이메일(EMAIL)`의 영문명이 원본에 `Id`로 적혀 있다. `Email`의 오기로 보이지만 임의로 고치지 않았다.
 - `편수(FLTNO)`의 영문명 `Fltno`는 영문 단어가 아니라 약어를 그대로 옮긴 값이다. 이것도 원본대로 뒀다.
-- `참조`의 약어는 `REF`가 아니라 **`RFN`**이다. 오타처럼 보여서 확대해 다시 확인했고 원본이 실제로 `RFN`이다. 같은 이유로 `해제 RLZ`(`RLS` 아님) · `화물 CAGO`(`CRGO` 아님) · `일자 DE`(`DT`는 `일시`가 이미 쓴다) · `회차 TME` / `차수 TMO`도 확인을 거친 값이다.
+- `참조`의 약어를 **`RFN` → `REF`로 되돌렸다.** 원본 사전은 실제로 `RFN`이었고(오타처럼 보여 확대해 재확인까지 했다) 한때 `ref_doc_no`를 `rfn_doc_no`로 개명하기도 했지만, `ref`가 통용되는 표기라 그쪽을 쓰기로 결정했다. **기존 `inv_hist.rfn_doc_typ`·`rfn_doc_no`는 아직 개명하지 않아 두 표기가 공존한다** — 새 컬럼은 `ref`를 쓴다. 한편 `해제 RLZ`(`RLS` 아님) · `화물 CAGO`(`CRGO` 아님) · `일자 DE`(`DT`는 `일시`가 이미 쓴다) · `회차 TME` / `차수 TMO`도 확인을 거친 값이다.
 - 원본의 `중복여부` 컬럼은 216행 전부 `N`이라 옮기지 않았다. 실제로 한글·약어 어느 쪽에도 중복이 없음을 확인했다.

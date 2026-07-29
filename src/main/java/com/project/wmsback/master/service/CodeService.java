@@ -146,12 +146,16 @@ public class CodeService {
                 .codeCd(row.getCodeCd())
                 .codeNm(row.getCodeNm())
                 .srtSeq(row.getSrtSeq())
+                .ref1(row.getRef1())
+                .ref2(row.getRef2())
+                .ref3(row.getRef3())
                 .build());
     }
 
     /** 코드 값은 PK이자 로직이 리터럴로 참조하는 값이라 수정 대상에서 제외한다 */
     private void update(String grpCd, CodeSaveRequest row) {
-        find(grpCd, row.getCodeCd()).update(row.getCodeNm(), row.getSrtSeq());
+        find(grpCd, row.getCodeCd())
+                .update(row.getCodeNm(), row.getSrtSeq(), row.getRef1(), row.getRef2(), row.getRef3());
     }
 
     /**
