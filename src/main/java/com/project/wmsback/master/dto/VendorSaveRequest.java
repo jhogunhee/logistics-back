@@ -22,5 +22,4 @@ public class VendorSaveRequest {
     private String vndrNm;
     private String picNm;
     private String telNo;
-    private String usYn;
 }

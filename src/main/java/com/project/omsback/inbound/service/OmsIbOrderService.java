@@ -1,6 +1,7 @@
 package com.project.omsback.inbound.service;
 
 import com.project.omsback.inbound.dto.AsnRef;
+import com.project.omsback.inbound.dto.OmsIbLineCreateRequest;
 import com.project.omsback.inbound.dto.OmsIbLineResponse;
 import com.project.omsback.inbound.dto.OmsIbOrderCreateRequest;
 import com.project.omsback.inbound.dto.OmsIbOrderResponse;
@@ -65,10 +66,6 @@ public class OmsIbOrderService {
         validate(req);
         Vendor vendor = vendorRepository.findById(req.getVendorId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 벤더입니다: " + req.getVendorId()));
-        // 거래 종료된 벤더로 새 주문을 만들 수는 없다 (과거 주문은 그대로 남는다)
-        if (!vendor.isUsable()) {
-            throw new IllegalArgumentException("사용중지된 벤더입니다: " + vendor.getVndrNm());
-        }
 
         String omsIbNo = String.format("PO-%s-%03d",
                 req.getExpctDe().format(DateTimeFormatter.BASIC_ISO_DATE),
@@ -79,7 +76,7 @@ public class OmsIbOrderService {
                 .vendor(vendor)
                 .expctDe(req.getExpctDe())
                 .build();
-        for (OmsIbOrderCreateRequest.LineRequest line : req.getLines()) {
+        for (OmsIbLineCreateRequest line : req.getLines()) {
             Prod prod = prodRepository.findById(line.getProdId())
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다: " + line.getProdId()));
             order.addLine(OmsIbLine.builder()
@@ -117,9 +114,12 @@ public class OmsIbOrderService {
                 .expctDe(order.getExpctDe())
                 .build();
         for (OmsIbLine line : order.getLines()) {
+            // 발주 수량은 입고단위(벤더 납품 단위), ASN 이후의 모든 수량은 출고단위(재고 저장 단위)다.
+            // 단위가 갈리는 경계가 여기라서 환산도 여기서 한 번만 한다.
+            Prod prod = line.getProd();
             asn.addLine(IbLine.builder()
-                    .prod(line.getProd())
-                    .expctQty(line.getOdrQty()) // 발주 수량이 그대로 입고 예정 수량이 된다
+                    .prod(prod)
+                    .expctQty(prod.toOutbQty(line.getOdrQty()))
                     .build());
         }
         ibOrderRepository.save(asn); // cascade로 라인까지 함께 저장
@@ -165,7 +165,7 @@ public class OmsIbOrderService {
         if (req.getLines() == null || req.getLines().isEmpty()) {
             throw new IllegalArgumentException("주문 라인은 최소 1건 필요합니다.");
         }
-        for (OmsIbOrderCreateRequest.LineRequest line : req.getLines()) {
+        for (OmsIbLineCreateRequest line : req.getLines()) {
             if (line.getProdId() == null) {
                 throw new IllegalArgumentException("라인의 상품은 필수입니다.");
             }

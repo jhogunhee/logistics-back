@@ -15,13 +15,5 @@ public class OmsIbOrderCreateRequest {
 
     private Long vendorId;
     private LocalDate expctDe;
-    private List<LineRequest> lines;
-
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    public static class LineRequest {
-        private Long prodId;
-        private Long odrQty;
-    }
+    private List<OmsIbLineCreateRequest> lines;
 }

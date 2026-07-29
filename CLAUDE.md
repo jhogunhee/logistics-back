@@ -74,6 +74,7 @@ product→prod  putaway→ptawy  allocated/allocation→aloc  picking→pikng
 type→typ  zone→zon  temperature→tmp  group→grp  use→us  description→dscr
 reference→rfn  order→odr  wave→wav  sort+sequence→srt_seq  person in charge→pic
 date→de(일자)  datetime→dt(일시)  cancel→cncl  close→clos  complete→cmpl  shipment→shmt
+unit of measure→uom(계량단위)  each→ea(낱개)  weight→wgt(중량)
 ```
 
 **이 사전은 `docs/naming-dictionary.md`(216단어)의 부분집합이고, 둘은 이제 어긋나지 않는다.** 예전에 두 벌이 충돌하던 항목(`ptwy` vs `PTAWY`, `alloc` vs `ALOC` 등)은 `docs/migration-rename-columns-to-dictionary.sql`이 사전 쪽으로 통일했다. 새 이름은 반드시 `docs/naming-dictionary.md`에서 단어를 찾아 조합하고, **사전에 없는 단어는 사전에 먼저 추가한 뒤 쓴다.**

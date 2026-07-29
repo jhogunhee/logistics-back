@@ -15,8 +15,8 @@ import lombok.NoArgsConstructor;
 /**
  * 벤더(납품처) 마스터. 입고주문·입고예정이 참조한다.
  *
- * 거래 종료된 벤더도 과거 주문이 참조하므로 삭제 대신 usYn='N'으로 막는다
- * (실제 삭제는 참조가 하나도 없을 때만 FK가 허용한다).
+ * 사용여부 컬럼을 두지 않는다 — 이 마스터는 물리삭제로 운용한다. 거래 종료 벤더를
+ * 목록에서만 빼는 상태를 따로 두지 않고 실제로 지운다.
  */
 @Entity
 @Table(name = "vendor")
@@ -45,28 +45,17 @@ public class Vendor extends BaseEntity {
     @Column(name = "tel_no", length = 30)
     private String telNo;
 
-    /** 사용 여부. 'N'이면 신규 주문에서 선택 불가 (과거 주문은 그대로 유지) */
-    @Column(name = "us_yn", nullable = false, length = 1)
-    private String usYn;
-
     @Builder
-    private Vendor(String vndrCd, String vndrNm, String picNm, String telNo, String usYn) {
+    private Vendor(String vndrCd, String vndrNm, String picNm, String telNo) {
         this.vndrCd = vndrCd;
         this.vndrNm = vndrNm;
         this.picNm = picNm;
         this.telNo = telNo;
-        this.usYn = usYn != null ? usYn : "Y";
     }
 
-    public void update(String vndrNm, String picNm, String telNo, String usYn) {
+    public void update(String vndrNm, String picNm, String telNo) {
         this.vndrNm = vndrNm;
         this.picNm = picNm;
         this.telNo = telNo;
-        this.usYn = usYn;
-    }
-
-    /** 주문에 담을 수 있는 벤더인지. 사용중지 벤더로 새 주문을 만드는 걸 막는다 */
-    public boolean isUsable() {
-        return "Y".equals(usYn);
     }
 }

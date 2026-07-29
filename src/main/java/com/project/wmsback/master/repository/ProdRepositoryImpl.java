@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static com.project.wmsback.master.entity.QProd.prod;
+import static com.project.wmsback.master.entity.QProdUom.prodUom;
 
 @RequiredArgsConstructor
 public class ProdRepositoryImpl implements ProdRepositoryCustom {
@@ -29,10 +30,15 @@ public class ProdRepositoryImpl implements ProdRepositoryCustom {
                         .fetchOne());
     }
 
+    /**
+     * 목록 조회. 포장을 fetch join으로 함께 읽는다 — ProdResponse가 uoms를 항상 훑으므로
+     * 없으면 상품 수만큼 추가 쿼리가 나간다. 조인으로 행이 부풀므로 distinct가 필요하다.
+     */
     @Override
     public List<Prod> search(ProdSearchCond cond) {
         return queryFactory
-                .selectFrom(prod)
+                .selectFrom(prod).distinct()
+                .leftJoin(prod.uoms, prodUom).fetchJoin()
                 .where(
                         prodCdContains(cond.getProdCd()),
                         prodNmContains(cond.getProdNm()),

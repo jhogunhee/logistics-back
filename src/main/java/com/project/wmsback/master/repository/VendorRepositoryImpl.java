@@ -22,8 +22,7 @@ public class VendorRepositoryImpl implements VendorRepositoryCustom {
                 .selectFrom(vendor)
                 .where(
                         vndrCdContains(cond.getVndrCd()),
-                        vndrNmContains(cond.getVndrNm()),
-                        useYnEq(cond.getUsYn())
+                        vndrNmContains(cond.getVndrNm())
                 )
                 .orderBy(vendor.id.asc())
                 .fetch();
@@ -39,7 +38,4 @@ public class VendorRepositoryImpl implements VendorRepositoryCustom {
         return StringUtils.hasText(vndrNm) ? vendor.vndrNm.containsIgnoreCase(vndrNm) : null;
     }
 
-    private BooleanExpression useYnEq(String usYn) {
-        return StringUtils.hasText(usYn) ? vendor.usYn.eq(usYn) : null;
-    }
 }

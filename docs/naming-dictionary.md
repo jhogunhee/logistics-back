@@ -4,7 +4,7 @@
 
 DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있다. 필드와 컬럼이 1:1로 붙어 있는 구조라 두 사전이 겹치는 자리가 생기는데, 어긋나는 항목은 아래 「이미 쓰고 있는 이름과 어긋나는 곳」에 모아뒀다.
 
-216개 단어이며 한글·약어 모두 중복이 없다.
+218개 단어이며 한글·약어 모두 중복이 없다.
 
 ## 이름 만드는 규칙
 
@@ -44,6 +44,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 결품 | `SHOTGE` | Shortage |
 | 경도 | `LNGT` | Longitude |
 | 경로 | `PTH` | Path |
+| 계량단위 | `UOM` | Unit of Measure |
 | 고객 | `CUST` | Customer |
 | 고정 | `FXNG` | Fixing |
 | 공급사 | `SUPLER` | Supplier |
@@ -246,6 +247,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 화물 | `CAGO` | Cargo |
 | 화주 | `CNSG` | Consignor |
 | 확정 | `CFM` | Confirm |
+| 환산 | `CNVR` | Conversion |
 | 회사 | `COMP` | Company |
 | 회차 | `TME` | Times |
 | 후 | `AFT` | After |
@@ -298,6 +300,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | `CNCL` | 취소 | Cancellation |
 | `CNSG` | 화주 | Consignor |
 | `CNT` | 수 | Count |
+| `CNVR` | 환산 | Conversion |
 | `COMN` | 공통 | Common |
 | `COMP` | 회사 | Company |
 | `COND` | 조건 | Condition |
@@ -457,6 +460,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | `TRSCP` | 운송사 | A Transport(Shipping, Freight) Company |
 | `TYP` | 유형 | Type |
 | `UNT` | 단위 | Unit |
+| `UOM` | 계량단위 | Unit of Measure |
 | `UPD` | 수정 | Update |
 | `UPDR` | 수정자 | Updater |
 | `UPR` | 상위 | Upper |
@@ -495,7 +499,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 웨이브 | `WAV` | `wave_no`·`wave_id` → `wav_no`·`wav_id` |
 | 피킹 | `PIKNG` | `pick_prty`·`picked_qty` → `pikng_prty`·`pikng_qty` |
 | 정렬 + 순서 | `SRT` + `SEQ` | `sort_ord` → `srt_seq` |
-| 사용 | `US` | `use_yn` → `us_yn` |
+| 사용 | `US` | ~~`use_yn` → `us_yn`~~ — 이후 사용여부 컬럼 자체를 전 테이블에서 제거했다(`docs/migration-drop-us-yn.sql`). 마스터는 물리삭제로 운용하므로 지금 이 단어를 쓰는 컬럼은 없다 |
 | 참조 | `RFN` | `ref_doc_no` → `rfn_doc_no` |
 | 주문 | `ODR` | `order_qty`·`order_dt` → `odr_qty`·`odr_de` |
 | 담당자 | `PIC` | `mgr_nm` → `pic_nm` |
@@ -510,6 +514,12 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 상태 | `ST` | `status` | 두 글자로는 state/street/start 중 무엇인지 알 수 없다 |
 | 코드 | `CD` | `code_detail.code_cd` · `code_nm` | `cd_cd`가 되어 같은 단어가 겹친다 |
 | 생성 · 수정 | `CRT` · `UPD` | `created_*` · `updated_*` | 「생성자」가 사전에 없고 `CRTR`은 이미 「기준(Criteria)」이 쓴다. `BaseEntity`·`AuditorAware`와도 묶여 있다 |
+
+### 아직 정리되지 않은 이탈
+
+**출고(`OUTB`)는 맞지만 `store.outb_life_rate`의 나머지 단어가 사전에 없다.** `life`(수명) · `rate`(비율) 어느 쪽도 등재돼 있지 않다. 짝이던 `prod.ib_life_rate`는 개명 대신 **삭제**했고(읽는 코드가 없는 write-only 컬럼이었다 — `docs/migration-uom.sql`), 이쪽은 실제로 쓰이고 있어 남겨 뒀다. 개명하려면 「잔여」·「비율」 등재가 먼저다.
+
+테이블 접두 `IB_*`(`ib_order` · `ib_line`)와 그 PK·FK는 **대상이 아니다** — 규칙 5가 사전보다 우선한다. 컬럼만 해당한다.
 
 ### 아직 사전에 없는 단어
 

@@ -6,7 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 
-public interface CodeDetailRepository extends JpaRepository<CodeDetail, CodeDetailId> {
+public interface CodeDetailRepository extends JpaRepository<CodeDetail, CodeDetailId>, CodeDetailRepositoryCustom {
 
-    List<CodeDetail> findByGrpCdAndUsYnOrderBySrtSeq(String grpCd, char usYn);
+    List<CodeDetail> findByGrpCdOrderBySrtSeq(String grpCd);
 }

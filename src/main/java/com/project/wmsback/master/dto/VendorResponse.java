@@ -13,7 +13,6 @@ public class VendorResponse {
     private final String vndrNm;
     private final String picNm;
     private final String telNo;
-    private final String usYn;
     private final String createdBy;
     private final LocalDateTime createdAt;
     private final String updatedBy;
@@ -25,7 +24,6 @@ public class VendorResponse {
         this.vndrNm = vendor.getVndrNm();
         this.picNm = vendor.getPicNm();
         this.telNo = vendor.getTelNo();
-        this.usYn = vendor.getUsYn();
         this.createdBy = vendor.getCreatedBy();
         this.createdAt = vendor.getCreatedAt();
         this.updatedBy = vendor.getUpdatedBy();

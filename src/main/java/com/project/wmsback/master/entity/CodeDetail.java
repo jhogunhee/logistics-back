@@ -7,12 +7,15 @@ import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
  * 공통코드 상세. 그룹 내 개별 코드와 표시명/정렬 순서.
- * 시드 데이터로만 운용하는 조회 전용 엔티티 (관리 화면은 추후 추가 예정).
+ * <p>
+ * 그룹 코드와 코드 값이 함께 PK다 — 코드성 테이블이라 대리키를 두지 않는다
+ * ({@code docs/schema.sql}의 「{테이블명}_id」 규칙에 대한 의도된 예외).
  */
 @Entity
 @Table(name = "code_detail")
@@ -26,7 +29,7 @@ public class CodeDetail extends BaseEntity {
     @Column(name = "grp_cd", length = 30)
     private String grpCd;
 
-    /** 코드 값 (예: DRY). 로직에서 리터럴로 참조하므로 변경 금지, 폐기는 us_yn=N */
+    /** 코드 값 (예: DRY). 로직에서 리터럴로 참조하므로 변경 금지 */
     @Id
     @Column(name = "code_cd", length = 30)
     private String codeCd;
@@ -39,7 +42,17 @@ public class CodeDetail extends BaseEntity {
     @Column(name = "srt_seq", nullable = false)
     private Integer srtSeq;
 
-    /** 사용 여부. 과거 데이터가 참조하므로 삭제 대신 N 처리 */
-    @Column(name = "us_yn", nullable = false)
-    private char usYn;
+    @Builder
+    private CodeDetail(String grpCd, String codeCd, String codeNm, Integer srtSeq) {
+        this.grpCd = grpCd;
+        this.codeCd = codeCd;
+        this.codeNm = codeNm;
+        this.srtSeq = srtSeq;
+    }
+
+    /** 그룹 코드와 코드 값은 PK이자 로직이 리터럴로 참조하는 값이라 수정 대상에서 제외한다 */
+    public void update(String codeNm, Integer srtSeq) {
+        this.codeNm = codeNm;
+        this.srtSeq = srtSeq;
+    }
 }
