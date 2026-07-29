@@ -1,5 +1,6 @@
 package com.project.wmsback.outbound.service;
 
+import com.project.wmsback.master.service.NbrService;
 import com.project.wmsback.outbound.dto.OutbWaveOrdersRequest;
 import com.project.wmsback.outbound.dto.OutbWaveResponse;
 import com.project.wmsback.outbound.dto.OutbWaveSearchCond;
@@ -12,7 +13,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
@@ -26,6 +26,7 @@ public class OutbWaveService {
 
     private final OutbWaveRepository outbWaveRepository;
     private final OutbOrderRepository outbOrderRepository;
+    private final NbrService nbrService;
 
     public List<OutbWaveResponse> list(OutbWaveSearchCond cond) {
         return outbWaveRepository.search(cond).stream()
@@ -42,9 +43,7 @@ public class OutbWaveService {
     /** 웨이브 생성. 웨이브번호는 생성일 + 시퀀스로 채번 (예: WV-20260718-001). 초기 주문 목록은 선택 */
     @Transactional
     public Long create(OutbWaveOrdersRequest req) {
-        String wavNo = String.format("WV-%s-%03d",
-                LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE),
-                outbWaveRepository.nextWaveNoSeq());
+        String wavNo = nbrService.issue("OUTB_WAV_NO", LocalDate.now());
 
         OutbWave wave = outbWaveRepository.save(OutbWave.builder().wavNo(wavNo).build());
         assignOrders(wave, req.getOrderIds());
