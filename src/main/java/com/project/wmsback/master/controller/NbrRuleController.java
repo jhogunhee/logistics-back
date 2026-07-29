@@ -51,6 +51,7 @@ public class NbrRuleController {
 
     @PostMapping("/preview")
     public NbrPreviewResponse preview(@RequestBody NbrPreviewRequest req) {
-        return new NbrPreviewResponse(nbrService.preview(req.getPtrn(), req.getDyncKyTyp()));
+        return new NbrPreviewResponse(nbrService.preview(
+                req.getPrfx(), req.getPrfxDlmt(), req.getDeDlmt(), req.getSeqDgt(), req.getDyncKyTyp()));
     }
 }

@@ -12,5 +12,4 @@ public class NbrRuleSearchCond {
 
     private String ruleCd;
     private String ruleNm;
-    private String usYn;
 }

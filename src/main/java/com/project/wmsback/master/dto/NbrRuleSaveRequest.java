@@ -21,7 +21,9 @@ public class NbrRuleSaveRequest {
 
     private String ruleCd;
     private String ruleNm;
-    private String ptrn;
+    private String prfx;
+    private String prfxDlmt;
+    private String deDlmt;
+    private Integer seqDgt;
     private DyncKyTyp dyncKyTyp;
-    private String usYn;
 }

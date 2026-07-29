@@ -10,6 +10,9 @@ import lombok.Setter;
 @NoArgsConstructor
 public class NbrPreviewRequest {
 
-    private String ptrn;
+    private String prfx;
+    private String prfxDlmt;
+    private String deDlmt;
+    private Integer seqDgt;
     private DyncKyTyp dyncKyTyp;
 }

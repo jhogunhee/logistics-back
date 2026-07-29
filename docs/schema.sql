@@ -266,23 +266,29 @@ COMMENT ON COLUMN code_detail.srt_seq IS '화면 표시 정렬 순서';
 CREATE TABLE nbr_rule (
     rule_cd     VARCHAR(30)     NOT NULL,
     rule_nm     VARCHAR(100)    NOT NULL,
-    ptrn        VARCHAR(200)    NOT NULL,
+    prfx        VARCHAR(20)     NOT NULL,
+    prfx_dlmt   VARCHAR(1)      NOT NULL,
+    de_dlmt     VARCHAR(1)      NOT NULL,
+    seq_dgt     SMALLINT        NOT NULL,
     dync_ky_typ VARCHAR(10)     NOT NULL,
-    us_yn       CHAR(1)         DEFAULT 'Y' NOT NULL,
     created_at  TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
     created_by  VARCHAR(30)     DEFAULT 'admin' NOT NULL,
     updated_at  TIMESTAMP,
     updated_by  VARCHAR(30),
     CONSTRAINT pk_nbr_rule PRIMARY KEY (rule_cd),
-    CONSTRAINT ck_nbr_rule_dync_ky_typ CHECK (dync_ky_typ IN ('NONE', 'DATE')),
-    CONSTRAINT ck_nbr_rule_us_yn CHECK (us_yn IN ('Y', 'N'))
+    CONSTRAINT ck_nbr_rule_prfx_dlmt CHECK (prfx_dlmt IN ('-', '_', '')),
+    CONSTRAINT ck_nbr_rule_de_dlmt CHECK (de_dlmt IN ('-', '_', '')),
+    CONSTRAINT ck_nbr_rule_seq_dgt CHECK (seq_dgt BETWEEN 1 AND 9),
+    CONSTRAINT ck_nbr_rule_dync_ky_typ CHECK (dync_ky_typ IN ('NONE', 'YEAR', 'MONTH', 'DAY'))
 );
 
-COMMENT ON TABLE  nbr_rule IS '채번 규칙. 패턴 문자열 하나로 형식을 정의 (예: PROD-{SEQ:4}, IB-{yyyyMMdd}-{SEQ:3})';
+COMMENT ON TABLE  nbr_rule IS '채번 규칙. 접두어+구분자+SEQ 자릿수+리셋단위로 형식을 정의 (예: prfx=PROD, prfx_dlmt=-, seq_dgt=4, dync_ky_typ=NONE → PROD-0001)';
 COMMENT ON COLUMN nbr_rule.rule_cd     IS '채번 규칙 코드 (업무 식별자, 예: PROD_CD). 코드성 테이블이라 자연키를 PK로 쓴다 (code_group과 동일 패턴)';
-COMMENT ON COLUMN nbr_rule.ptrn        IS '채번 패턴. 토큰: {SEQ:n}(n=1~9 zero-pad, 정확히 1개 필수) + 날짜 토큰({yyyyMMdd}/{yyyy}/{MM}/{dd}). 그 외 문자는 리터럴';
-COMMENT ON COLUMN nbr_rule.dync_ky_typ IS '동적키 유형. NONE=카운터 전역 공유(dync_ky 고정값 -) / DATE=호출자가 넘긴 날짜 기준으로 카운터 분리(일 단위 리셋)';
-COMMENT ON COLUMN nbr_rule.us_yn       IS '사용 여부. N이면 발급 요청 시 거부 (과거 발급분은 영향 없음)';
+COMMENT ON COLUMN nbr_rule.prfx        IS '접두어 리터럴 (예: IB, PROD)';
+COMMENT ON COLUMN nbr_rule.prfx_dlmt   IS '접두어 뒤 구분자. NONE이면 접두어→SEQ 사이 유일한 경계로 쓰인다';
+COMMENT ON COLUMN nbr_rule.de_dlmt     IS '날짜 뒤 구분자. NONE에서는 쓰이지 않음(화면에서 비활성화 처리)';
+COMMENT ON COLUMN nbr_rule.seq_dgt     IS 'SEQ 자릿수 (zero-pad 폭), 1~9';
+COMMENT ON COLUMN nbr_rule.dync_ky_typ IS '리셋 단위. NONE=카운터 전역 공유(dync_ky 고정값 -) / YEAR·MONTH·DAY=호출자가 넘긴 날짜를 해당 단위로 잘라 카운터 분리, 화면 날짜 조각 포맷(yyyy/yyyyMM/yyyyMMdd)도 여기서 파생';
 
 -- 채번 카운터. rule_cd+dync_ky 조합별 현재 발급값. 관리자가 만들지 않고 최초 발급 시 자동 생성된다.
 CREATE TABLE nbr_seq (
@@ -297,7 +303,7 @@ CREATE TABLE nbr_seq (
 );
 
 COMMENT ON TABLE  nbr_seq IS '채번 카운터. rule_cd+dync_ky별 현재 발급값. FK 없음 — rule_cd는 nbr_rule.rule_cd를 느슨하게 참조';
-COMMENT ON COLUMN nbr_seq.dync_ky IS '동적키 값. dync_ky_typ=NONE이면 고정값 "-", DATE면 yyyyMMdd';
+COMMENT ON COLUMN nbr_seq.dync_ky IS '동적키 값. dync_ky_typ=NONE이면 고정값 "-", YEAR/MONTH/DAY면 각각 yyyy/yyyyMM/yyyyMMdd';
 COMMENT ON COLUMN nbr_seq.seq     IS '현재 발급값. 발급마다 +1, updated_at이 곧 최종 발급 시각';
 
 -- 공통코드 시드 (참조 데이터 — 테이블 정의와 한 몸이므로 여기서 함께 관리)
@@ -355,13 +361,13 @@ INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('ODR_DVSN', 
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('ODR_DVSN', 'RTNGS', '반품입고', 3);
 
 -- 채번 규칙. 상품·벤더 코드와 주문/입고/출고 번호를 여기서 발급한다 (전용 시퀀스 폐기).
-INSERT INTO nbr_rule (rule_cd, rule_nm, ptrn, dync_ky_typ) VALUES
-    ('PROD_CD',     '상품 코드',        'PROD-{SEQ:4}',           'NONE'),
-    ('VNDR_CD',     '벤더 코드',        'VD-{SEQ:4}',             'NONE'),
-    ('OMS_IB_NO',   '입고주문 번호',    'PO-{yyyyMMdd}-{SEQ:3}',  'DATE'),
-    ('IB_NO',       '입고 번호',        'IB-{yyyyMMdd}-{SEQ:3}',  'DATE'),
-    ('OUTB_NO',     '출고 번호',        'OB-{yyyyMMdd}-{SEQ:3}',  'DATE'),
-    ('OUTB_WAV_NO', '출고 웨이브 번호', 'WV-{yyyyMMdd}-{SEQ:3}',  'DATE');
+INSERT INTO nbr_rule (rule_cd, rule_nm, prfx, prfx_dlmt, de_dlmt, seq_dgt, dync_ky_typ) VALUES
+    ('PROD_CD',     '상품 코드',        'PROD', '-', '-', 4, 'NONE'),
+    ('VNDR_CD',     '벤더 코드',        'VD',   '-', '-', 4, 'NONE'),
+    ('OMS_IB_NO',   '입고주문 번호',    'PO',   '-', '-', 3, 'DAY'),
+    ('IB_NO',       '입고 번호',        'IB',   '-', '-', 3, 'DAY'),
+    ('OUTB_NO',     '출고 번호',        'OB',   '-', '-', 3, 'DAY'),
+    ('OUTB_WAV_NO', '출고 웨이브 번호', 'WV',   '-', '-', 3, 'DAY');
 COMMIT;
 
 

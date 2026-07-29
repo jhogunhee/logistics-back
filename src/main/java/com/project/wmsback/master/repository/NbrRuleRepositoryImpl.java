@@ -22,8 +22,7 @@ public class NbrRuleRepositoryImpl implements NbrRuleRepositoryCustom {
                 .selectFrom(nbrRule)
                 .where(
                         ruleCdContains(cond.getRuleCd()),
-                        ruleNmContains(cond.getRuleNm()),
-                        usYnEq(cond.getUsYn())
+                        ruleNmContains(cond.getRuleNm())
                 )
                 .orderBy(nbrRule.ruleCd.asc())
                 .fetch();
@@ -35,9 +34,5 @@ public class NbrRuleRepositoryImpl implements NbrRuleRepositoryCustom {
 
     private BooleanExpression ruleNmContains(String ruleNm) {
         return StringUtils.hasText(ruleNm) ? nbrRule.ruleNm.containsIgnoreCase(ruleNm) : null;
-    }
-
-    private BooleanExpression usYnEq(String usYn) {
-        return StringUtils.hasText(usYn) ? nbrRule.usYn.eq(usYn) : null;
     }
 }

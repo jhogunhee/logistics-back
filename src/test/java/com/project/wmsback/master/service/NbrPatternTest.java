@@ -11,66 +11,79 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class NbrPatternTest {
 
     @Test
-    void SEQ_토큰이_없으면_검증_실패() {
+    void prfx가_null이면_검증_실패() {
         assertThrows(IllegalArgumentException.class,
-                () -> NbrPattern.validate("PROD-0001", DyncKyTyp.NONE));
+                () -> NbrPattern.validate(null, "-", "-", 4, DyncKyTyp.NONE));
     }
 
     @Test
-    void SEQ_토큰이_2개면_검증_실패() {
+    void prfx가_빈값이면_검증_실패() {
         assertThrows(IllegalArgumentException.class,
-                () -> NbrPattern.validate("PROD-{SEQ:4}-{SEQ:2}", DyncKyTyp.NONE));
+                () -> NbrPattern.validate("   ", "-", "-", 4, DyncKyTyp.NONE));
     }
 
     @Test
-    void 알수없는_토큰이면_검증_실패() {
+    void seqDgt가_null이면_검증_실패() {
         assertThrows(IllegalArgumentException.class,
-                () -> NbrPattern.validate("PROD-{DEPT}-{SEQ:4}", DyncKyTyp.NONE));
+                () -> NbrPattern.validate("PROD", "-", "-", null, DyncKyTyp.NONE));
     }
 
     @Test
-    void DATE_타입인데_날짜_토큰이_없으면_검증_실패() {
+    void seqDgt가_0이면_검증_실패() {
         assertThrows(IllegalArgumentException.class,
-                () -> NbrPattern.validate("IB-{SEQ:3}", DyncKyTyp.DATE));
+                () -> NbrPattern.validate("PROD", "-", "-", 0, DyncKyTyp.NONE));
     }
 
     @Test
-    void NONE_타입은_날짜_토큰_없이도_통과() {
-        NbrPattern.validate("PROD-{SEQ:4}", DyncKyTyp.NONE);
+    void seqDgt가_10이면_검증_실패() {
+        assertThrows(IllegalArgumentException.class,
+                () -> NbrPattern.validate("PROD", "-", "-", 10, DyncKyTyp.NONE));
     }
 
     @Test
-    void DATE_타입은_날짜_토큰_있으면_통과() {
-        NbrPattern.validate("IB-{yyyyMMdd}-{SEQ:3}", DyncKyTyp.DATE);
+    void seqDgt가_1에서_9사이면_통과() {
+        NbrPattern.validate("PROD", "-", "-", 4, DyncKyTyp.NONE);
     }
 
     @Test
-    void render이_SEQ를_자릿수만큼_zero_pad() {
-        String result = NbrPattern.render("PROD-{SEQ:4}", 7, LocalDate.of(2026, 7, 29));
+    void render이_NONE이면_접두어와_prfxDlmt와_SEQ만_조립() {
+        String result = NbrPattern.render("PROD", "-", "-", 4, 7, DyncKyTyp.NONE, LocalDate.of(2026, 7, 29));
         assertEquals("PROD-0007", result);
     }
 
     @Test
-    void render이_날짜_토큰을_전달받은_날짜로_치환() {
-        String result = NbrPattern.render("IB-{yyyyMMdd}-{SEQ:3}", 12, LocalDate.of(2026, 8, 25));
+    void render이_DAY면_prfxDlmt_날짜_deDlmt_순으로_조립() {
+        String result = NbrPattern.render("IB", "-", "-", 3, 12, DyncKyTyp.DAY, LocalDate.of(2026, 8, 25));
         assertEquals("IB-20260825-012", result);
     }
 
     @Test
-    void render이_seq가_자릿수를_넘으면_그대로_늘어남() {
-        String result = NbrPattern.render("PROD-{SEQ:4}", 12345, LocalDate.of(2026, 7, 29));
+    void render이_MONTH면_yyyyMM을_끼워_조립() {
+        String result = NbrPattern.render("IB", "-", "-", 3, 12, DyncKyTyp.MONTH, LocalDate.of(2026, 8, 25));
+        assertEquals("IB-202608-012", result);
+    }
+
+    @Test
+    void render이_YEAR면_yyyy를_끼워_조립() {
+        String result = NbrPattern.render("IB", "-", "-", 3, 12, DyncKyTyp.YEAR, LocalDate.of(2026, 8, 25));
+        assertEquals("IB-2026-012", result);
+    }
+
+    @Test
+    void prfxDlmt와_deDlmt가_다르면_각자의_경계에_독립적으로_들어간다() {
+        String result = NbrPattern.render("IB", "_", "-", 3, 12, DyncKyTyp.DAY, LocalDate.of(2026, 8, 25));
+        assertEquals("IB_20260825-012", result);
+    }
+
+    @Test
+    void render이_구분자_없음도_지원() {
+        String result = NbrPattern.render("PROD", "", "", 4, 7, DyncKyTyp.NONE, LocalDate.of(2026, 7, 29));
+        assertEquals("PROD0007", result);
+    }
+
+    @Test
+    void render이_seq가_seqDgt_자릿수를_넘으면_그대로_늘어남() {
+        String result = NbrPattern.render("PROD", "-", "-", 4, 12345, DyncKyTyp.NONE, LocalDate.of(2026, 7, 29));
         assertEquals("PROD-12345", result);
-    }
-
-    @Test
-    void DATE_타입인데_yyyyMMdd_없이_yyyy만_있으면_검증_실패() {
-        assertThrows(IllegalArgumentException.class,
-                () -> NbrPattern.validate("IB-{yyyy}-{SEQ:3}", DyncKyTyp.DATE));
-    }
-
-    @Test
-    void ptrn이_null이면_검증_실패() {
-        assertThrows(IllegalArgumentException.class,
-                () -> NbrPattern.validate(null, DyncKyTyp.NONE));
     }
 }
