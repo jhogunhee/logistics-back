@@ -4,7 +4,7 @@
 
 DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있다. 필드와 컬럼이 1:1로 붙어 있는 구조라 두 사전이 겹치는 자리가 생기는데, 어긋나는 항목은 아래 「이미 쓰고 있는 이름과 어긋나는 곳」에 모아뒀다.
 
-218개 단어이며 한글·약어 모두 중복이 없다.
+220개 단어이며 한글·약어 모두 중복이 없다.
 
 ## 이름 만드는 규칙
 
@@ -181,6 +181,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 입력 | `INS` | Insert |
 | 자동 | `ATO` | Automatic |
 | 자리 | `PSTN` | Position |
+| 자릿수 | `DGT` | Digit |
 | 작업 | `WRK` | Work |
 | 장비 | `EQP` | Equipment |
 | 재고 | `INVN` | Inventory |
@@ -192,6 +193,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 전송 | `TRNS` | Transmission |
 | 전표 | `SLP` | Slip |
 | 전화 | `TEL` | Telephone |
+| 접두 | `PRFX` | Prefix |
 | 접속 | `CONN` | Connection |
 | 접수 | `ACCP` | Acceptance |
 | 정렬 | `SRT` | Sort |
@@ -319,6 +321,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | `DEF` | 정의 | Definition |
 | `DEPT` | 부서 | Department |
 | `DFT` | 디폴트 | Default |
+| `DGT` | 자릿수 | Digit |
 | `DLADDR` | 배송처 | Delivery Address |
 | `DLMT` | 구분자 | Delimiter |
 | `DLVPLC` | 납품처 | Delivery Place |
@@ -404,6 +407,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | `POST` | 우편 | Post |
 | `PPUP` | 팝업 | Popup |
 | `PR` | 당 | Per |
+| `PRFX` | 접두 | Prefix |
 | `PRGR` | 진행 | Progress |
 | `PROC` | 처리 | Process |
 | `PROD` | 상품 | Product |

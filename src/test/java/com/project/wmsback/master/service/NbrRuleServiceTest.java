@@ -32,30 +32,32 @@ class NbrRuleServiceTest {
     @InjectMocks
     private NbrRuleService nbrRuleService;
 
-    private NbrRuleSaveRequest createRow(String status, String ruleCd, String ptrn, DyncKyTyp typ) {
+    private NbrRuleSaveRequest createRow(String status, String ruleCd, String prfx, Integer seqDgt, DyncKyTyp typ) {
         NbrRuleSaveRequest row = new NbrRuleSaveRequest();
         row.setStatus(status);
         row.setRuleCd(ruleCd);
         row.setRuleNm("테스트 규칙");
-        row.setPtrn(ptrn);
+        row.setPrfx(prfx);
+        row.setPrfxDlmt("-");
+        row.setDeDlmt("-");
+        row.setSeqDgt(seqDgt);
         row.setDyncKyTyp(typ);
-        row.setUsYn("Y");
         return row;
     }
 
     @Test
     void 신규_등록시_이미_있는_ruleCd면_예외() {
         when(nbrRuleRepository.existsById("PROD_CD")).thenReturn(true);
-        NbrRuleSaveRequest row = createRow("C", "PROD_CD", "PROD-{SEQ:4}", DyncKyTyp.NONE);
+        NbrRuleSaveRequest row = createRow("C", "PROD_CD", "PROD", 4, DyncKyTyp.NONE);
 
         assertThrows(IllegalArgumentException.class, () -> nbrRuleService.saveAll(List.of(row)));
         verify(nbrRuleRepository, never()).save(any());
     }
 
     @Test
-    void 신규_등록시_패턴이_유효하지_않으면_예외() {
+    void 신규_등록시_prfx가_비어있으면_예외() {
         when(nbrRuleRepository.existsById("PROD_CD")).thenReturn(false);
-        NbrRuleSaveRequest row = createRow("C", "PROD_CD", "PROD-0001", DyncKyTyp.NONE);
+        NbrRuleSaveRequest row = createRow("C", "PROD_CD", "", 4, DyncKyTyp.NONE);
 
         assertThrows(IllegalArgumentException.class, () -> nbrRuleService.saveAll(List.of(row)));
         verify(nbrRuleRepository, never()).save(any());
@@ -64,7 +66,7 @@ class NbrRuleServiceTest {
     @Test
     void 신규_등록_정상() {
         when(nbrRuleRepository.existsById("PROD_CD")).thenReturn(false);
-        NbrRuleSaveRequest row = createRow("C", "PROD_CD", "PROD-{SEQ:4}", DyncKyTyp.NONE);
+        NbrRuleSaveRequest row = createRow("C", "PROD_CD", "PROD", 4, DyncKyTyp.NONE);
 
         nbrRuleService.saveAll(List.of(row));
 
@@ -75,10 +77,11 @@ class NbrRuleServiceTest {
     @Test
     void 수정시_dyncKyTyp을_바꾸려_하면_예외() {
         NbrRule existing = NbrRule.builder()
-                .ruleCd("IB_NO").ruleNm("입고 번호").ptrn("IB-{yyyyMMdd}-{SEQ:3}").dyncKyTyp(DyncKyTyp.DATE)
+                .ruleCd("IB_NO").ruleNm("입고 번호").prfx("IB").prfxDlmt("-").deDlmt("-").seqDgt(3)
+                .dyncKyTyp(DyncKyTyp.DAY)
                 .build();
         when(nbrRuleRepository.findById("IB_NO")).thenReturn(Optional.of(existing));
-        NbrRuleSaveRequest row = createRow("U", "IB_NO", "IB-{yyyyMMdd}-{SEQ:3}", DyncKyTyp.NONE);
+        NbrRuleSaveRequest row = createRow("U", "IB_NO", "IB", 3, DyncKyTyp.NONE);
 
         assertThrows(IllegalArgumentException.class, () -> nbrRuleService.saveAll(List.of(row)));
     }
@@ -86,19 +89,24 @@ class NbrRuleServiceTest {
     @Test
     void 수정_정상() {
         NbrRule existing = NbrRule.builder()
-                .ruleCd("IB_NO").ruleNm("입고 번호").ptrn("IB-{yyyyMMdd}-{SEQ:3}").dyncKyTyp(DyncKyTyp.DATE)
+                .ruleCd("IB_NO").ruleNm("입고 번호").prfx("IB").prfxDlmt("-").deDlmt("-").seqDgt(3)
+                .dyncKyTyp(DyncKyTyp.DAY)
                 .build();
         when(nbrRuleRepository.findById("IB_NO")).thenReturn(Optional.of(existing));
-        NbrRuleSaveRequest row = createRow("U", "IB_NO", "IB-{yyyyMMdd}-{SEQ:4}", DyncKyTyp.DATE);
+        NbrRuleSaveRequest row = createRow("U", "IB_NO", "IB", 4, DyncKyTyp.DAY);
+        row.setPrfxDlmt("_");
+        row.setDeDlmt("/");
 
         nbrRuleService.saveAll(List.of(row));
 
-        assertEquals("IB-{yyyyMMdd}-{SEQ:4}", existing.getPtrn());
+        assertEquals(4, existing.getSeqDgt());
+        assertEquals("_", existing.getPrfxDlmt());
+        assertEquals("/", existing.getDeDlmt());
     }
 
     @Test
     void 알수없는_status면_예외() {
-        NbrRuleSaveRequest row = createRow("X", "PROD_CD", "PROD-{SEQ:4}", DyncKyTyp.NONE);
+        NbrRuleSaveRequest row = createRow("X", "PROD_CD", "PROD", 4, DyncKyTyp.NONE);
 
         assertThrows(IllegalArgumentException.class, () -> nbrRuleService.saveAll(List.of(row)));
     }

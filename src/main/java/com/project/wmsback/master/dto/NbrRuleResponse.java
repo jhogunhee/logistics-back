@@ -11,9 +11,11 @@ public class NbrRuleResponse {
 
     private final String ruleCd;
     private final String ruleNm;
-    private final String ptrn;
+    private final String prfx;
+    private final String prfxDlmt;
+    private final String deDlmt;
+    private final Integer seqDgt;
     private final DyncKyTyp dyncKyTyp;
-    private final String usYn;
     private final String createdBy;
     private final LocalDateTime createdAt;
     private final String updatedBy;
@@ -22,9 +24,11 @@ public class NbrRuleResponse {
     private NbrRuleResponse(NbrRule rule) {
         this.ruleCd = rule.getRuleCd();
         this.ruleNm = rule.getRuleNm();
-        this.ptrn = rule.getPtrn();
+        this.prfx = rule.getPrfx();
+        this.prfxDlmt = rule.getPrfxDlmt();
+        this.deDlmt = rule.getDeDlmt();
+        this.seqDgt = rule.getSeqDgt();
         this.dyncKyTyp = rule.getDyncKyTyp();
-        this.usYn = rule.getUsYn();
         this.createdBy = rule.getCreatedBy();
         this.createdAt = rule.getCreatedAt();
         this.updatedBy = rule.getUpdatedBy();

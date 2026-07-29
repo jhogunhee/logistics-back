@@ -63,15 +63,17 @@ public class NbrRuleService {
         if (nbrRuleRepository.existsById(row.getRuleCd())) {
             throw new IllegalArgumentException("이미 존재하는 채번 규칙 코드입니다: " + row.getRuleCd());
         }
-        NbrPattern.validate(row.getPtrn(), row.getDyncKyTyp());
+        NbrPattern.validate(row.getPrfx(), row.getPrfxDlmt(), row.getDeDlmt(), row.getSeqDgt(), row.getDyncKyTyp());
         // rule_cd가 비생성(assigned) PK라 save()가 내부적으로 merge()를 타 SELECT가 한 번 더 나간다.
         // 관리 화면에서 사람이 저장하는 빈도라 무시 가능한 비용이다.
         nbrRuleRepository.save(NbrRule.builder()
                 .ruleCd(row.getRuleCd())
                 .ruleNm(row.getRuleNm())
-                .ptrn(row.getPtrn())
+                .prfx(row.getPrfx())
+                .prfxDlmt(row.getPrfxDlmt())
+                .deDlmt(row.getDeDlmt())
+                .seqDgt(row.getSeqDgt())
                 .dyncKyTyp(row.getDyncKyTyp())
-                .usYn(row.getUsYn())
                 .build());
     }
 
@@ -85,8 +87,8 @@ public class NbrRuleService {
         if (row.getRuleNm() == null || row.getRuleNm().isBlank()) {
             throw new IllegalArgumentException("규칙명은 필수입니다: " + row.getRuleCd());
         }
-        NbrPattern.validate(row.getPtrn(), rule.getDyncKyTyp());
-        rule.update(row.getRuleNm(), row.getPtrn(), row.getUsYn());
+        NbrPattern.validate(row.getPrfx(), row.getPrfxDlmt(), row.getDeDlmt(), row.getSeqDgt(), rule.getDyncKyTyp());
+        rule.update(row.getRuleNm(), row.getPrfx(), row.getPrfxDlmt(), row.getDeDlmt(), row.getSeqDgt());
     }
 
     private void delete(NbrRuleSaveRequest row) {
