@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +25,17 @@ public class CodeService {
 
     /** 계량단위 그룹. 이 그룹만 하위 참조(상품·포장)가 있어 삭제 가드가 붙는다 */
     private static final String UOM_GRP_CD = "UOM";
+
+    /**
+     * 컬럼 DEFAULT가 가리키는 코드. <b>참조가 하나도 없어도 지울 수 없다.</b>
+     * <p>
+     * 지우는 순간 그 컬럼의 기본값이 존재하지 않는 코드를 가리키게 되고, 이후 넣는 행마다
+     * 고아 값이 생긴다. 하위 참조 가드(아래 requireUnusedUom)로는 못 막는다 — 상품이 0건이면
+     * 참조도 0건이라 통과해버리기 때문이다(실제로 그렇게 EA가 지워진 적이 있다).
+     */
+    private static final Map<String, String> DEFAULT_CODES = Map.of(
+            UOM_GRP_CD, "EA",     // prod.inb_uom_cd · outb_uom_cd의 DEFAULT이자 prod_uom.ea_qty가 세는 기준 단위
+            "ODR_DVSN", "NRML");  // oms_ib_order.odr_dvsn의 DEFAULT
 
 
     private final CodeDetailRepository codeDetailRepository;
@@ -154,6 +166,10 @@ public class CodeService {
      */
     private void delete(String grpCd, CodeSaveRequest row) {
         CodeDetail code = find(grpCd, row.getCodeCd());
+        if (code.getCodeCd().equals(DEFAULT_CODES.get(grpCd))) {
+            throw new IllegalArgumentException(
+                    "컬럼 기본값으로 쓰이는 코드라 삭제할 수 없습니다: " + grpCd + " / " + code.getCodeCd());
+        }
         if (UOM_GRP_CD.equals(grpCd)) {
             requireUnusedUom(code.getCodeCd());
         }
