@@ -1,7 +1,7 @@
 package com.project.omsback.inbound.controller;
 
 import com.project.omsback.inbound.dto.OmsIbLineResponse;
-import com.project.omsback.inbound.dto.OmsIbOrderCreateRequest;
+import com.project.omsback.inbound.dto.OmsIbOrderSaveRequest;
 import com.project.omsback.inbound.dto.OmsIbOrderResponse;
 import com.project.omsback.inbound.dto.OmsIbOrderSearchCond;
 import com.project.omsback.inbound.service.OmsIbOrderService;
@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -29,8 +30,14 @@ public class OmsIbOrderController {
     }
 
     @PostMapping
-    public Long create(@RequestBody OmsIbOrderCreateRequest req) {
+    public Long create(@RequestBody OmsIbOrderSaveRequest req) {
         return omsIbOrderService.create(req);
+    }
+
+    /** 수정. 작성(CREATED) 상태만 가능 — 변환된 주문은 변환취소가 먼저다 (판정은 엔티티) */
+    @PutMapping("/{omsIbOrderId}")
+    public void update(@PathVariable Long omsIbOrderId, @RequestBody OmsIbOrderSaveRequest req) {
+        omsIbOrderService.update(omsIbOrderId, req);
     }
 
     @GetMapping("/{omsIbOrderId}/lines")

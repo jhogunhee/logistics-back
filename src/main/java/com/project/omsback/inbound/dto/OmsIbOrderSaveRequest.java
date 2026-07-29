@@ -11,9 +11,9 @@ import java.util.List;
 @Getter
 @Setter
 @NoArgsConstructor
-public class OmsIbOrderCreateRequest {
+public class OmsIbOrderSaveRequest {
 
     private Long vendorId;
     private LocalDate expctDe;
-    private List<OmsIbLineCreateRequest> lines;
+    private List<OmsIbLineSaveRequest> lines;
 }

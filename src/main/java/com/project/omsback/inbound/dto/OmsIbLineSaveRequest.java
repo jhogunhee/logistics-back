@@ -4,11 +4,11 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** 입고주문 라인 등록 요청. {@link OmsIbOrderCreateRequest#getLines()}에 실려 온다. */
+/** 입고주문 라인 등록 요청. {@link OmsIbOrderSaveRequest#getLines()}에 실려 온다. */
 @Getter
 @Setter
 @NoArgsConstructor
-public class OmsIbLineCreateRequest {
+public class OmsIbLineSaveRequest {
 
     private Long prodId;
 

@@ -1,9 +1,9 @@
 package com.project.omsback.inbound.service;
 
 import com.project.omsback.inbound.dto.AsnRef;
-import com.project.omsback.inbound.dto.OmsIbLineCreateRequest;
+import com.project.omsback.inbound.dto.OmsIbLineSaveRequest;
 import com.project.omsback.inbound.dto.OmsIbLineResponse;
-import com.project.omsback.inbound.dto.OmsIbOrderCreateRequest;
+import com.project.omsback.inbound.dto.OmsIbOrderSaveRequest;
 import com.project.omsback.inbound.dto.OmsIbOrderResponse;
 import com.project.omsback.inbound.dto.OmsIbOrderSearchCond;
 import com.project.omsback.inbound.entity.OmsIbLine;
@@ -23,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -63,10 +64,9 @@ public class OmsIbOrderService {
 
     /** 입고주문 등록. 주문번호는 예정일 + 시퀀스로 채번 (예: PO-20260723-001) */
     @Transactional
-    public Long create(OmsIbOrderCreateRequest req) {
+    public Long create(OmsIbOrderSaveRequest req) {
         validate(req);
-        Vendor vendor = vendorRepository.findById(req.getVendorId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 벤더입니다: " + req.getVendorId()));
+        Vendor vendor = findVendor(req.getVendorId());
 
         String omsIbNo = nbrService.issue("OMS_IB_NO", req.getExpctDe());
 
@@ -75,16 +75,44 @@ public class OmsIbOrderService {
                 .vendor(vendor)
                 .expctDe(req.getExpctDe())
                 .build();
-        for (OmsIbLineCreateRequest line : req.getLines()) {
+        toLines(req).forEach(order::addLine);
+        omsIbOrderRepository.save(order); // cascade로 라인까지 함께 저장
+        return order.getId();
+    }
+
+    /**
+     * 입고주문 수정. 벤더 · 예정일 · 라인을 통째로 갈아끼운다.
+     * <p>
+     * 작성(CREATED) 상태만 가능하고 그 판정은 엔티티가 한다 — 변환된 주문을 고치면 이미 나간
+     * ASN의 예정수량과 어긋나기 때문이다(고치려면 변환취소가 먼저).
+     * <p>
+     * 주문번호는 바꾸지 않는다. 예정일을 고쳐도 마찬가지다 — 번호는 채번 시점의 식별자이지
+     * 예정일을 따라다니는 값이 아니고, 이미 그 번호로 주고받은 이력이 어긋난다.
+     */
+    @Transactional
+    public void update(Long omsIbOrderId, OmsIbOrderSaveRequest req) {
+        validate(req);
+        OmsIbOrder order = omsIbOrderRepository.findById(omsIbOrderId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고주문입니다: " + omsIbOrderId));
+        order.update(findVendor(req.getVendorId()), req.getExpctDe(), toLines(req));
+    }
+
+    private Vendor findVendor(Long vendorId) {
+        return vendorRepository.findById(vendorId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 벤더입니다: " + vendorId));
+    }
+
+    private List<OmsIbLine> toLines(OmsIbOrderSaveRequest req) {
+        List<OmsIbLine> lines = new ArrayList<>();
+        for (OmsIbLineSaveRequest line : req.getLines()) {
             Prod prod = prodRepository.findById(line.getProdId())
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다: " + line.getProdId()));
-            order.addLine(OmsIbLine.builder()
+            lines.add(OmsIbLine.builder()
                     .prod(prod)
                     .odrQty(line.getOdrQty())
                     .build());
         }
-        omsIbOrderRepository.save(order); // cascade로 라인까지 함께 저장
-        return order.getId();
+        return lines;
     }
 
     /**
@@ -152,7 +180,7 @@ public class OmsIbOrderService {
         order.cancel();
     }
 
-    private void validate(OmsIbOrderCreateRequest req) {
+    private void validate(OmsIbOrderSaveRequest req) {
         if (req.getVendorId() == null) {
             throw new IllegalArgumentException("벤더는 필수입니다.");
         }
@@ -162,7 +190,7 @@ public class OmsIbOrderService {
         if (req.getLines() == null || req.getLines().isEmpty()) {
             throw new IllegalArgumentException("주문 라인은 최소 1건 필요합니다.");
         }
-        for (OmsIbLineCreateRequest line : req.getLines()) {
+        for (OmsIbLineSaveRequest line : req.getLines()) {
             if (line.getProdId() == null) {
                 throw new IllegalArgumentException("라인의 상품은 필수입니다.");
             }

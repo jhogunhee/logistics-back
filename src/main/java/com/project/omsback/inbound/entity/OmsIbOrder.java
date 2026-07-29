@@ -80,6 +80,28 @@ public class OmsIbOrder extends BaseEntity {
     }
 
     /**
+     * 주문 내용 수정. 작성(CREATED) 상태만 가능하다.
+     * <p>
+     * 변환된 주문을 고치면 이미 나간 ASN의 예정수량과 어긋난다 — 창고는 옛 수량으로 물건을
+     * 받을 준비를 한 상태이고, 주문만 바꿔도 그 예정이 따라오지 않는다. 고치려면 변환취소가
+     * 먼저다. 취소된 주문은 되살리는 개념이 없으므로 역시 막는다.
+     * <p>
+     * 라인은 통째로 갈아끼운다. 어느 라인이 남고 어느 라인이 바뀌었는지를 클라이언트가
+     * 알려주지 않아도 되게 하려는 것이고, orphanRemoval이 빠진 라인을 지운다.
+     */
+    public void update(Vendor vendor, LocalDate expctDe, List<OmsIbLine> newLines) {
+        if (status != OmsIbStatus.CREATED) {
+            throw new IllegalStateException(
+                    "작성 상태의 주문만 수정할 수 있습니다. 변환된 주문은 변환취소가 먼저입니다 ("
+                            + status.getLabel() + "): " + omsIbNo);
+        }
+        this.vendor = vendor;
+        this.expctDe = expctDe;
+        lines.clear();
+        newLines.forEach(this::addLine);
+    }
+
+    /**
      * WMS 작업문서(ASN)로 변환. ASN 생성 자체는 서비스가 이어서 수행한다 (엔티티는 상태 전이만 책임).
      * 재변환을 막는 게 핵심 — 통과시키면 같은 주문으로 ASN이 여러 건 생겨 예정수량이 부풀려진다.
      * (동시 요청은 상태 검사만으로 못 막으므로 ib_order의 유니크 인덱스가 최후 방어선이다)

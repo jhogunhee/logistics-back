@@ -90,13 +90,13 @@
 <tbody>
 <tr>
   <td class="name">입고주문</td>
-  <td>벤더 발주 등록 폼. 벤더/입고예정일/라인(상품·수량) 입력. 주문번호는 서버 채번(<code>PO-YYYYMMDD-NNN</code>)</td>
+  <td>벤더 발주 <strong>등록·수정</strong> 폼. 벤더/입고예정일/라인(상품·수량) 입력. 주문번호는 서버 채번(<code>PO-YYYYMMDD-NNN</code>)이고 수정해도 바뀌지 않는다. 경로에 id가 있으면 수정 모드(<code>/oms/inbound-order/:id</code>) — <strong>작성(CREATED) 상태만 편집 가능</strong>하고 변환·취소된 주문은 화면이 잠긴다</td>
   <td class="st"><span class="badge done">구현</span></td>
   <td><code>POST /oms/inbound-orders</code><br><code>/oms/inbound-order</code></td>
 </tr>
 <tr>
   <td class="name">입고주문 관리</td>
-  <td>목록 검색(주문번호/벤더/상태/기간), <strong>확정</strong>·취소. 확정이 <strong>ASN 생성의 유일한 기점</strong>이며, 목록에 생성된 입고번호와 창고 진행상태를 함께 표시. 수정은 미구현</td>
+  <td>목록 검색(주문번호/벤더/상태/기간), <strong>변환</strong>·변환취소·취소. 변환이 <strong>ASN 생성의 유일한 기점</strong>이며, 목록에 생성된 입고번호와 창고 진행상태를 함께 표시. <strong>주문번호를 누르면 수정 화면으로</strong> 이동한다</td>
   <td class="st"><span class="badge done">구현</span></td>
   <td><code>GET /oms/inbound-orders</code>, <code>/{id}/lines</code><br><code>POST /{id}/confirm</code>, <code>/{id}/cancel</code><br><code>/oms/inbound-orders</code></td>
 </tr>
