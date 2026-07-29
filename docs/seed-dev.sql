@@ -1,6 +1,7 @@
 -- 개발용 시드 데이터 (식품/음료 유통센터 컨셉) — PostgreSQL / Supabase, 현행 기준 문서
 --   docs/schema.sql 을 먼저 적용한 뒤 실행한다.
--- prod_cd는 백엔드 채번과 충돌하지 않도록 반드시 prod_cd_seq로 발급한다.
+-- prod_cd는 이제 리터럴로 직접 넣는다. 화면에서 처음 등록할 때 PROD-0001부터
+-- 다시 채번돼 uq_prod_cd 위반이 나지 않도록, 아래에서 nbr_seq를 시드 건수만큼 맞춰둔다.
 -- shelf_life_days NULL = 유통기한 미관리 (공산품, 유통기한 표시 면제 품목 등)
 -- 실행: Supabase SQL Editor 또는 `psql ... -f seed-dev.sql` (UTF-8)
 
@@ -13,100 +14,126 @@
 
 -- 상온(DRY)
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '제주 삼다수 2L', 'DRY', 'PLT', 'BOX', 365);
+    VALUES ('PROD-0001', '제주 삼다수 2L', 'DRY', 'PLT', 'BOX', 365);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '신라면 멀티팩 (5입)', 'DRY', 'PLT', 'EA', 180);
+    VALUES ('PROD-0002', '신라면 멀티팩 (5입)', 'DRY', 'PLT', 'EA', 180);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '햇반 백미 210g', 'DRY', 'BOX', 'EA', 270);
+    VALUES ('PROD-0003', '햇반 백미 210g', 'DRY', 'BOX', 'EA', 270);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '일회용 종이컵 1000입', 'DRY', 'PLT', 'EA', NULL);
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '코카콜라 350ml (24입)', 'DRY', 'PLT', 'BOX', 365);
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '진라면 순한맛 멀티팩 (5입)', 'DRY', 'BOX', 'EA', 240);
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '백설 밀가루 1kg', 'DRY', 'BOX', 'EA', 540);
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '스팸 클래식 200g', 'DRY', 'BOX', 'EA', 1095);
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '물티슈 캡형 100매', 'DRY', 'BOX', 'EA', NULL);
+    VALUES ('PROD-0004', '일회용 종이컵 1000입', 'DRY', 'PLT', 'EA', NULL);
 
 -- 냉장(CHL)
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '서울우유 1L', 'CHL', 'BOX', 'EA', 14);
+    VALUES ('PROD-0005', '서울우유 1L', 'CHL', 'BOX', 'EA', 14);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '딸기 요거트 4입', 'CHL', 'BOX', 'EA', 21);
+    VALUES ('PROD-0006', '딸기 요거트 4입', 'CHL', 'BOX', 'EA', 21);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '참치마요 삼각김밥', 'CHL', 'TRAY', 'EA', 2);
+    VALUES ('PROD-0007', '참치마요 삼각김밥', 'CHL', 'TRAY', 'EA', 2);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '국산콩 두부 300g', 'CHL', 'BOX', 'EA', 14);
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '바나나우유 240ml', 'CHL', 'BOX', 'EA', 12);
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '슬라이스 치즈 20매', 'CHL', 'BOX', 'EA', 60);
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '닭가슴살 샐러드', 'CHL', 'TRAY', 'EA', 3);
+    VALUES ('PROD-0008', '국산콩 두부 300g', 'CHL', 'BOX', 'EA', 14);
 
 -- 냉동(FRZ)
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '왕교자 만두 1kg', 'FRZ', 'BOX', 'EA', 365);
+    VALUES ('PROD-0009', '왕교자 만두 1kg', 'FRZ', 'BOX', 'EA', 365);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '냉동 새우살 500g', 'FRZ', 'BOX', 'EA', 540);
+    VALUES ('PROD-0010', '냉동 새우살 500g', 'FRZ', 'BOX', 'EA', 540);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '붕어싸만코 (아이스크림)', 'FRZ', 'BOX', 'EA', NULL);
+    VALUES ('PROD-0011', '붕어싸만코 (아이스크림)', 'FRZ', 'BOX', 'EA', NULL);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '모짜렐라 피자치즈 1kg', 'FRZ', 'BOX', 'EA', 365);
+    VALUES ('PROD-0012', '코카콜라 350ml (24입)', 'DRY', 'PLT', 'BOX', 365);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '냉동 블루베리 1kg', 'FRZ', 'BOX', 'EA', 720);
+    VALUES ('PROD-0013', '진라면 순한맛 멀티팩 (5입)', 'DRY', 'BOX', 'EA', 240);
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
+    VALUES ('PROD-0014', '백설 밀가루 1kg', 'DRY', 'BOX', 'EA', 540);
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
+    VALUES ('PROD-0015', '스팸 클래식 200g', 'DRY', 'BOX', 'EA', 1095);
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
+    VALUES ('PROD-0016', '물티슈 캡형 100매', 'DRY', 'BOX', 'EA', NULL);
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
+    VALUES ('PROD-0017', '바나나우유 240ml', 'CHL', 'BOX', 'EA', 12);
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
+    VALUES ('PROD-0018', '슬라이스 치즈 20매', 'CHL', 'BOX', 'EA', 60);
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
+    VALUES ('PROD-0019', '닭가슴살 샐러드', 'CHL', 'TRAY', 'EA', 3);
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
+    VALUES ('PROD-0020', '모짜렐라 피자치즈 1kg', 'FRZ', 'BOX', 'EA', 365);
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
+    VALUES ('PROD-0021', '냉동 블루베리 1kg', 'FRZ', 'BOX', 'EA', 720);
 
 -- 상품 포장. 위 상품이 inb_uom_cd · outb_uom_cd로 가리키는 단위는 반드시 여기 있어야 한다
 -- (ProdService가 지키는 규칙이고, 없으면 ASN 변환이 IllegalStateException으로 죽는다).
--- 출고단위를 낱개수량 1의 기준으로 잡았다 — 환산은 ea_qty(입고) / ea_qty(출고)로 파생된다.
--- wgt는 포장재 무게를 포함한 실측 중량(kg)이고, NULL은 미측정이다 (물티슈·블루베리 2건).
+--
+-- ea_qty는 「이 단위 1개 = 낱개 몇 개」이고, 환산은 ea_qty(입고) / ea_qty(출고)로 파생된다.
+-- 낱개(EA)를 매개로 삼기 때문에 EA 행은 언제나 1이고 모든 상품이 갖는다.
+-- 입고단위 ea_qty는 출고단위 ea_qty로 나누어떨어져야 한다 — 안 그러면 toOutbQty의 정수
+-- 나눗셈이 수량을 조용히 깎는다 (삼다수 504 % 6 = 0, 콜라 1440 % 24 = 0, 나머지는 출고가 EA).
+--
+-- 파렛트 행은 입고단위인 4건에만 둔다. 파렛트 적재수 = 박스 적재수 × 박스 입수다
+-- (삼다수 84박스 × 6 = 504, 콜라 60박스 × 24 = 1440, 신라면 60박스 × 8 = 480, 종이컵 40박스 × 4 = 160).
+--
+-- wgt는 포장재 무게(tare)를 포함한 실측 중량(kg)이고 NULL은 미측정이다 — 물티슈 박스와
+-- 블루베리 박스 2건을 미측정으로 남겨 화면의 「미측정」 표시 경로가 시드만으로 재현되게 한다.
 INSERT INTO prod_uom (prod_id, uom_cd, ea_qty, wgt)
 SELECT p.prod_id, v.uom_cd, v.ea_qty, v.wgt
 FROM prod p
 JOIN (VALUES
-    -- 삼다수·코카콜라는 낱개 → 박스 → 파렛트 3단이다. 입고/출고단위가 아닌 포장도 목록에 있을 수
-    -- 있다는 것(파렛트는 적재 계획용)을 시드에서 보여준다 — 환산은 입고·출고단위 둘만 쓴다.
-    ('제주 삼다수 2L',            'EA',     1,   2.050),
-    ('제주 삼다수 2L',            'BOX',    6,  12.400),
-    ('제주 삼다수 2L',            'PLT',  384, 800.000),
-    ('신라면 멀티팩 (5입)',        'EA',     1,  0.120),
-    ('신라면 멀티팩 (5입)',        'BOX',    5,  0.650),   -- 발주는 박스, 재고는 낱개
-    ('햇반 백미 210g',            'EA',     1,  0.215),
-    ('일회용 종이컵 1000입',       'EA',     1,  0.005),
-    ('일회용 종이컵 1000입',       'BOX', 1000,  5.400),
-    ('서울우유 1L',               'EA',     1,  1.032),
-    ('서울우유 1L',               'TRAY',  12, 12.500),
-    ('딸기 요거트 4입',            'EA',     1,  0.085),
-    ('딸기 요거트 4입',            'PACK',   4,  0.360),
-    ('참치마요 삼각김밥',           'EA',     1,  0.105),
-    ('국산콩 두부 300g',           'EA',     1,  0.310),
-    ('왕교자 만두 1kg',            'EA',     1,  1.020),
-    ('냉동 새우살 500g',           'EA',     1,  0.510),
-    ('붕어싸만코 (아이스크림)',      'EA',     1,  0.150),
-    ('코카콜라 350ml (24입)',      'EA',     1,   0.365),
-    ('코카콜라 350ml (24입)',      'BOX',   24,   9.120),
-    ('코카콜라 350ml (24입)',      'PLT',  2400, 920.000),
-    ('진라면 순한맛 멀티팩 (5입)',   'EA',     1,  0.120),
-    ('진라면 순한맛 멀티팩 (5입)',   'BOX',    5,  0.640),
-    ('백설 밀가루 1kg',            'EA',     1,  1.010),
-    ('스팸 클래식 200g',           'EA',     1,  0.215),
-    ('물티슈 캡형 100매',          'EA',     1,  NULL),
-    ('바나나우유 240ml',           'EA',     1,  0.250),
-    ('슬라이스 치즈 20매',          'EA',     1,  0.360),
-    ('닭가슴살 샐러드',            'EA',     1,  0.230),
-    ('모짜렐라 피자치즈 1kg',       'EA',     1,  1.010),
-    ('냉동 블루베리 1kg',          'EA',     1,  NULL)
+    -- 상온 — 파렛트 발주 4건 (생수 · 라면 · 종이컵 · 콜라)
+    ('제주 삼다수 2L',            'EA',     1,    2.050),
+    ('제주 삼다수 2L',            'BOX',    6,   12.400),
+    ('제주 삼다수 2L',            'PLT',  504, 1050.000),   -- 발주는 파렛트, 재고는 박스
+    ('신라면 멀티팩 (5입)',        'EA',     1,    0.600),
+    ('신라면 멀티팩 (5입)',        'BOX',    8,    4.950),
+    ('신라면 멀티팩 (5입)',        'PLT',  480,  305.000),   -- 가벼워서 파렛트당 박스가 많다
+    ('일회용 종이컵 1000입',       'EA',     1,    5.400),   -- 낱개가 이미 1000입 팩이다
+    ('일회용 종이컵 1000입',       'BOX',    4,   22.000),
+    ('일회용 종이컵 1000입',       'PLT',  160,  890.000),
+    ('코카콜라 350ml (24입)',      'EA',     1,    0.365),
+    ('코카콜라 350ml (24입)',      'BOX',   24,    9.120),
+    ('코카콜라 350ml (24입)',      'PLT', 1440,  560.000),
+    ('진라면 순한맛 멀티팩 (5입)',   'EA',     1,    0.600),
+    ('진라면 순한맛 멀티팩 (5입)',   'BOX',    8,    4.950),
+    ('햇반 백미 210g',            'EA',     1,    0.215),
+    ('햇반 백미 210g',            'BOX',   24,    5.400),
+    ('백설 밀가루 1kg',            'EA',     1,    1.010),
+    ('백설 밀가루 1kg',            'BOX',   12,   12.400),
+    ('스팸 클래식 200g',           'EA',     1,    0.215),
+    ('스팸 클래식 200g',           'BOX',   24,    5.400),
+    ('물티슈 캡형 100매',          'EA',     1,    0.520),
+    ('물티슈 캡형 100매',          'BOX',   10,     NULL),   -- 미측정
+    -- 냉장 — 데일리 신선 2건은 트레이 납품
+    ('서울우유 1L',               'EA',     1,    1.032),
+    ('서울우유 1L',               'BOX',   12,   12.600),
+    ('딸기 요거트 4입',            'EA',     1,    0.360),   -- 낱개가 4입 한 팩이다
+    ('딸기 요거트 4입',            'BOX',   12,    4.500),
+    ('국산콩 두부 300g',           'EA',     1,    0.310),
+    ('국산콩 두부 300g',           'BOX',   20,    6.500),
+    ('바나나우유 240ml',           'EA',     1,    0.250),
+    ('바나나우유 240ml',           'BOX',   24,    6.300),
+    ('슬라이스 치즈 20매',          'EA',     1,    0.360),
+    ('슬라이스 치즈 20매',          'BOX',   15,    5.700),
+    ('참치마요 삼각김밥',           'EA',     1,    0.105),
+    ('참치마요 삼각김밥',           'TRAY',  20,    2.300),   -- 유통기한 2일, 소량 다빈도
+    ('닭가슴살 샐러드',            'EA',     1,    0.230),
+    ('닭가슴살 샐러드',            'TRAY',  12,    3.000),
+    -- 냉동
+    ('왕교자 만두 1kg',            'EA',     1,    1.020),
+    ('왕교자 만두 1kg',            'BOX',    8,    8.400),
+    ('냉동 새우살 500g',           'EA',     1,    0.510),
+    ('냉동 새우살 500g',           'BOX',   20,   10.500),
+    ('붕어싸만코 (아이스크림)',      'EA',     1,    0.150),
+    ('붕어싸만코 (아이스크림)',      'BOX',   24,    3.800),
+    ('모짜렐라 피자치즈 1kg',       'EA',     1,    1.010),
+    ('모짜렐라 피자치즈 1kg',       'BOX',   10,   10.500),
+    ('냉동 블루베리 1kg',          'EA',     1,    1.010),
+    ('냉동 블루베리 1kg',          'BOX',   10,     NULL)    -- 미측정
 ) AS v(prod_nm, uom_cd, ea_qty, wgt) ON v.prod_nm = p.prod_nm;
 
 -- 존 (로케이션의 상위 그룹). loc.zon_cd가 참조하므로 로케이션보다 먼저 넣는다.
-INSERT INTO zon (zon_cd, zon_nm, tmp_zon, strg_typ, biz_dvsn) VALUES ('RCV-STAGE',  '입고 스테이징', 'DRY', 'VRTL', 'INB');
-INSERT INTO zon (zon_cd, zon_nm, tmp_zon, strg_typ, biz_dvsn) VALUES ('SHIP-STAGE', '출고 스테이징', 'DRY', 'VRTL', 'OUTB');
-INSERT INTO zon (zon_cd, zon_nm, tmp_zon, strg_typ, biz_dvsn) VALUES ('DRY',        '상온 보관존',   'DRY', 'RACK', 'STRG');
-INSERT INTO zon (zon_cd, zon_nm, tmp_zon, strg_typ, biz_dvsn) VALUES ('CHL',        '냉장 보관존',   'CHL', 'RACK', 'STRG');
-INSERT INTO zon (zon_cd, zon_nm, tmp_zon, strg_typ, biz_dvsn) VALUES ('FRZ',        '냉동 보관존',   'FRZ', 'RACK', 'STRG');
+INSERT INTO zon (zon_cd, zon_nm, tmp_zon, strg_typ, biz_dvsn) VALUES ('RCV-STAGE',  '입고 스테이징', 'DRY', 'VRTL', 'INB') ON CONFLICT (zon_cd) DO NOTHING;
+INSERT INTO zon (zon_cd, zon_nm, tmp_zon, strg_typ, biz_dvsn) VALUES ('SHIP-STAGE', '출고 스테이징', 'DRY', 'VRTL', 'OUTB') ON CONFLICT (zon_cd) DO NOTHING;
+INSERT INTO zon (zon_cd, zon_nm, tmp_zon, strg_typ, biz_dvsn) VALUES ('DRY',        '상온 보관존',   'DRY', 'RACK', 'STRG') ON CONFLICT (zon_cd) DO NOTHING;
+INSERT INTO zon (zon_cd, zon_nm, tmp_zon, strg_typ, biz_dvsn) VALUES ('CHL',        '냉장 보관존',   'CHL', 'RACK', 'STRG') ON CONFLICT (zon_cd) DO NOTHING;
+INSERT INTO zon (zon_cd, zon_nm, tmp_zon, strg_typ, biz_dvsn) VALUES ('FRZ',        '냉동 보관존',   'FRZ', 'RACK', 'STRG') ON CONFLICT (zon_cd) DO NOTHING;
 
 -- 로케이션 (입고 스테이징 1 + 출고 스테이징 1 + 온도대별 보관 로케이션)
 -- 스테이징의 temp_zone은 플레이스홀더(DRY) — 반출/적치 지점이라 온도 제약은 서비스에서 스킵
@@ -115,67 +142,70 @@ INSERT INTO zon (zon_cd, zon_nm, tmp_zon, strg_typ, biz_dvsn) VALUES ('FRZ',    
 -- 온도대별 1순위 로케이션만 일부러 작게(300) 잡아, 적치 지시가 한 배치를 여러 로케이션으로
 -- 1:N 분할하는 경로가 시드 데이터만으로도 재현되게 한다 (전부 넉넉하면 분할이 안 나온다).
 INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('RCV-STAGE', 'RCV-STAGE', 'DRY', 'STAGE', 0, NULL);
+VALUES ('RCV-STAGE', 'RCV-STAGE', 'DRY', 'STAGE', 0, NULL) ON CONFLICT (loc_cd) DO NOTHING;
 INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('SHIP-STAGE', 'SHIP-STAGE', 'DRY', 'STAGE', 0, NULL);
+VALUES ('SHIP-STAGE', 'SHIP-STAGE', 'DRY', 'STAGE', 0, NULL) ON CONFLICT (loc_cd) DO NOTHING;
 INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('DRY-A-01-01', 'DRY', 'DRY', 'STORAGE', 1, 300);
+VALUES ('DRY-A-01-01', 'DRY', 'DRY', 'STORAGE', 1, 300) ON CONFLICT (loc_cd) DO NOTHING;
 INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('DRY-A-01-02', 'DRY', 'DRY', 'STORAGE', 2, 1000);
+VALUES ('DRY-A-01-02', 'DRY', 'DRY', 'STORAGE', 2, 1000) ON CONFLICT (loc_cd) DO NOTHING;
 INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('DRY-A-02-01', 'DRY', 'DRY', 'STORAGE', 3, 1000);
+VALUES ('DRY-A-02-01', 'DRY', 'DRY', 'STORAGE', 3, 1000) ON CONFLICT (loc_cd) DO NOTHING;
 INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('DRY-B-01-01', 'DRY', 'DRY', 'STORAGE', 4, 1000);
+VALUES ('DRY-B-01-01', 'DRY', 'DRY', 'STORAGE', 4, 1000) ON CONFLICT (loc_cd) DO NOTHING;
 INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('CHL-A-01-01', 'CHL', 'CHL', 'STORAGE', 1, 300);
+VALUES ('CHL-A-01-01', 'CHL', 'CHL', 'STORAGE', 1, 300) ON CONFLICT (loc_cd) DO NOTHING;
 INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('CHL-A-01-02', 'CHL', 'CHL', 'STORAGE', 2, 1000);
+VALUES ('CHL-A-01-02', 'CHL', 'CHL', 'STORAGE', 2, 1000) ON CONFLICT (loc_cd) DO NOTHING;
 INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('CHL-B-01-01', 'CHL', 'CHL', 'STORAGE', 3, 1000);
+VALUES ('CHL-B-01-01', 'CHL', 'CHL', 'STORAGE', 3, 1000) ON CONFLICT (loc_cd) DO NOTHING;
 INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('FRZ-A-01-01', 'FRZ', 'FRZ', 'STORAGE', 1, 300);
+VALUES ('FRZ-A-01-01', 'FRZ', 'FRZ', 'STORAGE', 1, 300) ON CONFLICT (loc_cd) DO NOTHING;
 INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('FRZ-A-01-02', 'FRZ', 'FRZ', 'STORAGE', 2, 1000);
+VALUES ('FRZ-A-01-02', 'FRZ', 'FRZ', 'STORAGE', 2, 1000) ON CONFLICT (loc_cd) DO NOTHING;
 INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('DRY-B-01-02', 'DRY', 'DRY', 'STORAGE', 5, 1000);
+VALUES ('DRY-B-01-02', 'DRY', 'DRY', 'STORAGE', 5, 1000) ON CONFLICT (loc_cd) DO NOTHING;
 INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('DRY-C-01-01', 'DRY', 'DRY', 'STORAGE', 6, 1000);
+VALUES ('DRY-C-01-01', 'DRY', 'DRY', 'STORAGE', 6, 1000) ON CONFLICT (loc_cd) DO NOTHING;
 INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('CHL-B-01-02', 'CHL', 'CHL', 'STORAGE', 4, 1000);
+VALUES ('CHL-B-01-02', 'CHL', 'CHL', 'STORAGE', 4, 1000) ON CONFLICT (loc_cd) DO NOTHING;
 INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('FRZ-B-01-01', 'FRZ', 'FRZ', 'STORAGE', 3, 1000);
+VALUES ('FRZ-B-01-01', 'FRZ', 'FRZ', 'STORAGE', 3, 1000) ON CONFLICT (loc_cd) DO NOTHING;
 INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('FRZ-B-01-02', 'FRZ', 'FRZ', 'STORAGE', 4, 1000);
+VALUES ('FRZ-B-01-02', 'FRZ', 'FRZ', 'STORAGE', 4, 1000) ON CONFLICT (loc_cd) DO NOTHING;
 
 -- 벤더 (입고 거래처). 코드는 VendorService의 채번 규칙(VD-0001)을 따른다.
 INSERT INTO vendor (vndr_cd, vndr_nm, pic_nm, tel_no)
-VALUES ('VD-0001', '서울식품', '김상현', '02-1234-5601');
+VALUES ('VD-0001', '서울식품', '김상현', '02-1234-5601') ON CONFLICT (vndr_cd) DO NOTHING;
 INSERT INTO vendor (vndr_cd, vndr_nm, pic_nm, tel_no)
-VALUES ('VD-0002', '콜드체인프레시', '이정민', '031-555-0102');
+VALUES ('VD-0002', '콜드체인프레시', '이정민', '031-555-0102') ON CONFLICT (vndr_cd) DO NOTHING;
 INSERT INTO vendor (vndr_cd, vndr_nm, pic_nm, tel_no)
-VALUES ('VD-0003', '대한물류', '박도현', '02-9876-5403');
+VALUES ('VD-0003', '대한물류', '박도현', '02-9876-5403') ON CONFLICT (vndr_cd) DO NOTHING;
 INSERT INTO vendor (vndr_cd, vndr_nm, pic_nm, tel_no)
-VALUES ('VD-0004', '한마음유통', '최유진', '031-777-0204');
+VALUES ('VD-0004', '한마음유통', '최유진', '031-777-0204') ON CONFLICT (vndr_cd) DO NOTHING;
 INSERT INTO vendor (vndr_cd, vndr_nm, pic_nm, tel_no)
-VALUES ('VD-0005', '그린푸드', '정성호', '02-4321-0505');
+VALUES ('VD-0005', '그린푸드', '정성호', '02-4321-0505') ON CONFLICT (vndr_cd) DO NOTHING;
 INSERT INTO vendor (vndr_cd, vndr_nm, pic_nm, tel_no)
-VALUES ('VD-0006', '옛거래처식자재', '한지훈', '02-1111-2222');
+VALUES ('VD-0006', '옛거래처식자재', '한지훈', '02-1111-2222') ON CONFLICT (vndr_cd) DO NOTHING;
 
--- 시퀀스를 시드 건수만큼 밀어둔다. 안 하면 화면에서 벤더를 처음 등록할 때
--- VD-0001부터 다시 채번돼 uq_vndr_cd 유니크 위반이 난다.
-SELECT setval('vndr_cd_seq', 6);
+-- 채번 카운터를 시드 건수만큼 미리 채운다. 안 하면 화면에서 처음 등록할 때
+-- PROD-0001/VD-0001부터 다시 채번돼 uq_prod_cd/uq_vndr_cd 유니크 위반이 난다.
+INSERT INTO nbr_seq (rule_cd, dync_ky, seq) VALUES
+    ('PROD_CD', '-', 21),
+    ('VNDR_CD', '-', 6)
+ON CONFLICT (rule_cd, dync_ky) DO UPDATE SET seq = GREATEST(nbr_seq.seq, EXCLUDED.seq);
 
 -- 점포 (납품 허용 잔여수명 비율: 편의점 > 마트 > 급식 — FEFO 앞단 필터 시나리오용)
 INSERT INTO store (store_cd, store_nm, outb_life_rate)
-VALUES ('ST-0001', '씨앤유 편의점 강남점', 70);
+VALUES ('ST-0001', '씨앤유 편의점 강남점', 70) ON CONFLICT (store_cd) DO NOTHING;
 INSERT INTO store (store_cd, store_nm, outb_life_rate)
-VALUES ('ST-0002', '씨앤유 편의점 판교점', 70);
+VALUES ('ST-0002', '씨앤유 편의점 판교점', 70) ON CONFLICT (store_cd) DO NOTHING;
 INSERT INTO store (store_cd, store_nm, outb_life_rate)
-VALUES ('ST-0003', '한마음마트 수원점', 50);
+VALUES ('ST-0003', '한마음마트 수원점', 50) ON CONFLICT (store_cd) DO NOTHING;
 INSERT INTO store (store_cd, store_nm, outb_life_rate)
-VALUES ('ST-0004', '한마음마트 일산점', 40);
+VALUES ('ST-0004', '한마음마트 일산점', 40) ON CONFLICT (store_cd) DO NOTHING;
 INSERT INTO store (store_cd, store_nm, outb_life_rate)
-VALUES ('ST-0005', '행복급식센터', 30);
+VALUES ('ST-0005', '행복급식센터', 30) ON CONFLICT (store_cd) DO NOTHING;
 
 COMMIT;
 
@@ -191,7 +221,7 @@ COMMIT;
 
 WITH new_order AS (
     INSERT INTO oms_ib_order (oms_ib_no, status, vendor_id, expct_de)
-    SELECT 'PO-20260717-' || lpad(nextval('oms_ib_no_seq')::text, 3, '0'), 'CREATED', v.vendor_id, DATE '2026-07-17'
+    SELECT 'PO-20260717-001', 'CREATED', v.vendor_id, DATE '2026-07-17'
     FROM vendor v WHERE v.vndr_cd = 'VD-0001'
     RETURNING oms_ib_order_id
 )
@@ -199,15 +229,15 @@ INSERT INTO oms_ib_line (oms_ib_order_id, prod_id, odr_qty)
 SELECT new_order.oms_ib_order_id, prod.prod_id, v.odr_qty
 FROM new_order
 CROSS JOIN (VALUES
-    ('서울우유 1L', 50),
-    ('딸기 요거트 4입', 40),
-    ('참치마요 삼각김밥', 30)
+    ('서울우유 1L', 40),          -- 40 BOX  -> 480 EA
+    ('딸기 요거트 4입', 30),       -- 30 BOX  -> 360 EA
+    ('참치마요 삼각김밥', 15)      -- 15 TRAY -> 300 EA
 ) AS v(prod_nm, odr_qty)
 JOIN prod ON prod.prod_nm = v.prod_nm;
 
 WITH new_order AS (
     INSERT INTO oms_ib_order (oms_ib_no, status, vendor_id, expct_de)
-    SELECT 'PO-20260717-' || lpad(nextval('oms_ib_no_seq')::text, 3, '0'), 'CREATED', v.vendor_id, DATE '2026-07-17'
+    SELECT 'PO-20260717-002', 'CREATED', v.vendor_id, DATE '2026-07-17'
     FROM vendor v WHERE v.vndr_cd = 'VD-0002'
     RETURNING oms_ib_order_id
 )
@@ -215,15 +245,15 @@ INSERT INTO oms_ib_line (oms_ib_order_id, prod_id, odr_qty)
 SELECT new_order.oms_ib_order_id, prod.prod_id, v.odr_qty
 FROM new_order
 CROSS JOIN (VALUES
-    ('왕교자 만두 1kg', 80),
-    ('냉동 새우살 500g', 60),
-    ('붕어싸만코 (아이스크림)', 120)
+    ('왕교자 만두 1kg', 25),           -- 25 BOX -> 200 EA
+    ('냉동 새우살 500g', 12),          -- 12 BOX -> 240 EA
+    ('붕어싸만코 (아이스크림)', 20)     -- 20 BOX -> 480 EA (1순위 로케이션 300을 넘어 적치가 분할된다)
 ) AS v(prod_nm, odr_qty)
 JOIN prod ON prod.prod_nm = v.prod_nm;
 
 WITH new_order AS (
     INSERT INTO oms_ib_order (oms_ib_no, status, vendor_id, expct_de)
-    SELECT 'PO-20260718-' || lpad(nextval('oms_ib_no_seq')::text, 3, '0'), 'CREATED', v.vendor_id, DATE '2026-07-18'
+    SELECT 'PO-20260718-001', 'CREATED', v.vendor_id, DATE '2026-07-18'
     FROM vendor v WHERE v.vndr_cd = 'VD-0003'
     RETURNING oms_ib_order_id
 )
@@ -231,15 +261,16 @@ INSERT INTO oms_ib_line (oms_ib_order_id, prod_id, odr_qty)
 SELECT new_order.oms_ib_order_id, prod.prod_id, v.odr_qty
 FROM new_order
 CROSS JOIN (VALUES
-    ('제주 삼다수 2L', 300),
-    ('햇반 백미 210g', 200),
-    ('일회용 종이컵 1000입', 100)
+    ('제주 삼다수 2L', 2),             -- 2 PLT -> 168 BOX (PLT 504 / BOX 6)
+    ('신라면 멀티팩 (5입)', 1),         -- 1 PLT -> 480 EA
+    ('햇반 백미 210g', 20),            -- 20 BOX -> 480 EA
+    ('일회용 종이컵 1000입', 1)        -- 1 PLT -> 160 EA
 ) AS v(prod_nm, odr_qty)
 JOIN prod ON prod.prod_nm = v.prod_nm;
 
 WITH new_order AS (
     INSERT INTO oms_ib_order (oms_ib_no, status, vendor_id, expct_de)
-    SELECT 'PO-20260719-' || lpad(nextval('oms_ib_no_seq')::text, 3, '0'), 'CREATED', v.vendor_id, DATE '2026-07-19'
+    SELECT 'PO-20260719-001', 'CREATED', v.vendor_id, DATE '2026-07-19'
     FROM vendor v WHERE v.vndr_cd = 'VD-0004'
     RETURNING oms_ib_order_id
 )
@@ -247,8 +278,9 @@ INSERT INTO oms_ib_line (oms_ib_order_id, prod_id, odr_qty)
 SELECT new_order.oms_ib_order_id, prod.prod_id, v.odr_qty
 FROM new_order
 CROSS JOIN (VALUES
-    ('스팸 클래식 200g', 150),
-    ('바나나우유 240ml', 60)
+    ('스팸 클래식 200g', 15),          -- 15 BOX -> 360 EA
+    ('바나나우유 240ml', 10),          -- 10 BOX -> 240 EA
+    ('코카콜라 350ml (24입)', 1)       -- 1 PLT -> 60 BOX (PLT 1440 / BOX 24)
 ) AS v(prod_nm, odr_qty)
 JOIN prod ON prod.prod_nm = v.prod_nm;
 
@@ -256,7 +288,7 @@ JOIN prod ON prod.prod_nm = v.prod_nm;
 -- 예정일이 07-20이라 아래 변환 대상 조건(< 2026-07-20)에서 빠진다.
 WITH new_order AS (
     INSERT INTO oms_ib_order (oms_ib_no, status, vendor_id, expct_de)
-    SELECT 'PO-20260720-' || lpad(nextval('oms_ib_no_seq')::text, 3, '0'), 'CREATED', v.vendor_id, DATE '2026-07-20'
+    SELECT 'PO-20260720-001', 'CREATED', v.vendor_id, DATE '2026-07-20'
     FROM vendor v WHERE v.vndr_cd = 'VD-0005'
     RETURNING oms_ib_order_id
 )
@@ -264,8 +296,8 @@ INSERT INTO oms_ib_line (oms_ib_order_id, prod_id, odr_qty)
 SELECT new_order.oms_ib_order_id, prod.prod_id, v.odr_qty
 FROM new_order
 CROSS JOIN (VALUES
-    ('서울우유 1L', 100),
-    ('햇반 백미 210g', 80)
+    ('서울우유 1L', 20),               -- 변환하면 240 EA
+    ('햇반 백미 210g', 10)             -- 변환하면 240 EA
 ) AS v(prod_nm, odr_qty)
 JOIN prod ON prod.prod_nm = v.prod_nm;
 
@@ -275,13 +307,14 @@ JOIN prod ON prod.prod_nm = v.prod_nm;
 -- WITH 안의 데이터 변경문은 참조되지 않아도 반드시 실행되므로 copied를 따로 읽지 않아도 된다.
 -- 라인 복사가 oms_ib_line을 읽을 수 있는 건 그게 앞선 문장에서 이미 커밋됐기 때문이다.
 WITH to_convert AS (
-    SELECT oms_ib_order_id, vendor_id, expct_de
+    SELECT oms_ib_order_id, vendor_id, expct_de,
+           row_number() OVER (PARTITION BY expct_de ORDER BY oms_ib_order_id) AS seq_in_date
     FROM oms_ib_order
     WHERE status = 'CREATED' AND expct_de < DATE '2026-07-20'
 ),
 new_asn AS (
     INSERT INTO ib_order (ib_no, oms_ib_order_id, status, vendor_id, expct_de)
-    SELECT 'IB-' || to_char(expct_de, 'YYYYMMDD') || '-' || lpad(nextval('ib_no_seq')::text, 3, '0'),
+    SELECT 'IB-' || to_char(expct_de, 'YYYYMMDD') || '-' || lpad(seq_in_date::text, 3, '0'),
            oms_ib_order_id, 'SCHEDULED', vendor_id, expct_de
     FROM to_convert
     RETURNING ib_order_id, oms_ib_order_id
@@ -301,3 +334,15 @@ copied AS (
 UPDATE oms_ib_order o
 SET status = 'CONVERTED', converted_at = CURRENT_TIMESTAMP
 WHERE o.oms_ib_order_id IN (SELECT oms_ib_order_id FROM to_convert);
+
+-- OMS_IB_NO/IB_NO 채번 카운터도 시드 건수만큼 날짜별로 맞춘다. 07-17엔 2건, 나머지는 1건씩.
+-- 07-20 예정 주문은 미변환 상태로 남으므로 IB_NO에는 07-20 행이 없다.
+INSERT INTO nbr_seq (rule_cd, dync_ky, seq) VALUES
+    ('OMS_IB_NO', '20260717', 2),
+    ('OMS_IB_NO', '20260718', 1),
+    ('OMS_IB_NO', '20260719', 1),
+    ('OMS_IB_NO', '20260720', 1),
+    ('IB_NO', '20260717', 2),
+    ('IB_NO', '20260718', 1),
+    ('IB_NO', '20260719', 1)
+ON CONFLICT (rule_cd, dync_ky) DO UPDATE SET seq = GREATEST(nbr_seq.seq, EXCLUDED.seq);

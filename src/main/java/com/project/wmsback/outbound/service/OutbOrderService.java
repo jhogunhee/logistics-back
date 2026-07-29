@@ -4,6 +4,7 @@ import com.project.wmsback.master.entity.Prod;
 import com.project.wmsback.master.entity.Store;
 import com.project.wmsback.master.repository.ProdRepository;
 import com.project.wmsback.master.repository.StoreRepository;
+import com.project.wmsback.master.service.NbrService;
 import com.project.wmsback.outbound.dto.OutbLineResponse;
 import com.project.wmsback.outbound.dto.OutbOrderCreateRequest;
 import com.project.wmsback.outbound.dto.OutbOrderResponse;
@@ -16,7 +17,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Service
@@ -28,6 +28,7 @@ public class OutbOrderService {
     private final OutbLineRepository outbLineRepository;
     private final StoreRepository storeRepository;
     private final ProdRepository prodRepository;
+    private final NbrService nbrService;
 
     public List<OutbOrderResponse> list(OutbOrderSearchCond cond) {
         return outbOrderRepository.search(cond).stream()
@@ -51,9 +52,7 @@ public class OutbOrderService {
         Store store = storeRepository.findById(req.getStoreId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 점포입니다: " + req.getStoreId()));
 
-        String outbNo = String.format("OB-%s-%03d",
-                req.getOdrDe().format(DateTimeFormatter.BASIC_ISO_DATE),
-                outbOrderRepository.nextOutbNoSeq());
+        String outbNo = nbrService.issue("OUTB_NO", req.getOdrDe());
 
         OutbOrder order = OutbOrder.builder()
                 .outbNo(outbNo)

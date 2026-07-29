@@ -61,10 +61,9 @@ COMMENT ON COLUMN prod.inb_uom_cd      IS '입고단위 (prod_uom에 있는 uom_
 COMMENT ON COLUMN prod.outb_uom_cd     IS '출고단위 (prod_uom에 있는 uom_cd여야 한다, FK 없음). 재고 저장 단위이기도 하다 — inv · inv_hist · ib_line · putaway_task · outb_line · outb_alloc 의 모든 수량 컬럼이 이 단위다 (oms_ib_line.odr_qty만 예외)';
 COMMENT ON COLUMN prod.shelf_life_days IS '제조일 기준 총 유통기한(일). NULL = 유통기한 미관리(공산품 등). 시더가 Lot 유통기한 생성 시 사용';
 
--- 상품 코드 채번 시퀀스 (PROD-0001 형식의 업무 코드 전용, PK identity와 분리 운용).
--- MAX(prod_cd)+1 방식은 동시 INSERT 시 같은 값을 읽어 중복 채번되므로 시퀀스로 발급한다.
--- 이미 seed 데이터가 있다면 START WITH를 (기존 최대 채번값 + 1)로 맞출 것.
-CREATE SEQUENCE prod_cd_seq START WITH 1 INCREMENT BY 1;
+-- 상품 코드(PROD-0001)는 채번 모듈이 발급한다 — nbr_rule 'PROD_CD' + nbr_seq.
+-- 전용 시퀀스(prod_cd_seq)를 두던 방식은 폐기했다. 규칙이 테이블 데이터라 화면에서 바꿀 수 있고,
+-- 일자 리셋 같은 패턴도 DDL 없이 표현된다 (아래 「채번」 절 참고).
 
 -- 상품 포장. (상품, 단위) 한 조합이 한 행이다 — 한 상품이 낱개·박스·파렛트를 동시에 갖고,
 -- 낱개수량과 중량은 그 조합마다 다르다.
@@ -227,9 +226,6 @@ CREATE TABLE vendor (
 COMMENT ON TABLE  vendor IS '벤더(납품처) 마스터. 입고주문·입고예정의 거래처. 거래 종료는 물리삭제';
 COMMENT ON COLUMN vendor.vndr_cd IS '벤더 코드 (업무 식별자, 예: VD-0001). 서버가 시퀀스로 채번';
 
--- 벤더 코드 채번 시퀀스 (VD-0001 형식)
-CREATE SEQUENCE vndr_cd_seq START WITH 1 INCREMENT BY 1;
-
 -- 공통코드 그룹. 관리 화면은 추후 추가 예정, 당분간 시드 데이터로만 운용.
 -- 코드성 테이블이라 PK는 {테이블명}_id 규칙 대신 자연키를 쓴다 (조회가 항상 코드 기준).
 CREATE TABLE code_group (
@@ -265,6 +261,44 @@ CREATE TABLE code_detail (
 COMMENT ON TABLE  code_detail IS '공통코드 상세. 그룹 내 개별 코드와 표시명/정렬 순서';
 COMMENT ON COLUMN code_detail.code_cd  IS '코드 값 (예: DRY). 로직에서 리터럴로 참조하므로 변경 금지';
 COMMENT ON COLUMN code_detail.srt_seq IS '화면 표시 정렬 순서';
+
+-- 채번 규칙. code_group과 같은 자연키 코드 테이블 — 항상 코드로 조회한다.
+CREATE TABLE nbr_rule (
+    rule_cd     VARCHAR(30)     NOT NULL,
+    rule_nm     VARCHAR(100)    NOT NULL,
+    ptrn        VARCHAR(200)    NOT NULL,
+    dync_ky_typ VARCHAR(10)     NOT NULL,
+    us_yn       CHAR(1)         DEFAULT 'Y' NOT NULL,
+    created_at  TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by  VARCHAR(30)     DEFAULT 'admin' NOT NULL,
+    updated_at  TIMESTAMP,
+    updated_by  VARCHAR(30),
+    CONSTRAINT pk_nbr_rule PRIMARY KEY (rule_cd),
+    CONSTRAINT ck_nbr_rule_dync_ky_typ CHECK (dync_ky_typ IN ('NONE', 'DATE')),
+    CONSTRAINT ck_nbr_rule_us_yn CHECK (us_yn IN ('Y', 'N'))
+);
+
+COMMENT ON TABLE  nbr_rule IS '채번 규칙. 패턴 문자열 하나로 형식을 정의 (예: PROD-{SEQ:4}, IB-{yyyyMMdd}-{SEQ:3})';
+COMMENT ON COLUMN nbr_rule.rule_cd     IS '채번 규칙 코드 (업무 식별자, 예: PROD_CD). 코드성 테이블이라 자연키를 PK로 쓴다 (code_group과 동일 패턴)';
+COMMENT ON COLUMN nbr_rule.ptrn        IS '채번 패턴. 토큰: {SEQ:n}(n=1~9 zero-pad, 정확히 1개 필수) + 날짜 토큰({yyyyMMdd}/{yyyy}/{MM}/{dd}). 그 외 문자는 리터럴';
+COMMENT ON COLUMN nbr_rule.dync_ky_typ IS '동적키 유형. NONE=카운터 전역 공유(dync_ky 고정값 -) / DATE=호출자가 넘긴 날짜 기준으로 카운터 분리(일 단위 리셋)';
+COMMENT ON COLUMN nbr_rule.us_yn       IS '사용 여부. N이면 발급 요청 시 거부 (과거 발급분은 영향 없음)';
+
+-- 채번 카운터. rule_cd+dync_ky 조합별 현재 발급값. 관리자가 만들지 않고 최초 발급 시 자동 생성된다.
+CREATE TABLE nbr_seq (
+    rule_cd     VARCHAR(30)     NOT NULL,
+    dync_ky     VARCHAR(30)     NOT NULL,
+    seq         BIGINT          DEFAULT 0 NOT NULL,
+    created_at  TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by  VARCHAR(30)     DEFAULT 'admin' NOT NULL,
+    updated_at  TIMESTAMP,
+    updated_by  VARCHAR(30),
+    CONSTRAINT pk_nbr_seq PRIMARY KEY (rule_cd, dync_ky)
+);
+
+COMMENT ON TABLE  nbr_seq IS '채번 카운터. rule_cd+dync_ky별 현재 발급값. FK 없음 — rule_cd는 nbr_rule.rule_cd를 느슨하게 참조';
+COMMENT ON COLUMN nbr_seq.dync_ky IS '동적키 값. dync_ky_typ=NONE이면 고정값 "-", DATE면 yyyyMMdd';
+COMMENT ON COLUMN nbr_seq.seq     IS '현재 발급값. 발급마다 +1, updated_at이 곧 최종 발급 시각';
 
 -- 공통코드 시드 (참조 데이터 — 테이블 정의와 한 몸이므로 여기서 함께 관리)
 INSERT INTO code_group (grp_cd, grp_nm, description) VALUES
@@ -312,6 +346,15 @@ INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('UOM', 'DZ',
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('UOM', 'BDL', '번들', 10);
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('UOM', 'CTN', '카톤', 11);
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('UOM', 'ROLL', '롤', 12);
+
+-- 채번 규칙. 상품·벤더 코드와 주문/입고/출고 번호를 여기서 발급한다 (전용 시퀀스 폐기).
+INSERT INTO nbr_rule (rule_cd, rule_nm, ptrn, dync_ky_typ) VALUES
+    ('PROD_CD',     '상품 코드',        'PROD-{SEQ:4}',           'NONE'),
+    ('VNDR_CD',     '벤더 코드',        'VD-{SEQ:4}',             'NONE'),
+    ('OMS_IB_NO',   '입고주문 번호',    'PO-{yyyyMMdd}-{SEQ:3}',  'DATE'),
+    ('IB_NO',       '입고 번호',        'IB-{yyyyMMdd}-{SEQ:3}',  'DATE'),
+    ('OUTB_NO',     '출고 번호',        'OB-{yyyyMMdd}-{SEQ:3}',  'DATE'),
+    ('OUTB_WAV_NO', '출고 웨이브 번호', 'WV-{yyyyMMdd}-{SEQ:3}',  'DATE');
 COMMIT;
 
 
@@ -344,9 +387,6 @@ COMMENT ON COLUMN oms_ib_order.status       IS 'CREATED 작성 / CONVERTED 변�
 COMMENT ON COLUMN oms_ib_order.vendor_id    IS '납품 벤더 (vendor 참조). 변환 시 ASN이 같은 벤더를 이어받는다. 이름은 조인으로 얻는다 — 주문에 텍스트를 중복 보관하지 않는다';
 COMMENT ON COLUMN oms_ib_order.expct_de     IS '입고 예정일. ASN의 입고번호 채번(IB-YYYYMMDD-NNN) 기준일이기도 하다';
 COMMENT ON COLUMN oms_ib_order.converted_at IS '변환(ASN 생성) 시각. 변환취소하면 다시 NULL이 된다';
-
--- 입고주문 번호 채번 시퀀스 (PO-YYYYMMDD-NNN 형식. 전역 유일성만 보장, 일자 리셋 없음)
-CREATE SEQUENCE oms_ib_no_seq START WITH 1 INCREMENT BY 1;
 
 -- 입고주문 라인. 발주 수량만 보유한다 (검수/적치 진행 수량은 ASN 라인이 갖는다).
 CREATE TABLE oms_ib_line (
@@ -397,9 +437,6 @@ COMMENT ON COLUMN ib_order.status    IS 'SCHEDULED 예정 / RECEIVING 입고중 
 COMMENT ON COLUMN ib_order.vendor_id IS '납품 벤더 (vendor 참조). 주문에서 그대로 이어받는다 — 변환 시점의 스냅샷이 아니라 같은 마스터를 가리킨다';
 COMMENT ON COLUMN ib_order.expct_de  IS '입고 예정일';
 COMMENT ON COLUMN ib_order.clos_dt IS '입고 마감(close) 시각. 마감은 미입고 잔량을 확정하는 명시적 액션';
-
--- 입고번호 채번 시퀀스 (IB-YYYYMMDD-NNN 형식. 시퀀스는 전역이라 일자별로 리셋되지 않는다 — 유일성만 보장)
-CREATE SEQUENCE ib_no_seq START WITH 1 INCREMENT BY 1;
 
 -- 입고 라인. 부분입고/검수/적치 진행률을 수량으로만 표현한다.
 CREATE TABLE ib_line (
@@ -564,9 +601,6 @@ COMMENT ON COLUMN outb_wave.wav_no     IS '웨이브 번호 (업무 식별자, �
 COMMENT ON COLUMN outb_wave.status      IS 'PLANNED 편성중(주문 담기 가능) / RELEASED 릴리즈 완료(=할당 실행됨)';
 COMMENT ON COLUMN outb_wave.released_at IS '릴리즈(할당 실행) 시각';
 
--- 웨이브 번호 채번 시퀀스 (WV-YYYYMMDD-NNN 형식. 전역 유일성만 보장, 일자 리셋 없음)
-CREATE SEQUENCE outb_wave_no_seq START WITH 1 INCREMENT BY 1;
-
 -- 출고 주문 헤더. 부분할당 여부는 상태가 아니라 라인/할당 수량에서 파생.
 CREATE TABLE outb_order (
     outb_order_id BIGINT        GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
@@ -592,9 +626,6 @@ COMMENT ON COLUMN outb_order.wav_id  IS '편성된 출고 웨이브. NULL = 아�
 COMMENT ON COLUMN outb_order.odr_de IS '주문일';
 
 CREATE INDEX ix_outb_order_wav ON outb_order (wav_id);
-
--- 출고번호 채번 시퀀스 (OB-YYYYMMDD-NNN 형식. 전역 유일성만 보장, 일자 리셋 없음)
-CREATE SEQUENCE outb_no_seq START WITH 1 INCREMENT BY 1;
 
 -- 출고 라인. 주문 수량만 보유하고, 할당/피킹 진행은 outb_alloc에서 집계 파생.
 CREATE TABLE outb_line (

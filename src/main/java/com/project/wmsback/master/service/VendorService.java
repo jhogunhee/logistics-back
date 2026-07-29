@@ -17,6 +17,7 @@ import java.util.List;
 public class VendorService {
 
     private final VendorRepository vendorRepository;
+    private final NbrService nbrService;
 
     public List<VendorResponse> list(VendorSearchCond cond) {
         return vendorRepository.search(cond).stream()
@@ -40,8 +41,8 @@ public class VendorService {
     }
 
     private void create(VendorSaveRequest row) {
-        // 클라이언트가 보낸 코드는 받지 않는다 — 시퀀스로 채번 (VD-0001 형식)
-        String vndrCd = String.format("VD-%04d", vendorRepository.nextVndrCdSeq());
+        // 클라이언트가 보낸 코드는 받지 않는다 — 채번 규칙 VNDR_CD로 발급 (VD-0001 형식)
+        String vndrCd = nbrService.issue("VNDR_CD");
         vendorRepository.save(Vendor.builder()
                 .vndrCd(vndrCd)
                 .vndrNm(row.getVndrNm())

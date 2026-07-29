@@ -18,11 +18,11 @@ import com.project.wmsback.master.entity.Prod;
 import com.project.wmsback.master.entity.Vendor;
 import com.project.wmsback.master.repository.ProdRepository;
 import com.project.wmsback.master.repository.VendorRepository;
+import com.project.wmsback.master.service.NbrService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -39,6 +39,7 @@ public class OmsIbOrderService {
     private final VendorRepository vendorRepository;
     /** 확정 시 ASN을 만들기 위한 WMS 쪽 의존. 방향은 omsback → wmsback 한쪽만 */
     private final IbOrderRepository ibOrderRepository;
+    private final NbrService nbrService;
 
     public List<OmsIbOrderResponse> list(OmsIbOrderSearchCond cond) {
         List<OmsIbOrder> orders = omsIbOrderRepository.search(cond);
@@ -67,9 +68,7 @@ public class OmsIbOrderService {
         Vendor vendor = vendorRepository.findById(req.getVendorId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 벤더입니다: " + req.getVendorId()));
 
-        String omsIbNo = String.format("PO-%s-%03d",
-                req.getExpctDe().format(DateTimeFormatter.BASIC_ISO_DATE),
-                omsIbOrderRepository.nextOmsIbNoSeq());
+        String omsIbNo = nbrService.issue("OMS_IB_NO", req.getExpctDe());
 
         OmsIbOrder order = OmsIbOrder.builder()
                 .omsIbNo(omsIbNo)
@@ -103,9 +102,7 @@ public class OmsIbOrderService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고주문입니다: " + omsIbOrderId));
         order.convert(); // 재변환 차단은 엔티티가 한다
 
-        String ibNo = String.format("IB-%s-%03d",
-                order.getExpctDe().format(DateTimeFormatter.BASIC_ISO_DATE),
-                ibOrderRepository.nextIbNoSeq());
+        String ibNo = nbrService.issue("IB_NO", order.getExpctDe());
 
         IbOrder asn = IbOrder.builder()
                 .ibNo(ibNo)

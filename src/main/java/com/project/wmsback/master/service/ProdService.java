@@ -18,6 +18,7 @@ import java.util.List;
 public class ProdService {
 
     private final ProdRepository prodRepository;
+    private final NbrService nbrService;
 
     public List<ProdResponse> list(ProdSearchCond cond) {
         return prodRepository.search(cond).stream()
@@ -41,8 +42,10 @@ public class ProdService {
     }
 
     private void create(ProdSaveRequest row) {
-        // 클라이언트가 보낸 코드는 받지 않는다 — 시퀀스로 채번 (PROD-0001 형식)
-        String prodCd = String.format("PROD-%04d", prodRepository.nextProdCdSeq());
+        // 클라이언트가 보낸 코드는 받지 않는다 — 채번 규칙 PROD_CD로 발급 (PROD-0001 형식)
+        String prodCd = nbrService.issue("PROD_CD");
+        // 저장을 바로 하지 않고 변수로 받는 이유는 ensureUoms 때문이다 — 포장을 붙인 뒤
+        // 한 번에 저장해야 cascade가 상품과 포장을 같이 넣는다.
         Prod prod = Prod.builder()
                 .prodCd(prodCd)
                 .prodNm(row.getProdNm())
@@ -93,9 +96,19 @@ public class ProdService {
         }
     }
 
+    /**
+     * 물리삭제. 포장은 cascade로 함께 사라지지만, 재고·이력·문서가 참조 중이면 거부한다 —
+     * FK가 0건이라 DB가 막아주지 않아서 그냥 지우면 그 행들이 없는 상품을 가리키게 되고
+     * 조회에서 상품명이 빈 채로 남는다. 되살릴 방법도 없다.
+     */
     private void delete(ProdSaveRequest row) {
         Prod prod = prodRepository.findById(row.getProdId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다: " + row.getProdId()));
+        String usedBy = prodRepository.findFirstReference(prod.getId());
+        if (usedBy != null) {
+            throw new IllegalArgumentException(
+                    "%s에서 사용 중이라 삭제할 수 없습니다: %s".formatted(usedBy, prod.getProdNm()));
+        }
         prodRepository.delete(prod);
     }
 
