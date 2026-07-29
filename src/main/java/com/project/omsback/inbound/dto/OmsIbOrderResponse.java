@@ -19,6 +19,10 @@ public class OmsIbOrderResponse {
     private final String vndrCd;
     private final String vndrNm;
     private final LocalDate expctDe;
+    /** 발주구분 (공통코드 ODR_DVSN). 표시명은 화면이 /master/codes/ODR_DVSN 으로 얻는다 */
+    private final String odrDvsn;
+    private final String picNm;
+    private final String rmk;
     /** 라인 수 (저장값이 아니라 라인에서 파생) */
     private final int lineCount;
     /** 발주 수량 합계 (라인 파생) */
@@ -39,6 +43,9 @@ public class OmsIbOrderResponse {
         this.vndrCd = order.getVendor().getVndrCd();
         this.vndrNm = order.getVendor().getVndrNm();
         this.expctDe = order.getExpctDe();
+        this.odrDvsn = order.getOdrDvsn();
+        this.picNm = order.getPicNm();
+        this.rmk = order.getRmk();
         this.lineCount = order.getLines().size();
         this.totalOrderQty = order.getLines().stream().mapToLong(OmsIbLine::getOdrQty).sum();
         this.convertedAt = order.getConvertedAt();

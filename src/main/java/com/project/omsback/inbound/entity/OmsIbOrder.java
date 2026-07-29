@@ -59,6 +59,22 @@ public class OmsIbOrder extends BaseEntity {
     @Column(name = "expct_de", nullable = false)
     private LocalDate expctDe;
 
+    /**
+     * 발주구분 (공통코드 {@code ODR_DVSN}: NRML 정상 / URGT 긴급 / RTNGS 반품입고).
+     * 지금은 표시·분류용이라 창고 작업 흐름을 바꾸지 않는다 — 긴급을 적치·피킹 우선순위에
+     * 반영하려면 변환 시 ASN까지 값을 넘겨야 하고, 그건 별개의 결정이다.
+     */
+    @Column(name = "odr_dvsn", nullable = false, length = 10)
+    private String odrDvsn;
+
+    /** 발주 담당자명. 감사 컬럼 createdBy(로그인 계정)와는 별개다 */
+    @Column(name = "pic_nm", length = 30)
+    private String picNm;
+
+    /** 비고. 벤더 전달사항 등 자유 입력. 변환 시 ASN으로 넘기지 않는다 */
+    @Column(name = "rmk", length = 200)
+    private String rmk;
+
     /** 변환(ASN 생성) 시각. 변환취소하면 다시 null이 된다 */
     @Column(name = "converted_at")
     private LocalDateTime convertedAt;
@@ -67,10 +83,14 @@ public class OmsIbOrder extends BaseEntity {
     private List<OmsIbLine> lines = new ArrayList<>();
 
     @Builder
-    private OmsIbOrder(String omsIbNo, Vendor vendor, LocalDate expctDe) {
+    private OmsIbOrder(String omsIbNo, Vendor vendor, LocalDate expctDe,
+                       String odrDvsn, String picNm, String rmk) {
         this.omsIbNo = omsIbNo;
         this.vendor = vendor;
         this.expctDe = expctDe;
+        this.odrDvsn = odrDvsn;
+        this.picNm = picNm;
+        this.rmk = rmk;
         this.status = OmsIbStatus.CREATED;
     }
 
@@ -89,7 +109,8 @@ public class OmsIbOrder extends BaseEntity {
      * 라인은 통째로 갈아끼운다. 어느 라인이 남고 어느 라인이 바뀌었는지를 클라이언트가
      * 알려주지 않아도 되게 하려는 것이고, orphanRemoval이 빠진 라인을 지운다.
      */
-    public void update(Vendor vendor, LocalDate expctDe, List<OmsIbLine> newLines) {
+    public void update(Vendor vendor, LocalDate expctDe, String odrDvsn, String picNm, String rmk,
+                       List<OmsIbLine> newLines) {
         if (status != OmsIbStatus.CREATED) {
             throw new IllegalStateException(
                     "작성 상태의 주문만 수정할 수 있습니다. 변환된 주문은 변환취소가 먼저입니다 ("
@@ -97,6 +118,9 @@ public class OmsIbOrder extends BaseEntity {
         }
         this.vendor = vendor;
         this.expctDe = expctDe;
+        this.odrDvsn = odrDvsn;
+        this.picNm = picNm;
+        this.rmk = rmk;
         lines.clear();
         newLines.forEach(this::addLine);
     }

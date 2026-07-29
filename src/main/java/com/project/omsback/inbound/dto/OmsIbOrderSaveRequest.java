@@ -15,5 +15,14 @@ public class OmsIbOrderSaveRequest {
 
     private Long vendorId;
     private LocalDate expctDe;
+    /** 발주구분 (공통코드 ODR_DVSN). 비워 보내면 서버가 NRML(정상)로 채운다 */
+    private String odrDvsn;
+
+    /** 발주 담당자명 (선택) */
+    private String picNm;
+
+    /** 비고 (선택) */
+    private String rmk;
+
     private List<OmsIbLineSaveRequest> lines;
 }

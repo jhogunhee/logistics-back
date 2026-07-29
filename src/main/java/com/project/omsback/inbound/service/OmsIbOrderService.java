@@ -74,6 +74,9 @@ public class OmsIbOrderService {
                 .omsIbNo(omsIbNo)
                 .vendor(vendor)
                 .expctDe(req.getExpctDe())
+                .odrDvsn(odrDvsnOf(req))
+                .picNm(req.getPicNm())
+                .rmk(req.getRmk())
                 .build();
         toLines(req).forEach(order::addLine);
         omsIbOrderRepository.save(order); // cascade로 라인까지 함께 저장
@@ -94,7 +97,19 @@ public class OmsIbOrderService {
         validate(req);
         OmsIbOrder order = omsIbOrderRepository.findById(omsIbOrderId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고주문입니다: " + omsIbOrderId));
-        order.update(findVendor(req.getVendorId()), req.getExpctDe(), toLines(req));
+        order.update(findVendor(req.getVendorId()), req.getExpctDe(),
+                odrDvsnOf(req), req.getPicNm(), req.getRmk(), toLines(req));
+    }
+
+    /**
+     * 발주구분 기본값. 비워 보내면 정상(NRML)이다 — 컬럼 DEFAULT와 같은 값이지만
+     * JPA는 null을 그대로 INSERT하므로 DEFAULT가 걸리지 않아 여기서 채운다.
+     * 값이 공통코드에 실재하는지는 확인하지 않는다 — 화면 콤보박스로만 들어오기 때문이다
+     * (ProdService가 단위 코드를 다루는 방식과 같다).
+     */
+    private String odrDvsnOf(OmsIbOrderSaveRequest req) {
+        String dvsn = req.getOdrDvsn();
+        return (dvsn == null || dvsn.isBlank()) ? "NRML" : dvsn;
     }
 
     private Vendor findVendor(Long vendorId) {

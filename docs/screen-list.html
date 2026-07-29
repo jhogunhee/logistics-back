@@ -90,7 +90,7 @@
 <tbody>
 <tr>
   <td class="name">입고주문</td>
-  <td>벤더 발주 <strong>등록·수정</strong> 폼. 벤더/입고예정일/라인(상품·수량) 입력. 주문번호는 서버 채번(<code>PO-YYYYMMDD-NNN</code>)이고 수정해도 바뀌지 않는다. 경로에 id가 있으면 수정 모드(<code>/oms/inbound-order/:id</code>) — <strong>작성(CREATED) 상태만 편집 가능</strong>하고 변환·취소된 주문은 화면이 잠긴다</td>
+  <td>벤더 발주 <strong>등록·수정</strong> 폼. 벤더/입고예정일/발주구분/담당자/비고 + 라인(상품·수량) 입력. 주문번호는 서버 채번(<code>PO-YYYYMMDD-NNN</code>)이고 수정해도 바뀌지 않는다. 경로에 id가 있으면 수정 모드(<code>/oms/inbound-order/:id</code>) — <strong>작성(CREATED) 상태만 편집 가능</strong>하고 변환·취소된 주문은 화면이 잠긴다</td>
   <td class="st"><span class="badge done">구현</span></td>
   <td><code>POST /oms/inbound-orders</code><br><code>/oms/inbound-order</code></td>
 </tr>

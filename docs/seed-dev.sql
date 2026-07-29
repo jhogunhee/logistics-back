@@ -220,8 +220,8 @@ COMMIT;
 -- =====================================================================
 
 WITH new_order AS (
-    INSERT INTO oms_ib_order (oms_ib_no, status, vendor_id, expct_de)
-    SELECT 'PO-20260717-001', 'CREATED', v.vendor_id, DATE '2026-07-17'
+    INSERT INTO oms_ib_order (oms_ib_no, status, vendor_id, expct_de, odr_dvsn, pic_nm, rmk)
+    SELECT 'PO-20260717-001', 'CREATED', v.vendor_id, DATE '2026-07-17', 'NRML', '김상현', '오전 도착 요청'
     FROM vendor v WHERE v.vndr_cd = 'VD-0001'
     RETURNING oms_ib_order_id
 )
@@ -236,8 +236,8 @@ CROSS JOIN (VALUES
 JOIN prod ON prod.prod_nm = v.prod_nm;
 
 WITH new_order AS (
-    INSERT INTO oms_ib_order (oms_ib_no, status, vendor_id, expct_de)
-    SELECT 'PO-20260717-002', 'CREATED', v.vendor_id, DATE '2026-07-17'
+    INSERT INTO oms_ib_order (oms_ib_no, status, vendor_id, expct_de, odr_dvsn, pic_nm, rmk)
+    SELECT 'PO-20260717-002', 'CREATED', v.vendor_id, DATE '2026-07-17', 'URGT', '이정민', '냉동 결품 대응 — 우선 하차'
     FROM vendor v WHERE v.vndr_cd = 'VD-0002'
     RETURNING oms_ib_order_id
 )
@@ -252,8 +252,8 @@ CROSS JOIN (VALUES
 JOIN prod ON prod.prod_nm = v.prod_nm;
 
 WITH new_order AS (
-    INSERT INTO oms_ib_order (oms_ib_no, status, vendor_id, expct_de)
-    SELECT 'PO-20260718-001', 'CREATED', v.vendor_id, DATE '2026-07-18'
+    INSERT INTO oms_ib_order (oms_ib_no, status, vendor_id, expct_de, odr_dvsn, pic_nm, rmk)
+    SELECT 'PO-20260718-001', 'CREATED', v.vendor_id, DATE '2026-07-18', 'NRML', '박도현', NULL
     FROM vendor v WHERE v.vndr_cd = 'VD-0003'
     RETURNING oms_ib_order_id
 )
@@ -269,8 +269,8 @@ CROSS JOIN (VALUES
 JOIN prod ON prod.prod_nm = v.prod_nm;
 
 WITH new_order AS (
-    INSERT INTO oms_ib_order (oms_ib_no, status, vendor_id, expct_de)
-    SELECT 'PO-20260719-001', 'CREATED', v.vendor_id, DATE '2026-07-19'
+    INSERT INTO oms_ib_order (oms_ib_no, status, vendor_id, expct_de, odr_dvsn, pic_nm, rmk)
+    SELECT 'PO-20260719-001', 'CREATED', v.vendor_id, DATE '2026-07-19', 'NRML', '최유진', '파렛트 상태 확인 후 하차'
     FROM vendor v WHERE v.vndr_cd = 'VD-0004'
     RETURNING oms_ib_order_id
 )
@@ -287,8 +287,8 @@ JOIN prod ON prod.prod_nm = v.prod_nm;
 -- 미변환(CREATED)으로 남길 주문 1건 — 화면에서 'ASN 변환' 버튼을 눌러보기 위한 시드.
 -- 예정일이 07-20이라 아래 변환 대상 조건(< 2026-07-20)에서 빠진다.
 WITH new_order AS (
-    INSERT INTO oms_ib_order (oms_ib_no, status, vendor_id, expct_de)
-    SELECT 'PO-20260720-001', 'CREATED', v.vendor_id, DATE '2026-07-20'
+    INSERT INTO oms_ib_order (oms_ib_no, status, vendor_id, expct_de, odr_dvsn, pic_nm, rmk)
+    SELECT 'PO-20260720-001', 'CREATED', v.vendor_id, DATE '2026-07-20', 'RTNGS', '정성호', '점포 반품분 재입고'
     FROM vendor v WHERE v.vndr_cd = 'VD-0005'
     RETURNING oms_ib_order_id
 )

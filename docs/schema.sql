@@ -310,6 +310,8 @@ INSERT INTO code_group (grp_cd, grp_nm, description) VALUES
 INSERT INTO code_group (grp_cd, grp_nm, description) VALUES
     ('BIZ_DVSN', '업무구분', '존이 담당하는 업무');
 INSERT INTO code_group (grp_cd, grp_nm, description) VALUES
+    ('ODR_DVSN', '발주구분', '입고주문의 성격 (oms_ib_order.odr_dvsn)');
+INSERT INTO code_group (grp_cd, grp_nm, description) VALUES
     ('UOM', '계량단위', '상품 포장의 단위 (prod_uom.uom_cd · prod.inb_uom_cd · outb_uom_cd)');
 
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('TEMP_ZONE', 'DRY', '상온', 1);
@@ -347,6 +349,11 @@ INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('UOM', 'BDL'
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('UOM', 'CTN', '카톤', 11);
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('UOM', 'ROLL', '롤', 12);
 
+-- 발주구분. 기본값 NRML은 prod.inb_uom_cd의 'EA'처럼 컬럼 DEFAULT가 가리키는 값이라 지우면 안 된다.
+INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('ODR_DVSN', 'NRML', '정상', 1);
+INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('ODR_DVSN', 'URGT', '긴급', 2);
+INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('ODR_DVSN', 'RTNGS', '반품입고', 3);
+
 -- 채번 규칙. 상품·벤더 코드와 주문/입고/출고 번호를 여기서 발급한다 (전용 시퀀스 폐기).
 INSERT INTO nbr_rule (rule_cd, rule_nm, ptrn, dync_ky_typ) VALUES
     ('PROD_CD',     '상품 코드',        'PROD-{SEQ:4}',           'NONE'),
@@ -372,6 +379,9 @@ CREATE TABLE oms_ib_order (
     status       VARCHAR(15)    NOT NULL,
     vendor_id    BIGINT         NOT NULL,
     expct_de     DATE           NOT NULL,
+    odr_dvsn     VARCHAR(10)    DEFAULT 'NRML' NOT NULL,
+    pic_nm       VARCHAR(30),
+    rmk          VARCHAR(200),
     converted_at TIMESTAMP,
     created_at   TIMESTAMP      DEFAULT CURRENT_TIMESTAMP NOT NULL,
     created_by   VARCHAR(30)    DEFAULT 'admin' NOT NULL,
@@ -386,6 +396,9 @@ COMMENT ON COLUMN oms_ib_order.oms_ib_no    IS '입고주문 번호 (업무 식�
 COMMENT ON COLUMN oms_ib_order.status       IS 'CREATED 작성 / CONVERTED 변환완료(=ASN 생성됨) / CANCELLED 취소(변환 전만). 변환취소하면 CREATED로 돌아와 재변환할 수 있다';
 COMMENT ON COLUMN oms_ib_order.vendor_id    IS '납품 벤더 (vendor 참조). 변환 시 ASN이 같은 벤더를 이어받는다. 이름은 조인으로 얻는다 — 주문에 텍스트를 중복 보관하지 않는다';
 COMMENT ON COLUMN oms_ib_order.expct_de     IS '입고 예정일. ASN의 입고번호 채번(IB-YYYYMMDD-NNN) 기준일이기도 하다';
+COMMENT ON COLUMN oms_ib_order.odr_dvsn     IS '발주구분. 공통코드 ODR_DVSN (NRML 정상 / URGT 긴급 / RTNGS 반품입고). 지금은 표시·분류용이며 창고 작업 흐름을 바꾸지 않는다 — 긴급을 적치·피킹 우선순위에 반영하려면 그때 ASN까지 전달해야 한다';
+COMMENT ON COLUMN oms_ib_order.pic_nm       IS '발주 담당자명. 감사 컬럼 created_by(로그인 계정)와는 별개다 — 인증이 없어 created_by가 admin 고정이기도 하고, 대신 발주한 경우 실제 담당자가 다를 수 있다';
+COMMENT ON COLUMN oms_ib_order.rmk          IS '비고. 벤더 전달사항 등 자유 입력. 변환 시 ASN으로 넘기지 않는다 — 발주 시점의 메모라 창고 작업 지시와 성격이 다르다';
 COMMENT ON COLUMN oms_ib_order.converted_at IS '변환(ASN 생성) 시각. 변환취소하면 다시 NULL이 된다';
 
 -- 입고주문 라인. 발주 수량만 보유한다 (검수/적치 진행 수량은 ASN 라인이 갖는다).
