@@ -20,20 +20,26 @@ final class NbrPattern {
     private static final Pattern TOKEN = Pattern.compile("\\{([^}]*)}");
     private static final Pattern SEQ_TOKEN = Pattern.compile("SEQ:([1-9])");
     private static final Set<String> DATE_TOKENS = Set.of("yyyyMMdd", "yyyy", "MM", "dd");
+    private static final String RESET_DATE_TOKEN = "yyyyMMdd";
 
     private NbrPattern() {
     }
 
     static void validate(String ptrn, DyncKyTyp dyncKyTyp) {
+        if (ptrn == null || ptrn.isBlank()) {
+            throw new IllegalArgumentException("채번 패턴은 필수입니다.");
+        }
         Matcher matcher = TOKEN.matcher(ptrn);
         int seqCount = 0;
-        boolean hasDateToken = false;
+        boolean hasResetDateToken = false;
         while (matcher.find()) {
             String token = matcher.group(1);
             if (SEQ_TOKEN.matcher(token).matches()) {
                 seqCount++;
+            } else if (RESET_DATE_TOKEN.equals(token)) {
+                hasResetDateToken = true;
             } else if (DATE_TOKENS.contains(token)) {
-                hasDateToken = true;
+                // 표시 전용 날짜 조각 (연/월/일 단독) — 리셋 단위 판정에는 안 쓰지만 토큰 자체는 허용
             } else {
                 throw new IllegalArgumentException("지원하지 않는 채번 패턴 토큰입니다: {" + token + "}");
             }
@@ -41,9 +47,10 @@ final class NbrPattern {
         if (seqCount != 1) {
             throw new IllegalArgumentException("채번 패턴은 {SEQ:n} 토큰을 정확히 1개 포함해야 합니다: " + ptrn);
         }
-        if (dyncKyTyp == DyncKyTyp.DATE && !hasDateToken) {
+        if (dyncKyTyp == DyncKyTyp.DATE && !hasResetDateToken) {
             throw new IllegalArgumentException(
-                    "동적키유형이 DATE이면 날짜 토큰({yyyyMMdd} 등)이 패턴에 1개 이상 있어야 합니다: " + ptrn);
+                    "동적키유형이 DATE이면 {yyyyMMdd} 토큰이 패턴에 있어야 합니다 (리셋 단위가 항상 일 단위이므로 "
+                            + "{yyyy}/{MM}/{dd} 단독으로는 표시만 되고 실제 리셋 기준과 어긋납니다): " + ptrn);
         }
     }
 

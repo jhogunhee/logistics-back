@@ -86,7 +86,7 @@ CREATE TABLE nbr_rule (
 ```
 
 - `dync_ky_typ`은 `zon.tmp_zon` 등과 달리 `code_detail` 공통코드로 빼지 않고 `CHECK`로 고정한다. `zon`의 코드값은 늘어나도 로직 분기가 없는 표시값이지만, `dync_ky_typ`은 값 자체가 발급 엔진의 분기(고정키 `'-'` vs 서버 일자 강제산출)와 1:1로 묶여 있어 `status`류(`ck_ib_order_status`)와 같은 성격이다. 새 타입 추가는 배포를 요구한다.
-- `ptrn` 저장 시 서버 검증: `{SEQ:n}` 정확히 1개(n=1~9), `dync_ky_typ='DATE'`면 날짜 토큰(`{yyyyMMdd}`/`{yyyy}`/`{MM}`/`{dd}`) 1개 이상, 그 외 알 수 없는 `{...}` 토큰은 저장 거부.
+- `ptrn` 저장 시 서버 검증: `{SEQ:n}` 정확히 1개(n=1~9), `dync_ky_typ='DATE'`면 날짜 토큰(`{yyyyMMdd}`/`{yyyy}`/`{MM}`/`{dd}`) 1개 이상, 그 외 알 수 없는 `{...}` 토큰은 저장 거부. `DATE` 타입이 요구하는 날짜 토큰은 구체적으로 `{yyyyMMdd}`여야 한다 — `{yyyy}`/`{MM}`/`{dd}` 단독으로는 통과하지 못한다. 리셋 단위가 항상 일(day) 단위로 고정돼 있어(`NbrService`가 `LocalDate`를 `BASIC_ISO_DATE`로만 포맷), 패턴의 표시 단위가 이보다 성기면(예: 연 단위만 표시) 실제 리셋 동작과 어긋나기 때문이다.
 - `dync_ky_typ`은 등록 후 변경 불가 — `NbrRule.update()`가 `ruleNm`/`ptrn`/`usYn`만 받는다.
 - FK 없음(프로젝트 전역 정책).
 

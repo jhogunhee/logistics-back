@@ -1,56 +1,57 @@
 -- 개발용 시드 데이터 (식품/음료 유통센터 컨셉) — PostgreSQL / Supabase, 현행 기준 문서
 --   docs/schema.sql 을 먼저 적용한 뒤 실행한다.
--- prod_cd는 백엔드 채번과 충돌하지 않도록 반드시 prod_cd_seq로 발급한다.
+-- prod_cd는 이제 리터럴로 직접 넣는다. 화면에서 처음 등록할 때 PROD-0001부터
+-- 다시 채번돼 uq_prod_cd 위반이 나지 않도록, 아래에서 nbr_seq를 시드 건수만큼 맞춰둔다.
 -- shelf_life_days NULL = 유통기한 미관리 (공산품, 유통기한 표시 면제 품목 등)
 -- 실행: Supabase SQL Editor 또는 `psql ... -f seed-dev.sql` (UTF-8)
 
 -- 상온(DRY)
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '제주 삼다수 2L', 'DRY', 365);
+    VALUES ('PROD-0001', '제주 삼다수 2L', 'DRY', 365);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '신라면 멀티팩 (5입)', 'DRY', 180);
+    VALUES ('PROD-0002', '신라면 멀티팩 (5입)', 'DRY', 180);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '햇반 백미 210g', 'DRY', 270);
+    VALUES ('PROD-0003', '햇반 백미 210g', 'DRY', 270);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '일회용 종이컵 1000입', 'DRY', NULL);
+    VALUES ('PROD-0004', '일회용 종이컵 1000입', 'DRY', NULL);
 
 -- 냉장(CHL)
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '서울우유 1L', 'CHL', 14);
+    VALUES ('PROD-0005', '서울우유 1L', 'CHL', 14);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '딸기 요거트 4입', 'CHL', 21);
+    VALUES ('PROD-0006', '딸기 요거트 4입', 'CHL', 21);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '참치마요 삼각김밥', 'CHL', 2);
+    VALUES ('PROD-0007', '참치마요 삼각김밥', 'CHL', 2);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '국산콩 두부 300g', 'CHL', 14);
+    VALUES ('PROD-0008', '국산콩 두부 300g', 'CHL', 14);
 
 -- 냉동(FRZ)
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '왕교자 만두 1kg', 'FRZ', 365);
+    VALUES ('PROD-0009', '왕교자 만두 1kg', 'FRZ', 365);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '냉동 새우살 500g', 'FRZ', 540);
+    VALUES ('PROD-0010', '냉동 새우살 500g', 'FRZ', 540);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '붕어싸만코 (아이스크림)', 'FRZ', NULL);
+    VALUES ('PROD-0011', '붕어싸만코 (아이스크림)', 'FRZ', NULL);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '코카콜라 350ml (24입)', 'DRY', 365);
+    VALUES ('PROD-0012', '코카콜라 350ml (24입)', 'DRY', 365);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '진라면 순한맛 멀티팩 (5입)', 'DRY', 240);
+    VALUES ('PROD-0013', '진라면 순한맛 멀티팩 (5입)', 'DRY', 240);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '백설 밀가루 1kg', 'DRY', 540);
+    VALUES ('PROD-0014', '백설 밀가루 1kg', 'DRY', 540);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '스팸 클래식 200g', 'DRY', 1095);
+    VALUES ('PROD-0015', '스팸 클래식 200g', 'DRY', 1095);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '물티슈 캡형 100매', 'DRY', NULL);
+    VALUES ('PROD-0016', '물티슈 캡형 100매', 'DRY', NULL);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '바나나우유 240ml', 'CHL', 12);
+    VALUES ('PROD-0017', '바나나우유 240ml', 'CHL', 12);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '슬라이스 치즈 20매', 'CHL', 60);
+    VALUES ('PROD-0018', '슬라이스 치즈 20매', 'CHL', 60);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '닭가슴살 샐러드', 'CHL', 3);
+    VALUES ('PROD-0019', '닭가슴살 샐러드', 'CHL', 3);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '모짜렐라 피자치즈 1kg', 'FRZ', 365);
+    VALUES ('PROD-0020', '모짜렐라 피자치즈 1kg', 'FRZ', 365);
 INSERT INTO prod (prod_cd, prod_nm, tmp_zon, shelf_life_days)
-    VALUES ('PROD-' || lpad(nextval('prod_cd_seq')::text, 4, '0'), '냉동 블루베리 1kg', 'FRZ', 720);
+    VALUES ('PROD-0021', '냉동 블루베리 1kg', 'FRZ', 720);
 
 -- 입고 허용 잔여수명 기준(%). 유통기한 관리 상품에만 붙인다 (미관리 상품은 NULL = 미적용).
 -- 출고 기준(store.outb_life_rate 기본 40%)보다 높게 잡는 것이 정상이다 —
@@ -118,9 +119,11 @@ VALUES ('VD-0005', '그린푸드', '정성호', '02-4321-0505');
 INSERT INTO vendor (vndr_cd, vndr_nm, pic_nm, tel_no, us_yn)
 VALUES ('VD-0006', '옛거래처식자재', '한지훈', '02-1111-2222', 'N');
 
--- 시퀀스를 시드 건수만큼 밀어둔다. 안 하면 화면에서 벤더를 처음 등록할 때
--- VD-0001부터 다시 채번돼 uq_vndr_cd 유니크 위반이 난다.
-SELECT setval('vndr_cd_seq', 6);
+-- 채번 카운터를 시드 건수만큼 미리 채운다. 안 하면 화면에서 처음 등록할 때
+-- PROD-0001/VD-0001부터 다시 채번돼 uq_prod_cd/uq_vndr_cd 유니크 위반이 난다.
+INSERT INTO nbr_seq (rule_cd, dync_ky, seq) VALUES
+    ('PROD_CD', '-', 21),
+    ('VNDR_CD', '-', 6);
 
 -- 점포 (납품 허용 잔여수명 비율: 편의점 > 마트 > 급식 — FEFO 앞단 필터 시나리오용)
 INSERT INTO store (store_cd, store_nm, outb_life_rate)
@@ -148,7 +151,7 @@ COMMIT;
 
 WITH new_order AS (
     INSERT INTO oms_ib_order (oms_ib_no, status, vendor_id, expct_de)
-    SELECT 'PO-20260717-' || lpad(nextval('oms_ib_no_seq')::text, 3, '0'), 'CREATED', v.vendor_id, DATE '2026-07-17'
+    SELECT 'PO-20260717-001', 'CREATED', v.vendor_id, DATE '2026-07-17'
     FROM vendor v WHERE v.vndr_cd = 'VD-0001'
     RETURNING oms_ib_order_id
 )
@@ -164,7 +167,7 @@ JOIN prod ON prod.prod_nm = v.prod_nm;
 
 WITH new_order AS (
     INSERT INTO oms_ib_order (oms_ib_no, status, vendor_id, expct_de)
-    SELECT 'PO-20260717-' || lpad(nextval('oms_ib_no_seq')::text, 3, '0'), 'CREATED', v.vendor_id, DATE '2026-07-17'
+    SELECT 'PO-20260717-002', 'CREATED', v.vendor_id, DATE '2026-07-17'
     FROM vendor v WHERE v.vndr_cd = 'VD-0002'
     RETURNING oms_ib_order_id
 )
@@ -180,7 +183,7 @@ JOIN prod ON prod.prod_nm = v.prod_nm;
 
 WITH new_order AS (
     INSERT INTO oms_ib_order (oms_ib_no, status, vendor_id, expct_de)
-    SELECT 'PO-20260718-' || lpad(nextval('oms_ib_no_seq')::text, 3, '0'), 'CREATED', v.vendor_id, DATE '2026-07-18'
+    SELECT 'PO-20260718-001', 'CREATED', v.vendor_id, DATE '2026-07-18'
     FROM vendor v WHERE v.vndr_cd = 'VD-0003'
     RETURNING oms_ib_order_id
 )
@@ -196,7 +199,7 @@ JOIN prod ON prod.prod_nm = v.prod_nm;
 
 WITH new_order AS (
     INSERT INTO oms_ib_order (oms_ib_no, status, vendor_id, expct_de)
-    SELECT 'PO-20260719-' || lpad(nextval('oms_ib_no_seq')::text, 3, '0'), 'CREATED', v.vendor_id, DATE '2026-07-19'
+    SELECT 'PO-20260719-001', 'CREATED', v.vendor_id, DATE '2026-07-19'
     FROM vendor v WHERE v.vndr_cd = 'VD-0004'
     RETURNING oms_ib_order_id
 )
@@ -213,7 +216,7 @@ JOIN prod ON prod.prod_nm = v.prod_nm;
 -- 예정일이 07-20이라 아래 변환 대상 조건(< 2026-07-20)에서 빠진다.
 WITH new_order AS (
     INSERT INTO oms_ib_order (oms_ib_no, status, vendor_id, expct_de)
-    SELECT 'PO-20260720-' || lpad(nextval('oms_ib_no_seq')::text, 3, '0'), 'CREATED', v.vendor_id, DATE '2026-07-20'
+    SELECT 'PO-20260720-001', 'CREATED', v.vendor_id, DATE '2026-07-20'
     FROM vendor v WHERE v.vndr_cd = 'VD-0005'
     RETURNING oms_ib_order_id
 )
@@ -232,13 +235,14 @@ JOIN prod ON prod.prod_nm = v.prod_nm;
 -- WITH 안의 데이터 변경문은 참조되지 않아도 반드시 실행되므로 copied를 따로 읽지 않아도 된다.
 -- 라인 복사가 oms_ib_line을 읽을 수 있는 건 그게 앞선 문장에서 이미 커밋됐기 때문이다.
 WITH to_convert AS (
-    SELECT oms_ib_order_id, vendor_id, expct_de
+    SELECT oms_ib_order_id, vendor_id, expct_de,
+           row_number() OVER (PARTITION BY expct_de ORDER BY oms_ib_order_id) AS seq_in_date
     FROM oms_ib_order
     WHERE status = 'CREATED' AND expct_de < DATE '2026-07-20'
 ),
 new_asn AS (
     INSERT INTO ib_order (ib_no, oms_ib_order_id, status, vendor_id, expct_de)
-    SELECT 'IB-' || to_char(expct_de, 'YYYYMMDD') || '-' || lpad(nextval('ib_no_seq')::text, 3, '0'),
+    SELECT 'IB-' || to_char(expct_de, 'YYYYMMDD') || '-' || lpad(seq_in_date::text, 3, '0'),
            oms_ib_order_id, 'SCHEDULED', vendor_id, expct_de
     FROM to_convert
     RETURNING ib_order_id, oms_ib_order_id
@@ -253,3 +257,14 @@ copied AS (
 UPDATE oms_ib_order o
 SET status = 'CONVERTED', converted_at = CURRENT_TIMESTAMP
 WHERE o.oms_ib_order_id IN (SELECT oms_ib_order_id FROM to_convert);
+
+-- OMS_IB_NO/IB_NO 채번 카운터도 시드 건수만큼 날짜별로 맞춘다. 07-17엔 2건, 나머지는 1건씩.
+-- 07-20 예정 주문은 미변환 상태로 남으므로 IB_NO에는 07-20 행이 없다.
+INSERT INTO nbr_seq (rule_cd, dync_ky, seq) VALUES
+    ('OMS_IB_NO', '20260717', 2),
+    ('OMS_IB_NO', '20260718', 1),
+    ('OMS_IB_NO', '20260719', 1),
+    ('OMS_IB_NO', '20260720', 1),
+    ('IB_NO', '20260717', 2),
+    ('IB_NO', '20260718', 1),
+    ('IB_NO', '20260719', 1);

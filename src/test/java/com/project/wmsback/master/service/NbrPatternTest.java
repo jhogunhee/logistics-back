@@ -61,4 +61,16 @@ class NbrPatternTest {
         String result = NbrPattern.render("PROD-{SEQ:4}", 12345, LocalDate.of(2026, 7, 29));
         assertEquals("PROD-12345", result);
     }
+
+    @Test
+    void DATE_타입인데_yyyyMMdd_없이_yyyy만_있으면_검증_실패() {
+        assertThrows(IllegalArgumentException.class,
+                () -> NbrPattern.validate("IB-{yyyy}-{SEQ:3}", DyncKyTyp.DATE));
+    }
+
+    @Test
+    void ptrn이_null이면_검증_실패() {
+        assertThrows(IllegalArgumentException.class,
+                () -> NbrPattern.validate(null, DyncKyTyp.NONE));
+    }
 }
