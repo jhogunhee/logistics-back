@@ -17,6 +17,7 @@ import java.util.List;
 public class ProdService {
 
     private final ProdRepository prodRepository;
+    private final NbrService nbrService;
 
     public List<ProdResponse> list(ProdSearchCond cond) {
         return prodRepository.search(cond).stream()
@@ -40,8 +41,8 @@ public class ProdService {
     }
 
     private void create(ProdSaveRequest row) {
-        // 클라이언트가 보낸 코드는 받지 않는다 — 시퀀스로 채번 (PROD-0001 형식)
-        String prodCd = String.format("PROD-%04d", prodRepository.nextProdCdSeq());
+        // 클라이언트가 보낸 코드는 받지 않는다 — 채번 규칙 PROD_CD로 발급 (PROD-0001 형식)
+        String prodCd = nbrService.issue("PROD_CD");
         prodRepository.save(Prod.builder()
                 .prodCd(prodCd)
                 .prodNm(row.getProdNm())
