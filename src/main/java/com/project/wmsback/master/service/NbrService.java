@@ -25,43 +25,39 @@ public class NbrService {
     /** NONE 규칙 전용 발급 */
     @Transactional
     public String issue(String ruleCd) {
-        NbrRule rule = findUsableRule(ruleCd);
+        NbrRule rule = findRule(ruleCd);
         if (rule.getDyncKyTyp() != DyncKyTyp.NONE) {
             throw new IllegalStateException(
-                    "DATE 규칙은 issue(ruleCd, LocalDate)를 써야 합니다: " + ruleCd);
+                    "NONE 이외 규칙은 issue(ruleCd, LocalDate)를 써야 합니다: " + ruleCd);
         }
         return issueWithKey(rule, NONE_DYNC_KY, LocalDate.now());
     }
 
     /**
-     * DATE 규칙 전용 발급. de가 동적키(리셋 단위)이자 패턴의 날짜 토큰 렌더링 기준이다.
+     * YEAR/MONTH/DAY 규칙 전용 발급. de가 동적키(리셋 단위)이자 패턴의 날짜 조각 렌더링 기준이다.
      * 서버가 오늘 날짜로 강제하지 않는다 — 예정일·주문일처럼 호출자가 이미 들고 있는
      * 업무 일자를 그대로 쓴다 (신뢰된 서버 내부 호출이라 위변조 우려가 없다).
      */
     @Transactional
     public String issue(String ruleCd, LocalDate de) {
-        NbrRule rule = findUsableRule(ruleCd);
-        if (rule.getDyncKyTyp() != DyncKyTyp.DATE) {
+        NbrRule rule = findRule(ruleCd);
+        if (rule.getDyncKyTyp() == DyncKyTyp.NONE) {
             throw new IllegalStateException(
                     "NONE 규칙은 issue(ruleCd)를 써야 합니다: " + ruleCd);
         }
-        String dyncKy = de.format(DateTimeFormatter.BASIC_ISO_DATE);
+        String dyncKy = de.format(DateTimeFormatter.ofPattern(rule.getDyncKyTyp().getDyncKyPattern()));
         return issueWithKey(rule, dyncKy, de);
     }
 
     /** DB 접근 없이 오늘 날짜 + seq=1로 렌더링만 — 규칙 저장 전 화면 미리보기용 */
-    public String preview(String ptrn, DyncKyTyp dyncKyTyp) {
-        NbrPattern.validate(ptrn, dyncKyTyp);
-        return NbrPattern.render(ptrn, 1, LocalDate.now());
+    public String preview(String prfx, String prfxDlmt, String deDlmt, Integer seqDgt, DyncKyTyp dyncKyTyp) {
+        NbrPattern.validate(prfx, prfxDlmt, deDlmt, seqDgt, dyncKyTyp);
+        return NbrPattern.render(prfx, prfxDlmt, deDlmt, seqDgt, 1, dyncKyTyp, LocalDate.now());
     }
 
-    private NbrRule findUsableRule(String ruleCd) {
-        NbrRule rule = nbrRuleRepository.findById(ruleCd)
+    private NbrRule findRule(String ruleCd) {
+        return nbrRuleRepository.findById(ruleCd)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 채번 규칙입니다: " + ruleCd));
-        if (!rule.isUsable()) {
-            throw new IllegalStateException("비활성화된 채번 규칙입니다: " + ruleCd);
-        }
-        return rule;
     }
 
     private String issueWithKey(NbrRule rule, String dyncKy, LocalDate de) {
@@ -73,6 +69,7 @@ public class NbrService {
                                     "채번 카운터 초기화에 실패했습니다: " + rule.getRuleCd()));
                 });
         row.increment();
-        return NbrPattern.render(rule.getPtrn(), row.getSeq(), de);
+        return NbrPattern.render(rule.getPrfx(), rule.getPrfxDlmt(), rule.getDeDlmt(), rule.getSeqDgt(),
+                row.getSeq(), rule.getDyncKyTyp(), de);
     }
 }
