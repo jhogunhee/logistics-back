@@ -42,7 +42,9 @@ public class OmsIbOrderRepositoryImpl implements OmsIbOrderRepositoryCustom {
                         expctDtGoe(cond.getDateFrom()),
                         expctDtLoe(cond.getDateTo())
                 )
-                .orderBy(omsIbOrder.id.desc())
+                // 입고예정일 → 주문번호 오름차순: 창고가 받을 순서대로 읽힌다.
+                // 주문번호가 예정일 기준 채번(PO-YYYYMMDD-NNN)이라 같은 날짜 안에서는 채번 순이 된다.
+                .orderBy(omsIbOrder.expctDe.asc(), omsIbOrder.omsIbNo.asc())
                 .fetch();
     }
 

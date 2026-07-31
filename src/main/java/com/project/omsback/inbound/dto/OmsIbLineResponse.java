@@ -12,6 +12,8 @@ public class OmsIbLineResponse {
     private final String prodCd;
     private final String prodNm;
     private final TempZone tmpZon;
+    /** 유통기한(일). null = 미관리 — 화면이 이 값으로 「미관리」를 그리므로 빠지면 전부 미관리로 보인다 */
+    private final Integer shelfLifeDays;
     private final Long odrQty;
     /** 발주 단위 (odr_qty의 단위) */
     private final String inbUomCd;
@@ -30,6 +32,7 @@ public class OmsIbLineResponse {
         this.prodCd = line.getProd().getProdCd();
         this.prodNm = line.getProd().getProdNm();
         this.tmpZon = line.getProd().getTmpZon();
+        this.shelfLifeDays = line.getProd().getShelfLifeDays();
         this.odrQty = line.getOdrQty();
         this.inbUomCd = line.getProd().getInbUomCd();
         this.inbEaQty = line.getProd().eaQtyOf(this.inbUomCd);
