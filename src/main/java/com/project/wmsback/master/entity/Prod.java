@@ -135,6 +135,7 @@ public class Prod extends BaseEntity {
      * 입고단위 수량을 재고 저장 단위(출고단위)로 환산한다 — 낱개를 매개로 삼는다.
      * 호출 지점은 {@code OmsIbOrderService.confirm()}(발주 → ASN) <b>한 곳뿐</b>이고,
      * ASN 이후의 검수 · 적치 · 재고 · 출고는 전부 출고단위로만 계산한다.
+     * (화면의 「환산수량」은 이것과 다른 낱개(EA) 환산이다 — {@code OmsIbLineResponse} 참고)
      * <p>
      * 나눗셈이 딱 떨어지는 것은 ProdService가 저장 시점에 보장한다
      * (입고단위 낱개수량 % 출고단위 낱개수량 == 0).
