@@ -12,7 +12,6 @@ import com.project.omsback.inbound.repository.OmsIbLineRepository;
 import com.project.omsback.inbound.repository.OmsIbOrderRepository;
 import com.project.wmsback.inbound.entity.IbLine;
 import com.project.wmsback.inbound.entity.IbOrder;
-import com.project.wmsback.inbound.entity.IbStatus;
 import com.project.wmsback.inbound.repository.IbOrderRepository;
 import com.project.wmsback.master.entity.Prod;
 import com.project.wmsback.master.entity.Vendor;
@@ -167,24 +166,26 @@ public class OmsIbOrderService {
     }
 
     /**
-     * 확정취소. 생성된 ASN을 취소하고 주문을 작성 상태로 원복한다 — 고치고 다시 확정할 수 있다.
+     * 확정취소. 생성된 ASN을 삭제하고 주문을 작성 상태로 원복한다 — 고치고 다시 확정할 수 있다.
+     * CANCELLED 상태로 남기지 않는다: 검수 전의 예정은 아직 아무 일도 안 한 문서라 흔적 가치가 없고,
+     * 남겨두면 입고예정 목록마다 취소분을 빼는 필터가 따라붙는다(OMS 주문 쪽과 같은 판단).
+     * 검수가 시작된 ASN(inv_hist가 라인을 참조하기 시작한 뒤)은 requireRevertible()이 막는다.
      *
-     * ASN 취소 경로도 여기 하나뿐이다. WMS에 취소 엔드포인트를 두면 주문 상태를 모르는 채로
-     * ASN만 죽어서, 주문은 '확정'인데 유효한 예정이 없는 상태로 고착된다.
-     * 검수가 시작된 ASN인지는 IbOrder.cancel()이 판정해 막는다.
+     * ASN 소멸 경로도 여기 하나뿐이다. WMS에 취소 엔드포인트를 두면 주문 상태를 모르는 채로
+     * ASN만 죽어서, 주문은 '확정'인데 예정이 없는 상태로 고착된다.
      */
     @Transactional
     public void cancelConfirm(Long omsIbOrderId) {
         OmsIbOrder order = omsIbOrderRepository.findById(omsIbOrderId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고주문입니다: " + omsIbOrderId));
 
-        IbOrder asn = ibOrderRepository
-                .findByOmsIbOrderIdAndStatusNot(omsIbOrderId, IbStatus.CANCELLED)
+        IbOrder asn = ibOrderRepository.findByOmsIbOrderId(omsIbOrderId)
                 .orElseThrow(() -> new IllegalStateException(
                         "확정취소할 입고예정이 없습니다: " + order.getOmsIbNo()));
 
-        asn.cancel();          // 검수 시작 후면 여기서 막힌다
-        order.revertConfirm(); // ASN을 물린 뒤에야 주문을 되돌린다
+        asn.requireRevertible();       // 검수 시작 후면 여기서 막힌다
+        ibOrderRepository.delete(asn); // cascade로 라인까지 함께 삭제
+        order.revertConfirm();         // ASN을 물린 뒤에야 주문을 되돌린다
     }
 
     /**
@@ -192,8 +193,7 @@ public class OmsIbOrderService {
      * 라인은 cascade + orphanRemoval이 함께 지운다.
      * <p>
      * 취소 상태를 두지 않고 지우는 이유는 {@link com.project.omsback.inbound.entity.OmsIbStatus} 참고.
-     * 확정된 적 있는 주문이라도 확정취소를 거치면 지울 수 있다 — 그때 ASN은 CANCELLED로 남아
-     * "예정이 나갔다가 물렸다"는 사실은 보존된다.
+     * 확정된 적 있는 주문이라도 확정취소를 거치면 지울 수 있다 — ASN은 확정취소 시점에 이미 삭제됐다.
      */
     @Transactional
     public void delete(Long omsIbOrderId) {

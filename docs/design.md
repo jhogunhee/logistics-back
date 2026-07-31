@@ -80,7 +80,7 @@ flowchart TD
 
 **용어를 「확정」으로 통일했다 — 화면·상태값·메서드·경로 전부.** 사용자가 하는 행위는 *발주를 확정한다*이고 ASN 생성은 그 **결과**다. 상태값이 결과(`CONVERTED`)를 가리키는 동안 화면 부제는 "확정", 버튼은 "ASN 변환"으로 갈려 있었다. 「변환」은 `docs/naming-dictionary.md`에 없는 단어이기도 했다 — `CNVR`은 **환산**(단위 환산)이라 오히려 헷갈린다. 사전에 있는 **확정 = `CFM`**을 쓴다(`converted_at` → `cfm_dt`). ASN이 생긴다는 사실은 버튼 이름이 아니라 툴팁·모달이 설명한다.
 
-ASN(`ib_order`) 쪽 `CANCELLED`는 유지한다. 확정취소해도 「예정이 나갔다가 물렸다」는 흔적은 남아야 하고, `uq_ib_order_active` 부분 인덱스가 그 값으로 유효한 ASN 하나를 강제한다.
+**ASN(`ib_order`) 쪽도 취소 상태를 두지 않는다 — 확정취소는 ASN 행을 삭제한다.** 검수 전의 예정은 아직 아무 일도 하지 않은 문서라 흔적 가치가 없고, `CANCELLED`를 남기면 입고예정 목록·집계마다 취소분을 빼는 필터가 따라붙는다(주문 쪽 취소 상태를 안 둔 것과 같은 판단). 재확정하면 새 입고번호로 새 행이 생긴다. `uq_ib_order_oms_active`는 평범한 유니크 인덱스로 "주문당 ASN 하나"를 강제한다. (원래는 CANCELLED로 남겨 부분 유니크였다 — 2026-07-31에 삭제 방식으로 전환, `migration-drop-asn-cancelled.sql`.)
 
 **수정해도 주문번호는 바뀌지 않는다.** 예정일을 고쳐도 마찬가지다. 번호는 채번 시점의 식별자이지 예정일을 따라다니는 값이 아니고, 이미 그 번호로 벤더와 주고받은 이력이 어긋난다.
 
@@ -98,12 +98,11 @@ ASN(`ib_order`) 쪽 `CANCELLED`는 유지한다. 확정취소해도 「예정이
 stateDiagram-v2
     [*] --> SCHEDULED : ASN 생성 (OMS 입고주문 확정)
     SCHEDULED --> RECEIVING : 첫 검수
-    SCHEDULED --> CANCELLED : 취소 (검수 시작 전만)
+    SCHEDULED --> [*] : 확정취소 — 행 삭제 (검수 시작 전만)
     RECEIVING --> RECEIVED : 전량 검수(자동) / 마감(close — 잔량을 결품으로 확정)
     RECEIVED --> RECEIVING : 검수 취소로 전량검수가 깨짐
     RECEIVED --> COMPLETED : 전 라인 적치 완료 (자동)
     COMPLETED --> [*]
-    CANCELLED --> [*]
 ```
 
 - 라인에 `expctQty` / `rcvdQty` / `ptawyQty`를 두고 부분입고는 수량으로만 표현.

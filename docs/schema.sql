@@ -389,14 +389,14 @@ COMMIT;
 -- 2. OMS 주문 OMS_* (CREATED ↔ CONFIRMED)
 --    주문 원장. WMS 작업문서(입고예정 ASN)의 유일한 발생지다.
 --    확정(confirm) 시 같은 트랜잭션에서 ib_order를 생성한다 — ASN 직접 등록 경로는 없다.
---    확정취소하면 ASN은 CANCELLED로 남고 주문은 CREATED로 돌아와 재확정할 수 있다.
+--    확정취소하면 ASN은 삭제되고 주문은 CREATED로 돌아와 재확정할 수 있다.
 --
 --    취소 상태를 두지 않는다. 없앨 주문은 지운다 — 확정 전이면 바로, 확정 뒤면 확정취소로
 --    되돌린 뒤에. "지운 것도 아니고 쓰는 것도 아닌" 상태를 두면 목록·집계마다 그 상태를 빼는
 --    필터가 따라붙고, 화면에서 삭제와 취소 중 무엇을 눌러야 하는지가 매번 애매해진다.
 --    (마스터에서 us_yn을 걷어낸 것과 같은 판단 — 위 「vendor」 참고)
---    ASN 쪽 CANCELLED는 그대로 둔다: 나갔다가 물린 예정의 흔적은 남아야 하고,
---    uq_ib_order_active 부분 인덱스가 그 값을 쓴다.
+--    ASN 쪽도 취소 상태를 두지 않는다: 확정취소는 ASN 행을 삭제한다 — 검수 전의 예정은
+--    아직 아무 일도 안 한 문서라 흔적 가치가 없다 (재확정하면 새 번호로 새 행이 생긴다).
 -- =====================================================================
 
 -- 입고주문(벤더 발주) 헤더. 창고 작업 진행은 여기서 표현하지 않는다 (ASN의 status가 담당).
@@ -449,7 +449,8 @@ CREATE INDEX ix_oms_ib_order_vendor ON oms_ib_order (vendor_id);
 
 
 -- =====================================================================
--- 3. 입고 IB_* (SCHEDULED → RECEIVING → RECEIVED → COMPLETED / CANCELLED)
+-- 3. 입고 IB_* (SCHEDULED → RECEIVING → RECEIVED → COMPLETED)
+--    취소 상태 없음 — 확정취소는 행을 삭제한다 (검수 시작 전만 가능)
 -- =====================================================================
 
 -- 입고예정(ASN) 헤더. 상태는 워크플로 단계만 표현한다 (부분입고 상태 없음).
@@ -467,13 +468,13 @@ CREATE TABLE ib_order (
     updated_at  TIMESTAMP,
     updated_by  VARCHAR(30),
     CONSTRAINT uq_ib_no UNIQUE (ib_no),
-    CONSTRAINT ck_ib_order_status CHECK (status IN ('SCHEDULED', 'RECEIVING', 'RECEIVED', 'COMPLETED', 'CANCELLED'))
+    CONSTRAINT ck_ib_order_status CHECK (status IN ('SCHEDULED', 'RECEIVING', 'RECEIVED', 'COMPLETED'))
 );
 
 COMMENT ON TABLE  ib_order IS '입고예정(ASN) 헤더. 부분입고 여부는 상태가 아니라 라인 수량(expct vs rcvd)에서 파생';
 COMMENT ON COLUMN ib_order.ib_no     IS '입고 번호 (업무 식별자, 예: IB-20260714-001)';
 COMMENT ON COLUMN ib_order.oms_ib_order_id IS '이 ASN을 발생시킨 입고주문. NOT NULL — 주문 없는 입고예정은 존재할 수 없다(무결성은 애플리케이션이 보증, FK 없음). JPA는 연관관계가 아닌 스칼라로 매핑한다(패키지 의존을 omsback → wmsback 한 방향으로 유지)';
-COMMENT ON COLUMN ib_order.status    IS 'SCHEDULED 예정 / RECEIVING 입고중 / RECEIVED 마감 / COMPLETED 적치완료 / CANCELLED 취소(검수 시작 전만)';
+COMMENT ON COLUMN ib_order.status    IS 'SCHEDULED 예정 / RECEIVING 입고중 / RECEIVED 마감 / COMPLETED 적치완료. 취소 상태 없음 — 확정취소는 행을 삭제한다(검수 시작 전만)';
 COMMENT ON COLUMN ib_order.vendor_id IS '납품 벤더 (vendor 참조). 주문에서 그대로 이어받는다 — 확정 시점의 스냅샷이 아니라 같은 마스터를 가리킨다';
 COMMENT ON COLUMN ib_order.expct_de  IS '입고 예정일';
 COMMENT ON COLUMN ib_order.clos_dt IS '입고 마감(close) 시각. 마감은 미입고 잔량을 확정하는 명시적 액션';
@@ -504,11 +505,10 @@ COMMENT ON COLUMN ib_line.ptawy_qty  IS '적치 완료 수량 누계 (스테이�
 CREATE INDEX ix_ib_line_order ON ib_line (ib_order_id);
 -- 주문 → ASN 역추적 (입고주문 관리 화면이 주문별 ASN 진행상태를 붙여 보여준다)
 CREATE INDEX ix_ib_order_oms ON ib_order (oms_ib_order_id);
--- 주문 하나가 붙들 수 있는 "유효한" ASN은 하나. 확정취소는 행을 지우지 않고 CANCELLED로 남기므로
--- (언제 왜 물렸는지 추적용) 취소분을 제외한 부분 유니크로 표현한다. 재확정하면 새 행이 하나 더 생긴다.
+-- 주문 하나가 붙들 수 있는 ASN은 하나. 확정취소가 행을 삭제하므로 평범한 유니크로 충분하다
+-- (예전에는 CANCELLED를 남겨 부분 유니크였다 — migration-drop-asn-cancelled.sql로 전환).
 -- 동시 확정 요청 시 두 트랜잭션이 모두 CREATED를 읽고 통과하는 구간을 DB가 막는 최후 방어선.
-CREATE UNIQUE INDEX uq_ib_order_oms_active
-    ON ib_order (oms_ib_order_id) WHERE status <> 'CANCELLED';
+CREATE UNIQUE INDEX uq_ib_order_oms_active ON ib_order (oms_ib_order_id);
 CREATE INDEX ix_ib_order_vendor ON ib_order (vendor_id);
 
 -- 적치 지시. 전략이 정한 배정 결과(어느 Lot을 어느 로케이션에 몇 개)를 담는다.

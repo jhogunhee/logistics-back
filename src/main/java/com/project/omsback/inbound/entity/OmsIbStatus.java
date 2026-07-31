@@ -16,8 +16,8 @@ import lombok.RequiredArgsConstructor;
  * (같은 이유로 마스터에서 사용여부 컬럼도 걷어냈다 — docs/schema.sql 「vendor」 참고)
  *
  * 창고 작업 진행(검수/적치)은 여기서 표현하지 않는다 — 확정으로 생성된 ASN의 IbStatus가 담당한다.
- * ASN 쪽 CANCELLED는 그대로 둔다: 확정취소해도 나갔던 예정의 흔적은 남겨야 하고,
- * uq_ib_order_active 부분 인덱스가 그 값을 쓴다.
+ * ASN 쪽도 취소 상태가 없다: 확정취소는 ASN 행을 삭제한다. 검수 전의 예정은 아직 아무 일도
+ * 안 한 문서라 흔적 가치가 없다 (OmsIbOrderService.cancelConfirm 참고).
  */
 @Getter
 @RequiredArgsConstructor

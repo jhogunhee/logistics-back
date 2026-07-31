@@ -88,12 +88,11 @@ public class IbOrder extends BaseEntity {
         line.assignOrder(this);
     }
 
-    /** 취소. 검수가 시작되면(SCHEDULED 이후) 불가 */
-    public void cancel() {
+    /** 확정취소(삭제) 가능 검증. 검수가 시작되면(SCHEDULED 이후) 불가 — 삭제 자체는 서비스가 한다 */
+    public void requireRevertible() {
         if (status != IbStatus.SCHEDULED) {
             throw new IllegalStateException("검수가 시작된 입고는 취소할 수 없습니다: " + ibNo);
         }
-        this.status = IbStatus.CANCELLED;
     }
 
     /** 검수 가능 상태 검증 + 첫 검수 시 SCHEDULED → RECEIVING 전이 */
