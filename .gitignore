@@ -34,3 +34,7 @@ build/
 
 ### Local secrets ###
 application-local.properties
+
+### Claude Code ###
+.claude/settings.local.json
+.claude/worktrees/
