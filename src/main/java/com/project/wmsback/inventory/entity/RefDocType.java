@@ -10,7 +10,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum RefDocType {
     INBOUND("입고 문서"),
-    OUTBOUND("출고 문서");
+    OUTBOUND("출고 문서"),
+    INV_MOV("이동지시");
 
     private final String label;
 }

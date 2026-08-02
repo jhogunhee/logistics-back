@@ -51,7 +51,11 @@ public class Inv extends BaseEntity {
     @Column(name = "on_hand_qty", nullable = false)
     private Long onHandQty;
 
-    /** 할당(예약) 수량. 물리 이동이 아니므로 이력에 기록하지 않음 */
+    /**
+     * 예약 수량 — 출고 할당 전용이 아니라 예약수량 일반. 출고 할당(outb_alloc)과 이동지시(inv_mov_task)가
+     * 같은 컬럼으로 선점하고, 실행(피킹/이동확정)이 onHand와 함께 소진한다. 물리 이동이 아니므로 이력에 기록하지 않음.
+     * 항등식: alocQty = 원천별 미소진 잔량 합 (대사 대상).
+     */
     @Column(name = "aloc_qty", nullable = false)
     private Long alocQty;
 
@@ -82,5 +86,15 @@ public class Inv extends BaseEntity {
     /** 물리 감소 (이동 출/검수 취소). 반드시 InvHist 기록과 한 트랜잭션에서 호출한다 */
     public void decreaseOnHand(long qty) {
         this.onHandQty -= qty;
+    }
+
+    /** 예약 (이동지시 등록/출고 할당). 가용재고 검증 후 호출한다 — ck_inv_qty(aloc<=onHand)가 최후 방어 */
+    public void reserve(long qty) {
+        this.alocQty += qty;
+    }
+
+    /** 예약 해제/소진 (지시 취소·이동확정, 할당 해제·피킹) */
+    public void release(long qty) {
+        this.alocQty -= qty;
     }
 }

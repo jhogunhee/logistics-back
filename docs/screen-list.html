@@ -195,9 +195,9 @@
 </tr>
 <tr>
   <td class="name">재고 이동</td>
-  <td>보관 ↔ 보관 수동 MOVE (온도대 제약 검증 포함)</td>
-  <td class="st"><span class="badge hold">보류</span></td>
-  <td>우선순위 낮음</td>
+  <td>보관 ↔ 보관 이동을 <strong>2단계(지시=예약 → 확정=실물 MOVE)</strong>로 처리. <strong>메뉴는 하나, 화면 안 탭 2개</strong> — ① <strong>이동지시등록</strong>: 현재고에서 대상 선택 → TO·수량 담기 → 일괄 등록 시 <code>inv.aloc_qty</code> 선점(예약 — <code>aloc_qty</code>는 예약수량 일반), 온도대·적재가능수량(<code>max_qty − 현재고 − 미완료 지시 유입 잔량</code>) 검증. ② <strong>이동지시 관리</strong>: 지시 목록, <strong>확정</strong>(부분 허용 — <code>inv_hist</code> MOVE 2행 + 예약 소진, 전량 시 DONE), <strong>취소</strong>(잔량 예약 해제 — 실적 없으면 CANCELLED, 부분확정 후면 지시수량 차감 후 DONE). <strong>확정·취소는 이동구분(<code>mov_dvsn</code>)이 재고이동(INV_MOV)인 지시만</strong> — 적치·피킹 유형은 각자의 화면 전용. 실적 테이블 없음 — 실적 조회는 재고 이력 조회로 수렴. 상세: <code>docs/sg/wms-st-화면프로세스정의서.md</code> 4절</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>POST·GET /inventory/moves</code><br><code>POST /inventory/moves/{id}/confirm</code><br><code>POST /inventory/moves/{id}/cancel</code></td>
 </tr>
 </tbody>
 </table>
@@ -345,7 +345,7 @@
 <tr><td>재고 이력 조회</td><td><code>/stock/history</code></td><td><code>pages/stock/InvHistory.jsx</code></td></tr>
 <tr><td>재고 속성변경</td><td><code>/stock/attribute</code></td><td>Placeholder</td></tr>
 <tr><td>재고 보류</td><td><code>/stock/hold</code></td><td>Placeholder</td></tr>
-<tr><td>재고 이동</td><td><code>/stock/move</code></td><td>Placeholder — 기존 "이동/조정"에서 개명</td></tr>
+<tr><td>재고 이동</td><td><code>/stock/move</code></td><td><code>pages/stock/StockMove.jsx</code> — 탭 2개(이동지시등록 <code>StockMoveOrder.jsx</code> / 이동지시 관리 <code>StockMoveTaskList.jsx</code>)</td></tr>
 <tr><td>재고조사</td><td><code>/stock/count</code></td><td>Placeholder</td></tr>
 
 <tr><td class="name" rowspan="5">출고</td><td>웨이브 편성</td><td><code>/outbound/wave</code></td><td>Placeholder — API는 있음</td></tr>
