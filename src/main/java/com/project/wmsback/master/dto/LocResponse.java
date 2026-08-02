@@ -16,6 +16,7 @@ public class LocResponse {
     private final TempZone tmpZon;
     private final LocType locTyp;
     private final Integer pikngPrty;
+    private final Integer ptawyPrty;
     private final String createdBy;
     private final LocalDateTime createdAt;
     private final String updatedBy;
@@ -28,6 +29,7 @@ public class LocResponse {
         this.tmpZon = loc.getTmpZon();
         this.locTyp = loc.getLocTyp();
         this.pikngPrty = loc.getPikngPrty();
+        this.ptawyPrty = loc.getPtawyPrty();
         this.createdBy = loc.getCreatedBy();
         this.createdAt = loc.getCreatedAt();
         this.updatedBy = loc.getUpdatedBy();

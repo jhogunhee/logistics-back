@@ -60,6 +60,7 @@ public class LocService {
                 .tmpZon(row.getTmpZon())
                 .locTyp(row.getLocTyp())
                 .pikngPrty(row.getPikngPrty())
+                .ptawyPrty(row.getPtawyPrty())
                 .build());
     }
 
@@ -67,7 +68,8 @@ public class LocService {
         Loc loc = locRepository.findById(row.getLocId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 로케이션입니다: " + row.getLocId()));
         loc.update(row.getZonCd(), row.getTmpZon(), row.getLocTyp(),
-                row.getPikngPrty() != null ? row.getPikngPrty() : 0);
+                row.getPikngPrty() != null ? row.getPikngPrty() : 0,
+                row.getPtawyPrty() != null ? row.getPtawyPrty() : 0);
     }
 
     private void delete(LocSaveRequest row) {
@@ -101,6 +103,9 @@ public class LocService {
         }
         if (row.getPikngPrty() != null && row.getPikngPrty() < 0) {
             throw new IllegalArgumentException("피킹 우선순위는 0 이상이어야 합니다: " + row.getLocCd());
+        }
+        if (row.getPtawyPrty() != null && row.getPtawyPrty() < 0) {
+            throw new IllegalArgumentException("적치 우선순위는 0 이상이어야 합니다: " + row.getLocCd());
         }
     }
 }

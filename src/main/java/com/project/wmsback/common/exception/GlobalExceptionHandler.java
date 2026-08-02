@@ -1,5 +1,6 @@
 package com.project.wmsback.common.exception;
 
+import com.project.wmsback.strategy.inspection.exception.InspectionViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -22,6 +23,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(e.getStatusCode())
                 .body(Map.of("message", e.getReason() != null ? e.getReason() : e.getMessage()));
+    }
+
+    /** 검수 제약 위반 — 메시지에 더해 라인·규칙 단위 위반 목록을 실어 화면이 인라인 표시한다 */
+    @ExceptionHandler(InspectionViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleInspectionViolationException(InspectionViolationException e) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("message", e.getMessage(), "violations", e.getViolations()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

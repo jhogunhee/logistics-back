@@ -19,6 +19,7 @@ import com.project.wmsback.master.entity.Prod;
 import com.project.wmsback.master.repository.LocRepository;
 import com.project.wmsback.master.repository.LotRepository;
 import com.project.wmsback.master.repository.ProdRepository;
+import com.project.wmsback.strategy.inspection.service.InspectionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,6 +50,7 @@ public class ReceivingService {
     private final InvRepository invRepository;
     private final InvHistRepository invHistRepository;
     private final ProdRepository prodRepository;
+    private final InspectionService inspectionService;
 
     /** 검수 저장 (증분). 요청 라인 중 한 건이라도 실패하면 전체 롤백 */
     @Transactional
@@ -58,6 +60,11 @@ public class ReceivingService {
         }
         IbOrder order = ibOrderRepository.findById(ibOrderId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고예정입니다: " + ibOrderId));
+
+        // 검수 제약 (전략): 위반이 하나라도 있으면 예외로 저장 전체 거부 — 전 위반을 한 번에 반환.
+        // 실행 로그는 REQUIRES_NEW라 이 트랜잭션이 롤백돼도 남는다 (docs/st/전략_프로세스정의서.md §2)
+        inspectionService.checkReceive(order, req.getLines());
+
         order.startReceiving();
 
         Loc staging = locRepository.findByLocCd(STAGING_LOC_CD)

@@ -4,7 +4,7 @@
 
 DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있다. 필드와 컬럼이 1:1로 붙어 있는 구조라 두 사전이 겹치는 자리가 생기는데, 어긋나는 항목은 아래 「이미 쓰고 있는 이름과 어긋나는 곳」에 모아뒀다.
 
-220개 단어이며 한글·약어 모두 중복이 없다.
+235개 단어이며 한글·약어 모두 중복이 없다. (2026-08-02 전략 시스템 설계에서 15개 추가 — `docs/st/전략_테이블설계안.md` §7)
 
 ## 이름 만드는 규칙
 
@@ -41,6 +41,8 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 가용 | `AVAL` | Available |
 | 값 | `VAL` | Value |
 | 거래처 | `VNDR` | Vendor |
+| 검수 | `INSP` | Inspection |
+| 결과 | `RSLT` | Result |
 | 결품 | `SHOTGE` | Shortage |
 | 경도 | `LNGT` | Longitude |
 | 경로 | `PTH` | Path |
@@ -53,6 +55,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 구분 | `DVSN` | Division |
 | 구분자 | `DLMT` | Delimiter |
 | 구성 | `CMPS` | Composition |
+| 구성요소 | `CMPNT` | Component |
 | 구역 | `ARA` | Area |
 | 국문 | `KOR` | Korean |
 | 권역 | `RGN` | Region |
@@ -89,6 +92,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 로그 | `LOG` | Log |
 | 로케이션 | `LOC` | Location |
 | 로트 | `LOT` | Lot |
+| 리비전 | `RVSN` | Revision |
 | 마감 | `CLOS` | Closing |
 | 마지막 | `LAST` | Last |
 | 매핑 | `MPP` | Mapping |
@@ -99,6 +103,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 바코드 | `BARCD` | Barcode |
 | 박스 | `BX` | Box |
 | 반품 | `RTNGS` | Returning Goods |
+| 방식 | `MTHD` | Method |
 | 배송 | `DLVR` | Delivery |
 | 배송처 | `DLADDR` | Delivery Address |
 | 번호 | `NO` | Number Order |
@@ -111,6 +116,8 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 부자재 | `SSMTRL` | Subsidiary materials |
 | 부피 | `VOL` | Volume |
 | 분류 | `CLS` | Classification |
+| 분배 | `DSTRB` | Distribute |
+| 분할 | `SPLT` | Split |
 | 비고 | `RMK` | Remark |
 | 비교 | `CMPR` | Compare |
 | 비밀번호 | `PWD` | Password |
@@ -139,10 +146,13 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 수정자 | `UPDR` | Updater |
 | 순서 | `SEQ` | Sequence |
 | 순위 | `RNK` | Rank |
+| 스냅샷 | `SNPSHT` | Snapshot |
+| 슬롯 | `SLOT` | Slot |
 | 시스템 | `SYS` | System |
 | 시작 | `STRT` | Start |
 | 실적 | `ACRST` | Actual Result |
 | 실패 | `FAIL` | Failure |
+| 실행 | `EXEC` | Execution |
 | 암호화 | `ENCR` | Encryption |
 | 앞 | `FNT` | Front |
 | 약어 | `ABRV` | Abbreviation |
@@ -159,6 +169,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 오류 | `ERR` | Error |
 | 온도 | `TMP` | Temperature |
 | 완료 | `CMPL` | Completion |
+| 요약 | `SMRY` | Summary |
 | 요청 | `REQ` | Request |
 | 용적 | `CPCT` | Capacity |
 | 우선 | `PRTY` | Priority |
@@ -200,6 +211,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 정보 | `INF` | Information |
 | 정산 | `EXCAL` | Exact Calculation |
 | 정의 | `DEF` | Definition |
+| 정책 | `PLCY` | Policy |
 | 제약 | `RSTRCT` | Restriction |
 | 조건 | `COND` | Condition |
 | 조정 | `ADJ` | Adjustment |
@@ -223,6 +235,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 총 | `TOT` | The Total |
 | 최대 | `MAX` | Maximum |
 | 최소 | `MIN` | Minimum |
+| 추적 | `TRC` | Trace |
 | 출고 | `OUTB` | Outbound |
 | 출고처 | `OUTBPLC` | Outbound Place |
 | 출하 | `SHMT` | Shipment |
@@ -232,7 +245,9 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 키 | `KY` | Key |
 | 통합 | `INTG` | Integration |
 | 툴팁 | `TLTP` | Tooltip |
+| 트리거 | `TRGR` | Trigger |
 | 파라미터 | `PARA` | Parameter |
+| 판정 | `DCSN` | Decision |
 | 팝업 | `PPUP` | Popup |
 | 패턴 | `PTRN` | Pattern |
 | 팩스 | `FAX` | Fax |
@@ -299,6 +314,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | `CLOS` | 마감 | Closing |
 | `CLS` | 분류 | Classification |
 | `CMPL` | 완료 | Completion |
+| `CMPNT` | 구성요소 | Component |
 | `CMPR` | 비교 | Compare |
 | `CMPS` | 구성 | Composition |
 | `CNCL` | 취소 | Cancellation |
@@ -317,6 +333,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | `CRTR` | 기준 | Criteria |
 | `CUST` | 고객 | Customer |
 | `DAT` | 데이터 | Data |
+| `DCSN` | 판정 | Decision |
 | `DE` | 일자 | Date |
 | `DEF` | 정의 | Definition |
 | `DEPT` | 부서 | Department |
@@ -330,6 +347,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | `DRVR` | 기사 | Driver |
 | `DSCR` | 설명 | Description |
 | `DSTB` | 유통 | Distribution |
+| `DSTRB` | 분배 | Distribute |
 | `DT` | 일시 | Date And Time |
 | `DTL` | 상세 | Detail |
 | `DVSN` | 구분 | Division |
@@ -345,6 +363,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | `ETC` | 기타 | Etc |
 | `EXCAL` | 정산 | Exact Calculation |
 | `EXCP` | 예외 | Exception |
+| `EXEC` | 실행 | Execution |
 | `EXPCT` | 예정 | Expectation |
 | `FAIL` | 실패 | Failure |
 | `FAX` | 팩스 | Fax |
@@ -365,6 +384,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | `INF` | 정보 | Information |
 | `INQ` | 조회 | Inquiry |
 | `INS` | 입력 | Insert |
+| `INSP` | 검수 | Inspection |
 | `INTG` | 통합 | Integration |
 | `INVN` | 재고 | Inventory |
 | `KOR` | 국문 | Korean |
@@ -387,6 +407,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | `MOV` | 이동 | Move |
 | `MPP` | 매핑 | Mapping |
 | `MRK` | 표시 | Marking |
+| `MTHD` | 방식 | Method |
 | `MXLOD` | 혼적 | Mixed Loading |
 | `NBR` | 채번 | Numbering |
 | `NM` | 명 | Name |
@@ -404,6 +425,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | `PIKNG` | 피킹 | Picking |
 | `PKGNG` | 포장 | Packaging |
 | `PLC` | 처 | Place |
+| `PLCY` | 정책 | Policy |
 | `POST` | 우편 | Post |
 | `PPUP` | 팝업 | Popup |
 | `PR` | 당 | Per |
@@ -432,16 +454,22 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | `RMK` | 비고 | Remark |
 | `RNK` | 순위 | Rank |
 | `ROW` | 행 | Row |
+| `RSLT` | 결과 | Result |
 | `RSN` | 사유 | Reason |
 | `RSPS` | 응답 | Response |
 | `RSTRCT` | 제약 | Restriction |
 | `RTNGS` | 반품 | Returning Goods |
 | `RULE` | 규칙 | Rule |
+| `RVSN` | 리비전 | Revision |
 | `SEQ` | 순서 | Sequence |
 | `SHMT` | 출하 | Shipment |
 | `SHOTGE` | 결품 | Shortage |
+| `SLOT` | 슬롯 | Slot |
 | `SLP` | 전표 | Slip |
+| `SMRY` | 요약 | Summary |
 | `SN` | 일련번호 | Serial Number |
+| `SNPSHT` | 스냅샷 | Snapshot |
+| `SPLT` | 분할 | Split |
 | `SPMT` | 보충 | Supplement |
 | `SRT` | 정렬 | Sort |
 | `SSMTRL` | 부자재 | Subsidiary materials |
@@ -463,6 +491,8 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | `TMP` | 온도 | Temperature |
 | `TOT` | 총 | The Total |
 | `TPBIZ` | 업종 | Type Of Business |
+| `TRC` | 추적 | Trace |
+| `TRGR` | 트리거 | Trigger |
 | `TRM` | 기간 | Term |
 | `TRNS` | 전송 | Transmission |
 | `TRSCP` | 운송사 | A Transport(Shipping, Freight) Company |

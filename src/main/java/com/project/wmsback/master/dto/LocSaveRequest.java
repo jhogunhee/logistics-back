@@ -26,4 +26,5 @@ public class LocSaveRequest {
     private TempZone tmpZon;
     private LocType locTyp;
     private Integer pikngPrty;
+    private Integer ptawyPrty;
 }

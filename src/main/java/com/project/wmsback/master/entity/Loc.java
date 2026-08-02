@@ -50,19 +50,34 @@ public class Loc extends BaseEntity {
     @Column(name = "pikng_prty", nullable = false)
     private Integer pikngPrty;
 
+    /** 적치 우선순위. 적치 전략의 후보 정렬 기준(PTAWY_PRTY) — 낮을수록 먼저 배정 */
+    @Column(name = "ptawy_prty", nullable = false)
+    private Integer ptawyPrty;
+
+    /**
+     * 최대 적재 수량 (schema: STORAGE는 NOT NULL 강제 — ck_loc_storage_capacity).
+     * 읽기 전용 매핑이다 — 기존 저장 경로(LocService)가 이 컬럼을 다루지 않아 왔으므로
+     * insert/update 동작을 바꾸지 않는다. 적치 전략의 적재가능수량 계산에만 쓴다.
+     * 저장 화면에서 관리하게 되면 그때 쓰기 매핑으로 전환한다.
+     */
+    @Column(name = "max_qty", insertable = false, updatable = false)
+    private Long maxQty;
+
     @Builder
-    private Loc(String locCd, String zonCd, TempZone tmpZon, LocType locTyp, Integer pikngPrty) {
+    private Loc(String locCd, String zonCd, TempZone tmpZon, LocType locTyp, Integer pikngPrty, Integer ptawyPrty) {
         this.locCd = locCd;
         this.zonCd = zonCd;
         this.tmpZon = tmpZon;
         this.locTyp = locTyp;
         this.pikngPrty = pikngPrty != null ? pikngPrty : 0;
+        this.ptawyPrty = ptawyPrty != null ? ptawyPrty : 0;
     }
 
-    public void update(String zonCd, TempZone tmpZon, LocType locTyp, Integer pikngPrty) {
+    public void update(String zonCd, TempZone tmpZon, LocType locTyp, Integer pikngPrty, Integer ptawyPrty) {
         this.zonCd = zonCd;
         this.tmpZon = tmpZon;
         this.locTyp = locTyp;
         this.pikngPrty = pikngPrty;
+        this.ptawyPrty = ptawyPrty;
     }
 }
