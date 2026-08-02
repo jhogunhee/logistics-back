@@ -820,7 +820,7 @@ COMMENT ON COLUMN insp_plcy_rule.para    IS '규칙 파라미터. 저장 시 Par
 
 CREATE INDEX ix_insp_plcy_rule ON insp_plcy_rule (insp_plcy_id);
 
--- 적치 전략 헤더. 적치 추천 시 tgt_cond 매칭(빈 배열 = 전체) 후보 중 prty 최소 1건 선택.
+-- 적치 전략 헤더. 적치 추천 시 발주구분(odr_dvsn) 일치 전략 → 전체(NULL) 전략 순으로 선택 — 유형당 1개라 우선순위 컬럼이 없다.
 -- 재설계안의 분할정책 4필드 중 unt_splt_yn만 남긴 근거는 docs/st/전략_테이블설계안.md §3.4 —
 -- MAX 미설정 문제는 ck_loc_storage_capacity가, 점유 계산 방식은 loc.max_qty 주석의 불변식이 이미 해결.
 CREATE TABLE ptawy_stgy (

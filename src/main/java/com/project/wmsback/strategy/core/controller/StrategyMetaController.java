@@ -18,7 +18,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * 전략 편집 화면의 메타데이터. 프론트는 이 세 API만으로 모든 전략 편집 폼을 렌더링한다 —
+ * 전략 편집 화면의 메타데이터. 프론트는 이 API들만으로 모든 전략 편집 폼을 렌더링한다 —
  * 폼에 하드코딩된 선택지가 생기는 순간 P1(화면 옵션 = 구현된 실행기)이 깨진다.
  * 선택지의 원천은 각 도메인의 enum(InspectionRule·PutawayMethod·필드 enum)이다.
  */

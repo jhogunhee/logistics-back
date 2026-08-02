@@ -57,7 +57,7 @@ public class PtawyStgyStg extends BaseEntity {
     @Column(name = "line_cond", nullable = false)
     private List<FieldCondition> lineCond;
 
-    /** 후보 로케이션 범위 조건 (ZON·LOC_CD). 빈 목록 = 제한 없음 */
+    /** 적치위치 지정 (존 업무유형 IN 최대 1건 — PutawayLocField). 빈 목록 = 제한 없음 */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "loc_cond", nullable = false)
     private List<FieldCondition> locCond;
