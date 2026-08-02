@@ -151,6 +151,7 @@ public class OmsIbOrderService {
                 .omsIbOrderId(order.getId())
                 .vendor(order.getVendor())
                 .expctDe(order.getExpctDe())
+                .odrDvsn(order.getOdrDvsn())
                 .build();
         for (OmsIbLine line : order.getLines()) {
             // 발주 수량은 입고단위(벤더 납품 단위), ASN 이후의 모든 수량은 출고단위(재고 저장 단위)다.

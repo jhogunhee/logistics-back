@@ -61,9 +61,4 @@ public class InspPlcyController {
     public JsonNode revision(@PathVariable Long rvsnNo) {
         return inspPlcyService.revision(rvsnNo);
     }
-
-    @PostMapping("/revisions/{rvsnNo}/restore")
-    public InspPlcyResponse restore(@PathVariable Long rvsnNo) {
-        return inspPlcyService.restore(rvsnNo);
-    }
 }

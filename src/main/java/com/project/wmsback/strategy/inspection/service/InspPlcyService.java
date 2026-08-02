@@ -4,8 +4,6 @@ import com.project.wmsback.master.entity.Prod;
 import com.project.wmsback.master.repository.ProdRepository;
 import com.project.wmsback.strategy.core.dto.RvsnResponse;
 import com.project.wmsback.strategy.core.entity.StgyTyp;
-import com.project.wmsback.strategy.core.param.ParamValidator;
-import com.project.wmsback.strategy.core.registry.StrategyComponentRegistry;
 import com.project.wmsback.strategy.core.service.StgyRvsnService;
 import com.project.wmsback.strategy.inspection.dto.InspPlcyDefinition;
 import com.project.wmsback.strategy.inspection.dto.InspPlcyResponse;
@@ -38,7 +36,6 @@ public class InspPlcyService {
 
     private final InspPlcyRepository inspPlcyRepository;
     private final ProdRepository prodRepository;
-    private final StrategyComponentRegistry registry;
     private final StgyRvsnService stgyRvsnService;
     private final InspectionService inspectionService;
 
@@ -72,7 +69,7 @@ public class InspPlcyService {
         return InspPlcyResponse.from(plcy);
     }
 
-    /** 정책 삭제 (물리삭제 — D4). 리비전·실행 로그는 남는다 */
+    /** 정책 삭제 (물리삭제). 리비전·실행 로그는 감사용으로 남는다 (조회 전용 — 복원 흐름 없음) */
     @Transactional
     public void delete() {
         inspPlcyRepository.delete(loadPolicy());
@@ -98,42 +95,15 @@ public class InspPlcyService {
         return new InspPreviewResponse(results);
     }
 
-    /**
-     * 이력·복원의 기준 stgy_id. 정책이 살아 있으면 그 id, 삭제됐으면 stgy_rvsn에 남은
-     * 가장 최근 정책의 id — 삭제 후에도 이력 조회·복원이 가능해야 한다 (D4의 안전망).
-     * 여러 번 삭제·재생성했다면 마지막 정책의 이력을 가리킨다.
-     */
-    private java.util.Optional<Long> anchorStgyId() {
-        return inspPlcyRepository.findFirstByOrderByIdAsc().map(InspPlcy::getId)
-                .or(() -> stgyRvsnService.latestPerStrategy(StgyTyp.INSP).stream()
-                        .findFirst().map(r -> r.getStgyId()));
-    }
-
+    /** 현재 정책의 리비전 이력 — 정책이 없으면(삭제 포함) 빈 목록 */
     public List<RvsnResponse> revisions() {
-        return anchorStgyId()
-                .map(id -> stgyRvsnService.list(StgyTyp.INSP, id))
+        return inspPlcyRepository.findFirstByOrderByIdAsc()
+                .map(plcy -> stgyRvsnService.list(StgyTyp.INSP, plcy.getId()))
                 .orElseGet(List::of);
     }
 
     public JsonNode revision(Long rvsnNo) {
-        Long anchor = anchorStgyId()
-                .orElseThrow(() -> new IllegalArgumentException("리비전 이력이 없습니다."));
-        return stgyRvsnService.snapshotTree(StgyTyp.INSP, anchor, rvsnNo);
-    }
-
-    /**
-     * 복원 = 스냅샷을 새 저장으로 재생 (검증 포함, 리비전은 앞으로만 증가).
-     * 정책이 삭제된 상태면 스냅샷으로 새 정책을 생성한다 (프로세스정의서 §4.3).
-     */
-    @Transactional
-    public InspPlcyResponse restore(Long rvsnNo) {
-        Long anchor = anchorStgyId()
-                .orElseThrow(() -> new IllegalArgumentException("리비전 이력이 없습니다."));
-        InspPlcyDefinition snapshot = stgyRvsnService.snapshotAs(
-                StgyTyp.INSP, anchor, rvsnNo, InspPlcyDefinition.class);
-        return inspPlcyRepository.findFirstByOrderByIdAsc().isPresent()
-                ? update(snapshot)
-                : create(snapshot);
+        return stgyRvsnService.snapshotTree(StgyTyp.INSP, loadPolicy().getId(), rvsnNo);
     }
 
     private InspPlcy loadPolicy() {
@@ -142,8 +112,8 @@ public class InspPlcyService {
     }
 
     /**
-     * 저장 검증 (P2): 정책명 필수, rule_cd 레지스트리 실존 + deprecated 금지 + 중복 금지,
-     * 파라미터는 ParamSpec 스키마로 검증·정규화.
+     * 저장 검증 (P2): 정책명 필수, rule_cd 실존(InspectionRule enum) + deprecated 금지 + 중복 금지,
+     * 파라미터는 규칙별 validatePara로 검증·정규화.
      */
     private InspPlcyDefinition validate(InspPlcyDefinition definition) {
         if (definition.stgyNm() == null || definition.stgyNm().isBlank()) {
@@ -154,16 +124,15 @@ public class InspPlcyService {
         List<InspPlcyDefinition.RuleDef> normalized = new ArrayList<>();
         int seq = 0;
         for (InspPlcyDefinition.RuleDef def : rules) {
-            InspectionRule rule = registry.find(InspectionRule.class, def.ruleCd())
+            InspectionRule rule = InspectionRule.find(def.ruleCd())
                     .orElseThrow(() -> new IllegalArgumentException("없는 검수 규칙입니다: " + def.ruleCd()));
-            if (rule.descriptor().deprecated()) {
-                throw new IllegalArgumentException("은퇴한 규칙은 새로 등록할 수 없습니다: " + rule.descriptor().name());
+            if (rule.deprecated()) {
+                throw new IllegalArgumentException("은퇴한 규칙은 새로 등록할 수 없습니다: " + rule.label());
             }
             if (!seen.add(def.ruleCd())) {
-                throw new IllegalArgumentException("같은 규칙을 두 번 등록할 수 없습니다: " + rule.descriptor().name());
+                throw new IllegalArgumentException("같은 규칙을 두 번 등록할 수 없습니다: " + rule.label());
             }
-            Map<String, Object> para = ParamValidator.validate(
-                    rule.descriptor().name(), rule.descriptor().params(), def.para());
+            Map<String, Object> para = rule.validatePara(def.para());
             normalized.add(new InspPlcyDefinition.RuleDef(
                     def.srtSeq() != null ? def.srtSeq() : seq, def.ruleCd(), para));
             seq++;

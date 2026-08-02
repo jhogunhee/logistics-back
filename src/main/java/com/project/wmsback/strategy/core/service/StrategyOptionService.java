@@ -5,7 +5,6 @@ import com.project.wmsback.master.entity.TempZone;
 import com.project.wmsback.master.repository.CodeDetailRepository;
 import com.project.wmsback.master.repository.ProdRepository;
 import com.project.wmsback.master.repository.VendorRepository;
-import com.project.wmsback.master.repository.ZonRepository;
 import com.project.wmsback.strategy.core.dto.OptionResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -15,15 +14,14 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * 조건값·파라미터의 동적 선택지 (optionSource → 기준정보 조회).
- * 소스 이름은 ConditionField·ParamSpec의 optionSource와 일치해야 한다.
+ * 조건값·지정값의 동적 선택지 (optionSource → 기준정보 조회).
+ * 소스 이름은 ConditionField의 optionSource와 일치해야 한다.
  */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class StrategyOptionService {
 
-    private final ZonRepository zonRepository;
     private final VendorRepository vendorRepository;
     private final ProdRepository prodRepository;
     private final CodeDetailRepository codeDetailRepository;
@@ -34,8 +32,10 @@ public class StrategyOptionService {
                     .map(z -> new OptionResponse(z.name(), z.getLabel())).toList();
             case "bizDvsns" -> Arrays.stream(BizDvsn.values())
                     .map(b -> new OptionResponse(b.name(), b.getLabel())).toList();
-            case "zones" -> zonRepository.findAll().stream()
-                    .map(z -> new OptionResponse(z.getZonCd(), z.getZonNm())).toList();
+            // 적치 전략 적용대상. 반품(RTNGS)은 스코프 아웃이라 제외 — 재도입 시 필터만 풀면 된다
+            case "odrDvsns" -> codeDetailRepository.findByGrpCdOrderBySrtSeq("ODR_DVSN").stream()
+                    .filter(c -> !"RTNGS".equals(c.getCodeCd()))
+                    .map(c -> new OptionResponse(c.getCodeCd(), c.getCodeNm())).toList();
             case "vendors" -> vendorRepository.findAll().stream()
                     .map(v -> new OptionResponse(v.getVndrCd(), v.getVndrNm())).toList();
             case "prods" -> prodRepository.findAll().stream()

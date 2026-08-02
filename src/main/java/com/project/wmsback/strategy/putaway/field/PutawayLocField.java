@@ -6,34 +6,26 @@ import com.project.wmsback.strategy.putaway.method.PutawayMethodContext;
 
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static com.project.wmsback.strategy.core.condition.ConditionOperator.EQ;
-import static com.project.wmsback.strategy.core.condition.ConditionOperator.IN;
-import static com.project.wmsback.strategy.core.condition.ConditionOperator.LIKE;
-import static com.project.wmsback.strategy.core.condition.ConditionOperator.NE;
-import static com.project.wmsback.strategy.core.condition.ConditionOperator.NOT_IN;
-
 /**
- * 적치 단계의 로케이션 범위 조건 필드 (meta 도메인 "putaway-loc"). 판정 대상은 후보 조회가
- * 만든 LocStock — 존 업무유형처럼 로케이션 밖(존)에 있는 속성도 조회 시 함께 실어 온다.
- * 온도대·STORAGE는 여기 없다 — 조건이 아니라 모든 단계의 불변 전제(후보 모집 시 강제)다.
+ * 적치위치 지정 필드 (meta 도메인 "putaway-loc"). 조건이 아니라 적용기준값 지정이라
+ * 필드는 존 업무유형 하나, 연산자는 IN 하나다 — 화면은 업무유형 멀티선택만 보여준다.
+ * (존·로케이션코드 기준은 2026-08-03 제거 — 위치 지정은 업무유형 단위로만 한다.)
+ * 온도대·STORAGE는 여기 없다 — 지정이 아니라 모든 단계의 불변 전제(후보 모집 시 강제)다.
  */
 public enum PutawayLocField implements ConditionField<PutawayMethodContext.LocStock> {
 
-    ZON("존", Set.of(EQ, NE, IN, NOT_IN), "zones", ls -> ls.loc().getZonCd()),
-    LOC_CD("로케이션코드", Set.of(EQ, NE, IN, NOT_IN, LIKE), null, ls -> ls.loc().getLocCd()),
-    /** 존 업무유형 (zon.biz_dvsn — 보관 STRG/피킹 PIKNG …). 레거시 "로케이션 유형(보관/피킹)" 조건의 대응 */
-    BIZ_DVSN("존 업무유형", Set.of(EQ, NE, IN, NOT_IN), "bizDvsns", PutawayMethodContext.LocStock::bizDvsn);
+    /** 존 업무유형 (zon.biz_dvsn — 보관 STRG/피킹 PIKNG …). 존 미등록 로케이션은 지정 시 후보 제외 */
+    BIZ_DVSN("존 업무유형", Set.of(ConditionOperator.IN), "bizDvsns", PutawayMethodContext.LocStock::bizDvsn);
 
     private final String label;
     private final Set<ConditionOperator> allowedOps;
     private final String optionSource;
-    private final Function<PutawayMethodContext.LocStock, String> extractor;
+    private final java.util.function.Function<PutawayMethodContext.LocStock, String> extractor;
 
     PutawayLocField(String label, Set<ConditionOperator> allowedOps, String optionSource,
-                    Function<PutawayMethodContext.LocStock, String> extractor) {
+                    java.util.function.Function<PutawayMethodContext.LocStock, String> extractor) {
         this.label = label;
         this.allowedOps = allowedOps;
         this.optionSource = optionSource;

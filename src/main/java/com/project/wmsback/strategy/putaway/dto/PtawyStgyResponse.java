@@ -1,6 +1,5 @@
 package com.project.wmsback.strategy.putaway.dto;
 
-import com.project.wmsback.strategy.core.condition.FieldCondition;
 import com.project.wmsback.strategy.core.condition.SortCriterion;
 import com.project.wmsback.strategy.putaway.entity.PtawyStgy;
 
@@ -10,17 +9,16 @@ import java.util.List;
 public record PtawyStgyResponse(
         Long ptawyStgyId,
         String stgyNm,
-        Integer prty,
+        String odrDvsn,
         Boolean untSpltYn,
-        List<FieldCondition> tgtCond,
         List<SortCriterion> locSrt,
         List<PtawyStgyDefinition.StageDef> stages,
         Long lastRvsnNo
 ) {
 
     public static PtawyStgyResponse from(PtawyStgy stgy) {
-        return new PtawyStgyResponse(stgy.getId(), stgy.getStgyNm(), stgy.getPrty(), stgy.getUntSpltYn(),
-                stgy.getTgtCond(), stgy.getLocSrt(),
+        return new PtawyStgyResponse(stgy.getId(), stgy.getStgyNm(), stgy.getOdrDvsn(), stgy.getUntSpltYn(),
+                stgy.getLocSrt(),
                 stgy.getStages().stream()
                         .map(s -> new PtawyStgyDefinition.StageDef(s.getSrtSeq(), s.getMthdCd(),
                                 s.getMthdPara(), s.getLineCond(), s.getLocCond()))
@@ -29,6 +27,6 @@ public record PtawyStgyResponse(
     }
 
     public PtawyStgyDefinition toDefinition() {
-        return new PtawyStgyDefinition(stgyNm, prty, untSpltYn, tgtCond, locSrt, stages);
+        return new PtawyStgyDefinition(stgyNm, odrDvsn, untSpltYn, locSrt, stages);
     }
 }

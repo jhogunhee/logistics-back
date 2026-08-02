@@ -14,7 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 /**
- * 리비전 스냅샷 기록·조회. 스냅샷 쓰기는 전략 저장과 같은 트랜잭션이다 —
+ * 리비전 스냅샷 기록·조회 (조회 전용 감사 이력 — 복원 흐름은 없다).
+ * 스냅샷 쓰기는 전략 저장과 같은 트랜잭션이다 —
  * 저장은 됐는데 리비전이 없는 상태를 만들지 않는다.
  */
 @Service
@@ -46,27 +47,6 @@ public class StgyRvsnService {
         StgyRvsn rvsn = stgyRvsnRepository.findByStgyTypAndStgyIdAndRvsnNo(stgyTyp, stgyId, rvsnNo)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 리비전입니다: " + rvsnNo));
         return readTree(rvsn.getSnpsht());
-    }
-
-    /** 유형별 전략마다 최신 리비전 1행 — 삭제된 전략의 이력/복원 진입점 (D4) */
-    public List<StgyRvsn> latestPerStrategy(StgyTyp stgyTyp) {
-        return stgyRvsnRepository.findLatestPerStrategy(stgyTyp);
-    }
-
-    /** 스냅샷에서 전략명만 추출 (삭제된 전략 목록 표시용) */
-    public String snapshotName(StgyRvsn rvsn) {
-        return readTree(rvsn.getSnpsht()).path("stgyNm").asText("(이름 없음)");
-    }
-
-    /** 복원용 — 스냅샷을 정의 DTO로 역직렬화 */
-    public <T> T snapshotAs(StgyTyp stgyTyp, Long stgyId, Long rvsnNo, Class<T> type) {
-        StgyRvsn rvsn = stgyRvsnRepository.findByStgyTypAndStgyIdAndRvsnNo(stgyTyp, stgyId, rvsnNo)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 리비전입니다: " + rvsnNo));
-        try {
-            return objectMapper.readValue(rvsn.getSnpsht(), type);
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("리비전 스냅샷을 읽을 수 없습니다: " + rvsnNo, e);
-        }
     }
 
     private String toJson(Object definition) {

@@ -7,8 +7,6 @@ import com.project.wmsback.inbound.repository.IbLineRepository;
 import com.project.wmsback.master.entity.Prod;
 import com.project.wmsback.strategy.core.entity.StgyTyp;
 import com.project.wmsback.strategy.core.entity.TrgrTyp;
-import com.project.wmsback.strategy.core.param.ParamValues;
-import com.project.wmsback.strategy.core.registry.StrategyComponentRegistry;
 import com.project.wmsback.strategy.core.service.StgyExecLogService;
 import com.project.wmsback.strategy.inspection.dto.InspPlcyDefinition;
 import com.project.wmsback.strategy.inspection.dto.InspRuleResult;
@@ -43,7 +41,6 @@ public class InspectionService {
     private final InspPlcyRepository inspPlcyRepository;
     private final IbLineRepository ibLineRepository;
     private final InspectionQueryRepository inspectionQueryRepository;
-    private final StrategyComponentRegistry registry;
     private final StgyExecLogService stgyExecLogService;
 
     /**
@@ -102,15 +99,15 @@ public class InspectionService {
         InspectionContext ctx = new InspectionContext(prod, receiptDt, mfgDt, inspectionQueryRepository);
         List<InspRuleResult> results = new ArrayList<>();
         for (InspPlcyDefinition.RuleDef def : ruleDefs) {
-            InspectionRule rule = registry.get(InspectionRule.class, def.ruleCd());
-            String ruleName = rule.descriptor().name();
+            InspectionRule rule = InspectionRule.of(def.ruleCd());
+            String ruleName = rule.label();
 
             Optional<String> skip = rule.skipReason(ctx);
             if (skip.isPresent()) {
                 results.add(InspRuleResult.skip(def.ruleCd(), ruleName, skip.get()));
                 continue;
             }
-            Optional<Violation> violation = rule.check(ctx, new ParamValues(def.para()));
+            Optional<Violation> violation = rule.check(ctx, def.para());
             results.add(violation
                     .map(v -> InspRuleResult.violation(def.ruleCd(), ruleName, v.message(), v.actual(), v.expected()))
                     .orElseGet(() -> InspRuleResult.pass(def.ruleCd(), ruleName)));

@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.project.wmsback.strategy.core.dto.RvsnResponse;
 import com.project.wmsback.strategy.putaway.dto.PtawyPreviewRequest;
 import com.project.wmsback.strategy.putaway.dto.PtawyStgyDefinition;
-import com.project.wmsback.strategy.putaway.dto.PtawyStgyDeletedResponse;
 import com.project.wmsback.strategy.putaway.dto.PtawyStgyResponse;
 import com.project.wmsback.strategy.putaway.dto.PtawyStgySummaryResponse;
 import com.project.wmsback.strategy.putaway.dto.PutawayRecommendResponse;
@@ -39,12 +38,6 @@ public class PtawyStgyController {
     @PostMapping
     public PtawyStgyResponse create(@RequestBody PtawyStgyDefinition definition) {
         return ptawyStgyService.create(definition);
-    }
-
-    /** 삭제된 전략 목록 (stgy_rvsn에만 남은 것) — 복원 진입점. /{id}보다 리터럴 경로가 우선 매칭된다 */
-    @GetMapping("/deleted")
-    public List<PtawyStgyDeletedResponse> deleted() {
-        return ptawyStgyService.deleted();
     }
 
     @GetMapping("/{id}")
@@ -87,10 +80,5 @@ public class PtawyStgyController {
     @GetMapping("/{id}/revisions/{rvsnNo}")
     public JsonNode revision(@PathVariable Long id, @PathVariable Long rvsnNo) {
         return ptawyStgyService.revision(id, rvsnNo);
-    }
-
-    @PostMapping("/{id}/revisions/{rvsnNo}/restore")
-    public PtawyStgyResponse restore(@PathVariable Long id, @PathVariable Long rvsnNo) {
-        return ptawyStgyService.restore(id, rvsnNo);
     }
 }

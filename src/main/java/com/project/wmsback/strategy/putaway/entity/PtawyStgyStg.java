@@ -44,7 +44,7 @@ public class PtawyStgyStg extends BaseEntity {
     @Column(name = "srt_seq", nullable = false)
     private Integer srtSeq;
 
-    /** 추천 방식 code (PutawayMethod 레지스트리 — 1차: SAME_PROD_LOC / EMPTY_LOC / ANY_LOC) */
+    /** 추천 방식 code (PutawayMethod enum name — 1차: SAME_PROD_LOC / EMPTY_LOC / ANY_LOC) */
     @Column(name = "mthd_cd", nullable = false, length = 30)
     private String mthdCd;
 

@@ -2,14 +2,13 @@ package com.project.wmsback.strategy.putaway.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.project.wmsback.strategy.core.condition.ConditionEvaluator;
+import com.project.wmsback.strategy.core.condition.ConditionOperator;
+import com.project.wmsback.strategy.core.condition.FieldCondition;
 import com.project.wmsback.strategy.core.condition.SortCriterion;
 import com.project.wmsback.strategy.core.dto.RvsnResponse;
 import com.project.wmsback.strategy.core.entity.StgyTyp;
-import com.project.wmsback.strategy.core.param.ParamValidator;
-import com.project.wmsback.strategy.core.registry.StrategyComponentRegistry;
 import com.project.wmsback.strategy.core.service.StgyRvsnService;
 import com.project.wmsback.strategy.putaway.dto.PtawyStgyDefinition;
-import com.project.wmsback.strategy.putaway.dto.PtawyStgyDeletedResponse;
 import com.project.wmsback.strategy.putaway.dto.PtawyStgyResponse;
 import com.project.wmsback.strategy.putaway.dto.PtawyStgySummaryResponse;
 import com.project.wmsback.strategy.putaway.entity.PtawyStgy;
@@ -26,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /** 적치 전략 관리 (CRUD·리비전). 저장 검증이 P2의 관문 — 실행 불가 정의는 저장되지 않는다 */
@@ -35,13 +35,15 @@ import java.util.Set;
 public class PtawyStgyService {
 
     private static final Set<String> SORT_FIELDS = Set.of("PIKNG_PRTY", "PTAWY_PRTY", "LOC_CD");
+    /** 적용대상 선택지 — 반품(RTNGS)은 스코프 아웃이라 제외. 재도입 시 여기와 옵션 소스에 추가 */
+    private static final Set<String> ODR_DVSNS = Set.of("NRML", "URGT");
 
     private final PtawyStgyRepository ptawyStgyRepository;
-    private final StrategyComponentRegistry registry;
     private final StgyRvsnService stgyRvsnService;
 
     public List<PtawyStgySummaryResponse> list() {
-        return ptawyStgyRepository.findAll(Sort.by("prty", "id")).stream()
+        // 전체(null) 먼저, 그 다음 유형 코드순 — 선택 규칙(유형 → 전체)과 무관한 표시 순서일 뿐
+        return ptawyStgyRepository.findAll(Sort.by("odrDvsn", "id")).stream()
                 .map(PtawyStgySummaryResponse::from)
                 .toList();
     }
@@ -53,10 +55,10 @@ public class PtawyStgyService {
     @Transactional
     public PtawyStgyResponse create(PtawyStgyDefinition definition) {
         PtawyStgyDefinition normalized = validate(definition);
+        requireVacant(normalized.odrDvsn(), null);
         PtawyStgy stgy = PtawyStgy.builder()
                 .stgyNm(normalized.stgyNm())
-                .prty(normalized.prty())
-                .tgtCond(normalized.tgtCond())
+                .odrDvsn(normalized.odrDvsn())
                 .untSpltYn(normalized.untSpltYn())
                 .locSrt(normalized.locSrt())
                 .build();
@@ -70,19 +72,19 @@ public class PtawyStgyService {
     public PtawyStgyResponse update(Long id, PtawyStgyDefinition definition) {
         PtawyStgy stgy = load(id);
         PtawyStgyDefinition normalized = validate(definition);
-        long rvsnNo = stgy.applyDefinition(normalized.stgyNm(), normalized.prty(), normalized.tgtCond(),
+        requireVacant(normalized.odrDvsn(), id);
+        long rvsnNo = stgy.applyDefinition(normalized.stgyNm(), normalized.odrDvsn(),
                 normalized.untSpltYn(), normalized.locSrt(), toStages(normalized));
         stgyRvsnService.snapshot(StgyTyp.PTAWY, stgy.getId(), rvsnNo, normalized);
         return PtawyStgyResponse.from(stgy);
     }
 
-    /** 물리삭제 (D4). 리비전·실행 로그는 남아 복원·감사가 가능하다 */
+    /** 물리삭제. 리비전·실행 로그는 감사용으로 남는다 (조회 전용 — 복원 흐름 없음) */
     @Transactional
     public void delete(Long id) {
         ptawyStgyRepository.delete(load(id));
     }
 
-    /** 헤더 존재를 요구하지 않는다 — 삭제된 전략의 이력도 조회 가능해야 한다 (D4의 안전망) */
     public List<RvsnResponse> revisions(Long id) {
         return stgyRvsnService.list(StgyTyp.PTAWY, id);
     }
@@ -91,51 +93,37 @@ public class PtawyStgyService {
         return stgyRvsnService.snapshotTree(StgyTyp.PTAWY, id, rvsnNo);
     }
 
-    /**
-     * 복원 = 스냅샷을 새 저장으로 재생 (검증 포함 — 은퇴 구성요소는 여기서 걸린다).
-     * 전략이 삭제된 상태면 스냅샷으로 새 전략을 생성한다 — 새 id, 리비전 1부터 (프로세스정의서 §4.3).
-     */
-    @Transactional
-    public PtawyStgyResponse restore(Long id, Long rvsnNo) {
-        PtawyStgyDefinition snapshot = stgyRvsnService.snapshotAs(
-                StgyTyp.PTAWY, id, rvsnNo, PtawyStgyDefinition.class);
-        return ptawyStgyRepository.existsById(id)
-                ? update(id, snapshot)
-                : create(snapshot);
-    }
-
-    /** 삭제된 전략 목록 — stgy_rvsn에는 남았지만 헤더가 없는 것 (화면의 "삭제된 전략 복원" 진입점) */
-    public List<PtawyStgyDeletedResponse> deleted() {
-        Set<Long> alive = ptawyStgyRepository.findAll().stream()
-                .map(PtawyStgy::getId)
-                .collect(java.util.stream.Collectors.toSet());
-        return stgyRvsnService.latestPerStrategy(StgyTyp.PTAWY).stream()
-                .filter(r -> !alive.contains(r.getStgyId()))
-                .map(r -> new PtawyStgyDeletedResponse(
-                        r.getStgyId(), stgyRvsnService.snapshotName(r), r.getRvsnNo(), r.getCreatedAt()))
-                .toList();
-    }
-
     public PtawyStgy load(Long id) {
         return ptawyStgyRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 적치 전략입니다: " + id));
     }
 
+    /** 유형당 1개 강제 — DB UNIQUE 인덱스의 친절한 선검사 (self = 수정 중인 자기 자신은 허용) */
+    private void requireVacant(String odrDvsn, Long selfId) {
+        Optional<PtawyStgy> occupied = odrDvsn == null
+                ? ptawyStgyRepository.findByOdrDvsnIsNull()
+                : ptawyStgyRepository.findByOdrDvsn(odrDvsn);
+        occupied.filter(s -> !s.getId().equals(selfId)).ifPresent(s -> {
+            throw new IllegalArgumentException("이 적용대상의 전략이 이미 있습니다: " + s.getStgyNm()
+                    + " — 유형당 전략은 1개입니다. 기존 전략을 수정하세요.");
+        });
+    }
+
     /**
-     * 저장 검증 (P2): 전략명·단계 1개 이상 필수, mthd_cd 레지스트리 실존 + deprecated 금지,
-     * 파라미터 스키마 검증, 조건 필드·연산자·값 개수 검증, 정렬 기준 검증.
+     * 저장 검증 (P2): 전략명·단계 1개 이상 필수, 적용대상은 전체(null)/정상/긴급만,
+     * mthd_cd 실존(PutawayMethod enum) + deprecated 금지, 단계 조건 검증,
+     * 적치위치는 "업무유형 IN 최대 1건" 지정 형태만, 정렬 기준 검증.
      */
     public PtawyStgyDefinition validate(PtawyStgyDefinition definition) {
         if (definition.stgyNm() == null || definition.stgyNm().isBlank()) {
             throw new IllegalArgumentException("전략명은 필수입니다.");
         }
-        if (definition.prty() != null && definition.prty() < 0) {
-            throw new IllegalArgumentException("우선순위는 0 이상이어야 합니다.");
+        if (definition.odrDvsn() != null && !ODR_DVSNS.contains(definition.odrDvsn())) {
+            throw new IllegalArgumentException("없는 적용대상입니다: " + definition.odrDvsn());
         }
         if (definition.stages() == null || definition.stages().isEmpty()) {
             throw new IllegalArgumentException("단계가 1개 이상 필요합니다.");
         }
-        ConditionEvaluator.validate("적용대상", definition.tgtCond(), PutawayTargetField.BY_CODE);
         for (SortCriterion criterion : definition.locSrt() != null ? definition.locSrt() : List.<SortCriterion>of()) {
             if (!SORT_FIELDS.contains(criterion.field())) {
                 throw new IllegalArgumentException("없는 정렬 기준입니다: " + criterion.field());
@@ -149,27 +137,42 @@ public class PtawyStgyService {
         List<PtawyStgyDefinition.StageDef> stages = new ArrayList<>();
         int seq = 0;
         for (PtawyStgyDefinition.StageDef stage : definition.stages()) {
-            PutawayMethod method = registry.find(PutawayMethod.class, stage.mthdCd())
+            PutawayMethod method = PutawayMethod.find(stage.mthdCd())
                     .orElseThrow(() -> new IllegalArgumentException("없는 적치 방식입니다: " + stage.mthdCd()));
-            if (method.descriptor().deprecated()) {
-                throw new IllegalArgumentException("은퇴한 방식은 새로 등록할 수 없습니다: " + method.descriptor().name());
+            if (method.deprecated()) {
+                throw new IllegalArgumentException("은퇴한 방식은 새로 등록할 수 없습니다: " + method.label());
             }
-            Map<String, Object> para = ParamValidator.validate(
-                    method.descriptor().name(), method.descriptor().params(), stage.mthdPara());
-            ConditionEvaluator.validate(method.descriptor().name() + " 라인 조건", stage.lineCond(), PutawayTargetField.BY_CODE);
-            ConditionEvaluator.validate(method.descriptor().name() + " 로케이션 조건", stage.locCond(), PutawayLocField.BY_CODE);
+            // 현재 적치 방식은 파라미터가 없다 — 방식에 파라미터가 생기면 여기서 방식별 검증을 추가한다
+            if (stage.mthdPara() != null && !stage.mthdPara().isEmpty()) {
+                throw new IllegalArgumentException(method.label() + ": 정의되지 않은 파라미터입니다 — " + stage.mthdPara().keySet());
+            }
+            ConditionEvaluator.validate(method.label() + " 조건", stage.lineCond(), PutawayTargetField.BY_CODE);
+            validateLocAssign(method.label(), stage.locCond());
             stages.add(new PtawyStgyDefinition.StageDef(
-                    stage.srtSeq() != null ? stage.srtSeq() : seq, stage.mthdCd(), para,
+                    stage.srtSeq() != null ? stage.srtSeq() : seq, stage.mthdCd(), Map.of(),
                     stage.lineCond() != null ? stage.lineCond() : List.of(),
                     stage.locCond() != null ? stage.locCond() : List.of()));
             seq++;
         }
-        return new PtawyStgyDefinition(definition.stgyNm(),
-                definition.prty() != null ? definition.prty() : 0,
+        return new PtawyStgyDefinition(definition.stgyNm(), definition.odrDvsn(),
                 definition.untSpltYn() != null && definition.untSpltYn(),
-                definition.tgtCond() != null ? definition.tgtCond() : List.of(),
                 definition.locSrt() != null ? definition.locSrt() : List.of(),
                 stages);
+    }
+
+    /** 적치위치는 조건이 아니라 지정 — "존 업무유형 IN [값들]" 최대 1건만 허용한다 */
+    private void validateLocAssign(String label, List<FieldCondition> locCond) {
+        if (locCond == null || locCond.isEmpty()) {
+            return;
+        }
+        if (locCond.size() > 1) {
+            throw new IllegalArgumentException(label + ": 적치위치 지정은 1건만 가능합니다 (업무유형 값을 여러 개 선택하세요).");
+        }
+        FieldCondition assign = locCond.get(0);
+        if (!PutawayLocField.BIZ_DVSN.name().equals(assign.fld()) || assign.op() != ConditionOperator.IN) {
+            throw new IllegalArgumentException(label + ": 적치위치는 존 업무유형 지정만 가능합니다.");
+        }
+        ConditionEvaluator.validate(label + " 적치위치", locCond, PutawayLocField.BY_CODE);
     }
 
     private List<PtawyStgyStg> toStages(PtawyStgyDefinition definition) {

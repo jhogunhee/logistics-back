@@ -67,6 +67,14 @@ public class IbOrder extends BaseEntity {
     @Column(name = "expct_de", nullable = false)
     private LocalDate expctDe;
 
+    /**
+     * 발주구분 (공통코드 ODR_DVSN: NRML 정상 / URGT 긴급 / RTNGS 반품입고).
+     * 상위 입고주문(oms_ib_order.odr_dvsn)의 값이 확정 시 복사된다 — wmsback은 omsback을
+     * import할 수 없어(의존 한 방향) 조회 대신 복사로 가져온다. 적치 전략 선택의 기준.
+     */
+    @Column(name = "odr_dvsn", nullable = false, length = 10, updatable = false)
+    private String odrDvsn;
+
     /** 입고 마감(close) 시각. 마감은 미입고 잔량을 확정하는 명시적 액션 */
     @Column(name = "clos_dt")
     private LocalDateTime closDt;
@@ -75,11 +83,12 @@ public class IbOrder extends BaseEntity {
     private List<IbLine> lines = new ArrayList<>();
 
     @Builder
-    private IbOrder(String ibNo, Long omsIbOrderId, Vendor vendor, LocalDate expctDe) {
+    private IbOrder(String ibNo, Long omsIbOrderId, Vendor vendor, LocalDate expctDe, String odrDvsn) {
         this.ibNo = ibNo;
         this.omsIbOrderId = omsIbOrderId;
         this.vendor = vendor;
         this.expctDe = expctDe;
+        this.odrDvsn = odrDvsn;
         this.status = IbStatus.SCHEDULED;
     }
 

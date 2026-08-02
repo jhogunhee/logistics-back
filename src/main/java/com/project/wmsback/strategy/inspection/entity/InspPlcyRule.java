@@ -21,8 +21,8 @@ import org.hibernate.type.SqlTypes;
 import java.util.Map;
 
 /**
- * 검수 규칙. rule_cd는 코드 레지스트리(InspectionRule 구현체)의 code — 값 목록의 주인은
- * DB가 아니라 코드다 (P1). para는 저장 시 ParamSpec으로 검증된 값만 담는다 (P2).
+ * 검수 규칙. rule_cd는 InspectionRule enum의 name — 값 목록의 주인은
+ * DB가 아니라 코드다 (P1). para는 저장 시 규칙별 validatePara로 검증된 값만 담는다 (P2).
  */
 @Entity
 @Table(name = "insp_plcy_rule", uniqueConstraints = @UniqueConstraint(name = "uq_insp_plcy_rule",

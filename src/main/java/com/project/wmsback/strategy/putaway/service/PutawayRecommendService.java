@@ -9,8 +9,6 @@ import com.project.wmsback.strategy.core.condition.ConditionEvaluator;
 import com.project.wmsback.strategy.core.condition.SortCriterion;
 import com.project.wmsback.strategy.core.entity.StgyTyp;
 import com.project.wmsback.strategy.core.entity.TrgrTyp;
-import com.project.wmsback.strategy.core.param.ParamValues;
-import com.project.wmsback.strategy.core.registry.StrategyComponentRegistry;
 import com.project.wmsback.strategy.core.service.StgyExecLogService;
 import com.project.wmsback.strategy.putaway.dto.PtawyPreviewRequest;
 import com.project.wmsback.strategy.putaway.dto.PtawyStgyDefinition;
@@ -50,7 +48,6 @@ public class PutawayRecommendService {
     private final IbLineRepository ibLineRepository;
     private final ProdRepository prodRepository;
     private final PutawayQueryRepository putawayQueryRepository;
-    private final StrategyComponentRegistry registry;
     private final StgyExecLogService stgyExecLogService;
 
     /** 작업자 추천 — 전략 미설정이면 strategySelected=false로 응답하고 화면이 수동 후보로 폴백 */
@@ -63,7 +60,7 @@ public class PutawayRecommendService {
         Prod prod = ibLine.getProd();
         PutawayTarget target = new PutawayTarget(prod, ibLine.getIbOrder().getVendor().getVndrCd());
 
-        Optional<PtawyStgy> selected = selectStrategy(target);
+        Optional<PtawyStgy> selected = selectStrategy(ibLine.getIbOrder().getOdrDvsn());
         if (selected.isEmpty()) {
             return PutawayRecommendResponse.noStrategy(request.qty());
         }
@@ -99,23 +96,14 @@ public class PutawayRecommendService {
         }
         PutawayTarget target = new PutawayTarget(prod, vndrCd);
 
-        PutawayRecommendResponse result = compute(definition, null, definition.stgyNm(), null,
-                prod, target, request.qty());
-
-        // 이 대상에 실제로 선택될 전략 — 편집 중 전략과 다르면 화면이 경고를 띄운다
-        Optional<PtawyStgy> actual = selectStrategy(target);
-        return new PutawayRecommendResponse(result.strategySelected(), result.ptawyStgyId(), result.stgyNm(),
-                result.rvsnNo(), result.reqQty(), result.asgnQty(), result.remainQty(),
-                result.assignments(), result.trace(),
-                actual.map(PtawyStgy::getId).orElse(null),
-                actual.map(PtawyStgy::getStgyNm).orElse(null));
+        // 편집 중 정의 그대로 산정 — 유형 매칭 선택이라 "실제 선택될 전략" 경고가 필요 없다
+        return compute(definition, null, definition.stgyNm(), null, prod, target, request.qty());
     }
 
-    /** 전략 선택: tgt_cond 매칭(빈 목록 = 전체) → (prty, id) 최소 1건 — 동률도 결정적 */
-    private Optional<PtawyStgy> selectStrategy(PutawayTarget target) {
-        return ptawyStgyRepository.findAll().stream()
-                .filter(s -> ConditionEvaluator.matchesAll(s.getTgtCond(), PutawayTargetField.BY_CODE, target))
-                .min(Comparator.comparing(PtawyStgy::getPrty).thenComparing(PtawyStgy::getId));
+    /** 전략 선택: 발주구분 일치 전략 → 전체(odr_dvsn IS NULL) 전략 → 없으면 수동 폴백. 유형당 1개라 결정적 */
+    private Optional<PtawyStgy> selectStrategy(String odrDvsn) {
+        return ptawyStgyRepository.findByOdrDvsn(odrDvsn)
+                .or(ptawyStgyRepository::findByOdrDvsnIsNull);
     }
 
     /**
@@ -152,9 +140,8 @@ public class PutawayRecommendService {
             }
             stageTrace.put("gate", "PASS");
 
-            PutawayMethod method = registry.get(PutawayMethod.class, stage.mthdCd());
-            List<PutawayMethodContext.LocStock> candidates = method
-                    .candidates(new PutawayMethodContext(prod, stocks), new ParamValues(stage.mthdPara()))
+            List<PutawayMethodContext.LocStock> candidates = PutawayMethod.of(stage.mthdCd())
+                    .candidates(new PutawayMethodContext(prod, stocks))
                     .stream()
                     .filter(ls -> ConditionEvaluator.matchesAll(stage.locCond(), PutawayLocField.BY_CODE, ls))
                     .sorted(locComparator(def.locSrt()))
@@ -212,7 +199,7 @@ public class PutawayRecommendService {
         trace.put("stages", stageTraces);
 
         return new PutawayRecommendResponse(true, stgyId, stgyNm, rvsnNo, reqQty, assigned, remaining,
-                List.copyOf(assignments.values()), trace, null, null);
+                List.copyOf(assignments.values()), trace);
     }
 
     /** 입수 = ea_qty(입고단위) ÷ ea_qty(출고단위). 나눗셈 정합성은 ProdService 저장 검증이 보장 */
