@@ -364,7 +364,7 @@
 <tr><td>재고조사</td><td><code>/stock/count</code></td><td><code>pages/stock/StockCount.jsx</code> — 탭 2개(조사 목록 <code>StockCountList.jsx</code> / 실사 입력·확정 <code>StockCountDetail.jsx</code>)</td></tr>
 
 <tr><td class="name" rowspan="5">출고</td><td>웨이브 편성</td><td><code>/outbound/wave</code></td><td><code>pages/outbound/Wave.jsx</code> — 웨이브 목록 + 미편성/소속 주문 2단, 담기·빼기·해체, 전략 선택·자동 실행과 미리보기</td></tr>
-<tr><td>할당</td><td><code>/outbound/allocation</code></td><td><code>pages/outbound/Allocation.jsx</code> — 대상 웨이브 + 라인·할당내역 2단, 자동할당·수동할당(<code>components/outbound/AllocCandidateModal.jsx</code>)·해제</td></tr>
+<tr><td>할당</td><td><code>/outbound/allocation</code></td><td><code>pages/outbound/Allocation.jsx</code> — 대상 웨이브 + 라인·할당내역 2단, 자동할당·수동할당(<code>components/outbound/AllocCandidateModal.jsx</code>)·해제. 자동할당은 <strong>할당 전략(SC-04)</strong>을 적용하고, 전략이 없으면 기본 동작(FEFO·점포 잔여수명·순차 소진)으로 실행된다 — 실행 결과에 적용 전략명·리비전이 표시되고 할당내역에 전략/수동 출처가 구분된다</td></tr>
 <tr><td>피킹지시</td><td><code>/outbound/pick-order</code></td><td>Placeholder</td></tr>
 <tr><td>피킹</td><td><code>/outbound/picking</code></td><td>Placeholder</td></tr>
 <tr><td>출고확정</td><td><code>/outbound/shipping</code></td><td>Placeholder</td></tr>
@@ -377,7 +377,7 @@
 <tr><td class="name" rowspan="4">전략</td><td>검수 정책관리</td><td><code>/strategy/inspection</code></td><td><code>pages/strategy/InspectionPolicy.jsx</code> — 규칙 목록·미리보기·리비전</td></tr>
 <tr><td>적치 전략관리</td><td><code>/strategy/putaway</code></td><td><code>pages/strategy/PutawayStrategy.jsx</code> — 목록·단계 편집·미리보기·리비전 (SC-02)</td></tr>
 <tr><td>웨이브 전략관리</td><td><code>/strategy/wave</code></td><td><code>pages/strategy/WaveStrategy.jsx</code> — 목록·조건그룹 편집(OR/AND)·미리보기·리비전 (SC-03). <strong>실행 버튼은 웨이브 편성 화면으로 이관 완료</strong>(2026-08-03) — 여기 남은 것은 정의 편집과 DB를 바꾸지 않는 미리보기다</td></tr>
-<tr><td>할당 전략관리</td><td><code>/strategy/allocation</code></td><td>Placeholder — 3차 (SC-04)</td></tr>
+<tr><td>할당 전략관리</td><td><code>/strategy/allocation</code></td><td><code>pages/strategy/AllocationStrategy.jsx</code> — 목록·슬롯 5섹션 편집(재고위치·출고제약·재고정렬·주문순서·분배)·미리보기·리비전 (SC-04). <strong>실행 버튼이 없다</strong> — 할당 실행은 재고할당 화면이 이미 갖고 있어 두 번째 진입점을 만들지 않는다. 전략 0건이면 기본 동작(FEFO·점포 잔여수명·순차 소진)으로 할당된다</td></tr>
 </tbody>
 </table>
 </div>
