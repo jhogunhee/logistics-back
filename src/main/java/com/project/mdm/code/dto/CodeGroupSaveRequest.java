@@ -21,5 +21,5 @@ public class CodeGroupSaveRequest {
 
     private String grpCd;
     private String grpNm;
-    private String description;
+    private String dscr;
 }

@@ -80,13 +80,13 @@ public class CodeService {
         codeGroupRepository.save(CodeGroup.builder()
                 .grpCd(row.getGrpCd())
                 .grpNm(row.getGrpNm())
-                .description(row.getDescription())
+                .dscr(row.getDscr())
                 .build());
     }
 
     private void updateGroup(CodeGroupSaveRequest row) {
         requireGroupNm(row);
-        findGroup(row.getGrpCd()).update(row.getGrpNm(), row.getDescription());
+        findGroup(row.getGrpCd()).update(row.getGrpNm(), row.getDscr());
     }
 
     private void deleteGroup(CodeGroupSaveRequest row) {

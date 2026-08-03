@@ -9,12 +9,12 @@ public class CodeGroupResponse {
 
     private final String grpCd;
     private final String grpNm;
-    private final String description;
+    private final String dscr;
 
     private CodeGroupResponse(CodeGroup group) {
         this.grpCd = group.getGrpCd();
         this.grpNm = group.getGrpNm();
-        this.description = group.getDescription();
+        this.dscr = group.getDscr();
     }
 
     public static CodeGroupResponse from(CodeGroup group) {

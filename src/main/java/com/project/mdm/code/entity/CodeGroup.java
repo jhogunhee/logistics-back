@@ -34,19 +34,19 @@ public class CodeGroup extends BaseEntity {
     private String grpNm;
 
     /** 그룹 설명. 이 그룹을 어느 컬럼이 참조하는지를 적어 둔다 */
-    @Column(name = "description", length = 200)
-    private String description;
+    @Column(name = "dscr", length = 200)
+    private String dscr;
 
     @Builder
-    private CodeGroup(String grpCd, String grpNm, String description) {
+    private CodeGroup(String grpCd, String grpNm, String dscr) {
         this.grpCd = grpCd;
         this.grpNm = grpNm;
-        this.description = description;
+        this.dscr = dscr;
     }
 
     /** 그룹 코드는 수정 대상이 아니다 (PK이자 로직이 리터럴로 참조하는 값) */
-    public void update(String grpNm, String description) {
+    public void update(String grpNm, String dscr) {
         this.grpNm = grpNm;
-        this.description = description;
+        this.dscr = dscr;
     }
 }

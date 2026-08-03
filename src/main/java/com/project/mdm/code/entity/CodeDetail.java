@@ -46,7 +46,7 @@ public class CodeDetail extends BaseEntity {
      * 참조값 3칸. 코드마다 딸린 자잘한 속성을 새 컬럼 없이 얹는 자리다.
      * <p>
      * 뜻이 그룹마다 다르므로 이 필드만 보고는 알 수 없다 — 무엇을 담았는지는 값을 읽는 쪽과
-     * {@code code_group.description} 에 남긴다. 표시 스타일은 여기 담지 않는다(프론트 상수 담당).
+     * {@code code_group.dscr} 에 남긴다. 표시 스타일은 여기 담지 않는다(프론트 상수 담당).
      */
     @Column(name = "ref1", length = 100)
     private String ref1;
