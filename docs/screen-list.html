@@ -177,9 +177,9 @@
 </tr>
 <tr>
   <td class="name">재고 속성변경</td>
-  <td>Lot 유통기한/제조일자 정정 등 <strong>수량이 아닌 속성</strong>의 수정. 변경 전/후 값을 이력에 남겨 추적. (재고상태 전환은 별도 <strong>재고 보류</strong> 화면에서)</td>
-  <td class="st"><span class="badge todo">미구현</span></td>
-  <td>신규</td>
+  <td>Lot의 제조일자/유통기한 정정 — <strong>수량이 아닌 속성</strong>만 고친다. <strong>재고를 한 톨도 움직이지 않는</strong> 유일한 처리 화면(<code>inv</code>·<code>inv_hist</code> 무변경)이라 정정의 원장은 <code>lot_attr_chng</code> 하나다. 제조일자는 배치 재사용 키(상품+입고일자+제조일자)의 일부라 다른 Lot과의 충돌을 서버가 막는다(<code>uq_lot</code>은 <code>(prod_id, lot_no)</code>에만 걸려 DB가 안 잡는다). 유통기한 미관리 상품의 Lot은 대상 아님. (재고상태 전환은 <strong>재고 보류</strong>, 수량 정정은 <strong>재고조사</strong>)</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>GET·PUT /inventory/lot-attrs</code></td>
 </tr>
 <tr>
   <td class="name">재고 보류</td>
@@ -349,7 +349,7 @@
 
 <tr><td class="name" rowspan="6">재고</td><td>현재고 조회</td><td><code>/stock/status</code></td><td><code>pages/stock/StockStatus.jsx</code> — 모니터링 그룹에서 이동</td></tr>
 <tr><td>재고 이력 조회</td><td><code>/stock/history</code></td><td><code>pages/stock/InvHistory.jsx</code></td></tr>
-<tr><td>재고 속성변경</td><td><code>/stock/attribute</code></td><td>Placeholder</td></tr>
+<tr><td>재고 속성변경</td><td><code>/stock/attribute</code></td><td><code>pages/stock/StockAttr.jsx</code> — 탭 2개(속성 정정 <code>StockAttrChange.jsx</code> / 변경 이력 <code>StockAttrChngHist.jsx</code>)</td></tr>
 <tr><td>재고 보류</td><td><code>/stock/hold</code></td><td><code>pages/stock/StockHold.jsx</code> — 탭 3개(보류등록 <code>StockHoldRegister.jsx</code> / 보류 관리 <code>StockHoldList.jsx</code> / 실적 조회 <code>StockHoldAcrst.jsx</code>)</td></tr>
 <tr><td>재고 이동</td><td><code>/stock/move</code></td><td><code>pages/stock/StockMove.jsx</code> — 탭 2개(이동지시등록 <code>StockMoveOrder.jsx</code> / 이동지시 관리 <code>StockMoveTaskList.jsx</code>)</td></tr>
 <tr><td>재고조사</td><td><code>/stock/count</code></td><td><code>pages/stock/StockCount.jsx</code> — 탭 2개(조사 목록 <code>StockCountList.jsx</code> / 실사 입력·확정 <code>StockCountDetail.jsx</code>)</td></tr>
@@ -379,7 +379,7 @@
   <li><strong>입고확정</strong> — 적치까지 붙은 뒤에야 결품 확정 화면이 의미를 가짐</li>
   <li><strong>할당</strong>(주문 단위) — v1의 유일한 할당 경로. 웨이브 릴리즈는 v1 제외</li>
   <li><strong>피킹지시</strong>(웨이브 단위) → <strong>피킹</strong> → <strong>출고확정</strong> — 출고 흐름 완성</li>
-  <li>재고 속성변경 (<s>재고조사</s> — 완료 2026-08-03)</li>
+  <li><s>재고 속성변경</s> — 완료 2026-08-03 (<s>재고조사</s> — 완료 2026-08-03)</li>
   <li>점포(Store) 관리 — 직접 구현</li>
   <li>대시보드</li>
 </ol>

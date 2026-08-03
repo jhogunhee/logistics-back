@@ -43,6 +43,8 @@ BEGIN
         'inv_mov_task',
         'inv_hist', 'inv', 'putaway_task',
         'ib_line', 'ib_order', 'oms_ib_line', 'oms_ib_order',
+        -- Lot 속성 정정 이력은 lot 보다 먼저 — 재고 작업 문서와 같은 이유(유령 참조 방지).
+        'lot_attr_chng',
         'lot', 'prod_uom', 'prod'
     ]
     LOOP

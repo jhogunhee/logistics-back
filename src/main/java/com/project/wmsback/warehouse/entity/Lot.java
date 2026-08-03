@@ -61,4 +61,18 @@ public class Lot extends BaseEntity {
         this.mfgDt = mfgDt;
         this.expiryDt = expiryDt;
     }
+
+    /**
+     * 속성 정정 (재고 속성변경 화면 — 제조일자·유통기한 오입력 정정).
+     * 정정 가능한 것은 이 두 날짜뿐이다: prod·lotNo·receiptDt는 Lot의 정체성이라 바뀌지 않는다
+     * (receiptDt는 배치 재사용 키의 일부이자 lotNo의 근거 — 바꾸면 번호가 입고일과 어긋난다).
+     *
+     * 업무 검증(관리 상품 여부 · 날짜 순서 · 배치 재사용 키 충돌)은 LotAttrChngService가 한다 —
+     * 키 충돌 판정에 다른 Lot 조회가 필요해 엔티티 안에서 끝나지 않는다.
+     * 수량과 무관하므로 이 정정은 inv·inv_hist를 건드리지 않는다.
+     */
+    public void correctAttr(LocalDate mfgDt, LocalDate expiryDt) {
+        this.mfgDt = mfgDt;
+        this.expiryDt = expiryDt;
+    }
 }
