@@ -222,13 +222,16 @@
 </tr>
 <tr>
   <td class="name">할당</td>
-  <td>출고주문 선택 → 라인별 <strong>주문수량 / 할당수량 / 잔량</strong> 표시. <strong>자동할당(FEFO)</strong> 버튼과 <strong>수동할당</strong>(Lot·로케이션 선택 팝업), <strong>할당해제</strong>. 점포 잔여수명 필터는 자동할당에 적용</td>
-  <td class="st"><span class="badge todo">미구현</span></td>
-  <td>신규 — <strong>v1의 유일한 할당 진입점</strong></td>
+  <td><strong>웨이브를 골라 실행하면 그 안의 주문 라인이 채워진다</strong> — 상: 대상 웨이브(체크 = 실행 대상) / 하좌: 그 웨이브의 주문 라인(주문수량 · 할당수량 · <strong>잔량</strong>) / 하우: 선택 라인의 할당 내역.
+  <br><strong>자동할당(FEFO)</strong>은 동기 실행이라 결과를 바로 패널에 편다 — 요청·할당·잔량 합계와 재고가 모자란 라인을 부족 사유까지 붙여 보여주므로 실패 원인을 다른 화면에서 찾을 일이 없다. 재고가 모자라면 앞 순번 주문이 채울 수 있는 만큼 가져간다(순차 소진).
+  <br><strong>수동할당</strong>(Lot·로케이션 팝업)은 잔여수명 미달 Lot도 붉게 표시할 뿐 막지 않는다 — 수동할당의 존재 이유가 곧 예외 처리다. 점포 잔여수명 필터는 자동할당에만 적용. <strong>할당해제</strong>는 피킹이 시작된 행을 거부한다.
+  <br>검색조건(상품·출고번호·점포·출고예정일)은 라인이 아니라 <strong>웨이브를 고른다</strong> — 조건에 맞는 라인이 하나라도 있으면 웨이브가 통째로 걸리고 수량은 언제나 웨이브 전체다. 하단에서 조건 일치 행을 강조해 화면이 그 이유를 설명한다</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>GET /outbound/allocations/waves</code><br><code>GET /outbound/waves/{wavId}/allocations</code><br><code>POST /outbound/allocations/execute</code><br><code>GET /outbound/allocations/candidates</code><br><code>POST /outbound/waves/{wavId}/allocations/manual</code><br><code>POST /outbound/allocations/release</code><br><code>/outbound/allocation</code></td>
 </tr>
 <tr>
   <td class="name">피킹지시</td>
-  <td><strong>웨이브 단위로 일괄 발행.</strong> 웨이브 소속 주문들의 할당 레코드를 모아 <strong>로케이션 순으로 정렬한 지시</strong>를 생성. 지시 목록 조회 / 취소. 할당이 안 된 주문이 섞여 있을 때의 처리(제외 / 발행 차단)는 결정 필요</td>
+  <td><strong>웨이브 단위로 일괄 발행.</strong> 웨이브 소속 주문들의 할당 레코드를 모아 <strong>로케이션 순으로 정렬한 지시</strong>를 생성. 지시 목록 조회 / 취소. 할당이 안 된 주문이 섞여 있을 때의 처리(제외 / 발행 차단)는 결정 필요 — <strong>할당이 웨이브 단위가 되면서 증상은 줄었지만 사라지지 않았다</strong>(부분할당은 여전히 가능). 판정 재료는 라인의 미할당 잔량이고 할당 API가 그 값을 이미 내려준다</td>
   <td class="st"><span class="badge todo">미구현</span></td>
   <td>신규 — 지시 엔티티 필요 (적치지시와 대칭)</td>
 </tr>
@@ -361,7 +364,7 @@
 <tr><td>재고조사</td><td><code>/stock/count</code></td><td><code>pages/stock/StockCount.jsx</code> — 탭 2개(조사 목록 <code>StockCountList.jsx</code> / 실사 입력·확정 <code>StockCountDetail.jsx</code>)</td></tr>
 
 <tr><td class="name" rowspan="5">출고</td><td>웨이브 편성</td><td><code>/outbound/wave</code></td><td><code>pages/outbound/Wave.jsx</code> — 웨이브 목록 + 미편성/소속 주문 2단, 담기·빼기·해체, 전략 선택·자동 실행과 미리보기</td></tr>
-<tr><td>할당</td><td><code>/outbound/allocation</code></td><td>Placeholder</td></tr>
+<tr><td>할당</td><td><code>/outbound/allocation</code></td><td><code>pages/outbound/Allocation.jsx</code> — 대상 웨이브 + 라인·할당내역 2단, 자동할당·수동할당(<code>components/outbound/AllocCandidateModal.jsx</code>)·해제</td></tr>
 <tr><td>피킹지시</td><td><code>/outbound/pick-order</code></td><td>Placeholder</td></tr>
 <tr><td>피킹</td><td><code>/outbound/picking</code></td><td>Placeholder</td></tr>
 <tr><td>출고확정</td><td><code>/outbound/shipping</code></td><td>Placeholder</td></tr>
@@ -386,7 +389,7 @@
   <li><strong>입고 상태 모델 재정의</strong> — 확정이 마지막 단계가 되면서 <code>RECEIVED</code>/<code>COMPLETED</code> 전이 지점이 바뀜. 코드 치기 전에 상태 기계부터 확정</li>
   <li><strong>적치 전략관리</strong> → <strong>적치지시</strong> → <strong>적치</strong> — 전략이 없으면 지시를 만들 수 없으므로 이 순서 고정. 기존 적치 API는 지시 기반으로 재작성</li>
   <li><strong>입고확정</strong> — 적치까지 붙은 뒤에야 결품 확정 화면이 의미를 가짐</li>
-  <li><strong>할당</strong>(주문 단위) — v1의 유일한 할당 경로. 웨이브 릴리즈는 v1 제외</li>
+  <li><s><strong>할당</strong></s> — <strong>완료 2026-08-03.</strong> 진입 단위는 <strong>웨이브</strong>이고 계산·결과는 라인 단위다(재번복 — 위 표 참조). v1의 유일한 할당 경로</li>
   <li><strong>피킹지시</strong>(웨이브 단위) → <strong>피킹</strong> → <strong>출고확정</strong> — 출고 흐름 완성</li>
   <li><s>재고 속성변경</s> — 완료 2026-08-03 (<s>재고조사</s> — 완료 2026-08-03)</li>
   <li>점포(Store) 관리 — 직접 구현</li>
@@ -407,7 +410,9 @@
 <tr><td class="name">재고조사: "차이 = 실사수량 − 조사 생성 시점 전산수량"</td><td><strong>번복(2026-08-03) — 확정시점 전산수량 기준.</strong> 확정이 라인별 재고 행 락을 걸고 전산수량을 다시 읽어(<code>cfm_sys_qty</code>) 조정하므로 확정 후 전산수량이 실사수량과 정확히 일치한다. 조사 생성부터 확정까지의 시간차를 스냅샷 기준으로 두면 확정 후에도 전산 ≠ 실사가 되어 실사의 목적이 무너지기 때문 — 대가는 실사 이후 입고분이 덮이는 것</td></tr>
 <tr><td class="name">"보류는 수량이 아니라 행 단위 재고상태"</td><td><strong>번복(2026-08-03) — 보류는 수량이다.</strong> 재고상태 컬럼 대신 <code>inv.hld_qty</code>(가용 = 보유 − 예약 − 보류, 예약과 배타) + 보류 3테이블(<code>inv_hld</code>/<code>inv_hld_acrst</code>/<code>inv_hld_rlz_acrst</code>). 부분수량 보류와 등록/해제 사유별 히스토리 보존 요구 때문</td></tr>
 <tr><td class="name">상태 <code>RECEIVED</code></td><td><strong>제거.</strong> 검수/적치 진행도는 라인 수량에서 파생되므로 중간 상태가 불필요 — <code>SCHEDULED → RECEIVING → COMPLETED</code></td></tr>
-<tr><td class="name">"할당은 오직 웨이브 릴리즈로만 일어난다"</td><td><strong>뒤집힘 — 할당은 주문 단위 화면에서만 일어난다.</strong> 웨이브 릴리즈는 v1 제외</td></tr>
+<tr><td class="name">"할당은 오직 웨이브 릴리즈로만 일어난다"</td><td><strong>뒤집힘 — 할당은 주문 단위 화면에서만 일어난다.</strong> 웨이브 릴리즈는 v1 제외
+<br><strong>재번복(2026-08-03) — 할당은 웨이브를 대상으로 실행한다.</strong> 뒤집은 이유는 <strong>피킹지시가 웨이브 단위</strong>여서다 — 할당만 주문 단위로 두면 편성(웨이브) → 할당(주문) → 피킹지시(웨이브)로 흐름 중간에서 단위가 한 번 어긋나고, 아래 피킹지시의 미결 항목이 바로 그 어긋남의 증상이다.
+<br>다만 <strong>「웨이브 릴리즈 없음」은 그대로다</strong> — 웨이브를 <em>실행 파라미터</em>로 쓰는 것이지 웨이브에 <em>할당 상태</em>를 주는 것이 아니다. 상태 기계는 <code>PLANNED → ISSUED</code> 둘 그대로이고 할당 결과는 전부 주문·라인·재고에 남으므로, 아래 <code>RELEASED → ISSUED</code> 개명의 근거는 무효화되지 않는다</td></tr>
 <tr><td class="name">"웨이브는 재고 할당의 단위다"</td><td><strong>웨이브는 피킹지시 발행 단위로 역할이 바뀐다.</strong> 할당은 주문 단위, 웨이브는 여러 주문의 집품을 한 번에 지시하는 그룹.
 <br><strong>해소 완료(2026-08-03)</strong> — 상태를 <code>PLANNED → ISSUED</code>로, 시각 컬럼을 <code>released_at → issued_dt</code>로 개명했다(<code>migration-wave-issued.sql</code>). <code>RELEASED</code>를 버린 이유는 ① 「릴리즈(=웨이브 단위 일괄 할당)」라는 동작이 이 설계에 없고 ② <code>inv_hld</code>의 <code>RELEASED</code>가 보류 <em>해제</em>라 한 토큰이 두 뜻이 되기 때문. 덤으로 <code>_at → _dt</code> 사전 이탈도 함께 해소됐다</td></tr>
 <tr><td class="name">주문 관리 화면은 WMS 입고/출고 메뉴 안에 있다</td><td><strong>OMS 그룹을 분리 신설.</strong> 입고주문·출고주문의 등록/관리를 OMS로 빼고, WMS 메뉴는 창고 작업(ASN·검수·적치·웨이브·피킹)만 남긴다. 기존 "출고주문 관리"는 <code>/oms/outbound-orders</code>로 이관</td></tr>
