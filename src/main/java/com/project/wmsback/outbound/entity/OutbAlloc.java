@@ -54,4 +54,23 @@ public class OutbAlloc extends BaseEntity {
         this.alocQty = alocQty;
         this.pikngQty = 0L;
     }
+
+    /**
+     * 같은 (라인, 재고) 조합에 더 할당할 때 기존 행에 합산한다.
+     * DB에 그 조합의 UNIQUE가 없어 새 행을 만들어도 저장은 되지만, 같은 라인이 같은 재고를
+     * 가리키는 행이 둘이면 화면과 해제 단위가 이유 없이 쪼개진다.
+     */
+    public void addQty(long qty) {
+        this.alocQty += qty;
+    }
+
+    /**
+     * 해제 가능 여부. 피킹이 시작된 할당은 실물이 이미 나갔거나 나가는 중이라
+     * 되돌리려면 역방향 이동이 필요한데 v1이 지원하지 않는다.
+     * 참고 시스템의 「마지막 차수의 미지시분만 취소」가 여기서는 이 조건 하나로 표현되고,
+     * 그래서 할당차수 컬럼을 두지 않는다.
+     */
+    public boolean releasable() {
+        return pikngQty == 0L;
+    }
 }

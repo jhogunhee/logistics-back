@@ -157,6 +157,48 @@ public class OutbOrder extends BaseEntity {
     }
 
     /**
+     * 첫 할당 시 CREATED → ALLOCATED 전이. 이미 ALLOCATED면 그대로 둔다 —
+     * 부분할당 뒤 재할당이 같은 메서드를 여러 번 호출하기 때문이다.
+     *
+     * <p><b>부분할당도 ALLOCATED다.</b> 헤더 상태는 워크플로 단계만 표현하고, 부분인지 전량인지는
+     * {@code odr_qty} 와 할당 합계 비교로 파생시킨다 — {@code PARTIALLY_*} 를 두지 않는 원칙
+     * (「상태와 수량의 분담」). 그래서 이 메서드는 수량을 보지 않는다.
+     */
+    public void allocate() {
+        if (status == OutbStatus.CREATED) {
+            this.status = OutbStatus.ALLOCATED;
+            return;
+        }
+        if (status != OutbStatus.ALLOCATED) {
+            throw new IllegalStateException("할당할 수 없는 상태입니다 (" + status.getLabel() + "): " + outbNo);
+        }
+    }
+
+    /**
+     * 할당이 한 건도 남지 않았을 때 ALLOCATED → CREATED 복귀. 이미 CREATED면 그대로 둔다.
+     *
+     * <p>이 복귀가 없으면 <b>상태는 ALLOCATED인데 할당 레코드가 0건인 주문</b>이 남는다.
+     * 그러면 {@link #requireRevertible()}(확정취소)도 {@link #unassignWave()}(웨이브에서 빼기)도
+     * 영영 열리지 않아, 되돌릴 방법이 없는 상태로 고착된다.
+     *
+     * <p><b>할당 잔존 여부는 서비스가 판단해 호출한다</b> — {@code outb_line} 에 할당 수량 컬럼이
+     * 없어서(할당은 {@code outb_alloc} 집계로 파생시킨다) 엔티티 안에서는 셀 수 없다.
+     * 입고의 {@code reopenIfNoLongerFullyReceived()} 가 라인 수량으로 스스로 판정하는 것과
+     * 갈리는 지점이고, 이유는 그쪽 {@code ib_line} 에는 검수 수량 컬럼이 있기 때문이다.
+     */
+    public void revertToCreated() {
+        if (status == OutbStatus.CREATED) {
+            return;
+        }
+        if (status != OutbStatus.ALLOCATED) {
+            throw new IllegalStateException(
+                    "피킹이 시작된 출고주문은 할당 이전으로 되돌릴 수 없습니다 ("
+                            + status.getLabel() + "): " + outbNo);
+        }
+        this.status = OutbStatus.CREATED;
+    }
+
+    /**
      * 상위 주문의 확정취소로 이 문서를 물릴 수 있는지. 할당 전(CREATED)이고 <b>웨이브에 편성되기 전</b>만 가능하다.
      * <p>
      * 확정취소는 이 행을 삭제한다. 웨이브에 담긴 뒤에 지우면 그 웨이브의 피킹지시가 존재하지 않는
