@@ -66,7 +66,7 @@ public class WaveStgyExecService {
         }
 
         List<OutbOrder> candidates = new ArrayList<>(
-                targetOrders(request.odrDeFrom(), request.odrDeTo()));
+                targetOrders(request.expctDeFrom(), request.expctDeTo()));
         int tgtCount = candidates.size();
 
         List<WaveStgyExecResponse.StgyResult> results = new ArrayList<>();
@@ -109,7 +109,7 @@ public class WaveStgyExecService {
 
     /** 미저장 정의로 미리보기 — DB 변경 없음, 실행 로그도 남기지 않는다 (프로세스정의서 §4.4) */
     public WavPreviewResponse preview(WavStgyDefinition definition, WavPreviewRequest request) {
-        List<WaveMatchResult> orders = targetOrders(request.odrDeFrom(), request.odrDeTo()).stream()
+        List<WaveMatchResult> orders = targetOrders(request.expctDeFrom(), request.expctDeTo()).stream()
                 .map(order -> WaveMatcher.evaluate(definition.condGrp(), WaveOrderTarget.from(order)))
                 .toList();
         return new WavPreviewResponse(orders.size(),

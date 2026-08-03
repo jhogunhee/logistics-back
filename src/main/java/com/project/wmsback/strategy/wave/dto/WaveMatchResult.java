@@ -14,7 +14,7 @@ public record WaveMatchResult(
         String vhclFltno,
         String storeCd,
         String storeNm,
-        LocalDate odrDe,
+        LocalDate expctDe,
         boolean matched,
         List<GroupTrace> grps
 ) {

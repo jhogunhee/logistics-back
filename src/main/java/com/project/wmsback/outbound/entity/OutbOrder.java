@@ -27,6 +27,8 @@ import java.util.List;
 
 /**
  * 출고 주문 헤더 (B2B 점포 출고). 피킹 시작 이후 취소는 v1 미지원.
+ *
+ * <p>OMS 출고주문 확정으로만 생성된다 — WMS에는 등록 엔드포인트가 없다 (입고예정 ASN과 같은 구조).
  */
 @Entity
 @Table(name = "outb_order")
@@ -42,6 +44,16 @@ public class OutbOrder extends BaseEntity {
     /** 출고 번호 (업무 식별자, 예: OB-20260714-001) */
     @Column(name = "outb_no", nullable = false, length = 30, unique = true)
     private String outbNo;
+
+    /**
+     * 이 출고주문을 발생시킨 OMS 출고주문.
+     * <p>
+     * <b>연관관계가 아니라 스칼라 Long이다</b> — 패키지 의존을 omsback → wmsback 한 방향으로
+     * 유지하기 위해서다(wmsback은 omsback을 모른다). ib_order.omsIbOrderId와 같은 형태이고,
+     * 이 규칙을 실제로 떠받치는 지점이므로 타입을 바꾸지 말 것.
+     */
+    @Column(name = "oms_outb_order_id", nullable = false)
+    private Long omsOutbOrderId;
 
     /** 워크플로 상태 (부분할당 상태 없음 — 할당 수량에서 파생) */
     @Enumerated(EnumType.STRING)
@@ -64,7 +76,7 @@ public class OutbOrder extends BaseEntity {
     @JoinColumn(name = "store_id", nullable = false)
     private Store store;
 
-    /** 편성된 출고 웨이브. NULL = 아직 미편성. 할당은 이 웨이브의 릴리즈로만 일어난다 */
+    /** 편성된 출고 웨이브. NULL = 아직 미편성. 주문은 웨이브에 편성돼야 피킹지시를 받는다 */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "wav_id")
     private OutbWave wave;
@@ -74,9 +86,16 @@ public class OutbOrder extends BaseEntity {
     @Column(name = "wav_reg_typ", length = 10)
     private WavRegTyp wavRegTyp;
 
-    /** 주문일 */
+    /** 주문일 = 상위 OMS 출고주문이 등록된 날. 「언제 들어온 주문인가」를 보는 값이다 */
     @Column(name = "odr_de", nullable = false)
     private LocalDate odrDe;
+
+    /**
+     * 출고 예정일. 출고번호 채번(OB-YYYYMMDD-NNN) 기준일이자 웨이브 편성 대상 기간의 기준이다 —
+     * 웨이브는 「같은 날 나갈 주문」을 묶는 단위라 주문일이 아니라 이쪽을 본다.
+     */
+    @Column(name = "expct_de", nullable = false)
+    private LocalDate expctDe;
 
     /** 출고 확정 시각 */
     @Column(name = "shmt_dt")
@@ -86,10 +105,13 @@ public class OutbOrder extends BaseEntity {
     private List<OutbLine> lines = new ArrayList<>();
 
     @Builder
-    private OutbOrder(String outbNo, Store store, LocalDate odrDe, String outbTyp, String vhclFltno) {
+    private OutbOrder(String outbNo, Long omsOutbOrderId, Store store, LocalDate odrDe,
+                      LocalDate expctDe, String outbTyp, String vhclFltno) {
         this.outbNo = outbNo;
+        this.omsOutbOrderId = omsOutbOrderId;
         this.store = store;
         this.odrDe = odrDe;
+        this.expctDe = expctDe;
         this.outbTyp = outbTyp != null ? outbTyp : DFLT_OUTB_TYP;
         this.vhclFltno = vhclFltno;
         this.status = OutbStatus.CREATED;
@@ -119,10 +141,36 @@ public class OutbOrder extends BaseEntity {
         this.wavRegTyp = regTyp;
     }
 
-    /** 웨이브에서 제외 (주문 빼기/웨이브 해체/취소 시). 출처도 함께 비운다 — 짝 제약 유지 */
+    /**
+     * 웨이브에서 제외 (주문 빼기/웨이브 해체/취소 시). 출처도 함께 비운다 — 짝 제약 유지.
+     *
+     * <p>담기와 마찬가지로 <b>할당 전(CREATED)</b>만 허용한다. 할당이 시작된 주문을 웨이브에서 빼면
+     * 그 주문의 할당 레코드가 어느 웨이브의 피킹지시에도 속하지 않는 미아가 된다 —
+     * 되돌리려면 할당 해제가 먼저다.
+     */
     public void unassignWave() {
+        if (status != OutbStatus.CREATED) {
+            throw new IllegalStateException("할당이 시작된 주문은 웨이브에서 뺄 수 없습니다: " + outbNo);
+        }
         this.wave = null;
         this.wavRegTyp = null;
+    }
+
+    /**
+     * 상위 주문의 확정취소로 이 문서를 물릴 수 있는지. 할당 전(CREATED)이고 <b>웨이브에 편성되기 전</b>만 가능하다.
+     * <p>
+     * 확정취소는 이 행을 삭제한다. 웨이브에 담긴 뒤에 지우면 그 웨이브의 피킹지시가 존재하지 않는
+     * 주문을 가리키게 되고, 편성 화면·실행 로그에 남은 편입 이력도 근거를 잃는다 — 되돌리려면
+     * 웨이브에서 빼는 것이 먼저다. (ASN의 requireRevertible()이 검수 시작을 막는 것과 같은 자리)
+     */
+    public void requireRevertible() {
+        if (status != OutbStatus.CREATED) {
+            throw new IllegalStateException("할당이 시작된 출고주문은 취소할 수 없습니다: " + outbNo);
+        }
+        if (wave != null) {
+            throw new IllegalStateException(
+                    "웨이브에 편성된 출고주문은 취소할 수 없습니다. 웨이브에서 먼저 빼세요: " + outbNo);
+        }
     }
 
     /** 취소. 할당 전(CREATED)만 가능 — 편성돼 있었다면 함께 웨이브에서 빠진다 */
@@ -130,7 +178,7 @@ public class OutbOrder extends BaseEntity {
         if (status != OutbStatus.CREATED) {
             throw new IllegalStateException("할당 전(CREATED) 주문만 취소할 수 있습니다: " + outbNo);
         }
+        unassignWave(); // 아직 CREATED라 위 가드를 통과한다 — 상태 전이보다 먼저 부르는 이유
         this.status = OutbStatus.CANCELLED;
-        unassignWave();
     }
 }

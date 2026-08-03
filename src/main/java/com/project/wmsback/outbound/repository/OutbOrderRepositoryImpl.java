@@ -31,10 +31,12 @@ public class OutbOrderRepositoryImpl implements OutbOrderRepositoryCustom {
                         outbNoContains(cond.getOutbNo()),
                         statusEq(cond.getStatus()),
                         storeIdEq(cond.getStoreId()),
+                        outbTypEq(cond.getOutbTyp()),
+                        vhclFltnoEq(cond.getVhclFltno()),
                         waveIdEq(cond.getWavId()),
                         unassigned(cond.getUnassigned()),
-                        odrDeGoe(cond.getDateFrom()),
-                        odrDeLoe(cond.getDateTo())
+                        expctDeGoe(cond.getDateFrom()),
+                        expctDeLoe(cond.getDateTo())
                 )
                 .orderBy(outbOrder.id.desc())
                 .fetch();
@@ -58,6 +60,15 @@ public class OutbOrderRepositoryImpl implements OutbOrderRepositoryCustom {
         return wavId != null ? outbOrder.wave.id.eq(wavId) : null;
     }
 
+    private BooleanExpression outbTypEq(String outbTyp) {
+        return StringUtils.hasText(outbTyp) ? outbOrder.outbTyp.eq(outbTyp) : null;
+    }
+
+    /** 배차 미정(NULL)은 어떤 편수로도 걸리지 않는다 — 편성 조건 판정(NE/NOT_IN 규약)과 같은 취급 */
+    private BooleanExpression vhclFltnoEq(String vhclFltno) {
+        return StringUtils.hasText(vhclFltno) ? outbOrder.vhclFltno.eq(vhclFltno) : null;
+    }
+
     /** 웨이브 편성 화면의 후보 조회용 — 미편성(TRUE)/편성됨(FALSE) 필터 */
     private BooleanExpression unassigned(Boolean unassigned) {
         if (unassigned == null) {
@@ -66,11 +77,12 @@ public class OutbOrderRepositoryImpl implements OutbOrderRepositoryCustom {
         return unassigned ? outbOrder.wave.isNull() : outbOrder.wave.isNotNull();
     }
 
-    private BooleanExpression odrDeGoe(LocalDate dateFrom) {
-        return dateFrom != null ? outbOrder.odrDe.goe(dateFrom) : null;
+    /** 기간 조건은 출고예정일을 본다 — 주문일이 아니다. 웨이브는 「같은 날 나갈 주문」을 묶는 단위다 */
+    private BooleanExpression expctDeGoe(LocalDate dateFrom) {
+        return dateFrom != null ? outbOrder.expctDe.goe(dateFrom) : null;
     }
 
-    private BooleanExpression odrDeLoe(LocalDate dateTo) {
-        return dateTo != null ? outbOrder.odrDe.loe(dateTo) : null;
+    private BooleanExpression expctDeLoe(LocalDate dateTo) {
+        return dateTo != null ? outbOrder.expctDe.loe(dateTo) : null;
     }
 }

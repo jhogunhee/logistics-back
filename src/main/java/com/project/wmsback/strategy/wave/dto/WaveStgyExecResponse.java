@@ -12,12 +12,12 @@ public record WaveStgyExecResponse(
         List<StgyResult> results
 ) {
 
-    /** 전략 1건의 실행 결과. outbWaveId가 null이면 편입 0건이라 웨이브를 만들지 않은 것 */
+    /** 전략 1건의 실행 결과. wavId가 null이면 편입 0건이라 웨이브를 만들지 않은 것 */
     public record StgyResult(
             Long wavStgyId,
             String stgyNm,
             Long rvsnNo,
-            Long outbWaveId,
+            Long wavId,
             String wavNo,
             int assignedCount,
             String skipRsn

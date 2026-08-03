@@ -57,9 +57,13 @@ public class OutbWaveController {
         outbWaveService.addOrders(wavId, req);
     }
 
-    @DeleteMapping("/{wavId}/orders/{outbOrderId}")
-    public void removeOrder(@PathVariable Long wavId, @PathVariable Long outbOrderId) {
-        outbWaveService.removeOrder(wavId, outbOrderId);
+    /**
+     * 편성 해제(다건). 주문을 지우는 게 아니라 미편성으로 되돌리는 상태 변경이라 DELETE가 아니고,
+     * 담기와 대칭으로 목록을 받아 한 트랜잭션에서 처리한다.
+     */
+    @PostMapping("/{wavId}/orders/unassign")
+    public void unassignOrders(@PathVariable Long wavId, @RequestBody OutbWaveOrdersRequest req) {
+        outbWaveService.unassignOrders(wavId, req);
     }
 
     @DeleteMapping("/{wavId}")

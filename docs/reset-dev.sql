@@ -36,6 +36,7 @@ BEGIN
     -- putaway_task 는 스키마에만 있고 아직 엔티티가 없다 — 있으면 함께 비운다.
     FOREACH t IN ARRAY ARRAY[
         'outb_alloc', 'outb_line', 'outb_order', 'outb_wave',
+        'oms_outb_line', 'oms_outb_order',
         -- 재고를 참조하는 작업 문서(이동지시 · 보류 · 조사)를 재고보다 먼저 비운다.
         -- 재고만 지우면 이 문서들이 사라진 상품·Lot을 가리키는 유령 행으로 남는다.
         'inv_stktk_ln', 'inv_stktk',
@@ -66,7 +67,7 @@ BEGIN
     -- VNDR_CD 는 지우지 않는다. 벤더를 남겼기 때문에 되감으면 VD-0001 이 다시 발급돼
     -- 화면에서 벤더를 등록할 때 uq_vndr_cd 위반이 난다.
     DELETE FROM nbr_seq
-     WHERE rule_cd IN ('PROD_CD', 'OMS_IB_NO', 'IB_NO', 'OUTB_NO', 'OUTB_WAV_NO',
+     WHERE rule_cd IN ('PROD_CD', 'OMS_IB_NO', 'IB_NO', 'OMS_OUTB_NO', 'OUTB_NO', 'OUTB_WAV_NO',
                        'INV_MOV_NO', 'HLD_NO', 'STKTK_NO');
 
     GET DIAGNOSTICS n = ROW_COUNT;

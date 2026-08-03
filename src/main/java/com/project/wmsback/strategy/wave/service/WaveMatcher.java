@@ -46,6 +46,6 @@ public final class WaveMatcher {
         }
         return new WaveMatchResult(target.outbOrderId(), target.outbNo(),
                 target.outbTyp(), target.vhclFltno(), target.storeCd(),
-                target.storeNm(), target.odrDe(), matched, grps);
+                target.storeNm(), target.expctDe(), matched, grps);
     }
 }

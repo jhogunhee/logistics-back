@@ -1,17 +1,8 @@
 package com.project.wmsback.outbound.service;
 
-import com.project.mdm.code.entity.CodeDetailId;
-import com.project.mdm.code.repository.CodeDetailRepository;
-import com.project.mdm.prod.entity.Prod;
-import com.project.mdm.store.entity.Store;
-import com.project.mdm.prod.repository.ProdRepository;
-import com.project.mdm.store.repository.StoreRepository;
-import com.project.mdm.nbr.service.NbrService;
 import com.project.wmsback.outbound.dto.OutbLineResponse;
-import com.project.wmsback.outbound.dto.OutbOrderCreateRequest;
 import com.project.wmsback.outbound.dto.OutbOrderResponse;
 import com.project.wmsback.outbound.dto.OutbOrderSearchCond;
-import com.project.wmsback.outbound.entity.OutbLine;
 import com.project.wmsback.outbound.entity.OutbOrder;
 import com.project.wmsback.outbound.repository.OutbLineRepository;
 import com.project.wmsback.outbound.repository.OutbOrderRepository;
@@ -21,6 +12,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+/**
+ * 창고 출고주문 조회·취소.
+ *
+ * <p><b>등록이 없다.</b> 출고주문은 OMS 출고주문 확정({@code OmsOutbOrderService.confirm})으로만
+ * 생기고 확정취소로만 사라진다 — 여기에 등록 경로를 두면 원장이 없는 출고가 생겨,
+ * 주문 상태와 창고 문서가 서로를 모른 채 갈라진다 (입고예정 ASN과 같은 구조).
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -28,10 +26,6 @@ public class OutbOrderService {
 
     private final OutbOrderRepository outbOrderRepository;
     private final OutbLineRepository outbLineRepository;
-    private final StoreRepository storeRepository;
-    private final ProdRepository prodRepository;
-    private final CodeDetailRepository codeDetailRepository;
-    private final NbrService nbrService;
 
     public List<OutbOrderResponse> list(OutbOrderSearchCond cond) {
         return outbOrderRepository.search(cond).stream()
@@ -48,72 +42,16 @@ public class OutbOrderService {
                 .toList();
     }
 
-    /** 출고 주문 등록. 출고번호는 주문일 + 시퀀스로 채번 (예: OB-20260718-001) */
-    @Transactional
-    public Long create(OutbOrderCreateRequest req) {
-        validate(req);
-        Store store = storeRepository.findById(req.getStoreId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 점포입니다: " + req.getStoreId()));
-
-        String outbNo = nbrService.issue("OUTB_NO", req.getOdrDe());
-
-        OutbOrder order = OutbOrder.builder()
-                .outbNo(outbNo)
-                .store(store)
-                .odrDe(req.getOdrDe())
-                .outbTyp(req.getOutbTyp())
-                .vhclFltno(req.getVhclFltno())
-                .build();
-        for (OutbOrderCreateRequest.LineRequest line : req.getLines()) {
-            Prod prod = prodRepository.findById(line.getProdId())
-                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다: " + line.getProdId()));
-            order.addLine(OutbLine.builder()
-                    .prod(prod)
-                    .odrQty(line.getOdrQty())
-                    .build());
-        }
-        outbOrderRepository.save(order); // cascade로 라인까지 함께 저장
-        return order.getId();
-    }
-
-    /** 취소. 할당 전(CREATED)만 가능 — 상태/웨이브 해제는 엔티티가 처리한다 */
+    /**
+     * 취소. 할당 전(CREATED)만 가능 — 상태/웨이브 해제는 엔티티가 처리한다.
+     * <p>
+     * 상위 주문의 <b>확정취소</b>와는 다른 조작이다: 확정취소는 이 행을 지우고 주문을 작성
+     * 상태로 되돌리지만, 취소는 창고 쪽에서만 CANCELLED로 눕히고 주문은 확정으로 남는다.
+     */
     @Transactional
     public void cancel(Long outbOrderId) {
         OutbOrder order = outbOrderRepository.findById(outbOrderId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 출고 주문입니다: " + outbOrderId));
         order.cancel();
-    }
-
-    private void validate(OutbOrderCreateRequest req) {
-        if (req.getStoreId() == null) {
-            throw new IllegalArgumentException("출고처 점포는 필수입니다.");
-        }
-        if (req.getOdrDe() == null) {
-            throw new IllegalArgumentException("주문일은 필수입니다.");
-        }
-        // 공통코드 값은 존재만 확인한다 — 값 목록의 주인은 코드관리 화면이라 컬럼 CHECK를 걸지 않았다
-        requireCode("OUTB_TYP", req.getOutbTyp(), "출고유형");
-        requireCode("VHCL_FLTNO", req.getVhclFltno(), "차량편수");
-        if (req.getLines() == null || req.getLines().isEmpty()) {
-            throw new IllegalArgumentException("출고 라인은 최소 1건 필요합니다.");
-        }
-        for (OutbOrderCreateRequest.LineRequest line : req.getLines()) {
-            if (line.getProdId() == null) {
-                throw new IllegalArgumentException("라인의 상품은 필수입니다.");
-            }
-            if (line.getOdrQty() == null || line.getOdrQty() < 1) {
-                throw new IllegalArgumentException("주문 수량은 1 이상이어야 합니다.");
-            }
-        }
-    }
-
-    /** 비어 있으면 통과(선택 항목이거나 엔티티 기본값이 채운다), 값이 있으면 그 코드가 실존해야 한다 */
-    private void requireCode(String grpCd, String codeCd, String label) {
-        if (codeCd == null || codeCd.isBlank()) {
-            return;
-        }
-        if (!codeDetailRepository.existsById(new CodeDetailId(grpCd, codeCd))) {
-            throw new IllegalArgumentException("없는 " + label + " 코드입니다: " + codeCd);
-        }
     }
 }

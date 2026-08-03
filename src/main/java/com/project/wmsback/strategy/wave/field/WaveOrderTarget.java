@@ -19,12 +19,12 @@ public record WaveOrderTarget(
         String vhclFltno,
         String storeCd,
         String storeNm,
-        LocalDate odrDe
+        LocalDate expctDe
 ) {
 
     public static WaveOrderTarget from(OutbOrder order) {
         return new WaveOrderTarget(order.getId(), order.getOutbNo(),
                 order.getOutbTyp(), order.getVhclFltno(),
-                order.getStore().getStoreCd(), order.getStore().getStoreNm(), order.getOdrDe());
+                order.getStore().getStoreCd(), order.getStore().getStoreNm(), order.getExpctDe());
     }
 }

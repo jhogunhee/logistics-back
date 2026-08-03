@@ -8,8 +8,10 @@ package com.project.mdm.prod.service;
  * 막아주지 않는다). 그래서 방향을 뒤집는다: 참조하는 쪽이 이 인터페이스를 구현해 빈으로
  * 등록하고, {@link ProdService}가 등록된 구현체를 순회한다.
  * <p>
- * 구현체는 앱당 하나다 — `WmsProdRefChecker`(재고 · 이력 · 입고예정 · 출고주문 · Lot)와
- * `OmsIbProdRefChecker`(입고주문). 순서가 필요하면 {@code @Order}를 붙인다.
+ * 구현체는 참조를 소유한 도메인에 하나씩 둔다 — `WmsProdRefChecker`(재고 · 이력 · 입고예정 ·
+ * 출고주문 · Lot)와 `OmsIbProdRefChecker`(입고주문) · `OmsOutbProdRefChecker`(출고주문).
+ * WMS가 다섯 도메인을 한 구현체로 묶은 것은 Lot 하나에 딸린 조회들이라서고, OMS는 주문 원장이
+ * 입고·출고로 갈려 있어 각 패키지가 자기 것만 신고한다. 순서가 필요하면 {@code @Order}를 붙인다.
  * <p>
  * 포장({@code prod_uom})은 어느 구현체도 세지 않는다 — 상품에 종속된 것이라 함께 지우는 게
  * 맞고, {@code Prod.uoms}의 cascade가 처리한다.

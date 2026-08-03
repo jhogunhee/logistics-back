@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>출고 웨이브 전략 분석 — WMS</title>
+<style>
+  :root {
+    --bg: #F6F7F6;
+    --surface: #FFFFFF;
+    --surface-2: #EEF1F0;
+    --ink: #1B2430;
+    --ink-soft: #4A5563;
+    --ink-faint: #8A94A0;
+    --line: #DDE2E1;
+    --line-strong: #C3CBC9;
+    --accent: #B45309;
+    --accent-soft: #FBF0DF;
+    --accent-line: #E5C79A;
+    --steel: #3D6B8E;
+    --steel-soft: #E8EFF5;
+    --steel-line: #BFD2E0;
+    --pass: #1E7A46;
+    --pass-soft: #E3F1E8;
+    --fail: #B0362E;
+    --fail-soft: #F8E7E5;
+    --code-bg: #212936;
+    --code-ink: #D8DEE7;
+    --code-accent: #E8A83C;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14181E;
+      --surface: #1B212A;
+      --surface-2: #232B36;
+      --ink: #E4E8ED;
+      --ink-soft: #A7B0BC;
+      --ink-faint: #6B7684;
+      --line: #2C3541;
+      --line-strong: #3B4654;
+      --accent: #E8A83C;
+      --accent-soft: #2C2517;
+      --accent-line: #56431F;
+      --steel: #7FA8C9;
+      --steel-soft: #1D2733;
+      --steel-line: #33465A;
+      --pass: #52B87E;
+      --pass-soft: #17281E;
+      --fail: #E07A72;
+      --fail-soft: #2E1B19;
+      --code-bg: #10141A;
+      --code-ink: #C9D1DC;
+      --code-accent: #E8A83C;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #F6F7F6;
+    --surface: #FFFFFF;
+    --surface-2: #EEF1F0;
+    --ink: #1B2430;
+    --ink-soft: #4A5563;
+    --ink-faint: #8A94A0;
+    --line: #DDE2E1;
+    --line-strong: #C3CBC9;
+    --accent: #B45309;
+    --accent-soft: #FBF0DF;
+    --accent-line: #E5C79A;
+    --steel: #3D6B8E;
+    --steel-soft: #E8EFF5;
+    --steel-line: #BFD2E0;
+    --pass: #1E7A46;
+    --pass-soft: #E3F1E8;
+    --fail: #B0362E;
+    --fail-soft: #F8E7E5;
+    --code-bg: #212936;
+    --code-ink: #D8DEE7;
+    --code-accent: #E8A83C;
+  }
+  :root[data-theme="dark"] {
+    --bg: #14181E;
+    --surface: #1B212A;
+    --surface-2: #232B36;
+    --ink: #E4E8ED;
+    --ink-soft: #A7B0BC;
+    --ink-faint: #6B7684;
+    --line: #2C3541;
+    --line-strong: #3B4654;
+    --accent: #E8A83C;
+    --accent-soft: #2C2517;
+    --accent-line: #56431F;
+    --steel: #7FA8C9;
+    --steel-soft: #1D2733;
+    --steel-line: #33465A;
+    --pass: #52B87E;
+    --pass-soft: #17281E;
+    --fail: #E07A72;
+    --fail-soft: #2E1B19;
+    --code-bg: #10141A;
+    --code-ink: #C9D1DC;
+    --code-accent: #E8A83C;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕", system-ui, sans-serif;
+    font-size: 15.5px;
+    line-height: 1.72;
+    word-break: keep-all;
+  }
+  code, .mono {
+    font-family: ui-monospace, "Cascadia Code", Consolas, "D2Coding", monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  code {
+    font-size: 0.88em;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 0.08em 0.38em;
+  }
+  a { color: var(--steel); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .page { max-width: 900px; margin: 0 auto; padding: 0 24px 96px; }
+
+  /* ---------- Hero ---------- */
+  .hero { padding: 64px 0 40px; border-bottom: 1px solid var(--line-strong); position: relative; }
+  .hero-tag {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.14em;
+    color: var(--accent); text-transform: uppercase;
+  }
+  .hero-tag::before {
+    content: ""; width: 22px; height: 2px; background: var(--accent); display: inline-block;
+  }
+  h1 {
+    font-size: clamp(28px, 4.6vw, 42px);
+    line-height: 1.25; margin: 14px 0 16px;
+    font-weight: 800; letter-spacing: -0.02em; text-wrap: balance;
+  }
+  h1 .thin { font-weight: 400; color: var(--ink-soft); }
+  .hero-lede { max-width: 62ch; color: var(--ink-soft); margin: 0 0 26px; font-size: 16.5px; }
+  .hero-facts { display: flex; flex-wrap: wrap; gap: 10px; }
+  .fact {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 8px; padding: 10px 16px; min-width: 150px;
+  }
+  .fact b { display: block; font-size: 12px; letter-spacing: 0.08em; color: var(--ink-faint); font-weight: 700; text-transform: uppercase; }
+  .fact span { font-size: 14.5px; font-weight: 600; }
+  .fact span code { background: transparent; border: none; padding: 0; color: var(--accent); }
+
+  /* wave motif */
+  .wavebar { height: 26px; margin-top: 34px; overflow: hidden; opacity: 0.9; }
+  .wavebar svg { display: block; width: 100%; height: 100%; }
+
+  /* ---------- Sections ---------- */
+  section { padding-top: 56px; }
+  .eyebrow {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.16em;
+    color: var(--accent); text-transform: uppercase; margin: 0 0 8px;
+  }
+  h2 { font-size: 24px; margin: 0 0 6px; font-weight: 800; letter-spacing: -0.01em; text-wrap: balance; }
+  .h2-sub { color: var(--ink-soft); margin: 0 0 26px; max-width: 68ch; }
+  h3 { font-size: 17px; margin: 34px 0 12px; font-weight: 700; }
+  p { max-width: 68ch; }
+  .note { color: var(--ink-soft); font-size: 14px; }
+
+  /* ---------- Goal cards ---------- */
+  .goal-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+  .goal {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 20px 20px 18px;
+  }
+  .goal .g-icon {
+    width: 34px; height: 34px; border-radius: 8px;
+    background: var(--accent-soft); border: 1px solid var(--accent-line);
+    display: flex; align-items: center; justify-content: center; margin-bottom: 12px;
+  }
+  .goal .g-icon svg { width: 18px; height: 18px; stroke: var(--accent); }
+  .goal h4 { margin: 0 0 6px; font-size: 15.5px; }
+  .goal p { margin: 0; font-size: 14px; color: var(--ink-soft); }
+  .callout {
+    margin-top: 18px; background: var(--steel-soft); border: 1px solid var(--steel-line);
+    border-left: 3px solid var(--steel); border-radius: 8px; padding: 14px 18px;
+    font-size: 14.5px; color: var(--ink);
+  }
+  .callout b { color: var(--steel); }
+
+  /* ---------- Layer diagram ---------- */
+  .layers { display: flex; flex-direction: column; gap: 0; margin: 8px 0 4px; }
+  .layer {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 16px 20px; position: relative;
+  }
+  .layer + .layer { margin-top: 26px; }
+  .layer + .layer::before {
+    content: ""; position: absolute; left: 42px; top: -27px; width: 2px; height: 27px;
+    background: var(--line-strong);
+  }
+  .layer + .layer::after {
+    content: ""; position: absolute; left: 38.5px; top: -6px;
+    border: 5px solid transparent; border-top-color: var(--line-strong);
+  }
+  .layer .l-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+  .layer .l-tbl { font-weight: 700; font-size: 15px; }
+  .layer .l-tbl code { color: var(--steel); font-weight: 600; }
+  .layer .l-role { font-size: 13px; color: var(--ink-faint); }
+  .layer .l-body { margin-top: 8px; font-size: 14px; color: var(--ink-soft); max-width: none; }
+  .layer.l-1 { border-left: 3px solid var(--accent); }
+  .layer.l-2 { border-left: 3px solid var(--steel); margin-left: 26px; }
+  .layer.l-3 { border-left: 3px solid var(--line-strong); margin-left: 52px; }
+  .layer.l-2::before, .layer.l-2::after { left: 42px; }
+  .layer.l-3::before, .layer.l-3::after { left: 42px; }
+  .rel {
+    display: inline-block; font-size: 12px; font-weight: 700; border-radius: 999px;
+    padding: 1px 10px; letter-spacing: 0.05em;
+  }
+  .rel.or  { background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent-line); }
+  .rel.and { background: var(--steel-soft); color: var(--steel); border: 1px solid var(--steel-line); }
+
+  /* ---------- Code chain ---------- */
+  .chain { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; margin: 14px 0 6px; }
+  .chain .cnode {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+    padding: 10px 14px; font-size: 13px; min-width: 130px; flex: 0 1 auto;
+  }
+  .chain .cnode b { display: block; font-size: 12.5px; }
+  .chain .cnode span { color: var(--ink-faint); font-size: 12px; }
+  .chain .cnode code { background: transparent; border: 0; padding: 0; color: var(--steel); }
+  .chain .arrow {
+    align-self: center; color: var(--ink-faint); font-size: 13px; white-space: nowrap;
+    display: flex; flex-direction: column; align-items: center; line-height: 1.2; padding: 0 2px;
+  }
+  .chain .arrow small { font-size: 10.5px; letter-spacing: 0.03em; }
+  .maptable-wrap { overflow-x: auto; margin-top: 16px; }
+
+  /* ---------- Tables ---------- */
+  table { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--surface); }
+  .tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+  th, td { padding: 9px 14px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+  thead th {
+    font-size: 12px; letter-spacing: 0.07em; text-transform: uppercase;
+    color: var(--ink-faint); background: var(--surface-2); border-bottom: 1px solid var(--line-strong);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td code { white-space: nowrap; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ---------- Flow ---------- */
+  .flow { display: flex; flex-direction: column; margin-top: 10px; }
+  .fstep { display: grid; grid-template-columns: 44px 1fr; gap: 0 18px; position: relative; padding-bottom: 26px; }
+  .fstep:last-child { padding-bottom: 0; }
+  .fstep::before {
+    content: ""; position: absolute; left: 21px; top: 40px; bottom: 0; width: 2px;
+    background: var(--line-strong);
+  }
+  .fstep:last-child::before { display: none; }
+  .fnum {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--surface); border: 2px solid var(--steel);
+    color: var(--steel); font-weight: 800; font-size: 16px;
+    display: flex; align-items: center; justify-content: center; z-index: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .fstep.accent .fnum { border-color: var(--accent); color: var(--accent); }
+  .fbody { padding-top: 6px; min-width: 0; }
+  .fbody h4 { margin: 0 0 4px; font-size: 15.5px; }
+  .fbody h4 code { color: var(--steel); background: transparent; border: 0; padding: 0; font-size: 0.85em; }
+  .fbody p { margin: 0; font-size: 14px; color: var(--ink-soft); max-width: none; }
+  .fbody ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; color: var(--ink-soft); }
+  .fbody li { margin: 2px 0; }
+
+  .branch { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+  @media (max-width: 640px) { .branch { grid-template-columns: 1fr; } }
+  .branch .b {
+    border-radius: 10px; padding: 14px 16px; font-size: 14px; border: 1px solid;
+  }
+  .branch .b h5 { margin: 0 0 6px; font-size: 13.5px; display: flex; align-items: center; gap: 7px; }
+  .branch .b ul { margin: 0; padding-left: 18px; }
+  .branch .b li { margin: 3px 0; color: var(--ink-soft); }
+  .b.pass { background: var(--pass-soft); border-color: var(--pass); border-left-width: 3px; }
+  .b.pass h5 { color: var(--pass); }
+  .b.fail { background: var(--fail-soft); border-color: var(--fail); border-left-width: 3px; }
+  .b.fail h5 { color: var(--fail); }
+
+  .paths { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-top: 10px; }
+  .path { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .path b { font-size: 14px; display: block; }
+  .path code { background: transparent; border: 0; padding: 0; color: var(--steel); font-size: 12.5px; }
+  .path p { margin: 6px 0 0; font-size: 13px; color: var(--ink-soft); }
+  .path.manual { border-style: dashed; }
+
+  /* ---------- Case study ---------- */
+  .case-band {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 6px 22px 24px; margin-top: 8px;
+  }
+  .stgy-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
+  @media (max-width: 700px) { .stgy-cards { grid-template-columns: 1fr; } }
+  .stgy {
+    border: 1px solid var(--line); border-radius: 10px; background: var(--bg);
+    padding: 16px 18px;
+  }
+  .stgy .s-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .stgy .s-cd {
+    font-weight: 800; color: var(--accent); font-size: 15px;
+    font-family: ui-monospace, Consolas, monospace;
+  }
+  .stgy .s-nm { font-weight: 700; font-size: 14.5px; }
+  .stgy .s-seq { font-size: 12px; color: var(--ink-faint); margin-left: auto; white-space: nowrap; }
+  .aply { margin-top: 12px; padding: 10px 12px; border: 1px dashed var(--line-strong); border-radius: 8px; }
+  .aply .a-label { font-size: 12px; color: var(--ink-faint); font-weight: 700; letter-spacing: 0.06em; }
+  .conds { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 7px; }
+  .cond {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--steel-soft); border: 1px solid var(--steel-line); color: var(--ink);
+    border-radius: 6px; padding: 3px 9px; font-size: 12.5px;
+    font-family: ui-monospace, Consolas, monospace;
+  }
+  .cond em { font-style: normal; color: var(--steel); font-weight: 700; }
+  .op { font-size: 11.5px; font-weight: 800; letter-spacing: 0.08em; }
+  .op.and { color: var(--steel); }
+  .op.or { color: var(--accent); }
+  .or-divider { display: flex; align-items: center; gap: 8px; margin: 10px 0 2px; color: var(--accent); font-size: 11.5px; font-weight: 800; letter-spacing: 0.1em; }
+  .or-divider::before, .or-divider::after { content: ""; height: 1px; background: var(--accent-line); flex: 1; }
+
+  /* gate visual */
+  .gates { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; }
+  .gate {
+    display: grid; grid-template-columns: minmax(190px, 240px) 1fr minmax(150px, 190px);
+    align-items: center; gap: 0;
+    border: 1px solid var(--line); border-radius: 10px; background: var(--bg);
+    overflow: hidden;
+  }
+  @media (max-width: 760px) { .gate { grid-template-columns: 1fr; } .gate .g-arrow { display: none; } }
+  .gate .g-order { padding: 13px 16px; border-right: 1px solid var(--line); }
+  @media (max-width: 760px) { .gate .g-order { border-right: 0; border-bottom: 1px solid var(--line); } }
+  .gate .g-order b { font-family: ui-monospace, Consolas, monospace; font-size: 13.5px; display: block; }
+  .gate .g-order span { font-size: 12.5px; color: var(--ink-soft); }
+  .gate .g-check { padding: 13px 16px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .chk {
+    display: inline-flex; align-items: center; gap: 5px;
+    border-radius: 6px; padding: 3px 9px; font-size: 12.5px;
+    font-family: ui-monospace, Consolas, monospace;
+    background: var(--pass-soft); color: var(--pass); border: 1px solid var(--pass);
+  }
+  .chk::after { content: "✓"; font-weight: 800; }
+  .chk.x { background: var(--fail-soft); color: var(--fail); border-color: var(--fail); }
+  .chk.x::after { content: "✕"; }
+  .gate .g-result { padding: 13px 16px; text-align: left; border-left: 1px solid var(--line); font-size: 13.5px; font-weight: 700; }
+  @media (max-width: 760px) { .gate .g-result { border-left: 0; border-top: 1px solid var(--line); } }
+  .gate .g-result small { display: block; font-weight: 400; font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+  .gate.ok .g-result { color: var(--pass); }
+  .gate.ok { border-left: 3px solid var(--pass); }
+  .gate.empty { border-left: 3px solid var(--ink-faint); }
+  .gate.empty .g-result { color: var(--ink-soft); }
+
+  /* result code block */
+  .dbresult {
+    background: var(--code-bg); color: var(--code-ink);
+    border-radius: 10px; padding: 18px 20px; overflow-x: auto;
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    font-size: 12.8px; line-height: 1.75; margin-top: 14px;
+  }
+  .dbresult .c { color: #7C8797; }
+  .dbresult .k { color: var(--code-accent); font-weight: 600; }
+  .dbresult .g { color: #7CC79A; }
+  .dbresult pre { margin: 0; }
+
+  /* ---------- Findings ---------- */
+  .findings { display: flex; flex-direction: column; gap: 12px; margin-top: 6px; }
+  .finding {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 16px 20px; display: grid; grid-template-columns: 30px 1fr; gap: 14px;
+  }
+  .finding .f-no {
+    width: 30px; height: 30px; border-radius: 7px; background: var(--accent-soft);
+    border: 1px solid var(--accent-line); color: var(--accent);
+    font-weight: 800; font-size: 14px; display: flex; align-items: center; justify-content: center;
+  }
+  .finding h4 { margin: 0 0 4px; font-size: 15px; }
+  .finding p { margin: 0; font-size: 14px; color: var(--ink-soft); max-width: none; }
+  .finding .mini-wrap { overflow-x: auto; margin-top: 10px; border: 1px solid var(--line); border-radius: 8px; }
+  .finding .mini-wrap table { font-size: 13px; }
+  .strike { color: var(--fail); }
+
+  footer {
+    margin-top: 72px; padding-top: 20px; border-top: 1px solid var(--line);
+    font-size: 12.5px; color: var(--ink-faint);
+  }
+  footer code { font-size: 11.5px; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .hero-tag, h1, .hero-lede, .hero-facts { animation: rise 0.5s ease-out both; }
+    .hero-lede { animation-delay: 0.06s; } .hero-facts { animation-delay: 0.12s; }
+    @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  }
+</style>
+
+</head>
+<body>
+<div class="page">
+
+  <!-- ================= HERO ================= -->
+  <header class="hero">
+    <span class="hero-tag">WMS 전략 분석 · 전략유형 21</span>
+    <h1>출고 웨이브 전략<br><span class="thin">규칙 하나가 주문을 작업 묶음으로 바꾸는 과정</span></h1>
+    <p class="hero-lede">
+      창고는 주문 1건이 아니라 <b>웨이브(작업 묶음)</b> 단위로 할당→피킹→출고를 진행한다.
+      웨이브 전략은 "어떤 주문을 어느 웨이브에 넣을지"를 조건식으로 정의해 편성을 자동화하는 규칙이다.
+      아래 내용은 소스코드(<code>OutbWaveServiceImpl</code>, <code>LodisStgyService</code>)와
+      <code>Company/dbData</code> 운영 덤프로 검증했다.
+    </p>
+    <div class="hero-facts">
+      <div class="fact"><b>진입점</b><span><code>OutbWaveServiceImpl</code>.stgyExec / stgyAutoExec</span></div>
+      <div class="fact"><b>공통 엔진</b><span><code>LodisStgyService.apply()</code> — 필터로만 사용</span></div>
+      <div class="fact"><b>규칙 저장소</b><span><code>TWM_SG_STGY</code> 3계층</span></div>
+      <div class="fact"><b>판정 결과</b><span>출고상태 <code>100 → 200</code> (웨이브 편입)</span></div>
+    </div>
+    <div class="wavebar" aria-hidden="true">
+      <svg viewBox="0 0 900 26" preserveAspectRatio="none">
+        <path d="M0 16 Q 37 4, 75 16 T 150 16 T 225 16 T 300 16 T 375 16 T 450 16 T 525 16 T 600 16 T 675 16 T 750 16 T 825 16 T 900 16"
+              fill="none" stroke="var(--accent)" stroke-width="2" opacity="0.55"/>
+        <path d="M0 21 Q 37 9, 75 21 T 150 21 T 225 21 T 300 21 T 375 21 T 450 21 T 525 21 T 600 21 T 675 21 T 750 21 T 825 21 T 900 21"
+              fill="none" stroke="var(--steel)" stroke-width="1.5" opacity="0.4"/>
+      </svg>
+    </div>
+  </header>
+
+  <!-- ================= 1. GOAL ================= -->
+  <section>
+    <p class="eyebrow">1 · 목표</p>
+    <h2>이 전략이 존재하는 이유</h2>
+    <p class="h2-sub">주문을 하나씩 고르는 수작업 편성을 규칙으로 대체하고, 이후 모든 출고 공정의 작업 단위를 확정한다.</p>
+    <div class="goal-grid">
+      <div class="goal">
+        <div class="g-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 6h16M4 12h10M4 18h7"/><path d="M19 11v6M16 14h6"/></svg></div>
+        <h4>자동 편성</h4>
+        <p>"일반출고 &amp; 1편 배차는 1편 웨이브로"처럼 규칙을 미리 정의하면, 조건에 맞는 주문이 자동으로 웨이브에 묶인다. 담당자의 개별 선택이 필요 없다.</p>
+      </div>
+      <div class="goal">
+        <div class="g-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="3" y="4" width="8" height="7" rx="1"/><rect x="13" y="4" width="8" height="7" rx="1"/><rect x="8" y="14" width="8" height="7" rx="1"/></svg></div>
+        <h4>배차·작업 단위 분리</h4>
+        <p>차량편수(<code>FLTNO</code>), 출고유형(일반·반품·기타)별로 작업을 분리해, 같은 차수에 실릴 주문만 함께 할당·피킹된다.</p>
+      </div>
+      <div class="goal">
+        <div class="g-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+        <h4>후속 공정의 입력 확정</h4>
+        <p>재고할당(전략 22)은 웨이브 단위로 실행된다. 웨이브 편성은 곧 "이 묶음으로 오늘 출고작업을 시작한다"는 선언이다.</p>
+      </div>
+    </div>
+    <div class="callout">
+      4가지 전략유형(입고제약 11 · 입고적치 12 · <b>출고웨이브 21</b> · 재고할당 22) 중 웨이브는 공통 엔진을
+      <b>가장 단순한 형태 — 주문 필터</b>로 쓴다. 로케이션 추천이나 수량 분할 없이,
+      "이 주문을 이 웨이브에 넣을지 말지"만 판정한다.
+    </div>
+  </section>
+
+  <!-- ================= 2. DATA MODEL ================= -->
+  <section>
+    <p class="eyebrow">2 · 데이터 구조</p>
+    <h2>전략 3계층이 웨이브에서 갖는 의미</h2>
+    <p class="h2-sub">전략설정 화면(WMSSG0001L)이 저장하는 3개 테이블이 웨이브에서는 각각 이렇게 읽힌다.</p>
+
+    <div class="layers">
+      <div class="layer l-1">
+        <div class="l-head">
+          <span class="l-tbl"><code>TWM_SG_STGY</code> 전략 마스터</span>
+          <span class="l-role">웨이브 1개 = 전략 1개</span>
+        </div>
+        <p class="l-body"><code>STGY_TYP_CD='21'</code>로 식별. <code>STGY_SEQ</code>가 자동실행 시 웨이브 생성 순서가 되고, 전략명이 웨이브명(<code>전략명_출고일</code>)의 재료가 된다.</p>
+      </div>
+      <div class="layer l-2">
+        <div class="l-head">
+          <span class="l-tbl"><code>TWM_SG_STGY_APLY</code> 적용전략</span>
+          <span class="l-role">적용구분 '10' 생성단위만 사용</span>
+          <span class="rel or">APLY끼리는 OR</span>
+        </div>
+        <p class="l-body">한 전략에 <code>APLY_NO</code>를 여러 개 달면 <b>대안 조건</b>이 된다 — 하나만 통과해도 그 주문은 편입된다.</p>
+      </div>
+      <div class="layer l-3">
+        <div class="l-head">
+          <span class="l-tbl"><code>TWM_SG_STGY_COND</code> 적용조건</span>
+          <span class="l-role">무엇을 · 어떻게 · 어떤 값과 비교할지</span>
+          <span class="rel and">같은 APLY 안에서는 AND</span>
+        </div>
+        <p class="l-body"><code>COND_CRTR_CD</code>(조건기준) + <code>COND_CMPR_CD</code>(비교연산자, C01515) + <code>COND_VAL</code>(값). 한 적용전략의 조건은 전부 만족해야 통과한다.</p>
+      </div>
+    </div>
+
+    <h3>조건기준이 주문 컬럼으로 풀리는 공통코드 체인</h3>
+    <p class="note">조건기준 코드가 주문 데이터의 어떤 컬럼과 비교되는지는 공통코드 4단 체인으로 해석된다
+      (<code>TwmSgStgy.selectCondList</code>가 조인으로 수행, <code>twmSgStgy.xml:275</code>).</p>
+    <div class="chain">
+      <div class="cnode"><b><code>C00002</code> '21'</b><span>전략유형 · 출고웨이브</span></div>
+      <div class="arrow">→<small>FLD_1</small></div>
+      <div class="cnode"><b><code>C00006</code> '10'</b><span>적용구분 · 생성단위</span></div>
+      <div class="arrow">→<small>FLD_1</small></div>
+      <div class="cnode"><b><code>C00025</code> '01'</b><span>적용기준 · 생성대상</span></div>
+      <div class="arrow">→<small>FLD_1</small></div>
+      <div class="cnode" style="border-color: var(--accent-line); background: var(--accent-soft);"><b><code>C00026</code></b><span>조건기준 = 컬럼 매핑</span></div>
+    </div>
+    <div class="maptable-wrap">
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>C00026 코드</th><th>이름</th><th>매핑 컬럼 (USR_DEF_FLD_4)</th><th>값 코드그룹</th></tr></thead>
+          <tbody>
+            <tr><td><code>11</code></td><td>출고유형</td><td><code>OUTB_TYP_CD</code></td><td>C00922 — 010 일반 · 020 반품 · 070 기타 …</td></tr>
+            <tr><td><code>21</code></td><td>차량편수</td><td><code>FLTNO</code></td><td>C01351 — 1편 · 2편 …</td></tr>
+            <tr><td><code>31</code></td><td>납품처그룹</td><td>—</td><td>—</td></tr>
+            <tr><td><code>32</code></td><td>납품처유형</td><td>—</td><td>C00148</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <p class="note" style="margin-top:12px;">
+      비교연산자(C01515): <code>11</code> 일치(=) · <code>15</code> 불일치(≠) · <code>21~24</code> 대소비교 · <code>12~14</code> LIKE류.
+      실제 비교는 <code>LodisStgyService.precate()</code>가 주문 데이터의 <code>COND_MPP</code> 컬럼값을 꺼내
+      <code>ConditionType.apply("C01515", …)</code>로 수행한다.
+    </p>
+  </section>
+
+  <!-- ================= 3. FLOW ================= -->
+  <section>
+    <p class="eyebrow">3 · 실행 과정</p>
+    <h2>자동실행 한 사이클</h2>
+    <p class="h2-sub"><code>stgyAutoExecOutbWaveList()</code> 기준. 선택실행은 ②에서 화면 선택한 웨이브·전략 1건만 처리하고,
+      "이미 실행된 웨이브" 재실행과 "대상주문 0건"을 추가로 차단하는 점만 다르다.</p>
+
+    <div class="flow">
+      <div class="fstep">
+        <div class="fnum">1</div>
+        <div class="fbody">
+          <h4>금일 미생성 전략 선별 <code>getNotCreatedWaveStgyCdList</code></h4>
+          <p>전체 '21' 전략에서 오늘 이미 웨이브를 만든 전략을 <code>MINUS</code>로 제외한다. 자동실행을 하루 두 번 눌러도 중복 생성이 없는 이유.</p>
+        </div>
+      </div>
+      <div class="fstep">
+        <div class="fnum">2</div>
+        <div class="fbody">
+          <h4>전략마다 웨이브 마스터 생성 <code>TWM_OB_WAV_M</code></h4>
+          <p>웨이브번호 채번 → INSERT. 웨이브명은 <code>전략명 + "_" + 출고일</code> (예: 일반출고 1편 웨이브_20241015), 진행상태 <code>200</code>.</p>
+        </div>
+      </div>
+      <div class="fstep">
+        <div class="fnum">3</div>
+        <div class="fbody">
+          <h4>전략조건 존재 검증 <code>getStgyCondition</code></h4>
+          <p>조건이 하나도 없으면 <b>"웨이브 전략조건이 존재하지 않습니다"</b> 오류로 중단 — 조건 없는 전략은 실행 자체가 거부된다.</p>
+        </div>
+      </div>
+      <div class="fstep">
+        <div class="fnum">4</div>
+        <div class="fbody">
+          <h4>웨이브 대상주문 조회 <code>getOutbWaveTargetList</code></h4>
+          <ul>
+            <li>출고 디테일 진행상태 <code>100</code> — 아직 웨이브 미편성</li>
+            <li>보류 제외 (<code>HLD_YN ≠ 'Y'</code>) · 마감 제외 (<code>CLOS_YN ≠ 'Y'</code>)</li>
+            <li>출고예정일 = 웨이브의 출고일</li>
+          </ul>
+        </div>
+      </div>
+      <div class="fstep accent">
+        <div class="fnum">5</div>
+        <div class="fbody">
+          <h4>주문 1건마다 <code>lodisStgyService.apply()</code> — 조건 게이트</h4>
+          <p>적용전략(APLY)을 순서대로 시도하고, 각 APLY의 조건을 전부(AND) 검사한다. 첫 통과 시 콜백을 트랜잭션으로 실행하고 그 주문의 판정을 끝낸다.</p>
+          <div class="branch">
+            <div class="b pass">
+              <h5>통과 → 편입</h5>
+              <ul>
+                <li><code>WAV_LN_NO</code> 채번 → <code>TWM_OB_WAV_D</code> INSERT</li>
+                <li>출고 디테일 상태 <code>100 → 200</code></li>
+                <li>출고 마스터 상태 갱신</li>
+                <li>OMS 주문상태 동기화 (<code>updateSoCoStatus</code>)</li>
+              </ul>
+            </div>
+            <div class="b fail">
+              <h5>전부 불통과 → 잔류</h5>
+              <ul>
+                <li>주문은 상태 <code>100</code> 그대로</li>
+                <li>다음 전략(다음 웨이브)의 후보로 남는다</li>
+                <li>모든 전략에서 탈락하면 미편성 주문으로 화면에 계속 노출</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h3>편성 경로는 넷</h3>
+    <div class="paths">
+      <div class="path">
+        <b>선택실행</b><code>stgyExecOutbWaveList :302</code>
+        <p>화면에서 웨이브 행 + 전략을 선택해 실행. 디테일이 이미 있으면 재실행 거부.</p>
+      </div>
+      <div class="path">
+        <b>자동실행</b><code>stgyAutoExecOutbWaveList :403</code>
+        <p>금일 미생성 전략 전부에 대해 웨이브 생성 + 편입을 일괄 수행.</p>
+      </div>
+      <div class="path">
+        <b>전략 웨이브생성</b><code>saveOutbWaveMstListByStgy :524</code>
+        <p>마스터만 만들어 두고, 편입은 이후 선택실행으로.</p>
+      </div>
+      <div class="path manual">
+        <b>수동 편성</b><code>saveOutbWaveDtlList :175</code>
+        <p>전략 미적용 — 담당자가 주문을 직접 추가. 상태 체크만 수행한다.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 4. CASE ================= -->
+  <section>
+    <p class="eyebrow">4 · 덤프 데이터 실증</p>
+    <h2>S000006 / C000004 · 2024-10-15의 실제 실행</h2>
+    <p class="h2-sub">운영 덤프(<code>TWM_SG_STGY*</code>, <code>TWM_OB_OUTB_M</code>, <code>TWM_OB_WAV_M/D</code>)에 남은
+      자동실행 1회의 전체 궤적이다.</p>
+
+    <div class="case-band">
+      <h3>등록된 웨이브 전략</h3>
+      <div class="stgy-cards">
+        <div class="stgy">
+          <div class="s-head">
+            <span class="s-cd">OWV0001</span>
+            <span class="s-nm">일반출고 1편 웨이브</span>
+            <span class="s-seq">STGY_SEQ 1</span>
+          </div>
+          <div class="aply">
+            <span class="a-label">APLY_NO 1</span>
+            <div class="conds">
+              <span class="cond">출고유형 <em>= 010</em> 일반출고</span>
+              <span class="op and">AND</span>
+              <span class="cond">차량편수 <em>= 1</em></span>
+            </div>
+          </div>
+        </div>
+        <div class="stgy">
+          <div class="s-head">
+            <span class="s-cd">OWV0002</span>
+            <span class="s-nm">일반출고 2편 웨이브</span>
+            <span class="s-seq">STGY_SEQ 2</span>
+          </div>
+          <div class="aply">
+            <span class="a-label">APLY_NO 1</span>
+            <div class="conds">
+              <span class="cond">출고유형 <em>= 010</em> 일반출고</span>
+              <span class="op and">AND</span>
+              <span class="cond">차량편수 <em>= 2</em></span>
+            </div>
+          </div>
+          <div class="or-divider">OR</div>
+          <div class="aply">
+            <span class="a-label">APLY_NO 2</span>
+            <div class="conds">
+              <span class="cond">출고유형 <em>= 070</em> 기타출고</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <h3>당일 웨이브 대상주문 (상태 100)</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>출고번호</th><th>납품처</th><th>출고유형</th><th class="num">FLTNO</th><th>상품</th></tr></thead>
+          <tbody>
+            <tr><td><code>OTB241015000001</code></td><td>서일그룹</td><td><code>010</code> 일반출고</td><td class="num mono">1</td><td><code>0802000004</code></td></tr>
+            <tr><td><code>OTB241015000002</code></td><td>대일산업</td><td><code>010</code> 일반출고</td><td class="num mono">1</td><td><code>0802000004</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>조건 게이트 판정 — OWV0001 「출고유형=010 AND 편수=1」</h3>
+      <div class="gates">
+        <div class="gate ok">
+          <div class="g-order"><b>OTB241015000001-1</b><span>서일그룹 · 일반출고 · 1편</span></div>
+          <div class="g-check">
+            <span class="chk">OUTB_TYP_CD 010 = 010</span>
+            <span class="chk">FLTNO 1 = 1</span>
+          </div>
+          <div class="g-result">편입<small>WAV_LN_NO 1</small></div>
+        </div>
+        <div class="gate ok">
+          <div class="g-order"><b>OTB241015000002-1</b><span>대일산업 · 일반출고 · 1편</span></div>
+          <div class="g-check">
+            <span class="chk">OUTB_TYP_CD 010 = 010</span>
+            <span class="chk">FLTNO 1 = 1</span>
+          </div>
+          <div class="g-result">편입<small>WAV_LN_NO 2</small></div>
+        </div>
+        <div class="gate empty">
+          <div class="g-order"><b>OWV0002 「2편 웨이브」</b><span>(010 AND 2편) OR 070</span></div>
+          <div class="g-check">
+            <span class="chk x">2편 주문 없음</span>
+            <span class="chk x">기타출고 없음</span>
+          </div>
+          <div class="g-result">편입 0건<small>빈 웨이브 · 상태 200 유지</small></div>
+        </div>
+      </div>
+
+      <h3>덤프에 남은 실제 결과</h3>
+      <div class="dbresult"><pre><span class="c">-- TWM_OB_WAV_M : 자동실행이 만든 웨이브 마스터</span>
+<span class="k">OWV241015000001</span>  WAV_STGY_CD=<span class="g">'OWV0001'</span>  OUTB_DE=20241015
+  REG: stgyAutoExecOutbWaveList  2024-10-15 11:13:36
+  <span class="c">-- 이후 분배전략(saveDivisionStgy)까지 진행 → 상태 610,
+  -- 웨이브명도 '20241015-01-분배'로 변경: 편성→할당→총량분배의 생애가 한 행에 남음</span>
+
+<span class="c">-- TWM_OB_WAV_D : 조건 통과 주문 2건이 편입됨</span>
+<span class="k">OWV241015000001</span>  LN 1  <span class="g">OTB241015000001</span>-1  상품 0802000004
+<span class="k">OWV241015000001</span>  LN 2  <span class="g">OTB241015000002</span>-1  상품 0802000004
+  REG: stgyAutoExecOutbWaveList
+
+<span class="c">-- OWV0002(2편) 웨이브는 마스터만 생성, 디테일 0건</span>
+<span class="k">OWV241015000003</span>  '일반출고 2편 웨이브_20241015'  상태 <span class="g">200</span>  (빈 웨이브)</pre></div>
+    </div>
+  </section>
+
+  <!-- ================= 5. FINDINGS ================= -->
+  <section>
+    <p class="eyebrow">5 · 덤프에서 발견한 특이점</p>
+    <h2>실무에서 조심할 것들</h2>
+    <p class="h2-sub">덤프 데이터를 훑으며 확인된, 문서에는 없는 실제 운영 상태.</p>
+
+    <div class="findings">
+      <div class="finding">
+        <div class="f-no">1</div>
+        <div>
+          <h4>전략 이름과 조건이 어긋난 데이터가 존재한다</h4>
+          <p>S000001/C000001의 전략은 이름과 실제 조건이 서로 꼬여 있다. 전략명은 표시용일 뿐 실행은 오직
+            <code>TWM_SG_STGY_COND</code> 값으로 결정되므로, 화면에서 이름만 보고 실행하면 의도와 다른 주문이 편입된다.</p>
+          <div class="mini-wrap">
+            <table>
+              <thead><tr><th>전략</th><th>이름</th><th>실제 조건</th></tr></thead>
+              <tbody>
+                <tr><td><code>OWV0001</code></td><td>반품출고 웨이브</td><td class="strike">일반출고(010) AND 1편</td></tr>
+                <tr><td><code>OWV0002</code></td><td>일반출고 <b>1편</b> 웨이브</td><td class="strike">일반출고(010) AND <b>2편</b></td></tr>
+                <tr><td><code>OWV0003</code></td><td>일반출고 2편 웨이브</td><td class="strike">반품출고(020)</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="finding">
+        <div class="f-no">2</div>
+        <div>
+          <h4>APLY = OR, COND = AND</h4>
+          <p>적용전략을 여러 개 달면 "둘 중 하나만 맞아도 편입"(공통 엔진이 첫 통과 시 콜백 후 종료,
+            <code>LodisStgyService.java:199</code>), 한 적용전략 안의 조건들은 전부 만족해야 한다.
+            S000006 <code>OWV0002</code>의 "(010 AND 2편) OR 기타출고(070)"가 실제 사용례다.</p>
+        </div>
+      </div>
+      <div class="finding">
+        <div class="f-no">3</div>
+        <div>
+          <h4>전략 실행보다 수동 편성이 더 많다</h4>
+          <p>웨이브 디테일 82건 중 전략 실행(<code>stgyAutoExec…</code>)으로 생성된 건 13건, 수동 추가
+            (<code>saveOutbWaveDtlList</code>)가 58건. 수동 편성은 조건 검사를 거치지 않으므로
+            "전략 조건과 안 맞는 주문이 웨이브에 들어있는" 상황이 정상적으로 존재할 수 있다.</p>
+        </div>
+      </div>
+      <div class="finding">
+        <div class="f-no">4</div>
+        <div>
+          <h4>자동실행은 하루 1회 기준으로 멱등하다</h4>
+          <p><code>getNotCreatedWaveStgyCdList</code>가 오늘 이미 생성된 전략을 MINUS로 제외하므로 중복 생성이 없고,
+            전부 생성돼 있으면 "금일 웨이브전략이 모두 존재 합니다" 오류가 난다.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    근거: <code>OutbWaveServiceImpl.java</code> · <code>LodisStgyService.java</code> · <code>outbWave.xml</code> · <code>twmSgStgy.xml</code>
+    / 덤프: <code>Company/dbData</code>의 TWM_SG_STGY·APLY·COND, TCO_CC_COMNCD, TWM_OB_OUTB_M, TWM_OB_WAV_M/D — 2026-08-02 분석
+  </footer>
+
+</div>
+
+</body>
+</html>

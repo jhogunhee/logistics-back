@@ -20,8 +20,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 출고 웨이브. 재고 할당의 단위 — 릴리즈 시 소속 주문 전체를 한 번에 FEFO 할당한다.
- * 릴리즈 이후 진행(피킹/확정)은 주문 단위라 웨이브는 여기서 역할이 끝난다.
+ * 출고 웨이브. <b>피킹지시의 발행 단위</b> — 여러 주문의 집품을 한 번에 지시하기 위한 그룹이다.
+ * 지시 발행 이후 진행(피킹/확정)은 주문 단위라 웨이브는 여기서 역할이 끝난다.
+ *
+ * <p>할당은 웨이브가 아니라 <b>주문 단위</b>다(design.md 「웨이브」절) — 웨이브 단위 일괄 할당은
+ * v1 범위 밖이라 이 엔티티에는 할당과 관련된 상태도 시각도 없다.
  *
  * 편성은 주문 쪽에서 관리한다(OutbOrder.assignWave). orders 컬렉션은 편성 현황
  * 집계(주문 수)용 읽기 전용 매핑으로, cascade/orphanRemoval을 두지 않는다 —
@@ -46,9 +49,9 @@ public class OutbWave extends BaseEntity {
     @Column(name = "status", nullable = false, length = 15)
     private WaveStatus status;
 
-    /** 릴리즈(할당 실행) 시각 */
-    @Column(name = "released_at")
-    private LocalDateTime releasedAt;
+    /** 피킹지시 발행 시각. 사전의 일시 접미는 _dt다 — _at은 감사 컬럼 4종 전용 */
+    @Column(name = "issued_dt")
+    private LocalDateTime issuedDt;
 
     /**
      * 이 웨이브를 만든 웨이브 전략 (느슨한 참조 — FK 없음). NULL = 화면에서 수동 생성.
@@ -72,10 +75,10 @@ public class OutbWave extends BaseEntity {
         this.status = WaveStatus.PLANNED;
     }
 
-    /** 편성 변경(주문 담기/빼기/해체)은 릴리즈 전(PLANNED)에만 허용 */
+    /** 편성 변경(주문 담기/빼기/해체)은 피킹지시 발행 전(PLANNED)에만 허용 */
     public void assertPlanned() {
         if (status != WaveStatus.PLANNED) {
-            throw new IllegalStateException("이미 릴리즈된 웨이브는 편성을 변경할 수 없습니다: " + wavNo);
+            throw new IllegalStateException("이미 피킹지시가 발행된 웨이브는 편성을 변경할 수 없습니다: " + wavNo);
         }
     }
 }

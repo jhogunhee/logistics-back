@@ -52,11 +52,12 @@ class WaveStgyExecServiceTest {
 
     @InjectMocks private WaveStgyExecService service;
 
-    private static final LocalDate ODR_DE = LocalDate.of(2026, 8, 3);
+    private static final LocalDate EXPCT_DE = LocalDate.of(2026, 8, 3);
 
     private OutbOrder order(String outbNo, String outbTyp, String vhclFltno) {
         Store store = Store.builder().storeCd("ST-0001").storeNm("강남점").build();
-        return OutbOrder.builder().outbNo(outbNo).store(store).odrDe(ODR_DE)
+        return OutbOrder.builder().outbNo(outbNo).omsOutbOrderId(1L).store(store)
+                .odrDe(EXPCT_DE).expctDe(EXPCT_DE)
                 .outbTyp(outbTyp).vhclFltno(vhclFltno).build();
     }
 
@@ -147,7 +148,7 @@ class WaveStgyExecServiceTest {
         assertEquals("먼저", res.results().get(0).stgyNm());
         // 나중 전략은 후보가 비어 웨이브를 만들지 않는다
         assertEquals(0, res.results().get(1).assignedCount());
-        assertNull(res.results().get(1).outbWaveId());
+        assertNull(res.results().get(1).wavId());
         verify(outbWaveRepository).save(any(OutbWave.class));
     }
 
@@ -162,7 +163,7 @@ class WaveStgyExecServiceTest {
         WaveStgyExecResponse res = service.execute(new WaveStgyExecRequest(null, null, null));
 
         assertEquals(0, res.assignedCount());
-        assertNull(res.results().get(0).outbWaveId());
+        assertNull(res.results().get(0).wavId());
         assertTrue(res.results().get(0).skipRsn().contains("웨이브를 만들지 않았습니다"));
         verify(outbWaveRepository, never()).save(any(OutbWave.class));
     }
