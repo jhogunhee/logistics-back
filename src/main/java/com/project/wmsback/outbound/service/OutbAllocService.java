@@ -1,4 +1,4 @@
-    package com.project.wmsback.outbound.service;
+package com.project.wmsback.outbound.service;
 
 import com.project.mdm.store.entity.Store;
 import com.project.wmsback.inventory.entity.Inv;
@@ -18,6 +18,19 @@ import com.project.wmsback.outbound.entity.OutbWave;
 import com.project.wmsback.outbound.repository.OutbAllocRepository;
 import com.project.wmsback.outbound.repository.OutbLineRepository;
 import com.project.wmsback.outbound.repository.OutbWaveRepository;
+import com.project.wmsback.strategy.allocation.component.AlocRstrct;
+import com.project.wmsback.strategy.allocation.dto.AlocStgyResponse;
+import com.project.wmsback.strategy.allocation.dto.AlocStgyDefinition;
+import com.project.wmsback.strategy.allocation.dto.AllocGroupPlan;
+import com.project.wmsback.strategy.allocation.entity.AlocStgy;
+import com.project.wmsback.strategy.allocation.field.AllocInvnCandidate;
+import com.project.wmsback.strategy.allocation.field.AllocLineTarget;
+import com.project.wmsback.strategy.allocation.repository.AllocQueryRepository;
+import com.project.wmsback.strategy.allocation.service.AllocationPlanner;
+import com.project.wmsback.strategy.allocation.service.AlocStgyService;
+import com.project.wmsback.strategy.core.entity.StgyTyp;
+import com.project.wmsback.strategy.core.entity.TrgrTyp;
+import com.project.wmsback.strategy.core.service.StgyExecLogService;
 import com.project.wmsback.warehouse.entity.LocTyp;
 import com.project.wmsback.warehouse.entity.Lot;
 import lombok.RequiredArgsConstructor;
@@ -25,9 +38,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -54,6 +65,11 @@ import java.util.Set;
  *
  * <p><b>재고 부족은 실패가 아니다</b> — 부분할당으로 정상 종료하고 잔량은 파생값으로 보여준다.
  * 결품 테이블도 사유코드도 두지 않는다(docs/design.md 「재고 할당」).
+ *
+ * <p><b>「무엇을 얼마나」는 전략이, 「어떻게 안전하게 쓰는가」는 이 서비스가 정한다.</b>
+ * 후보 선정·정렬·배분은 {@link AllocationPlanner}에 있는 순수 산정으로 빠졌고, 여기 남은 것은
+ * 락 순서 · 예약 반영 · 트랜잭션 경계다. 전략이 하나도 없으면 산정기가 기본 동작(FEFO ·
+ * 점포 잔여수명 · 순차 소진)으로 돌아 <b>전략 도입 전과 결과가 같다.</b>
  */
 @Service
 @RequiredArgsConstructor
@@ -64,6 +80,9 @@ public class OutbAllocService {
     private final OutbWaveRepository outbWaveRepository;
     private final OutbLineRepository outbLineRepository;
     private final InvRepository invRepository;
+    private final AlocStgyService alocStgyService;
+    private final AllocQueryRepository allocQueryRepository;
+    private final StgyExecLogService stgyExecLogService;
 
     // ── 조회 ─────────────────────────────────────────────────────────────────
 
@@ -81,18 +100,21 @@ public class OutbAllocService {
      * 수동할당 후보 재고. 자동할당과 같은 후보 집합이되 <b>잔여수명 미달을 걸러내지 않고 표시만 한다</b> —
      * 수동할당의 존재 이유가 예외 처리라 사람이 보고 판단해야 한다.
      * 기한이 지난 Lot만은 여기서도 뺀다(비율과 무관한 하드 가드).
+     *
+     * <p>비율 계산은 자동할당의 제약 구현체({@link AlocRstrct#lifeRate})를 그대로 쓴다 —
+     * 화면에 보이는 비율과 자동할당이 거르는 비율이 다르면 화면을 믿을 수 없게 된다.
      */
     public List<AllocCandidateResponse> candidates(Long outbLineId) {
         OutbLine line = findLine(outbLineId);
         Store store = line.getOutbOrder().getStore();
-        LocalDate baseDe = line.getOutbOrder().getExpctDe();
+        AllocLineTarget target = AllocLineTarget.of(line, 0L);
 
         List<AllocCandidateResponse> result = new ArrayList<>();
         for (Inv candidate : outbAllocRepository.findCandidates(line.getProd().getId())) {
-            if (expired(candidate.getLot(), baseDe)) {
+            if (expired(candidate.getLot(), target.expctDe())) {
                 continue;
             }
-            BigDecimal rate = lifeRate(candidate.getLot(), baseDe);
+            BigDecimal rate = AlocRstrct.lifeRate(AllocInvnCandidate.of(candidate, null), target);
             result.add(new AllocCandidateResponse(
                     candidate.getId(),
                     candidate.getLoc().getId(), candidate.getLoc().getLocCd(),
@@ -116,65 +138,143 @@ public class OutbAllocService {
         if (wavIds.isEmpty()) {
             throw new IllegalArgumentException("할당할 웨이브를 선택하세요.");
         }
+        List<String> wavNos = new ArrayList<>();
         for (Long wavId : wavIds) {
             // 피킹지시가 발행된(ISSUED) 웨이브에 더 할당하면 지시 없는 할당이 남는다
-            findWave(wavId).assertPlanned();
+            OutbWave wave = findWave(wavId);
+            wave.assertPlanned();
+            wavNos.add(wave.getWavNo());
         }
 
         List<OutbLine> lines = outbAllocRepository.findTargetLines(wavIds);
         if (lines.isEmpty()) {
             throw new IllegalArgumentException("할당할 잔량이 남은 라인이 없습니다.");
         }
-        return allocate(lines);
+        return allocate(lines, wavNos);
     }
 
-    /** 할당 본체. 상품별로 모아 후보를 한 번만 조회·락하고, 그룹 안 라인이 순서대로 소진한다. */
-    private AllocExecuteResponse allocate(List<OutbLine> lines) {
+    /**
+     * 할당 본체. 상품별로 모아 후보를 한 번만 조회·락하고, 산정기가 낸 계획을 예약으로 반영한다.
+     *
+     * <p><b>전략은 실행 1회당 1건</b>이다 — 상품 그룹이 웨이브를 가로지르므로(여러 웨이브의 같은
+     * 상품이 한 그룹), 그룹·웨이브마다 다른 전략을 고르면 한 후보 풀을 두 정의가 다른 순서로
+     * 소진하게 되어 정렬도 배분도 성립하지 않는다.
+     */
+    private AllocExecuteResponse allocate(List<OutbLine> lines, List<String> wavNos) {
         List<Long> lineIds = lines.stream().map(OutbLine::getId).toList();
-        // 라인을 처리하며 누적분을 갱신하므로 복사본을 쓴다 — 조회 결과는 빈 입력일 때 불변 맵이다
-        Map<Long, Long> alreadyByLine = new HashMap<>(outbAllocRepository.sumAlocQtyByLineIds(lineIds));
+        Map<Long, Long> alreadyByLine = outbAllocRepository.sumAlocQtyByLineIds(lineIds);
         Map<String, OutbAlloc> existingAllocs = existingAllocMap(lineIds);
 
         // findTargetLines가 prod_id ASC로 정렬해 주므로 삽입 순서를 지키는 맵이면 그룹 순회도 prod_id ASC다.
-        // 그룹 순서를 고정하는 것이 그룹 간 데드락을 막는다(§ 락 순서).
+        // 그룹 순서를 고정하는 것이 그룹 간 데드락을 막는다(§ 락 순서) — 전략이 건드릴 수 없는 축이다.
         Map<Long, List<OutbLine>> byProd = new LinkedHashMap<>();
         for (OutbLine line : lines) {
-            byProd.computeIfAbsent(line.getProd().getId(), k -> new ArrayList<>()).add(line);
+            byProd.computeIfAbsent(line.getProd().getId(), key -> new ArrayList<>()).add(line);
         }
 
+        AlocStgy stgy = alocStgyService.select(
+                lines.stream().map(line -> target(line, alreadyByLine)).toList()).orElse(null);
+        AlocStgyDefinition def = stgy != null ? AlocStgyResponse.from(stgy).toDefinition() : null;
+        Long stgyId = stgy != null ? stgy.getId() : null;
+        Long rvsnNo = stgy != null ? stgy.getLastRvsnNo() : null;
+
+        // 존 업무유형은 계층 지정 판정에만 쓰인다. 후보를 락을 걸며 한 건씩 읽는 구조라
+        // 재고 조회에 존을 조인할 수 없어, 마스터를 통째로 읽어 메모리에서 붙인다.
+        Map<String, String> bizDvsnByZon = allocQueryRepository.bizDvsnByZon();
+
         List<AllocExecuteResponse.LineResult> results = new ArrayList<>();
+        List<Map<String, Object>> groupTraces = new ArrayList<>();
         Set<Long> touchedWaves = new HashSet<>();
         long totalReq = 0;
         long totalAloc = 0;
 
         for (Map.Entry<Long, List<OutbLine>> group : byProd.entrySet()) {
-            List<Inv> fefo = lockCandidates(group.getKey());
+            List<Inv> locked = lockCandidates(group.getKey());
+            Map<Long, Inv> lockedById = new LinkedHashMap<>();
+            locked.forEach(inv -> lockedById.put(inv.getId(), inv));
 
-            for (OutbLine line : group.getValue()) {
-                AllocExecuteResponse.LineResult result =
-                        allocateLine(line, fefo, alreadyByLine, existingAllocs);
-                results.add(result);
-                totalReq += result.reqQty();
-                totalAloc += result.alocQty();
-                if (result.alocQty() > 0) {
+            List<AllocInvnCandidate> candidates = locked.stream()
+                    .map(inv -> AllocInvnCandidate.of(inv, bizDvsnOf(bizDvsnByZon, inv)))
+                    .toList();
+
+            Map<Long, OutbLine> lineById = new LinkedHashMap<>();
+            group.getValue().forEach(line -> lineById.put(line.getId(), line));
+            List<AllocLineTarget> targets = group.getValue().stream()
+                    .map(line -> target(line, alreadyByLine)).toList();
+
+            AllocGroupPlan plan = AllocationPlanner.plan(def, group.getKey(),
+                    group.getValue().get(0).getProd().getProdCd(), targets, candidates);
+            groupTraces.add(plan.trace());
+
+            for (AllocGroupPlan.LinePlan linePlan : plan.lines()) {
+                OutbLine line = lineById.get(linePlan.outbLineId());
+                for (AllocGroupPlan.Assignment assignment : linePlan.assignments()) {
+                    reserve(line, lockedById.get(assignment.invId()), assignment.qty(),
+                            existingAllocs, stgyId, rvsnNo);
+                }
+                if (linePlan.asgnQty() > 0) {
                     line.getOutbOrder().allocate();
                 }
                 OutbWave wave = line.getOutbOrder().getWave();
                 if (wave != null) {
                     touchedWaves.add(wave.getId());
                 }
+                totalReq += linePlan.reqQty();
+                totalAloc += linePlan.asgnQty();
+                results.add(toLineResult(linePlan));
             }
         }
+
+        if (stgy != null) {
+            stgyExecLogService.log(StgyTyp.ALOC, stgyId, rvsnNo, TrgrTyp.MANUAL, tgtRef(wavNos),
+                    "라인 " + results.size() + "건 · 요청 " + totalReq + " 중 할당 " + totalAloc,
+                    Map.of("groups", groupTraces));
+        }
+
         return new AllocExecuteResponse(touchedWaves.size(), results.size(),
-                totalReq, totalAloc, totalReq - totalAloc, results);
+                totalReq, totalAloc, totalReq - totalAloc,
+                stgyId, stgy != null ? stgy.getStgyNm() : null, rvsnNo, results);
     }
 
     /**
-     * 후보를 FEFO 순으로 늘어놓되 <b>락은 id 오름차순으로 한 건씩</b> 건다.
+     * 실행 로그의 대상 참조. 컬럼이 30자라 웨이브를 여러 개 고르면 다 담기지 않는다 —
+     * 잘린 번호를 남기느니 「외 N건」으로 줄인다. 전체 목록은 trace가 아니라 응답에 있다.
+     */
+    private static String tgtRef(List<String> wavNos) {
+        String joined = String.join(",", wavNos);
+        if (joined.length() <= 30) {
+            return joined;
+        }
+        return wavNos.get(0) + " 외 " + (wavNos.size() - 1) + "건";
+    }
+
+    /** 존 미등록 로케이션은 업무유형이 없다 — 계층 지정 조건에서 자연히 빠진다 */
+    private static String bizDvsnOf(Map<String, String> bizDvsnByZon, Inv inv) {
+        String zonCd = inv.getLoc().getZonCd();
+        return zonCd != null ? bizDvsnByZon.get(zonCd) : null;
+    }
+
+    private AllocLineTarget target(OutbLine line, Map<Long, Long> alreadyByLine) {
+        return AllocLineTarget.of(line, alreadyByLine.getOrDefault(line.getId(), 0L));
+    }
+
+    private static AllocExecuteResponse.LineResult toLineResult(AllocGroupPlan.LinePlan plan) {
+        List<AllocExecuteResponse.Assignment> assignments = plan.assignments().stream()
+                .map(a -> new AllocExecuteResponse.Assignment(a.invId(), a.locCd(), a.lotNo(), a.qty()))
+                .toList();
+        List<AllocExecuteResponse.Skip> skips = plan.skips().stream()
+                .map(s -> new AllocExecuteResponse.Skip(s.invId(), s.locCd(), s.lotNo(), s.reason()))
+                .toList();
+        return new AllocExecuteResponse.LineResult(plan.outbLineId(), plan.outbNo(), plan.prodCd(),
+                plan.reqQty(), plan.asgnQty(), plan.shortQty(), assignments, skips);
+    }
+
+    /**
+     * 후보를 <b>id 오름차순으로 한 건씩</b> 잠근다.
      *
-     * <p>FEFO 순서와 id 순서가 다르므로, 후보가 겹치는 두 실행이 각자 FEFO 순으로 잠그면
-     * 서로 반대 순서가 되어 데드락이 난다. <b>정렬(FEFO)과 락 순서(id)를 분리</b>하는 것이
-     * 이 메서드의 전부다. 검수·속성변경이 「상품 → Lot」 락 순서를 고정한 것과 같은 자리다.
+     * <p>정렬 순서(전략이 정한다)와 락 순서(고정)를 분리하는 것이 이 메서드의 전부다. 후보가
+     * 겹치는 두 실행이 각자 정렬 순으로 잠그면 서로 반대 순서가 되어 데드락이 난다 —
+     * 관리자가 정렬을 바꿔도 락 순서는 언제나 id ASC다.
      *
      * <p>{@code WHERE id IN (…) ORDER BY id} 일괄 락으로 바꾸지 말 것 — {@code ORDER BY}는
      * 결과 정렬을 보장할 뿐 <b>락 획득 순서를 보장하지 않는다</b>(플랜에 따라 물리 순서로 잠근다).
@@ -183,69 +283,29 @@ public class OutbAllocService {
      * 가용이 줄었을 때 안 잠근 후보가 뒤늦게 필요해지고, 그때 더 작은 id를 추가로 잡게 된다.
      */
     private List<Inv> lockCandidates(Long prodId) {
-        List<Long> fefoIds = outbAllocRepository.findCandidateIds(prodId);
-        Map<Long, Inv> locked = new HashMap<>();
-        for (Long invId : fefoIds.stream().sorted().toList()) {
-            invRepository.findByIdForUpdate(invId).ifPresent(found -> locked.put(invId, found));
+        List<Long> candidateIds = outbAllocRepository.findCandidateIds(prodId);
+        List<Inv> locked = new ArrayList<>();
+        for (Long invId : candidateIds.stream().sorted().toList()) {
+            // 락을 잡는 사이에 사라진 재고(다른 트랜잭션이 0으로 만들어 행 삭제)는 후보에서 빠진다
+            invRepository.findByIdForUpdate(invId).ifPresent(locked::add);
         }
-        // 락을 잡는 사이에 사라진 재고(다른 트랜잭션이 0으로 만들어 행 삭제)는 후보에서 빠진다
-        return fefoIds.stream().map(locked::get).filter(Objects::nonNull).toList();
-    }
-
-    /** 라인 하나를 FEFO 순으로 채운다. 잔여요청이 남으면 그대로 둔다 — 부분할당 허용, 백오더 없음 */
-    private AllocExecuteResponse.LineResult allocateLine(OutbLine line, List<Inv> fefo,
-                                                        Map<Long, Long> alreadyByLine,
-                                                        Map<String, OutbAlloc> existingAllocs) {
-        OutbOrder order = line.getOutbOrder();
-        Store store = order.getStore();
-        LocalDate baseDe = order.getExpctDe();
-
-        long already = alreadyByLine.getOrDefault(line.getId(), 0L);
-        long remain = line.getOdrQty() - already;   // 과할당 금지: 잔여요청이 상한이다
-
-        List<AllocExecuteResponse.Assignment> assignments = new ArrayList<>();
-        List<AllocExecuteResponse.Skip> skips = new ArrayList<>();
-        long reqQty = Math.max(remain, 0);
-
-        for (Inv candidate : fefo) {
-            if (remain <= 0) {
-                break;
-            }
-            // 앞 라인이 이미 예약한 만큼 avalQty()가 줄어 있다 — 같은 그룹의 이중 배분이 불가능하다
-            long avail = candidate.avalQty();
-            if (avail <= 0) {
-                continue;
-            }
-            String skipReason = skipReason(candidate.getLot(), baseDe, store);
-            if (skipReason != null) {
-                skips.add(new AllocExecuteResponse.Skip(candidate.getId(),
-                        candidate.getLoc().getLocCd(), candidate.getLot().getLotNo(), skipReason));
-                continue;
-            }
-            long assign = Math.min(avail, remain);
-            reserve(line, candidate, assign, existingAllocs);
-            assignments.add(new AllocExecuteResponse.Assignment(candidate.getId(),
-                    candidate.getLoc().getLocCd(), candidate.getLot().getLotNo(), assign));
-            remain -= assign;
-        }
-
-        long assigned = reqQty - Math.max(remain, 0);
-        alreadyByLine.put(line.getId(), already + assigned);
-        return new AllocExecuteResponse.LineResult(line.getId(), order.getOutbNo(),
-                line.getProd().getProdCd(), reqQty, assigned, reqQty - assigned, assignments, skips);
+        return locked;
     }
 
     /** 재고 예약 + 할당 레코드 기록. 물리 이동이 아니므로 inv_hist에는 아무것도 남기지 않는다 */
-    private void reserve(OutbLine line, Inv candidate, long qty, Map<String, OutbAlloc> existingAllocs) {
+    private void reserve(OutbLine line, Inv candidate, long qty, Map<String, OutbAlloc> existingAllocs,
+                         Long alocStgyId, Long rvsnNo) {
         candidate.reserve(qty);
         String key = allocKey(line.getId(), candidate.getId());
         OutbAlloc existing = existingAllocs.get(key);
         if (existing != null) {
+            // 전략 컬럼은 처음 값을 유지한다 — 이미 기록된 수량의 근거를 나중 실행이 바꾸지 않는다
             existing.addQty(qty);
             return;
         }
         OutbAlloc created = outbAllocRepository.save(OutbAlloc.builder()
-                .outbLine(line).inv(candidate).alocQty(qty).build());
+                .outbLine(line).inv(candidate).alocQty(qty)
+                .alocStgyId(alocStgyId).rvsnNo(rvsnNo).build());
         existingAllocs.put(key, created);
     }
 
@@ -255,6 +315,9 @@ public class OutbAllocService {
      * 수동할당 — 사용자가 라인 ↔ 재고를 직접 지정한다. 저장 경로(락 · 예약 · 할당 기록)는
      * 자동할당과 같고 다른 것은 둘뿐이다: 후보를 사람이 고른다는 것, 그리고
      * <b>잔여수명 필터가 차단이 아니라 경고</b>라는 것(§ 수동할당).
+     *
+     * <p><b>전략을 타지 않는다.</b> 후보를 사람이 고르는 업무라 정렬·배분이 의미를 갖지 않는다 —
+     * {@code aloc_stgy_id}가 NULL로 남아 화면에서 전략 실행분과 구분된다.
      *
      * <p>검증은 <b>요청의 전 행</b>에 대해 먼저 수행한다. 첫 행만 보고 통과시키면 나머지 행의
      * 과할당·가용초과가 DB 제약까지 내려가고, 그때는 어느 행이 문제인지 알려줄 수 없다.
@@ -341,8 +404,8 @@ public class OutbAllocService {
                 throw new IllegalArgumentException("유통기한이 지난 Lot은 할당할 수 없습니다: "
                         + candidate.getLot().getLotNo());
             }
-            reserve(line, candidate, item.getQty(), existingAllocs);
-            assignedByLine.computeIfAbsent(line.getId(), k -> new ArrayList<>())
+            reserve(line, candidate, item.getQty(), existingAllocs, null, null);
+            assignedByLine.computeIfAbsent(line.getId(), key -> new ArrayList<>())
                     .add(new AllocExecuteResponse.Assignment(candidate.getId(),
                             candidate.getLoc().getLocCd(), candidate.getLot().getLotNo(), item.getQty()));
         }
@@ -356,7 +419,7 @@ public class OutbAllocService {
                     line.getOutbOrder().getOutbNo(), line.getProd().getProdCd(),
                     qty, qty, 0, assignedByLine.getOrDefault(line.getId(), List.of()), List.of()));
         }
-        return new AllocExecuteResponse(1, results.size(), totalReq, totalReq, 0, results);
+        return AllocExecuteResponse.of(1, results.size(), totalReq, totalReq, results);
     }
 
     // ── 할당해제 ──────────────────────────────────────────────────────────────
@@ -388,7 +451,7 @@ public class OutbAllocService {
         // 예약 복원도 자동할당과 같은 락 순서를 쓴다 — 해제와 할당이 동시에 돌아도 순서가 하나다
         Map<Long, List<OutbAlloc>> byInv = new LinkedHashMap<>();
         for (OutbAlloc alloc : allocs) {
-            byInv.computeIfAbsent(alloc.getInv().getId(), k -> new ArrayList<>()).add(alloc);
+            byInv.computeIfAbsent(alloc.getInv().getId(), key -> new ArrayList<>()).add(alloc);
         }
         for (Long invId : byInv.keySet().stream().sorted().toList()) {
             Inv target = invRepository.findByIdForUpdate(invId)
@@ -411,58 +474,10 @@ public class OutbAllocService {
         }
     }
 
-    // ── 잔여수명 ──────────────────────────────────────────────────────────────
-
-    /**
-     * 후보에서 빠지는 사유. null이면 통과 — 조용히 빠지는 재고를 만들지 않기 위해
-     * 사유를 문자열로 돌려주고 호출부가 응답 trace에 담는다.
-     */
-    private String skipReason(Lot lot, LocalDate baseDe, Store store) {
-        if (expired(lot, baseDe)) {
-            // 비율과 무관한 하드 가드 — outb_life_rate가 0인 점포에도 기한 지난 Lot을 줄 수는 없다
-            return "유통기한 경과 (" + lot.getExpiryDt() + ")";
-        }
-        BigDecimal rate = lifeRate(lot, baseDe);
-        if (rate == null) {
-            return null;    // 유통기한 미관리 Lot — 필터 대상이 아니다
-        }
-        if (lifePass(rate, store)) {
-            return null;
-        }
-        return "잔여수명 " + rate + "% < 점포 기준 " + store.getOutbLifeRate() + "%";
-    }
+    // ── 잔여수명 (수동할당 화면 표시용) ────────────────────────────────────────
 
     private boolean expired(Lot lot, LocalDate baseDe) {
         return lot.getExpiryDt() != null && lot.getExpiryDt().isBefore(baseDe);
-    }
-
-    /**
-     * 잔여수명 비율. <b>분모까지 Lot에서 뽑는다</b>({@code expiry_dt − mfg_dt}).
-     *
-     * <p>{@code prod.shelf_life_days}(마스터의 현재값)를 분모로 쓰면 두 가지가 깨진다 —
-     * ① {@code Lot.expiry_dt}는 생성 시점 스냅샷이라 「마스터 변경에 소급 영향 없음」이 원칙인데
-     * 마스터를 고치는 순간 기존 Lot 전체의 비율이 움직이고, ② 벤더가 찍은 유통기한이 계산값과
-     * 다른 것이 정상 데이터라 비율이 100%를 넘거나 실제보다 후하게 나온다.
-     *
-     * <p>입고 검수({@code SHELF_LIFE_PCT})가 {@code shelf_life_days}를 그대로 쓰는 것과 다른데,
-     * 그쪽은 Lot이 생성되는 그 시점에 판정하므로 스냅샷과 마스터가 같은 값이기 때문이다.
-     *
-     * @param baseDe 출고 예정일 — 점포 기준은 「납품 시점의 잔여수명」이다. 할당 실행일로 재면
-     *               할당을 며칠 앞당길수록 통과 Lot이 늘어나 기준이 흔들린다.
-     * @return 유통기한 미관리 Lot이거나 총수명일수를 산출할 수 없으면 null (필터 대상 아님)
-     */
-    private BigDecimal lifeRate(Lot lot, LocalDate baseDe) {
-        if (lot.getExpiryDt() == null || lot.getMfgDt() == null) {
-            return null;
-        }
-        long totalDays = ChronoUnit.DAYS.between(lot.getMfgDt(), lot.getExpiryDt());
-        if (totalDays <= 0) {
-            return null;
-        }
-        long remainDays = ChronoUnit.DAYS.between(baseDe, lot.getExpiryDt());
-        return BigDecimal.valueOf(remainDays)
-                .multiply(BigDecimal.valueOf(100))
-                .divide(BigDecimal.valueOf(totalDays), 1, RoundingMode.DOWN);
     }
 
     /** 미관리 Lot(rate == null)은 필터 대상이 아니므로 통과로 본다 */

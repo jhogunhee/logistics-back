@@ -19,6 +19,11 @@ public record AllocRowResponse(
         String lotNo,
         LocalDate expiryDt,
         long alocQty,
-        long pikngQty
+        long pikngQty,
+        /**
+         * 이 할당을 만든 전략. NULL = 수동할당 또는 전략 미설정 기간의 기본 동작 —
+         * 「전략 없이 만들어짐」이 두 경우를 한 뜻으로 덮으므로 화면도 한 가지로 표시한다.
+         */
+        Long alocStgyId
 ) {
 }

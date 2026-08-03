@@ -147,7 +147,7 @@ public class OutbAllocRepositoryImpl implements OutbAllocRepositoryCustom {
         List<Tuple> rows = queryFactory
                 .select(outbAlloc.id, outbLine.id,
                         inv.id, inv.loc.id, inv.loc.locCd, inv.lot.id, inv.lot.lotNo, inv.lot.expiryDt,
-                        outbAlloc.alocQty, outbAlloc.pikngQty)
+                        outbAlloc.alocQty, outbAlloc.pikngQty, outbAlloc.alocStgyId)
                 .from(outbAlloc)
                 .join(outbAlloc.outbLine, outbLine)
                 .join(outbLine.outbOrder, outbOrder)
@@ -162,7 +162,8 @@ public class OutbAllocRepositoryImpl implements OutbAllocRepositoryCustom {
                     row.get(outbAlloc.id), row.get(outbLine.id),
                     row.get(inv.id), row.get(inv.loc.id), row.get(inv.loc.locCd),
                     row.get(inv.lot.id), row.get(inv.lot.lotNo), row.get(inv.lot.expiryDt),
-                    orZero(row.get(outbAlloc.alocQty)), orZero(row.get(outbAlloc.pikngQty))));
+                    orZero(row.get(outbAlloc.alocQty)), orZero(row.get(outbAlloc.pikngQty)),
+                    row.get(outbAlloc.alocStgyId)));
         }
         return result;
     }

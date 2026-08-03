@@ -4,6 +4,7 @@ import com.project.wmsback.warehouse.entity.BizDvsn;
 import com.project.mdm.prod.entity.TmpZon;
 import com.project.mdm.code.repository.CodeDetailRepository;
 import com.project.mdm.prod.repository.ProdRepository;
+import com.project.mdm.store.repository.StoreRepository;
 import com.project.mdm.vendor.repository.VendorRepository;
 import com.project.wmsback.strategy.core.dto.OptionResponse;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ public class StrategyOptionService {
 
     private final VendorRepository vendorRepository;
     private final ProdRepository prodRepository;
+    private final StoreRepository storeRepository;
     private final CodeDetailRepository codeDetailRepository;
 
     public List<OptionResponse> options(String source) {
@@ -45,6 +47,9 @@ public class StrategyOptionService {
                     .map(v -> new OptionResponse(v.getVndrCd(), v.getVndrNm())).toList();
             case "prods" -> prodRepository.findAll().stream()
                     .map(p -> new OptionResponse(p.getProdCd(), p.getProdNm())).toList();
+            // 할당 분배의 대상 선별 기준. 「이 점포부터 채운다」가 이 선택지로 표현된다
+            case "stores" -> storeRepository.findAll().stream()
+                    .map(s -> new OptionResponse(s.getStoreCd(), s.getStoreNm())).toList();
             case "uoms" -> codeDetailRepository.findByGrpCdOrderBySrtSeq("UOM").stream()
                     .map(c -> new OptionResponse(c.getCodeCd(), c.getCodeNm())).toList();
             default -> throw new IllegalArgumentException("없는 선택지 소스입니다: " + source);

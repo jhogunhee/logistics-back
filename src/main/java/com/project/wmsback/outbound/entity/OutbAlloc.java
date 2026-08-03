@@ -47,18 +47,35 @@ public class OutbAlloc extends BaseEntity {
     @Column(name = "pikng_qty", nullable = false)
     private Long pikngQty;
 
+    /**
+     * 이 할당을 만든 할당 전략 (느슨한 참조). NULL = 수동할당 또는 전략 미설정 기간의 기본 동작 —
+     * 「전략 없이 만들어짐」이 두 경우를 한 뜻으로 덮는다.
+     */
+    @Column(name = "aloc_stgy_id")
+    private Long alocStgyId;
+
+    /** 할당에 사용된 전략 리비전. stgy_rvsn과 조합해 "그때의 정의"를 재구성한다 (P5) */
+    @Column(name = "rvsn_no")
+    private Long rvsnNo;
+
     @Builder
-    private OutbAlloc(OutbLine outbLine, Inv inv, Long alocQty) {
+    private OutbAlloc(OutbLine outbLine, Inv inv, Long alocQty, Long alocStgyId, Long rvsnNo) {
         this.outbLine = outbLine;
         this.inv = inv;
         this.alocQty = alocQty;
         this.pikngQty = 0L;
+        // 짝으로만 채운다 — ck_outb_alloc_stgy가 한쪽만 있는 상태를 거부한다
+        this.alocStgyId = rvsnNo != null ? alocStgyId : null;
+        this.rvsnNo = alocStgyId != null ? rvsnNo : null;
     }
 
     /**
      * 같은 (라인, 재고) 조합에 더 할당할 때 기존 행에 합산한다.
      * DB에 그 조합의 UNIQUE가 없어 새 행을 만들어도 저장은 되지만, 같은 라인이 같은 재고를
      * 가리키는 행이 둘이면 화면과 해제 단위가 이유 없이 쪼개진다.
+     *
+     * <p><b>전략 컬럼은 처음 값을 유지한다.</b> 나중 실행의 전략으로 덮어쓰면 이미 기록된
+     * 수량의 근거가 바뀐다 — 실행 단위의 정확한 이력은 stgy_exec_log가 갖는다.
      */
     public void addQty(long qty) {
         this.alocQty += qty;

@@ -15,8 +15,19 @@ public record AllocExecuteResponse(
         long reqQty,
         long alocQty,
         long shortQty,
+        /** 이번 실행에 적용된 할당 전략. 전부 null = 전략 미설정, 기본 동작(FEFO·순차 소진)으로 실행됨 */
+        Long alocStgyId,
+        String stgyNm,
+        Long rvsnNo,
         List<LineResult> lines
 ) {
+
+    /** 전략 없이 실행된 경우 (수동할당 · 매칭 전략 없음) */
+    public static AllocExecuteResponse of(int waveCount, int lineCount, long reqQty, long alocQty,
+                                          List<LineResult> lines) {
+        return new AllocExecuteResponse(waveCount, lineCount, reqQty, alocQty, reqQty - alocQty,
+                null, null, null, lines);
+    }
     /**
      * 라인 1건의 처리 결과.
      *
