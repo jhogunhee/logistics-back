@@ -12,9 +12,9 @@ import org.springframework.util.StringUtils;
 import java.util.List;
 
 import static com.project.wmsback.inventory.entity.QInvHld.invHld;
-import static com.project.wmsback.master.entity.QLoc.loc;
-import static com.project.wmsback.master.entity.QLot.lot;
-import static com.project.wmsback.master.entity.QProd.prod;
+import static com.project.wmsback.warehouse.entity.QLoc.loc;
+import static com.project.wmsback.warehouse.entity.QLot.lot;
+import static com.project.mdm.prod.entity.QProd.prod;
 
 @RequiredArgsConstructor
 public class InvHldRepositoryImpl implements InvHldRepositoryCustom {

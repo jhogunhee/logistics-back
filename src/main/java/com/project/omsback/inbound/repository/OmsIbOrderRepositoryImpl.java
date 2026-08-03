@@ -17,8 +17,8 @@ import java.util.List;
 import static com.project.omsback.inbound.entity.QOmsIbLine.omsIbLine;
 import static com.project.omsback.inbound.entity.QOmsIbOrder.omsIbOrder;
 import static com.project.wmsback.inbound.entity.QIbOrder.ibOrder;
-import static com.project.wmsback.master.entity.QProd.prod;
-import static com.project.wmsback.master.entity.QVendor.vendor;
+import static com.project.mdm.prod.entity.QProd.prod;
+import static com.project.mdm.vendor.entity.QVendor.vendor;
 
 @RequiredArgsConstructor
 public class OmsIbOrderRepositoryImpl implements OmsIbOrderRepositoryCustom {

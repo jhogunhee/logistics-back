@@ -1,6 +1,6 @@
 package com.project.wmsback.strategy.inspection.rule;
 
-import com.project.wmsback.master.entity.Prod;
+import com.project.mdm.prod.entity.Prod;
 import com.project.wmsback.strategy.inspection.repository.InspectionQueryRepository;
 
 import java.time.LocalDate;

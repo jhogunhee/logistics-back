@@ -1,10 +1,10 @@
 package com.project.wmsback.strategy.core.service;
 
-import com.project.wmsback.master.entity.BizDvsn;
-import com.project.wmsback.master.entity.TempZone;
-import com.project.wmsback.master.repository.CodeDetailRepository;
-import com.project.wmsback.master.repository.ProdRepository;
-import com.project.wmsback.master.repository.VendorRepository;
+import com.project.wmsback.warehouse.entity.BizDvsn;
+import com.project.mdm.prod.entity.TempZone;
+import com.project.mdm.code.repository.CodeDetailRepository;
+import com.project.mdm.prod.repository.ProdRepository;
+import com.project.mdm.vendor.repository.VendorRepository;
 import com.project.wmsback.strategy.core.dto.OptionResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

@@ -1,6 +1,6 @@
 package com.project.wmsback.outbound.service;
 
-import com.project.wmsback.master.service.NbrService;
+import com.project.mdm.nbr.service.NbrService;
 import com.project.wmsback.outbound.dto.OutbWaveOrdersRequest;
 import com.project.wmsback.outbound.dto.OutbWaveResponse;
 import com.project.wmsback.outbound.dto.OutbWaveSearchCond;

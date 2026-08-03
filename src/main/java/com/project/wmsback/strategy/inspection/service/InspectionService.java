@@ -4,7 +4,7 @@ import com.project.wmsback.inbound.dto.ReceiveRequest;
 import com.project.wmsback.inbound.entity.IbLine;
 import com.project.wmsback.inbound.entity.IbOrder;
 import com.project.wmsback.inbound.repository.IbLineRepository;
-import com.project.wmsback.master.entity.Prod;
+import com.project.mdm.prod.entity.Prod;
 import com.project.wmsback.strategy.core.entity.StgyTyp;
 import com.project.wmsback.strategy.core.entity.TrgrTyp;
 import com.project.wmsback.strategy.core.service.StgyExecLogService;

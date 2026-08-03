@@ -1,7 +1,7 @@
 package com.project.omsback.inbound.dto;
 
 import com.project.omsback.inbound.entity.OmsIbLine;
-import com.project.wmsback.master.entity.TempZone;
+import com.project.mdm.prod.entity.TempZone;
 import lombok.Getter;
 
 @Getter

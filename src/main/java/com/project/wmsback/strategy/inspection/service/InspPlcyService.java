@@ -1,7 +1,7 @@
 package com.project.wmsback.strategy.inspection.service;
 
-import com.project.wmsback.master.entity.Prod;
-import com.project.wmsback.master.repository.ProdRepository;
+import com.project.mdm.prod.entity.Prod;
+import com.project.mdm.prod.repository.ProdRepository;
 import com.project.wmsback.strategy.core.dto.RvsnResponse;
 import com.project.wmsback.strategy.core.entity.StgyTyp;
 import com.project.wmsback.strategy.core.service.StgyRvsnService;

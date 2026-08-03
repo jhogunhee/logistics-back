@@ -1,6 +1,6 @@
 package com.project.wmsback.inbound.dto;
 
-import com.project.wmsback.master.entity.TempZone;
+import com.project.mdm.prod.entity.TempZone;
 import lombok.Getter;
 
 import java.time.LocalDate;

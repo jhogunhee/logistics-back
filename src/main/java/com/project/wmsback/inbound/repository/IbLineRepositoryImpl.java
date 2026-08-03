@@ -15,9 +15,9 @@ import java.util.List;
 import static com.project.wmsback.inbound.entity.QIbLine.ibLine;
 import static com.project.wmsback.inbound.entity.QIbOrder.ibOrder;
 import static com.project.wmsback.inventory.entity.QInvHist.invHist;
-import static com.project.wmsback.master.entity.QLot.lot;
-import static com.project.wmsback.master.entity.QProd.prod;
-import static com.project.wmsback.master.entity.QVendor.vendor;
+import static com.project.wmsback.warehouse.entity.QLot.lot;
+import static com.project.mdm.prod.entity.QProd.prod;
+import static com.project.mdm.vendor.entity.QVendor.vendor;
 
 @RequiredArgsConstructor
 public class IbLineRepositoryImpl implements IbLineRepositoryCustom {

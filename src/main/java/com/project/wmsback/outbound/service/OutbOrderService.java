@@ -1,10 +1,10 @@
 package com.project.wmsback.outbound.service;
 
-import com.project.wmsback.master.entity.Prod;
-import com.project.wmsback.master.entity.Store;
-import com.project.wmsback.master.repository.ProdRepository;
-import com.project.wmsback.master.repository.StoreRepository;
-import com.project.wmsback.master.service.NbrService;
+import com.project.mdm.prod.entity.Prod;
+import com.project.mdm.store.entity.Store;
+import com.project.mdm.prod.repository.ProdRepository;
+import com.project.mdm.store.repository.StoreRepository;
+import com.project.mdm.nbr.service.NbrService;
 import com.project.wmsback.outbound.dto.OutbLineResponse;
 import com.project.wmsback.outbound.dto.OutbOrderCreateRequest;
 import com.project.wmsback.outbound.dto.OutbOrderResponse;

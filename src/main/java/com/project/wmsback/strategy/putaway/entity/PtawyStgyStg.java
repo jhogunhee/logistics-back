@@ -1,6 +1,6 @@
 package com.project.wmsback.strategy.putaway.entity;
 
-import com.project.wmsback.common.entity.BaseEntity;
+import com.project.common.entity.BaseEntity;
 import com.project.wmsback.strategy.core.condition.FieldCondition;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

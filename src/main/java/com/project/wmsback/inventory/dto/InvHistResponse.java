@@ -2,7 +2,7 @@ package com.project.wmsback.inventory.dto;
 
 import com.project.wmsback.inventory.entity.RefDocType;
 import com.project.wmsback.inventory.entity.TxType;
-import com.project.wmsback.master.entity.TempZone;
+import com.project.mdm.prod.entity.TempZone;
 import lombok.Getter;
 
 import java.time.LocalDateTime;

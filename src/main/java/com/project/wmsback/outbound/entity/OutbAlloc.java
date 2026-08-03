@@ -1,6 +1,6 @@
 package com.project.wmsback.outbound.entity;
 
-import com.project.wmsback.common.entity.BaseEntity;
+import com.project.common.entity.BaseEntity;
 import com.project.wmsback.inventory.entity.Inv;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

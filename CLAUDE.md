@@ -31,14 +31,28 @@ SQL은 Supabase 대시보드가 아니라 **DBeaver**로 돌린다. 그래서 �
 
 ## 아키텍처
 
-### 한 레포에 두 애플리케이션, 의존은 한 방향
+### 한 레포에 네 층, 의존은 한 방향
 
-- `com.project.wmsback` — 창고 작업 (입고 · 재고 · 출고 · 마스터)
+- `com.project.common` — 감사 엔티티 · 설정 · 공통 예외 핸들러. **어느 앱도 import하지 않는다.**
+- `com.project.mdm` — 두 앱이 공유하는 마스터 데이터: `prod`(상품 · 포장 · 온도대) · `vendor`(거래처) · `store`(점포) · `code`(공통코드) · `nbr`(채번)
+- `com.project.wmsback` — 창고 작업: `warehouse`(로케이션 · 존 · Lot) · `inbound` · `inventory` · `outbound` · `strategy`
 - `com.project.omsback` — 창고 작업문서를 발생시키는 주문 원장
 
-**`omsback`은 `wmsback`을 import해도 되지만 그 반대는 안 된다.** 나중에 OMS를 떼어낼 수 있게 하려는 의도다. 이 규칙을 실제로 떠받치는 지점이 `IbOrder.omsIbOrderId`인데, `@ManyToOne OmsIbOrder`가 아니라 **평범한 `Long` 스칼라**로 매핑돼 있다 — `wmsback`이 `omsback`을 import하지 않게 하기 위해서다. 도메인 간 참조를 건드릴 때 이 형태를 유지할 것.
+```
+common  ← mdm ← wmsback ← omsback
+             ↖──────────────┘
+```
 
-각 도메인 패키지는 `controller / dto / entity / repository / service` 구성을 따른다.
+**의존은 이 방향으로만 흐른다.** `mdm`은 `wmsback`·`omsback`을 모르고, `wmsback`은 `omsback`을 모른다. 나중에 앱을 떼어낼 수 있게 하려는 의도다.
+
+- `omsback → wmsback`은 **ASN 생성 하나**로 제한한다(`IbOrder` · `IbLine` · `IbStatus` · `IbOrderRepository`). 그 외 `omsback`이 쓰는 `Prod` · `Vendor` · `NbrService`는 전부 `mdm`이다 — 마스터를 `wmsback` 안에 두면 이 구분이 보이지 않아 밖으로 뺐다.
+- 이 규칙을 실제로 떠받치는 지점이 `IbOrder.omsIbOrderId`인데, `@ManyToOne OmsIbOrder`가 아니라 **평범한 `Long` 스칼라**로 매핑돼 있다. 도메인 간 참조를 건드릴 때 이 형태를 유지할 것.
+
+**아래 층이 위 층의 데이터를 봐야 하면 포트로 뒤집는다.** 상품 삭제 가드가 그 사례다 — `mdm`의 `ProdService`가 두 앱의 참조를 모두 확인해야 하는데(FK 0건이라 DB가 안 막아준다) 직접 조회하면 의존이 거꾸로 생긴다. 그래서 `mdm.prod.service.ProdRefChecker` 인터페이스를 두고 `WmsProdRefChecker`(재고 · 이력 · 입고예정 · 출고주문 · Lot)와 `OmsIbProdRefChecker`(입고주문)가 각자 구현해 빈으로 등록하며, `ProdService`가 `@Order` 순으로 순회한다.
+
+같은 이유로 **`@RestControllerAdvice`도 두 개다** — 공통은 `common.exception.GlobalExceptionHandler`, 검수 위반은 `wmsback.strategy.inspection.exception.InspectionExceptionHandler`. 후자를 공통으로 올리면 `common`이 `wmsback`을 import하게 된다.
+
+각 도메인 패키지는 `controller / dto / entity / repository / service` 구성을 따른다. `strategy`는 예외다 — 전략 커널이라 `condition / field / method / rule / exception`이 추가로 있고, `InspectionQueryRepository` · `PutawayQueryRepository`는 Spring Data 인터페이스 없이 `JPAQueryFactory`만 드는 **읽기 전용 조회 포트**로 아래 「QueryDSL 리포지토리 패턴」의 3파일 삼각형을 따르지 않는다.
 
 ### FK가 하나도 없다
 

@@ -1,7 +1,7 @@
 package com.project.wmsback.strategy.putaway.repository;
 
-import com.project.wmsback.master.entity.LocType;
-import com.project.wmsback.master.entity.TempZone;
+import com.project.wmsback.warehouse.entity.LocType;
+import com.project.mdm.prod.entity.TempZone;
 import com.project.wmsback.strategy.putaway.method.PutawayMethodContext;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.dsl.CaseBuilder;
@@ -14,8 +14,8 @@ import java.util.List;
 import java.util.Objects;
 
 import static com.project.wmsback.inventory.entity.QInv.inv;
-import static com.project.wmsback.master.entity.QLoc.loc;
-import static com.project.wmsback.master.entity.QZon.zon;
+import static com.project.wmsback.warehouse.entity.QLoc.loc;
+import static com.project.wmsback.warehouse.entity.QZon.zon;
 
 /** 적치 추천의 재고 현황 조회. 불변 전제(상품 온도대 일치 + STORAGE)가 여기서 강제된다 */
 @Repository

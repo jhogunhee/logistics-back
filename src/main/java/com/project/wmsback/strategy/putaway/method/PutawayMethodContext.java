@@ -1,7 +1,7 @@
 package com.project.wmsback.strategy.putaway.method;
 
-import com.project.wmsback.master.entity.Loc;
-import com.project.wmsback.master.entity.Prod;
+import com.project.wmsback.warehouse.entity.Loc;
+import com.project.mdm.prod.entity.Prod;
 
 import java.util.List;
 

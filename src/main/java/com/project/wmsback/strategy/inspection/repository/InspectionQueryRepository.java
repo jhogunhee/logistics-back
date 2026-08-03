@@ -7,7 +7,7 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDate;
 
 import static com.project.wmsback.inventory.entity.QInv.inv;
-import static com.project.wmsback.master.entity.QLot.lot;
+import static com.project.wmsback.warehouse.entity.QLot.lot;
 
 /** 검수 규칙이 쓰는 재고·로트 조회 포트. 규칙은 InspectionContext를 통해 이걸 받는다 */
 @Repository

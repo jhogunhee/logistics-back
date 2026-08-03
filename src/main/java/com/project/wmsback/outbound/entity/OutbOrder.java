@@ -1,7 +1,7 @@
 package com.project.wmsback.outbound.entity;
 
-import com.project.wmsback.common.entity.BaseEntity;
-import com.project.wmsback.master.entity.Store;
+import com.project.common.entity.BaseEntity;
+import com.project.mdm.store.entity.Store;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

@@ -1,6 +1,6 @@
 package com.project.wmsback.strategy.putaway.field;
 
-import com.project.wmsback.master.entity.Prod;
+import com.project.mdm.prod.entity.Prod;
 
 /**
  * 적치 단계 라인 조건(line_cond)의 판정 대상. 적용대상은 조건이 아니라 odr_dvsn 스칼라 매칭이다.

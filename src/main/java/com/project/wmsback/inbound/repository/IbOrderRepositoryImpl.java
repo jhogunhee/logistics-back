@@ -12,7 +12,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static com.project.wmsback.inbound.entity.QIbOrder.ibOrder;
-import static com.project.wmsback.master.entity.QVendor.vendor;
+import static com.project.mdm.vendor.entity.QVendor.vendor;
 
 @RequiredArgsConstructor
 public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {

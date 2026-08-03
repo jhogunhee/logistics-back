@@ -4,7 +4,7 @@ import com.project.wmsback.inventory.dto.InvHistResponse;
 import com.project.wmsback.inventory.dto.InvHistSearchCond;
 import com.project.wmsback.inventory.entity.InvHist;
 import com.project.wmsback.inventory.entity.TxType;
-import com.project.wmsback.master.entity.QLoc;
+import com.project.wmsback.warehouse.entity.QLoc;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -15,9 +15,9 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static com.project.wmsback.inventory.entity.QInvHist.invHist;
-import static com.project.wmsback.master.entity.QLoc.loc;
-import static com.project.wmsback.master.entity.QLot.lot;
-import static com.project.wmsback.master.entity.QProd.prod;
+import static com.project.wmsback.warehouse.entity.QLoc.loc;
+import static com.project.wmsback.warehouse.entity.QLot.lot;
+import static com.project.mdm.prod.entity.QProd.prod;
 
 @RequiredArgsConstructor
 public class InvHistRepositoryImpl implements InvHistRepositoryCustom {

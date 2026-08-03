@@ -4,4 +4,7 @@ import com.project.omsback.inbound.entity.OmsIbLine;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface OmsIbLineRepository extends JpaRepository<OmsIbLine, Long>, OmsIbLineRepositoryCustom {
+
+    /** 상품 삭제 가드용 — 상품 마스터가 OmsIbProdRefChecker를 거쳐 묻는다 */
+    boolean existsByProdId(Long prodId);
 }

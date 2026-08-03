@@ -7,7 +7,7 @@ import lombok.RequiredArgsConstructor;
 import java.util.List;
 
 import static com.project.omsback.inbound.entity.QOmsIbLine.omsIbLine;
-import static com.project.wmsback.master.entity.QProd.prod;
+import static com.project.mdm.prod.entity.QProd.prod;
 
 @RequiredArgsConstructor
 public class OmsIbLineRepositoryImpl implements OmsIbLineRepositoryCustom {

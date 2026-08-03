@@ -1,9 +1,9 @@
 package com.project.wmsback.inventory.entity;
 
-import com.project.wmsback.common.entity.BaseEntity;
-import com.project.wmsback.master.entity.Loc;
-import com.project.wmsback.master.entity.Lot;
-import com.project.wmsback.master.entity.Prod;
+import com.project.common.entity.BaseEntity;
+import com.project.wmsback.warehouse.entity.Loc;
+import com.project.wmsback.warehouse.entity.Lot;
+import com.project.mdm.prod.entity.Prod;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

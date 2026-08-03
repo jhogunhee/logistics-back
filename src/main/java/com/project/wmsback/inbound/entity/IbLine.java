@@ -1,7 +1,7 @@
 package com.project.wmsback.inbound.entity;
 
-import com.project.wmsback.common.entity.BaseEntity;
-import com.project.wmsback.master.entity.Prod;
+import com.project.common.entity.BaseEntity;
+import com.project.mdm.prod.entity.Prod;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;

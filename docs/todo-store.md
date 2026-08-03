@@ -12,7 +12,7 @@
 - [ ] **검색 조건은 뭘로?** (점포코드/점포명 정도면 충분한지)
 - [ ] **outb_life_rate 검증 규칙** — 서버에서 어디까지 막을지 (필수? 범위?)
 
-## 2. 백엔드 (참고: master 패키지의 Prod* 6개 파일)
+## 2. 백엔드 (참고: `com.project.mdm.prod` 패키지의 Prod* 6개 파일 — 점포도 마스터라 `com.project.mdm.store`에 만든다)
 - [ ] `StoreSearchCond` — 빈 조건은 무시되는 DTO
 - [ ] `StoreResponse` — 엔티티 → 응답 변환 (`from` 정적 팩토리)
 - [ ] `StoreSaveRequest` — `_status`(C/U/D) 매핑 포함

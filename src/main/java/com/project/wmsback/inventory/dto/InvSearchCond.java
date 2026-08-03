@@ -1,7 +1,7 @@
 package com.project.wmsback.inventory.dto;
 
-import com.project.wmsback.master.entity.LocType;
-import com.project.wmsback.master.entity.TempZone;
+import com.project.wmsback.warehouse.entity.LocType;
+import com.project.mdm.prod.entity.TempZone;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;

@@ -1,6 +1,6 @@
 package com.project.wmsback.strategy.inspection.entity;
 
-import com.project.wmsback.common.entity.BaseEntity;
+import com.project.common.entity.BaseEntity;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

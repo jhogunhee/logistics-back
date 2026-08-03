@@ -2,9 +2,9 @@ package com.project.wmsback.strategy.putaway.service;
 
 import com.project.wmsback.inbound.entity.IbLine;
 import com.project.wmsback.inbound.repository.IbLineRepository;
-import com.project.wmsback.master.entity.Loc;
-import com.project.wmsback.master.entity.Prod;
-import com.project.wmsback.master.repository.ProdRepository;
+import com.project.wmsback.warehouse.entity.Loc;
+import com.project.mdm.prod.entity.Prod;
+import com.project.mdm.prod.repository.ProdRepository;
 import com.project.wmsback.strategy.core.condition.ConditionEvaluator;
 import com.project.wmsback.strategy.core.condition.SortCriterion;
 import com.project.wmsback.strategy.core.entity.StgyTyp;

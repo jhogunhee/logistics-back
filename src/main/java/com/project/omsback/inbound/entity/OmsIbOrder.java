@@ -1,7 +1,7 @@
 package com.project.omsback.inbound.entity;
 
-import com.project.wmsback.common.entity.BaseEntity;
-import com.project.wmsback.master.entity.Vendor;
+import com.project.common.entity.BaseEntity;
+import com.project.mdm.vendor.entity.Vendor;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

@@ -4,7 +4,7 @@ import com.project.wmsback.inventory.dto.InvMovTaskResponse;
 import com.project.wmsback.inventory.dto.InvMovTaskSearchCond;
 import com.project.wmsback.inventory.entity.InvMovDvsn;
 import com.project.wmsback.inventory.entity.InvMovStatus;
-import com.project.wmsback.master.entity.QLoc;
+import com.project.wmsback.warehouse.entity.QLoc;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -14,8 +14,8 @@ import org.springframework.util.StringUtils;
 import java.util.List;
 
 import static com.project.wmsback.inventory.entity.QInvMovTask.invMovTask;
-import static com.project.wmsback.master.entity.QLot.lot;
-import static com.project.wmsback.master.entity.QProd.prod;
+import static com.project.wmsback.warehouse.entity.QLot.lot;
+import static com.project.mdm.prod.entity.QProd.prod;
 
 @RequiredArgsConstructor
 public class InvMovTaskRepositoryImpl implements InvMovTaskRepositoryCustom {

@@ -2,8 +2,8 @@ package com.project.wmsback.inventory.repository;
 
 import com.project.wmsback.inventory.dto.InvResponse;
 import com.project.wmsback.inventory.dto.InvSearchCond;
-import com.project.wmsback.master.entity.LocType;
-import com.project.wmsback.master.entity.TempZone;
+import com.project.wmsback.warehouse.entity.LocType;
+import com.project.mdm.prod.entity.TempZone;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -13,9 +13,9 @@ import org.springframework.util.StringUtils;
 import java.util.List;
 
 import static com.project.wmsback.inventory.entity.QInv.inv;
-import static com.project.wmsback.master.entity.QLoc.loc;
-import static com.project.wmsback.master.entity.QLot.lot;
-import static com.project.wmsback.master.entity.QProd.prod;
+import static com.project.wmsback.warehouse.entity.QLoc.loc;
+import static com.project.wmsback.warehouse.entity.QLot.lot;
+import static com.project.mdm.prod.entity.QProd.prod;
 
 @RequiredArgsConstructor
 public class InvRepositoryImpl implements InvRepositoryCustom {

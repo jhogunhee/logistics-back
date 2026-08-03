@@ -4,7 +4,7 @@ import com.project.wmsback.inbound.dto.PutawayCandidateResponse;
 import com.project.wmsback.inbound.dto.PutawayRequest;
 import com.project.wmsback.inbound.dto.PutawaySearchCond;
 import com.project.wmsback.inbound.service.PutawayService;
-import com.project.wmsback.master.dto.LocResponse;
+import com.project.wmsback.warehouse.dto.LocResponse;
 import com.project.wmsback.strategy.putaway.dto.PutawayRecommendRequest;
 import com.project.wmsback.strategy.putaway.dto.PutawayRecommendResponse;
 import com.project.wmsback.strategy.putaway.service.PutawayRecommendService;

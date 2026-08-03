@@ -1,6 +1,6 @@
 package com.project.wmsback.outbound.dto;
 
-import com.project.wmsback.master.entity.TempZone;
+import com.project.mdm.prod.entity.TempZone;
 import com.project.wmsback.outbound.entity.OutbLine;
 import lombok.Getter;
 
