@@ -289,7 +289,7 @@
   <td class="name">적치 전략관리</td>
   <td>적치 추천이 로케이션을 고르는 규칙 정의. 발주구분별 단계 목록(drag&amp;drop 순서) + 단계별 조건·방식 + 미리보기·리비전 이력</td>
   <td class="st"><span class="badge done">구현</span></td>
-  <td><code>/strategy/putaway-strategies</code> · <code>pages/master/PutawayStrategy.jsx</code> (docs/st/전략_화면설계서.md SC-02). 1차에서 전략은 <strong>추천만</strong> 한다 — 지시 기반 전환은 적치지시 구현 시</td>
+  <td><code>/strategy/putaway-strategies</code> · <code>pages/strategy/PutawayStrategy.jsx</code> (docs/st/전략_화면설계서.md SC-02). 1차에서 전략은 <strong>추천만</strong> 한다 — 지시 기반 전환은 적치지시 구현 시</td>
 </tr>
 <tr>
   <td class="name">공통코드 관리</td>
@@ -360,17 +360,19 @@
 <tr><td>피킹</td><td><code>/outbound/picking</code></td><td>Placeholder</td></tr>
 <tr><td>출고확정</td><td><code>/outbound/shipping</code></td><td>Placeholder</td></tr>
 
-<tr><td class="name" rowspan="6">마스터</td><td>상품 관리</td><td><code>/master/prod</code></td><td><code>pages/master/ProdMaster.jsx</code></td></tr>
+<tr><td class="name" rowspan="4">마스터</td><td>상품 관리</td><td><code>/master/prod</code></td><td><code>pages/master/ProdMaster.jsx</code></td></tr>
 <tr><td>존 관리</td><td><code>/master/zone</code></td><td><code>pages/master/ZonMaster.jsx</code></td></tr>
 <tr><td>로케이션 관리</td><td><code>/master/location</code></td><td><code>pages/master/LocMaster.jsx</code></td></tr>
 <tr><td>점포 관리</td><td><code>/master/store</code></td><td>Placeholder — 직접 구현 예정</td></tr>
-<tr><td>검수 정책관리</td><td><code>/master/inspection-policy</code></td><td><code>pages/master/InspectionPolicy.jsx</code> — 규칙 목록·미리보기·리비전 (docs/st/전략_화면설계서.md SC-01)</td></tr>
-<tr><td>적치 전략관리</td><td><code>/master/putaway-strategy</code></td><td><code>pages/master/PutawayStrategy.jsx</code> — 목록·단계 편집·미리보기·리비전 (SC-02)</td></tr>
-<tr><td>웨이브 전략관리</td><td><code>/master/wave-strategy</code></td><td><code>pages/master/WaveStrategy.jsx</code> — 목록·조건그룹 편집(OR/AND)·미리보기·리비전·실행 (SC-03). 실행 버튼은 출고 웨이브 화면 구현 시 그쪽으로 이관</td></tr>
+
+<tr><td class="name" rowspan="4">전략</td><td>검수 정책관리</td><td><code>/strategy/inspection</code></td><td><code>pages/strategy/InspectionPolicy.jsx</code> — 규칙 목록·미리보기·리비전 (docs/st/전략_화면설계서.md SC-01)</td></tr>
+<tr><td>적치 전략관리</td><td><code>/strategy/putaway</code></td><td><code>pages/strategy/PutawayStrategy.jsx</code> — 목록·단계 편집·미리보기·리비전 (SC-02)</td></tr>
+<tr><td>웨이브 전략관리</td><td><code>/strategy/wave</code></td><td><code>pages/strategy/WaveStrategy.jsx</code> — 목록·조건그룹 편집(OR/AND)·미리보기·리비전·실행 (SC-03). 실행 버튼은 출고 웨이브 화면 구현 시 그쪽으로 이관</td></tr>
+<tr><td>할당 전략관리</td><td><code>/strategy/allocation</code></td><td>Placeholder — 3차 (SC-04)</td></tr>
 </tbody>
 </table>
 </div>
-<p class="note">변경분: 기존 <code>/outbound/orders</code> 라우트는 <code>/oms/outbound-orders</code>로 이관되어 제거됨. 마스터 10개 화면은 모두 사이드바에 등록돼 있다(점포 관리만 Placeholder).</p>
+<p class="note">변경분: 기존 <code>/outbound/orders</code> 라우트는 <code>/oms/outbound-orders</code>로 이관되어 제거됨. <strong>2026-08-03: 전략 3본을 「마스터」에서 분리해 「전략」 그룹으로 옮기고 라우트를 <code>/master/*</code> → <code>/strategy/*</code>로 맞췄다</strong> — 마스터는 「무엇이 있는가」, 전략은 「어떻게 판단할지」로 성격이 다르고 마스터 그룹이 11개로 비대해졌기 때문. 화면 파일도 <code>pages/strategy/</code>로 이동했다.</p>
 
 <h2>추천 진행 순서</h2>
 <ol class="steps">
