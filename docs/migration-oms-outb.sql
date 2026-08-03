@@ -161,6 +161,8 @@ BEGIN
     RAISE NOTICE 'outb_order.expct_de % 건 백필 (odr_de 복사)', n;
 
     -- 6. 제약 -------------------------------------------------------------
+    -- SET NOT NULL 은 이미 NOT NULL 인 컬럼에 다시 걸어도 아무 일도 하지 않는다(재실행 안전).
+    -- 남은 NULL 이 있으면 여기서 터지는 게 맞다 — 백필이 빠진 행을 조용히 넘기면 안 된다.
     ALTER TABLE outb_order ALTER COLUMN oms_outb_order_id SET NOT NULL;
     ALTER TABLE outb_order ALTER COLUMN expct_de SET NOT NULL;
 
@@ -200,12 +202,9 @@ BEGIN
     END IF;
 
     SELECT count(*) INTO n
-      FROM (SELECT o.outb_order_id
-              FROM outb_order o
-              JOIN outb_line l ON l.outb_order_id = o.outb_order_id
-             GROUP BY o.outb_order_id, o.oms_outb_order_id
-            HAVING count(*) <> (SELECT count(*) FROM oms_outb_line ol
-                                 WHERE ol.oms_outb_order_id = o.oms_outb_order_id)) x;
+      FROM outb_order o
+     WHERE (SELECT count(*) FROM outb_line l WHERE l.outb_order_id = o.outb_order_id)
+        <> (SELECT count(*) FROM oms_outb_line ol WHERE ol.oms_outb_order_id = o.oms_outb_order_id);
     IF n > 0 THEN
         RAISE EXCEPTION '상위 주문과 라인 건수가 다른 출고주문이 % 건 있다', n;
     END IF;

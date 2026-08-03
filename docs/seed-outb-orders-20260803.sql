@@ -204,14 +204,21 @@ FROM outb_order o
 JOIN oms_outb_line l ON l.oms_outb_order_id = o.oms_outb_order_id
 WHERE NOT EXISTS (SELECT 1 FROM outb_line x WHERE x.outb_order_id = o.outb_order_id);
 
--- 채번 카운터를 날짜별 건수만큼 맞춘다. 안 하면 화면에서 같은 날짜로 등록·확정할 때
--- 001부터 다시 채번돼 uq_oms_outb_no · uq_outb_no 유니크 위반이 난다.
-INSERT INTO nbr_seq (rule_cd, dync_ky, seq) VALUES
-    ('OMS_OUTB_NO', '20260803', 7),
-    ('OMS_OUTB_NO', '20260804', 1),
-    ('OMS_OUTB_NO', '20260805', 1),
-    ('OUTB_NO', '20260803', 7),
-    ('OUTB_NO', '20260804', 1)
+-- 채번 카운터를 맞춘다. 안 하면 화면에서 같은 날짜로 등록·확정할 때 001부터 다시 채번돼
+-- uq_oms_outb_no · uq_outb_no 유니크 위반이 난다.
+--
+-- 건수를 적어두지 않고 실제 발급된 번호에서 뽑는다 — 마이그레이션이 만든 주문이 이미 있는 DB에서는
+-- 위 ② 블록이 그 뒤 번호부터 채우므로, 상수로 박아두면 카운터가 최대 발급값보다 낮아진다.
+INSERT INTO nbr_seq (rule_cd, dync_ky, seq)
+SELECT 'OMS_OUTB_NO', split_part(oms_outb_no, '-', 2), MAX(split_part(oms_outb_no, '-', 3)::bigint)
+  FROM oms_outb_order
+ GROUP BY split_part(oms_outb_no, '-', 2)
+ON CONFLICT (rule_cd, dync_ky) DO UPDATE SET seq = GREATEST(nbr_seq.seq, EXCLUDED.seq);
+
+INSERT INTO nbr_seq (rule_cd, dync_ky, seq)
+SELECT 'OUTB_NO', split_part(outb_no, '-', 2), MAX(split_part(outb_no, '-', 3)::bigint)
+  FROM outb_order
+ GROUP BY split_part(outb_no, '-', 2)
 ON CONFLICT (rule_cd, dync_ky) DO UPDATE SET seq = GREATEST(nbr_seq.seq, EXCLUDED.seq);
 
 -- 확인:
