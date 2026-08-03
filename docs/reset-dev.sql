@@ -1,7 +1,7 @@
 -- =====================================================================
 -- 개발 DB 업무 데이터 초기화 — 상품·포장과 그 아래 문서·재고만 지운다
 --
---   지우는 것 : 입고주문 · ASN · 검수 · 적치 · 재고 · 이력 · 출고 · Lot · 상품 · 포장
+--   지우는 것 : 입고주문 · ASN · 검수 · 적치 · 재고 · 이력 · 이동지시 · 보류 · 재고조사 · 출고 · Lot · 상품 · 포장
 --   남기는 것 : 공통코드(UOM 그룹 포함) · 존 · 로케이션 · 벤더 · 점포
 --
 --   상품을 지우는 이유는 단위 때문이다. 상품의 출고단위는 재고 저장 단위라서, 단위를 바꾸면
@@ -36,6 +36,11 @@ BEGIN
     -- putaway_task 는 스키마에만 있고 아직 엔티티가 없다 — 있으면 함께 비운다.
     FOREACH t IN ARRAY ARRAY[
         'outb_alloc', 'outb_line', 'outb_order', 'outb_wave',
+        -- 재고를 참조하는 작업 문서(이동지시 · 보류 · 조사)를 재고보다 먼저 비운다.
+        -- 재고만 지우면 이 문서들이 사라진 상품·Lot을 가리키는 유령 행으로 남는다.
+        'inv_stktk_ln', 'inv_stktk',
+        'inv_hld_rlz_acrst', 'inv_hld_acrst', 'inv_hld',
+        'inv_mov_task',
         'inv_hist', 'inv', 'putaway_task',
         'ib_line', 'ib_order', 'oms_ib_line', 'oms_ib_order',
         'lot', 'prod_uom', 'prod'
@@ -59,7 +64,8 @@ BEGIN
     -- VNDR_CD 는 지우지 않는다. 벤더를 남겼기 때문에 되감으면 VD-0001 이 다시 발급돼
     -- 화면에서 벤더를 등록할 때 uq_vndr_cd 위반이 난다.
     DELETE FROM nbr_seq
-     WHERE rule_cd IN ('PROD_CD', 'OMS_IB_NO', 'IB_NO', 'OUTB_NO', 'OUTB_WAV_NO');
+     WHERE rule_cd IN ('PROD_CD', 'OMS_IB_NO', 'IB_NO', 'OUTB_NO', 'OUTB_WAV_NO',
+                       'INV_MOV_NO', 'HLD_NO', 'STKTK_NO');
 
     GET DIAGNOSTICS n = ROW_COUNT;
     RAISE NOTICE '채번 카운터 % 행 삭제 (VNDR_CD 는 벤더를 남겨 두므로 유지)', n;

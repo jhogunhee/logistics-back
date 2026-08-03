@@ -189,9 +189,9 @@
 </tr>
 <tr>
   <td class="name">재고조사 (실사)</td>
-  <td>조사 대상 지정(로케이션/존/상품 범위) → 실사 수량 입력 → 전산 대비 차이 확인 → 확정 시 <code>ADJUST</code>로 스냅샷 보정</td>
-  <td class="st"><span class="badge todo">미구현</span></td>
-  <td>신규 — 조사 헤더/라인 엔티티 필요</td>
+  <td>조사 대상 지정(존/로케이션/상품 범위) → 라인별 전산수량 스냅샷 → 실사수량·사유 입력 → 확정 시 차이를 <code>ADJUST</code>로 보정. <strong>재고 수량 정정의 유일한 경로</strong>(건별 조정 화면 없음 — 재고 하나만 고치려면 범위를 좁게 잡는다). <strong>조정수량 = 실사수량 − 확정시점 전산수량</strong>이라 확정 후 전산수량은 실사수량과 정확히 일치한다(확정이 재고 행 락을 걸고 다시 읽는다). 차이 0 라인은 이력·사유 없음, 미입력(NULL)은 「미조사」로 건너뜀. 장부에 없는 재고는 라인 수동 추가로 등록(기초재고·발견재고 — Lot은 기존 것만). 실적 테이블 없음 — 조정실적 조회는 재고 이력 조회에서 조사번호로. 상세: <code>docs/sg/wms-st-화면프로세스정의서.md</code> 1절</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>POST·GET /inventory/stocktakes</code><br><code>GET·PUT·POST /inventory/stocktakes/{id}/lines</code><br><code>POST /inventory/stocktakes/{id}/confirm</code> · <code>/cancel</code> · <code>/resync</code></td>
 </tr>
 <tr>
   <td class="name">재고 이동</td>
@@ -352,7 +352,7 @@
 <tr><td>재고 속성변경</td><td><code>/stock/attribute</code></td><td>Placeholder</td></tr>
 <tr><td>재고 보류</td><td><code>/stock/hold</code></td><td><code>pages/stock/StockHold.jsx</code> — 탭 3개(보류등록 <code>StockHoldRegister.jsx</code> / 보류 관리 <code>StockHoldList.jsx</code> / 실적 조회 <code>StockHoldAcrst.jsx</code>)</td></tr>
 <tr><td>재고 이동</td><td><code>/stock/move</code></td><td><code>pages/stock/StockMove.jsx</code> — 탭 2개(이동지시등록 <code>StockMoveOrder.jsx</code> / 이동지시 관리 <code>StockMoveTaskList.jsx</code>)</td></tr>
-<tr><td>재고조사</td><td><code>/stock/count</code></td><td>Placeholder</td></tr>
+<tr><td>재고조사</td><td><code>/stock/count</code></td><td><code>pages/stock/StockCount.jsx</code> — 탭 2개(조사 목록 <code>StockCountList.jsx</code> / 실사 입력·확정 <code>StockCountDetail.jsx</code>)</td></tr>
 
 <tr><td class="name" rowspan="5">출고</td><td>웨이브 편성</td><td><code>/outbound/wave</code></td><td>Placeholder — API는 있음</td></tr>
 <tr><td>할당</td><td><code>/outbound/allocation</code></td><td>Placeholder</td></tr>
@@ -379,7 +379,7 @@
   <li><strong>입고확정</strong> — 적치까지 붙은 뒤에야 결품 확정 화면이 의미를 가짐</li>
   <li><strong>할당</strong>(주문 단위) — v1의 유일한 할당 경로. 웨이브 릴리즈는 v1 제외</li>
   <li><strong>피킹지시</strong>(웨이브 단위) → <strong>피킹</strong> → <strong>출고확정</strong> — 출고 흐름 완성</li>
-  <li>재고 속성변경 / 재고조사</li>
+  <li>재고 속성변경 (<s>재고조사</s> — 완료 2026-08-03)</li>
   <li>점포(Store) 관리 — 직접 구현</li>
   <li>대시보드</li>
 </ol>
@@ -395,6 +395,7 @@
 <tr><td class="name">"입고 마감 UI는 백로그, 버튼 미노출"</td><td><strong>입고확정으로 재정의하고 흐름의 마지막 단계로 이동.</strong> 검수 직후가 아니라 적치가 진행된 뒤 결품을 확정한다</td></tr>
 <tr><td class="name">"COMPLETED는 RECEIVED 상태 and 전 라인 putawayQty == rcvdQty 두 조건이 충족된 시점에 자동 전이"</td><td>자동 전이 제거. <strong>사용자의 명시적 확정 액션</strong>으로만 종료하며, 전 라인 적치 완료가 확정의 선행 조건이 된다</td></tr>
 <tr><td class="name">백로그(v1 제외): "폐기/홀드(재고 상태 + 만료 Lot 자동 홀드 배치)"</td><td><strong>재고 보류를 v1에 포함.</strong> <code>inv</code>에 재고상태를 추가하고 할당 후보에서 보류 재고를 제외한다. 만료 Lot 자동 보류 배치와 폐기는 계속 백로그</td></tr>
+<tr><td class="name">재고조사: "차이 = 실사수량 − 조사 생성 시점 전산수량"</td><td><strong>번복(2026-08-03) — 확정시점 전산수량 기준.</strong> 확정이 라인별 재고 행 락을 걸고 전산수량을 다시 읽어(<code>cfm_sys_qty</code>) 조정하므로 확정 후 전산수량이 실사수량과 정확히 일치한다. 조사 생성부터 확정까지의 시간차를 스냅샷 기준으로 두면 확정 후에도 전산 ≠ 실사가 되어 실사의 목적이 무너지기 때문 — 대가는 실사 이후 입고분이 덮이는 것. 정의서 1-1절 참조</td></tr>
 <tr><td class="name">"보류는 수량이 아니라 행 단위 재고상태"</td><td><strong>번복(2026-08-03) — 보류는 수량이다.</strong> 재고상태 컬럼 대신 <code>inv.hld_qty</code>(가용 = 보유 − 예약 − 보류, 예약과 배타) + 보류 3테이블(<code>inv_hld</code>/<code>inv_hld_acrst</code>/<code>inv_hld_rlz_acrst</code>). 부분수량 보류와 등록/해제 사유별 히스토리 보존 요구 때문 — 정의서 2절 참조</td></tr>
 <tr><td class="name">상태 <code>RECEIVED</code></td><td><strong>제거.</strong> 검수/적치 진행도는 라인 수량에서 파생되므로 중간 상태가 불필요 — <code>SCHEDULED → RECEIVING → COMPLETED</code></td></tr>
 <tr><td class="name">"할당은 오직 웨이브 릴리즈로만 일어난다"</td><td><strong>뒤집힘 — 할당은 주문 단위 화면에서만 일어난다.</strong> 웨이브 릴리즈는 v1 제외</td></tr>

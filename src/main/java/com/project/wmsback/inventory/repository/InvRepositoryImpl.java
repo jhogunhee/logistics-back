@@ -2,6 +2,7 @@ package com.project.wmsback.inventory.repository;
 
 import com.project.wmsback.inventory.dto.InvResponse;
 import com.project.wmsback.inventory.dto.InvSearchCond;
+import com.project.wmsback.inventory.entity.Inv;
 import com.project.wmsback.warehouse.entity.LocTyp;
 import com.project.mdm.prod.entity.TmpZon;
 import com.querydsl.core.types.Projections;
@@ -51,7 +52,39 @@ public class InvRepositoryImpl implements InvRepositoryCustom {
                 .fetch();
     }
 
+    @Override
+    public List<Inv> searchStorageByScope(String zonCd, Long locId, Long prodId) {
+        return queryFactory
+                .selectFrom(inv)
+                .innerJoin(inv.loc, loc).fetchJoin()
+                .innerJoin(inv.prod, prod).fetchJoin()
+                .innerJoin(inv.lot, lot).fetchJoin()
+                .where(
+                        // 조사 대상은 보관 재고뿐이다 (v1) — 스테이징 재고는 적치·출고확정이 소진 중인 물량이라
+                        // 세는 시점 자체가 불안정하고, 보류·이동의 STORAGE 한정과도 결이 같다
+                        loc.locTyp.eq(LocTyp.STORAGE),
+                        zonCdEq(zonCd),
+                        locIdEq(locId),
+                        prodIdEq(prodId),
+                        inv.onHandQty.gt(0L)
+                )
+                .orderBy(loc.locCd.asc(), prod.prodCd.asc(), lot.lotNo.asc())
+                .fetch();
+    }
+
     // 조건 메서드가 null을 반환하면 where()가 그 조건을 무시한다 — QueryDSL 동적 쿼리 관례
+
+    private BooleanExpression zonCdEq(String zonCd) {
+        return StringUtils.hasText(zonCd) ? loc.zonCd.eq(zonCd) : null;
+    }
+
+    private BooleanExpression locIdEq(Long locId) {
+        return locId != null ? loc.id.eq(locId) : null;
+    }
+
+    private BooleanExpression prodIdEq(Long prodId) {
+        return prodId != null ? prod.id.eq(prodId) : null;
+    }
 
     private BooleanExpression prodCdContains(String prodCd) {
         return StringUtils.hasText(prodCd) ? prod.prodCd.containsIgnoreCase(prodCd) : null;

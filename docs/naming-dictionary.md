@@ -4,7 +4,7 @@
 
 DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있다. 필드와 컬럼이 1:1로 붙어 있는 구조라 두 사전이 겹치는 자리가 생기는데, 어긋나는 항목은 아래 「이미 쓰고 있는 이름과 어긋나는 곳」에 모아뒀다.
 
-235개 단어이며 한글·약어 모두 중복이 없다. (2026-08-02 전략 시스템 설계에서 15개 추가 — `docs/st/전략_테이블설계안.md` §7)
+236개 단어이며 한글·약어 모두 중복이 없다. (2026-08-02 전략 시스템 설계에서 15개 추가 — `docs/st/전략_테이블설계안.md` §7 · 2026-08-03 재고조사 설계에서 `실사 STKTK` 1개 추가 — `docs/sg/wms-st-화면프로세스정의서.md` 1절)
 
 ## 이름 만드는 규칙
 
@@ -150,6 +150,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 슬롯 | `SLOT` | Slot |
 | 시스템 | `SYS` | System |
 | 시작 | `STRT` | Start |
+| 실사 | `STKTK` | Stock Taking |
 | 실적 | `ACRST` | Actual Result |
 | 실패 | `FAIL` | Failure |
 | 실행 | `EXEC` | Execution |
@@ -476,6 +477,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | `ST` | 상태 | Status |
 | `STG` | 단계 | Stage |
 | `STGY` | 전략 | Strategy |
+| `STKTK` | 실사 | Stock Taking |
 | `STND` | 규격 | Standard |
 | `STP` | 단 | Step |
 | `STRG` | 보관 | Storage |

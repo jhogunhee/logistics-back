@@ -11,7 +11,8 @@ import lombok.RequiredArgsConstructor;
 public enum RefDocTyp {
     INBOUND("입고 문서"),
     OUTBOUND("출고 문서"),
-    INV_MOV("이동지시");
+    INV_MOV("이동지시"),
+    INV_STKTK("재고조사");
 
     private final String label;
 }
