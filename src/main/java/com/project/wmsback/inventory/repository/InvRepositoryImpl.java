@@ -2,8 +2,8 @@ package com.project.wmsback.inventory.repository;
 
 import com.project.wmsback.inventory.dto.InvResponse;
 import com.project.wmsback.inventory.dto.InvSearchCond;
-import com.project.wmsback.warehouse.entity.LocType;
-import com.project.mdm.prod.entity.TempZone;
+import com.project.wmsback.warehouse.entity.LocTyp;
+import com.project.mdm.prod.entity.TmpZon;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -41,8 +41,8 @@ public class InvRepositoryImpl implements InvRepositoryCustom {
                         prodNmContains(cond.getProdNm()),
                         locCdContains(cond.getLocCd()),
                         lotNoContains(cond.getLotNo()),
-                        tempZoneEq(cond.getTmpZon()),
-                        locTypeEq(cond.getLocTyp()),
+                        tmpZonEq(cond.getTmpZon()),
+                        locTypEq(cond.getLocTyp()),
                         // 보유 0 행은 재고가 빠지는 시점에 삭제되지만, 과거 데이터의 잔여 0 행이 화면에 뜨지 않도록 방어적으로 항상 제외
                         inv.onHandQty.gt(0L)
                 )
@@ -69,11 +69,11 @@ public class InvRepositoryImpl implements InvRepositoryCustom {
         return StringUtils.hasText(lotNo) ? lot.lotNo.containsIgnoreCase(lotNo) : null;
     }
 
-    private BooleanExpression tempZoneEq(TempZone tmpZon) {
+    private BooleanExpression tmpZonEq(TmpZon tmpZon) {
         return tmpZon != null ? prod.tmpZon.eq(tmpZon) : null;
     }
 
-    private BooleanExpression locTypeEq(LocType locTyp) {
+    private BooleanExpression locTypEq(LocTyp locTyp) {
         return locTyp != null ? loc.locTyp.eq(locTyp) : null;
     }
 }

@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
  */
 @Getter
 @RequiredArgsConstructor
-public enum LocType {
+public enum LocTyp {
     STAGE("입고 스테이징(적치 대기)"),
     STORAGE("보관(할당 대상)");
 

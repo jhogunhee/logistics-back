@@ -2,7 +2,7 @@ package com.project.wmsback.warehouse.repository;
 
 import com.project.wmsback.warehouse.dto.LocSearchCond;
 import com.project.wmsback.warehouse.entity.Loc;
-import com.project.wmsback.warehouse.entity.LocType;
+import com.project.wmsback.warehouse.entity.LocTyp;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
@@ -23,8 +23,8 @@ public class LocRepositoryImpl implements LocRepositoryCustom {
                 .selectFrom(loc)
                 .where(
                         locCdContains(cond.getLocCd()),
-                        zoneCdEq(cond.getZonCd()),
-                        locTypeEq(cond.getLocTyp())
+                        zonCdEq(cond.getZonCd()),
+                        locTypEq(cond.getLocTyp())
                 )
                 .orderBy(loc.zonCd.asc(), loc.locCd.asc())
                 .fetch();
@@ -36,11 +36,11 @@ public class LocRepositoryImpl implements LocRepositoryCustom {
         return StringUtils.hasText(locCd) ? loc.locCd.containsIgnoreCase(locCd) : null;
     }
 
-    private BooleanExpression zoneCdEq(String zonCd) {
+    private BooleanExpression zonCdEq(String zonCd) {
         return StringUtils.hasText(zonCd) ? loc.zonCd.eq(zonCd) : null;
     }
 
-    private BooleanExpression locTypeEq(LocType locTyp) {
+    private BooleanExpression locTypEq(LocTyp locTyp) {
         return locTyp != null ? loc.locTyp.eq(locTyp) : null;
     }
 }

@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
  */
 @Getter
 @RequiredArgsConstructor
-public enum TxType {
+public enum TxTyp {
     RECEIVE("입고"),
     MOVE("이동(적치 포함)"),
     ADJUST("조정"),

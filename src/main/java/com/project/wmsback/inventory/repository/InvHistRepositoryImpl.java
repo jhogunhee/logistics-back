@@ -3,7 +3,7 @@ package com.project.wmsback.inventory.repository;
 import com.project.wmsback.inventory.dto.InvHistResponse;
 import com.project.wmsback.inventory.dto.InvHistSearchCond;
 import com.project.wmsback.inventory.entity.InvHist;
-import com.project.wmsback.inventory.entity.TxType;
+import com.project.wmsback.inventory.entity.TxTyp;
 import com.project.wmsback.warehouse.entity.QLoc;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
@@ -25,7 +25,7 @@ public class InvHistRepositoryImpl implements InvHistRepositoryCustom {
     private final JPAQueryFactory queryFactory;
 
     @Override
-    public List<InvHist> findAllByIbLineIdAndTxTypeOrderByCreatedAtDesc(Long ibLineId, TxType txTyp) {
+    public List<InvHist> findAllByIbLineIdAndTxTypeOrderByCreatedAtDesc(Long ibLineId, TxTyp txTyp) {
         return queryFactory
                 .selectFrom(invHist)
                 .where(invHist.ibLineId.eq(ibLineId), invHist.txTyp.eq(txTyp))
@@ -60,8 +60,8 @@ public class InvHistRepositoryImpl implements InvHistRepositoryCustom {
                         prodCdContains(cond.getProdCd()),
                         prodNmContains(cond.getProdNm()),
                         locCdContains(cond.getLocCd()),
-                        txTypeEq(cond.getTxTyp()),
-                        refDocNoContains(cond.getRfnDocNo()),
+                        txTypEq(cond.getTxTyp()),
+                        rfnDocNoContains(cond.getRfnDocNo()),
                         createdAtGoe(cond.getDateFrom()),
                         createdAtLt(cond.getDateTo())
                 )
@@ -83,11 +83,11 @@ public class InvHistRepositoryImpl implements InvHistRepositoryCustom {
         return StringUtils.hasText(locCd) ? loc.locCd.containsIgnoreCase(locCd) : null;
     }
 
-    private BooleanExpression txTypeEq(TxType txTyp) {
+    private BooleanExpression txTypEq(TxTyp txTyp) {
         return txTyp != null ? invHist.txTyp.eq(txTyp) : null;
     }
 
-    private BooleanExpression refDocNoContains(String rfnDocNo) {
+    private BooleanExpression rfnDocNoContains(String rfnDocNo) {
         return StringUtils.hasText(rfnDocNo) ? invHist.rfnDocNo.containsIgnoreCase(rfnDocNo) : null;
     }
 

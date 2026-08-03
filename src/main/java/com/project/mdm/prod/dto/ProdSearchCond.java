@@ -1,6 +1,6 @@
 package com.project.mdm.prod.dto;
 
-import com.project.mdm.prod.entity.TempZone;
+import com.project.mdm.prod.entity.TmpZon;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -13,5 +13,5 @@ public class ProdSearchCond {
 
     private String prodCd;
     private String prodNm;
-    private TempZone tmpZon;
+    private TmpZon tmpZon;
 }

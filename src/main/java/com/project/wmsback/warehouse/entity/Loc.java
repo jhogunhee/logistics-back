@@ -1,6 +1,6 @@
 package com.project.wmsback.warehouse.entity;
 
-import com.project.mdm.prod.entity.TempZone;
+import com.project.mdm.prod.entity.TmpZon;
 import com.project.common.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -40,12 +40,12 @@ public class Loc extends BaseEntity {
     /** 존 온도대. 상품 온도대와 불일치하면 적치·이동 차단 */
     @Enumerated(EnumType.STRING)
     @Column(name = "tmp_zon", nullable = false, length = 10)
-    private TempZone tmpZon;
+    private TmpZon tmpZon;
 
     /** STAGE: 입고 스테이징(적치 대기) / STORAGE: 보관(할당 대상) */
     @Enumerated(EnumType.STRING)
     @Column(name = "loc_typ", nullable = false, length = 10)
-    private LocType locTyp;
+    private LocTyp locTyp;
 
     /** 할당 시 동일 유통기한(FEFO 동순위) 간 로케이션 우선순위. 낮을수록 먼저 할당 */
     @Column(name = "pikng_prty", nullable = false)
@@ -65,7 +65,7 @@ public class Loc extends BaseEntity {
     private Long maxQty;
 
     @Builder
-    private Loc(String locCd, String zonCd, TempZone tmpZon, LocType locTyp, Integer pikngPrty, Integer ptawyPrty) {
+    private Loc(String locCd, String zonCd, TmpZon tmpZon, LocTyp locTyp, Integer pikngPrty, Integer ptawyPrty) {
         this.locCd = locCd;
         this.zonCd = zonCd;
         this.tmpZon = tmpZon;
@@ -74,7 +74,7 @@ public class Loc extends BaseEntity {
         this.ptawyPrty = ptawyPrty != null ? ptawyPrty : 0;
     }
 
-    public void update(String zonCd, TempZone tmpZon, LocType locTyp, Integer pikngPrty, Integer ptawyPrty) {
+    public void update(String zonCd, TmpZon tmpZon, LocTyp locTyp, Integer pikngPrty, Integer ptawyPrty) {
         this.zonCd = zonCd;
         this.tmpZon = tmpZon;
         this.locTyp = locTyp;

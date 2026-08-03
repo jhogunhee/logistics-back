@@ -17,7 +17,7 @@ import com.project.wmsback.inventory.repository.InvHldRlzAcrstRepository;
 import com.project.wmsback.inventory.repository.InvRepository;
 import com.project.mdm.code.entity.CodeDetailId;
 import com.project.wmsback.warehouse.entity.Loc;
-import com.project.wmsback.warehouse.entity.LocType;
+import com.project.wmsback.warehouse.entity.LocTyp;
 import com.project.wmsback.warehouse.entity.Lot;
 import com.project.mdm.prod.entity.Prod;
 import com.project.mdm.code.repository.CodeDetailRepository;
@@ -99,7 +99,7 @@ public class InvHldService {
         Loc locEntity = inv.getLoc();
 
         // v1 보류 대상은 보관 재고만 — 스테이징까지 허용하면 적치·출고확정의 수량 체크에도 파급이 생긴다
-        if (locEntity.getLocTyp() != LocType.STORAGE) {
+        if (locEntity.getLocTyp() != LocTyp.STORAGE) {
             throw new IllegalArgumentException("보관 로케이션의 재고만 보류할 수 있습니다: " + locEntity.getLocCd());
         }
         // 동일 사유 미해제 중복 차단 — 사유가 다를 때만 같은 재고 행에 병존한다 (uq_inv_hld_open_rsn이 최후 방어)
@@ -109,8 +109,8 @@ public class InvHldService {
                     + prodEntity.getProdCd() + " @ " + locEntity.getLocCd());
         }
         // 예약과 보류는 배타 — 보류는 가용재고에서만 잡는다 (예약 잔량이 있어도 남은 가용분은 보류 가능)
-        if (item.getQty() > inv.availableQty()) {
-            throw new IllegalArgumentException("보류수량이 가용재고를 초과했습니다 (가용 " + inv.availableQty() + "): "
+        if (item.getQty() > inv.avalQty()) {
+            throw new IllegalArgumentException("보류수량이 가용재고를 초과했습니다 (가용 " + inv.avalQty() + "): "
                     + prodEntity.getProdCd() + " @ " + locEntity.getLocCd());
         }
 

@@ -33,8 +33,8 @@ public class OutbOrderRepositoryImpl implements OutbOrderRepositoryCustom {
                         storeIdEq(cond.getStoreId()),
                         waveIdEq(cond.getWavId()),
                         unassigned(cond.getUnassigned()),
-                        orderDtGoe(cond.getDateFrom()),
-                        orderDtLoe(cond.getDateTo())
+                        odrDeGoe(cond.getDateFrom()),
+                        odrDeLoe(cond.getDateTo())
                 )
                 .orderBy(outbOrder.id.desc())
                 .fetch();
@@ -66,11 +66,11 @@ public class OutbOrderRepositoryImpl implements OutbOrderRepositoryCustom {
         return unassigned ? outbOrder.wave.isNull() : outbOrder.wave.isNotNull();
     }
 
-    private BooleanExpression orderDtGoe(LocalDate dateFrom) {
+    private BooleanExpression odrDeGoe(LocalDate dateFrom) {
         return dateFrom != null ? outbOrder.odrDe.goe(dateFrom) : null;
     }
 
-    private BooleanExpression orderDtLoe(LocalDate dateTo) {
+    private BooleanExpression odrDeLoe(LocalDate dateTo) {
         return dateTo != null ? outbOrder.odrDe.loe(dateTo) : null;
     }
 }

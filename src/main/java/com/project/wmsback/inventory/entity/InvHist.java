@@ -39,7 +39,7 @@ public class InvHist extends BaseEntity {
     /** 유형 */
     @Enumerated(EnumType.STRING)
     @Column(name = "tx_typ", nullable = false, length = 10)
-    private TxType txTyp;
+    private TxTyp txTyp;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "prod_id", nullable = false)
@@ -60,7 +60,7 @@ public class InvHist extends BaseEntity {
     /** 참조 문서 유형 (수동 조정 시 null) */
     @Enumerated(EnumType.STRING)
     @Column(name = "rfn_doc_typ", length = 10)
-    private RefDocType rfnDocTyp;
+    private RefDocTyp rfnDocTyp;
 
     /** 참조 문서 번호 (입고번호/출고번호). 이력 → 원인 문서 추적용 */
     @Column(name = "rfn_doc_no", length = 30)
@@ -94,7 +94,7 @@ public class InvHist extends BaseEntity {
     private Long cnclInvHistId;
 
     @Builder
-    private InvHist(TxType txTyp, Prod prod, Loc loc, Lot lot, Long qty, RefDocType rfnDocTyp, String rfnDocNo,
+    private InvHist(TxTyp txTyp, Prod prod, Loc loc, Lot lot, Long qty, RefDocTyp rfnDocTyp, String rfnDocNo,
                     Long ibLineId, Long fromLocId, Long toLocId, Long cnclInvHistId) {
         this.txTyp = txTyp;
         this.prod = prod;

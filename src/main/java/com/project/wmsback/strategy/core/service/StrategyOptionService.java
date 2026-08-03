@@ -1,7 +1,7 @@
 package com.project.wmsback.strategy.core.service;
 
 import com.project.wmsback.warehouse.entity.BizDvsn;
-import com.project.mdm.prod.entity.TempZone;
+import com.project.mdm.prod.entity.TmpZon;
 import com.project.mdm.code.repository.CodeDetailRepository;
 import com.project.mdm.prod.repository.ProdRepository;
 import com.project.mdm.vendor.repository.VendorRepository;
@@ -28,7 +28,7 @@ public class StrategyOptionService {
 
     public List<OptionResponse> options(String source) {
         return switch (source) {
-            case "tmpZones" -> Arrays.stream(TempZone.values())
+            case "tmpZones" -> Arrays.stream(TmpZon.values())
                     .map(z -> new OptionResponse(z.name(), z.getLabel())).toList();
             case "bizDvsns" -> Arrays.stream(BizDvsn.values())
                     .map(b -> new OptionResponse(b.name(), b.getLabel())).toList();

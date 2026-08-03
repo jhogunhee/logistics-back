@@ -2,7 +2,7 @@ package com.project.mdm.prod.repository;
 
 import com.project.mdm.prod.dto.ProdSearchCond;
 import com.project.mdm.prod.entity.Prod;
-import com.project.mdm.prod.entity.TempZone;
+import com.project.mdm.prod.entity.TmpZon;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import jakarta.persistence.LockModeType;
@@ -42,7 +42,7 @@ public class ProdRepositoryImpl implements ProdRepositoryCustom {
                 .where(
                         prodCdContains(cond.getProdCd()),
                         prodNmContains(cond.getProdNm()),
-                        tempZoneEq(cond.getTmpZon())
+                        tmpZonEq(cond.getTmpZon())
                 )
                 .orderBy(prod.id.asc())
                 .fetch();
@@ -61,7 +61,7 @@ public class ProdRepositoryImpl implements ProdRepositoryCustom {
         return StringUtils.hasText(prodNm) ? prod.prodNm.containsIgnoreCase(prodNm) : null;
     }
 
-    private BooleanExpression tempZoneEq(TempZone tmpZon) {
+    private BooleanExpression tmpZonEq(TmpZon tmpZon) {
         return tmpZon != null ? prod.tmpZon.eq(tmpZon) : null;
     }
 }

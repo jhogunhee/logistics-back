@@ -8,13 +8,13 @@ import com.project.wmsback.inventory.entity.InvHist;
 import com.project.wmsback.inventory.entity.InvMovDvsn;
 import com.project.wmsback.inventory.entity.InvMovStatus;
 import com.project.wmsback.inventory.entity.InvMovTask;
-import com.project.wmsback.inventory.entity.RefDocType;
-import com.project.wmsback.inventory.entity.TxType;
+import com.project.wmsback.inventory.entity.RefDocTyp;
+import com.project.wmsback.inventory.entity.TxTyp;
 import com.project.wmsback.inventory.repository.InvHistRepository;
 import com.project.wmsback.inventory.repository.InvMovTaskRepository;
 import com.project.wmsback.inventory.repository.InvRepository;
 import com.project.wmsback.warehouse.entity.Loc;
-import com.project.wmsback.warehouse.entity.LocType;
+import com.project.wmsback.warehouse.entity.LocTyp;
 import com.project.wmsback.warehouse.entity.Lot;
 import com.project.mdm.prod.entity.Prod;
 import com.project.wmsback.warehouse.repository.LocRepository;
@@ -80,7 +80,7 @@ public class InvMovService {
         Lot lotEntity = fromInv.getLot();
         Loc from = fromInv.getLoc();
 
-        if (from.getLocTyp() != LocType.STORAGE) {
+        if (from.getLocTyp() != LocTyp.STORAGE) {
             throw new IllegalArgumentException("보관 로케이션의 재고만 이동할 수 있습니다 (스테이징 재고는 적치·출고확정의 소관): " + from.getLocCd());
         }
         Loc to = locRepository.findById(item.getToLocId())
@@ -88,15 +88,15 @@ public class InvMovService {
         if (to.getId().equals(from.getId())) {
             throw new IllegalArgumentException("출발지와 도착지가 같습니다: " + from.getLocCd());
         }
-        if (to.getLocTyp() != LocType.STORAGE) {
+        if (to.getLocTyp() != LocTyp.STORAGE) {
             throw new IllegalArgumentException("보관 로케이션으로만 이동할 수 있습니다: " + to.getLocCd());
         }
         if (to.getTmpZon() != prodEntity.getTmpZon()) {
             throw new IllegalArgumentException("온도대가 일치하지 않습니다 (상품 " + prodEntity.getTmpZon()
                     + " / 로케이션 " + to.getTmpZon() + "): " + to.getLocCd());
         }
-        if (item.getQty() > fromInv.availableQty()) {
-            throw new IllegalArgumentException("이동수량이 가용재고를 초과했습니다 (가용 " + fromInv.availableQty() + "): "
+        if (item.getQty() > fromInv.avalQty()) {
+            throw new IllegalArgumentException("이동수량이 가용재고를 초과했습니다 (가용 " + fromInv.avalQty() + "): "
                     + prodEntity.getProdCd() + " @ " + from.getLocCd());
         }
         // 적재가능수량 = max_qty − 현재고 − 미완료 이동지시 유입 잔량. STORAGE는 max_qty NOT NULL이
@@ -166,18 +166,18 @@ public class InvMovService {
         toInv.increaseOnHand(qty);
 
         invHistRepository.save(InvHist.builder()
-                .txTyp(TxType.MOVE)
+                .txTyp(TxTyp.MOVE)
                 .prod(prodEntity).loc(from).lot(lotEntity)
                 .qty(-qty)
-                .rfnDocTyp(RefDocType.INV_MOV)
+                .rfnDocTyp(RefDocTyp.INV_MOV)
                 .rfnDocNo(task.getInvMovNo())
                 .fromLocId(from.getId()).toLocId(to.getId())
                 .build());
         invHistRepository.save(InvHist.builder()
-                .txTyp(TxType.MOVE)
+                .txTyp(TxTyp.MOVE)
                 .prod(prodEntity).loc(to).lot(lotEntity)
                 .qty(qty)
-                .rfnDocTyp(RefDocType.INV_MOV)
+                .rfnDocTyp(RefDocTyp.INV_MOV)
                 .rfnDocNo(task.getInvMovNo())
                 .fromLocId(from.getId()).toLocId(to.getId())
                 .build());

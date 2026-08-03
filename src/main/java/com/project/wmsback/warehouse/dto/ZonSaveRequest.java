@@ -3,7 +3,7 @@ package com.project.wmsback.warehouse.dto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.project.wmsback.warehouse.entity.BizDvsn;
 import com.project.wmsback.warehouse.entity.StrgTyp;
-import com.project.mdm.prod.entity.TempZone;
+import com.project.mdm.prod.entity.TmpZon;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -24,7 +24,7 @@ public class ZonSaveRequest {
     private Long zonId;
     private String zonCd;
     private String zonNm;
-    private TempZone tmpZon;
+    private TmpZon tmpZon;
     private StrgTyp strgTyp;
     private BizDvsn bizDvsn;
 }

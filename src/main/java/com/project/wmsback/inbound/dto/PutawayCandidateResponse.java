@@ -1,6 +1,6 @@
 package com.project.wmsback.inbound.dto;
 
-import com.project.mdm.prod.entity.TempZone;
+import com.project.mdm.prod.entity.TmpZon;
 import lombok.Getter;
 
 import java.time.LocalDate;
@@ -18,7 +18,7 @@ public class PutawayCandidateResponse {
     private final String vndrNm;
     private final String prodCd;
     private final String prodNm;
-    private final TempZone tmpZon;
+    private final TmpZon tmpZon;
     private final Long lotId;
     private final String lotNo;
     private final LocalDate receiptDt;
@@ -26,7 +26,7 @@ public class PutawayCandidateResponse {
     private final Long pendingQty;
 
     public PutawayCandidateResponse(Long ibLineId, Long ibOrderId, String ibNo, String vndrNm,
-                                     String prodCd, String prodNm, TempZone tmpZon,
+                                     String prodCd, String prodNm, TmpZon tmpZon,
                                      Long lotId, String lotNo, LocalDate receiptDt, LocalDate expiryDt,
                                      Long pendingQty) {
         this.ibLineId = ibLineId;

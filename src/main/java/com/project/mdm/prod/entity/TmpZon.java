@@ -9,7 +9,7 @@ import lombok.RequiredArgsConstructor;
  */
 @Getter
 @RequiredArgsConstructor
-public enum TempZone {
+public enum TmpZon {
     DRY("상온"),
     CHL("냉장"),
     FRZ("냉동");

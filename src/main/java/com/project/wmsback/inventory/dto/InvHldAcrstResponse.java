@@ -11,7 +11,8 @@ import java.time.LocalDateTime;
 @Getter
 public class InvHldAcrstResponse {
 
-    private final Long id;
+    /** 실적 로그 PK (보류실적 inv_hld_acrst 또는 해제실적 inv_hld_rlz_acrst) */
+    private final Long acrstId;
     private final String hldNo;
     private final String prodCd;
     private final String prodNm;
@@ -22,10 +23,10 @@ public class InvHldAcrstResponse {
     private final String rsnDscr;
     private final LocalDateTime createdAt;
 
-    public InvHldAcrstResponse(Long id, String hldNo, String prodCd, String prodNm,
+    public InvHldAcrstResponse(Long acrstId, String hldNo, String prodCd, String prodNm,
                                String locCd, String lotNo, Long qty,
                                String rsnCd, String rsnDscr, LocalDateTime createdAt) {
-        this.id = id;
+        this.acrstId = acrstId;
         this.hldNo = hldNo;
         this.prodCd = prodCd;
         this.prodNm = prodNm;

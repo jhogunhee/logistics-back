@@ -44,7 +44,7 @@ public class Prod extends BaseEntity {
     /** 보관 온도대. 적치·이동 시 로케이션 온도대와 일치 검증 */
     @Enumerated(EnumType.STRING)
     @Column(name = "tmp_zon", nullable = false, length = 10)
-    private TempZone tmpZon;
+    private TmpZon tmpZon;
 
     /**
      * 입고단위 코드 (공통코드 {@code UOM} 그룹 참조, FK 없음 — 존재 검증은 ProdService).
@@ -73,7 +73,7 @@ public class Prod extends BaseEntity {
     private List<ProdUom> uoms = new ArrayList<>();
 
     @Builder
-    private Prod(String prodCd, String prodNm, TempZone tmpZon,
+    private Prod(String prodCd, String prodNm, TmpZon tmpZon,
                  String inbUomCd, String outbUomCd, Integer shelfLifeDays) {
         this.prodCd = prodCd;
         this.prodNm = prodNm;
@@ -83,7 +83,7 @@ public class Prod extends BaseEntity {
         this.shelfLifeDays = shelfLifeDays;
     }
 
-    public void update(String prodNm, TempZone tmpZon,
+    public void update(String prodNm, TmpZon tmpZon,
                        String inbUomCd, String outbUomCd, Integer shelfLifeDays) {
         this.prodNm = prodNm;
         this.tmpZon = tmpZon;

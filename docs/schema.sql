@@ -545,9 +545,9 @@ CREATE TABLE putaway_task (
     created_by      VARCHAR(30) DEFAULT 'admin' NOT NULL,
     updated_at      TIMESTAMP,
     updated_by      VARCHAR(30),
-    CONSTRAINT ck_ptwy_task_status CHECK (status IN ('DIRECTED', 'DONE', 'CANCELLED')),
+    CONSTRAINT ck_ptawy_task_status CHECK (status IN ('DIRECTED', 'DONE', 'CANCELLED')),
     -- 지시 초과 실행을 DB가 거부한다 (로케이션 적재가능수량 계산의 전제)
-    CONSTRAINT ck_ptwy_task_qty CHECK (drct_qty > 0 AND cmpl_qty >= 0 AND cmpl_qty <= drct_qty)
+    CONSTRAINT ck_ptawy_task_qty CHECK (drct_qty > 0 AND cmpl_qty >= 0 AND cmpl_qty <= drct_qty)
 );
 
 COMMENT ON TABLE  putaway_task IS '적치 지시. 전략이 정한 (라인, Lot, 대상 로케이션, 수량) 배정 결과. 지시는 권고가 아니라 명령이며, 다른 로케이션에 두려면 취소 후 재지시한다';
@@ -559,10 +559,10 @@ COMMENT ON COLUMN putaway_task.cmpl_qty     IS '실행(실물 MOVE) 완료 수�
 COMMENT ON COLUMN putaway_task.status       IS 'DIRECTED 지시(부분 실행 포함) / DONE 완료 / CANCELLED 취소(cmpl_qty=0일 때만 가능)';
 COMMENT ON COLUMN putaway_task.cmpl_dt IS '지시 완료 시각 (DONE 전이 시점)';
 
-CREATE INDEX ix_ptwy_task_line ON putaway_task (ib_line_id);
+CREATE INDEX ix_ptawy_task_line ON putaway_task (ib_line_id);
 -- 적재가능수량 계산: 로케이션별 미완료 지시 잔량 SUM(drct_qty - cmpl_qty).
 -- 지시는 대부분 금방 DONE이 되므로 DIRECTED만 담는 부분 인덱스로 좁게 유지한다.
-CREATE INDEX ix_ptwy_task_open_loc ON putaway_task (to_loc_id) WHERE status = 'DIRECTED';
+CREATE INDEX ix_ptawy_task_open_loc ON putaway_task (to_loc_id) WHERE status = 'DIRECTED';
 
 
 -- =====================================================================
@@ -659,7 +659,7 @@ CREATE TABLE inv_mov_task (
     CONSTRAINT uq_inv_mov_no UNIQUE (inv_mov_no),
     CONSTRAINT ck_inv_mov_dvsn CHECK (mov_dvsn IN ('INV_MOV', 'PTAWY', 'PIKNG')),
     CONSTRAINT ck_inv_mov_status CHECK (status IN ('DIRECTED', 'DONE', 'CANCELLED')),
-    -- 지시 초과 확정을 DB가 거부한다 (putaway_task의 ck_ptwy_task_qty와 같은 방어)
+    -- 지시 초과 확정을 DB가 거부한다 (putaway_task의 ck_ptawy_task_qty와 같은 방어)
     CONSTRAINT ck_inv_mov_qty CHECK (drct_qty > 0 AND cmpl_qty >= 0 AND cmpl_qty <= drct_qty),
     CONSTRAINT ck_inv_mov_loc CHECK (from_loc_id <> to_loc_id)
 );
@@ -677,7 +677,7 @@ COMMENT ON COLUMN inv_mov_task.cmpl_dt     IS '지시 완료 시각 (DONE 전이
 
 CREATE INDEX ix_inv_mov_prod ON inv_mov_task (prod_id);
 -- 적재가능수량 계산: TO 로케이션별 미완료 지시 유입 잔량 SUM(drct_qty - cmpl_qty).
--- putaway_task의 ix_ptwy_task_open_loc와 같은 이유로 DIRECTED만 담는 부분 인덱스.
+-- putaway_task의 ix_ptawy_task_open_loc와 같은 이유로 DIRECTED만 담는 부분 인덱스.
 CREATE INDEX ix_inv_mov_open_to ON inv_mov_task (to_loc_id) WHERE status = 'DIRECTED';
 
 -- 재고 보류 (수량 방식: 등록이 inv.hld_qty를 늘려 가용재고에서 뺀다. 재고상태 컬럼 없음).

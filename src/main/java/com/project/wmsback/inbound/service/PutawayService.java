@@ -6,13 +6,13 @@ import com.project.wmsback.inbound.entity.IbLine;
 import com.project.wmsback.inbound.repository.IbLineRepository;
 import com.project.wmsback.inventory.entity.Inv;
 import com.project.wmsback.inventory.entity.InvHist;
-import com.project.wmsback.inventory.entity.RefDocType;
-import com.project.wmsback.inventory.entity.TxType;
+import com.project.wmsback.inventory.entity.RefDocTyp;
+import com.project.wmsback.inventory.entity.TxTyp;
 import com.project.wmsback.inventory.repository.InvHistRepository;
 import com.project.wmsback.inventory.repository.InvRepository;
 import com.project.wmsback.warehouse.dto.LocResponse;
 import com.project.wmsback.warehouse.entity.Loc;
-import com.project.wmsback.warehouse.entity.LocType;
+import com.project.wmsback.warehouse.entity.LocTyp;
 import com.project.wmsback.warehouse.entity.Lot;
 import com.project.mdm.prod.entity.Prod;
 import com.project.wmsback.warehouse.repository.LocRepository;
@@ -50,7 +50,7 @@ public class PutawayService {
     public List<LocResponse> candidateLocs(Long ibLineId) {
         IbLine ibLine = ibLineRepository.findById(ibLineId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고 라인입니다: " + ibLineId));
-        return locRepository.findAllByTmpZonAndLocTypOrderByPikngPrtyAsc(ibLine.getProd().getTmpZon(), LocType.STORAGE)
+        return locRepository.findAllByTmpZonAndLocTypOrderByPikngPrtyAsc(ibLine.getProd().getTmpZon(), LocTyp.STORAGE)
                 .stream().map(LocResponse::from).toList();
     }
 
@@ -73,7 +73,7 @@ public class PutawayService {
                 .orElseThrow(() -> new IllegalStateException("입고 스테이징 로케이션(RCV-STAGE)이 없습니다."));
         Loc target = locRepository.findById(targetLocId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 로케이션입니다: " + targetLocId));
-        if (target.getLocTyp() != LocType.STORAGE) {
+        if (target.getLocTyp() != LocTyp.STORAGE) {
             throw new IllegalArgumentException("보관 로케이션이 아닙니다: " + target.getLocCd());
         }
         if (target.getTmpZon() != prod.getTmpZon()) {
@@ -92,19 +92,19 @@ public class PutawayService {
         targetInv.increaseOnHand(qty);
 
         invHistRepository.save(InvHist.builder()
-                .txTyp(TxType.MOVE)
+                .txTyp(TxTyp.MOVE)
                 .prod(prod).loc(staging).lot(lot)
                 .qty(-qty)
-                .rfnDocTyp(RefDocType.INBOUND)
+                .rfnDocTyp(RefDocTyp.INBOUND)
                 .rfnDocNo(ibLine.getIbOrder().getIbNo())
                 .ibLineId(ibLineId)
                 .fromLocId(staging.getId()).toLocId(target.getId())
                 .build());
         invHistRepository.save(InvHist.builder()
-                .txTyp(TxType.MOVE)
+                .txTyp(TxTyp.MOVE)
                 .prod(prod).loc(target).lot(lot)
                 .qty(qty)
-                .rfnDocTyp(RefDocType.INBOUND)
+                .rfnDocTyp(RefDocTyp.INBOUND)
                 .rfnDocNo(ibLine.getIbOrder().getIbNo())
                 .ibLineId(ibLineId)
                 .fromLocId(staging.getId()).toLocId(target.getId())

@@ -7,7 +7,7 @@ package com.project.wmsback.strategy.core.dto;
 public record ComponentResponse(
         String code,
         String name,
-        String description,
+        String dscr,
         boolean deprecated
 ) {
 }

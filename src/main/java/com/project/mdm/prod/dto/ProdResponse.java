@@ -1,7 +1,7 @@
 package com.project.mdm.prod.dto;
 
 import com.project.mdm.prod.entity.Prod;
-import com.project.mdm.prod.entity.TempZone;
+import com.project.mdm.prod.entity.TmpZon;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
@@ -13,7 +13,7 @@ public class ProdResponse {
     private final Long prodId;
     private final String prodCd;
     private final String prodNm;
-    private final TempZone tmpZon;
+    private final TmpZon tmpZon;
     private final String inbUomCd;
     private final String outbUomCd;
     private final Integer shelfLifeDays;

@@ -84,7 +84,7 @@ public class Inv extends BaseEntity {
     }
 
     /** 가용재고 (파생값) */
-    public long availableQty() {
+    public long avalQty() {
         return onHandQty - alocQty - hldQty;
     }
 

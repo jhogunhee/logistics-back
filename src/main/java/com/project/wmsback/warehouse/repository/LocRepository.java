@@ -1,8 +1,8 @@
 package com.project.wmsback.warehouse.repository;
 
 import com.project.wmsback.warehouse.entity.Loc;
-import com.project.wmsback.warehouse.entity.LocType;
-import com.project.mdm.prod.entity.TempZone;
+import com.project.wmsback.warehouse.entity.LocTyp;
+import com.project.mdm.prod.entity.TmpZon;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -18,5 +18,5 @@ public interface LocRepository extends JpaRepository<Loc, Long>, LocRepositoryCu
     Optional<Loc> findByLocCd(String locCd);
 
     /** 적치 대상 로케이션 후보 (상품 온도대와 일치하는 STORAGE, 우선순위 오름차순 추천) */
-    List<Loc> findAllByTmpZonAndLocTypOrderByPikngPrtyAsc(TempZone tmpZon, LocType locTyp);
+    List<Loc> findAllByTmpZonAndLocTypOrderByPikngPrtyAsc(TmpZon tmpZon, LocTyp locTyp);
 }

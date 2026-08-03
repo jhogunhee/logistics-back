@@ -4,7 +4,7 @@ import com.project.wmsback.warehouse.dto.LocResponse;
 import com.project.wmsback.warehouse.dto.LocSaveRequest;
 import com.project.wmsback.warehouse.dto.LocSearchCond;
 import com.project.wmsback.warehouse.entity.Loc;
-import com.project.wmsback.warehouse.entity.LocType;
+import com.project.wmsback.warehouse.entity.LocTyp;
 import com.project.wmsback.warehouse.entity.Zon;
 import com.project.wmsback.warehouse.repository.LocRepository;
 import com.project.wmsback.warehouse.repository.ZonRepository;
@@ -98,7 +98,7 @@ public class LocService {
         }
         // 보관 로케이션은 존과 온도대가 같아야 적치·이동 시 온도대 일치 검증이 성립한다
         // (스테이징은 전 온도대 재고가 거쳐 가는 지점이라 예외)
-        if (row.getLocTyp() == LocType.STORAGE && zon.getTmpZon() != row.getTmpZon()) {
+        if (row.getLocTyp() == LocTyp.STORAGE && zon.getTmpZon() != row.getTmpZon()) {
             throw new IllegalArgumentException("보관 로케이션의 온도대는 존의 온도대와 같아야 합니다: " + row.getLocCd());
         }
         if (row.getPikngPrty() != null && row.getPikngPrty() < 0) {

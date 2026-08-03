@@ -39,8 +39,8 @@ public class OmsIbOrderRepositoryImpl implements OmsIbOrderRepositoryCustom {
                         omsIbNoContains(cond.getOmsIbNo()),
                         vndrNmContains(cond.getVndrNm()),
                         statusEq(cond.getStatus()),
-                        expctDtGoe(cond.getDateFrom()),
-                        expctDtLoe(cond.getDateTo())
+                        expctDeGoe(cond.getDateFrom()),
+                        expctDeLoe(cond.getDateTo())
                 )
                 // 입고예정일 → 주문번호 오름차순: 창고가 받을 순서대로 읽힌다.
                 // 주문번호가 예정일 기준 채번(PO-YYYYMMDD-NNN)이라 같은 날짜 안에서는 채번 순이 된다.
@@ -76,11 +76,11 @@ public class OmsIbOrderRepositoryImpl implements OmsIbOrderRepositoryCustom {
         return status != null ? omsIbOrder.status.eq(status) : null;
     }
 
-    private BooleanExpression expctDtGoe(LocalDate dateFrom) {
+    private BooleanExpression expctDeGoe(LocalDate dateFrom) {
         return dateFrom != null ? omsIbOrder.expctDe.goe(dateFrom) : null;
     }
 
-    private BooleanExpression expctDtLoe(LocalDate dateTo) {
+    private BooleanExpression expctDeLoe(LocalDate dateTo) {
         return dateTo != null ? omsIbOrder.expctDe.loe(dateTo) : null;
     }
 }

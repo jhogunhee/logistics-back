@@ -1,7 +1,7 @@
 package com.project.omsback.inbound.dto;
 
 import com.project.omsback.inbound.entity.OmsIbLine;
-import com.project.mdm.prod.entity.TempZone;
+import com.project.mdm.prod.entity.TmpZon;
 import lombok.Getter;
 
 @Getter
@@ -11,7 +11,7 @@ public class OmsIbLineResponse {
     private final Long prodId;
     private final String prodCd;
     private final String prodNm;
-    private final TempZone tmpZon;
+    private final TmpZon tmpZon;
     /** 유통기한(일). null = 미관리 — 화면이 이 값으로 「미관리」를 그리므로 빠지면 전부 미관리로 보인다 */
     private final Integer shelfLifeDays;
     private final Long odrQty;

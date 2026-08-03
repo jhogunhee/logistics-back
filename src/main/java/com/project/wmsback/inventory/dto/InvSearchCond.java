@@ -1,7 +1,7 @@
 package com.project.wmsback.inventory.dto;
 
-import com.project.wmsback.warehouse.entity.LocType;
-import com.project.mdm.prod.entity.TempZone;
+import com.project.wmsback.warehouse.entity.LocTyp;
+import com.project.mdm.prod.entity.TmpZon;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -16,6 +16,6 @@ public class InvSearchCond {
     private String prodNm;
     private String locCd;
     private String lotNo;
-    private TempZone tmpZon;
-    private LocType locTyp;
+    private TmpZon tmpZon;
+    private LocTyp locTyp;
 }

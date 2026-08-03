@@ -1,7 +1,7 @@
 package com.project.wmsback.warehouse.dto;
 
 import com.project.wmsback.warehouse.entity.BizDvsn;
-import com.project.mdm.prod.entity.TempZone;
+import com.project.mdm.prod.entity.TmpZon;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -13,6 +13,6 @@ import lombok.Setter;
 public class ZonSearchCond {
 
     private String zonCd;
-    private TempZone tmpZon;
+    private TmpZon tmpZon;
     private BizDvsn bizDvsn;
 }

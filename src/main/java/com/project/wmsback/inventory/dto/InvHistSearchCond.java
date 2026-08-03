@@ -1,6 +1,6 @@
 package com.project.wmsback.inventory.dto;
 
-import com.project.wmsback.inventory.entity.TxType;
+import com.project.wmsback.inventory.entity.TxTyp;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -17,7 +17,7 @@ public class InvHistSearchCond {
     private String prodCd;
     private String prodNm;
     private String locCd;
-    private TxType txTyp;
+    private TxTyp txTyp;
 
     /** 참조문서번호 (입고번호/출고번호) — 특정 문서가 만든 이력만 추적할 때 */
     private String rfnDocNo;

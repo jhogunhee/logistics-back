@@ -1,7 +1,7 @@
 package com.project.wmsback.inbound.dto;
 
 import com.project.wmsback.inbound.entity.IbLine;
-import com.project.mdm.prod.entity.TempZone;
+import com.project.mdm.prod.entity.TmpZon;
 import lombok.Getter;
 
 @Getter
@@ -11,7 +11,7 @@ public class IbLineResponse {
     private final Long prodId;
     private final String prodCd;
     private final String prodNm;
-    private final TempZone tmpZon;
+    private final TmpZon tmpZon;
     /** 유통기한(일). 검수 화면이 유통기한 기본값(검수일+일수)을 제안할 때 사용. NULL = 미관리 */
     private final Integer shelfLifeDays;
     private final Long expctQty;

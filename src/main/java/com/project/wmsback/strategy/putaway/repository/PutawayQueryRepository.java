@@ -1,7 +1,7 @@
 package com.project.wmsback.strategy.putaway.repository;
 
-import com.project.wmsback.warehouse.entity.LocType;
-import com.project.mdm.prod.entity.TempZone;
+import com.project.wmsback.warehouse.entity.LocTyp;
+import com.project.mdm.prod.entity.TmpZon;
 import com.project.wmsback.strategy.putaway.method.PutawayMethodContext;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.dsl.CaseBuilder;
@@ -30,7 +30,7 @@ public class PutawayQueryRepository {
      * 미완료 지시 잔량은 계산에 없다 (docs/st/전략_프로세스정의서.md §3.1).
      * 존 조인은 업무유형 조건(BIZ_DVSN) 판정용 — loc.zon_cd는 FK가 없어 left join (미등록 존이면 null).
      */
-    public List<PutawayMethodContext.LocStock> storageStocks(TempZone tmpZon, Long prodId) {
+    public List<PutawayMethodContext.LocStock> storageStocks(TmpZon tmpZon, Long prodId) {
         NumberExpression<Long> occupied = inv.onHandQty.sum().coalesce(0L);
         NumberExpression<Long> prodQty = new CaseBuilder()
                 .when(inv.prod.id.eq(prodId)).then(inv.onHandQty)
@@ -43,7 +43,7 @@ public class PutawayQueryRepository {
                 .leftJoin(zon).on(zon.zonCd.eq(loc.zonCd))
                 .leftJoin(inv).on(inv.loc.eq(loc))
                 .where(
-                        loc.locTyp.eq(LocType.STORAGE),
+                        loc.locTyp.eq(LocTyp.STORAGE),
                         loc.tmpZon.eq(tmpZon)
                 )
                 .groupBy(loc, zon.bizDvsn)

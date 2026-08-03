@@ -1,6 +1,6 @@
 package com.project.wmsback.warehouse.entity;
 
-import com.project.mdm.prod.entity.TempZone;
+import com.project.mdm.prod.entity.TmpZon;
 import com.project.common.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -20,7 +20,7 @@ import lombok.NoArgsConstructor;
  * {@code Loc.zonCd}가 {@code zonCd}를 문자열로 참조한다 (FK 없음 — 존재 검증은 LocService).
  * <p>
  * 컬럼·필드명은 {@code docs/naming-dictionary.md} 사전을 따르고, 온도구분의 타입만
- * 기존 {@link TempZone}을 재사용한다 (상품·로케이션과 값 도메인을 공유해야 하므로 복제하지 않는다).
+ * 기존 {@link TmpZon}을 재사용한다 (상품·로케이션과 값 도메인을 공유해야 하므로 복제하지 않는다).
  */
 @Entity
 @Table(name = "zon")
@@ -44,7 +44,7 @@ public class Zon extends BaseEntity {
     /** 온도구분. 보관 로케이션은 이 값과 loc.tmp_zon이 일치해야 한다 */
     @Enumerated(EnumType.STRING)
     @Column(name = "tmp_zon", nullable = false, length = 10)
-    private TempZone tmpZon;
+    private TmpZon tmpZon;
 
     /** 보관유형 (랙 / 평치 / 가상) */
     @Enumerated(EnumType.STRING)
@@ -57,7 +57,7 @@ public class Zon extends BaseEntity {
     private BizDvsn bizDvsn;
 
     @Builder
-    private Zon(String zonCd, String zonNm, TempZone tmpZon, StrgTyp strgTyp, BizDvsn bizDvsn) {
+    private Zon(String zonCd, String zonNm, TmpZon tmpZon, StrgTyp strgTyp, BizDvsn bizDvsn) {
         this.zonCd = zonCd;
         this.zonNm = zonNm;
         this.tmpZon = tmpZon;
@@ -66,7 +66,7 @@ public class Zon extends BaseEntity {
     }
 
     /** 존 코드는 하위 로케이션이 참조하는 업무 식별자라 수정 대상에서 제외한다 */
-    public void update(String zonNm, TempZone tmpZon, StrgTyp strgTyp, BizDvsn bizDvsn) {
+    public void update(String zonNm, TmpZon tmpZon, StrgTyp strgTyp, BizDvsn bizDvsn) {
         this.zonNm = zonNm;
         this.tmpZon = tmpZon;
         this.strgTyp = strgTyp;

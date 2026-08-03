@@ -2,7 +2,7 @@ package com.project.wmsback.warehouse.repository;
 
 import com.project.wmsback.warehouse.dto.ZonSearchCond;
 import com.project.wmsback.warehouse.entity.BizDvsn;
-import com.project.mdm.prod.entity.TempZone;
+import com.project.mdm.prod.entity.TmpZon;
 import com.project.wmsback.warehouse.entity.Zon;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -37,7 +37,7 @@ public class ZonRepositoryImpl implements ZonRepositoryCustom {
         return StringUtils.hasText(zonCd) ? zon.zonCd.containsIgnoreCase(zonCd) : null;
     }
 
-    private BooleanExpression tmpZonEq(TempZone tmpZon) {
+    private BooleanExpression tmpZonEq(TmpZon tmpZon) {
         return tmpZon != null ? zon.tmpZon.eq(tmpZon) : null;
     }
 

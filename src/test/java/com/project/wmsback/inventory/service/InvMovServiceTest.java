@@ -6,16 +6,16 @@ import com.project.wmsback.inventory.entity.InvHist;
 import com.project.wmsback.inventory.entity.InvMovDvsn;
 import com.project.wmsback.inventory.entity.InvMovStatus;
 import com.project.wmsback.inventory.entity.InvMovTask;
-import com.project.wmsback.inventory.entity.RefDocType;
-import com.project.wmsback.inventory.entity.TxType;
+import com.project.wmsback.inventory.entity.RefDocTyp;
+import com.project.wmsback.inventory.entity.TxTyp;
 import com.project.wmsback.inventory.repository.InvHistRepository;
 import com.project.wmsback.inventory.repository.InvMovTaskRepository;
 import com.project.wmsback.inventory.repository.InvRepository;
 import com.project.wmsback.warehouse.entity.Loc;
-import com.project.wmsback.warehouse.entity.LocType;
+import com.project.wmsback.warehouse.entity.LocTyp;
 import com.project.wmsback.warehouse.entity.Lot;
 import com.project.mdm.prod.entity.Prod;
-import com.project.mdm.prod.entity.TempZone;
+import com.project.mdm.prod.entity.TmpZon;
 import com.project.wmsback.warehouse.repository.LocRepository;
 import com.project.mdm.nbr.service.NbrService;
 import org.junit.jupiter.api.BeforeEach;
@@ -75,7 +75,7 @@ class InvMovServiceTest {
         prod = mock(Prod.class);
         when(prod.getId()).thenReturn(1L);
         when(prod.getProdCd()).thenReturn("PROD-0001");
-        when(prod.getTmpZon()).thenReturn(TempZone.DRY);
+        when(prod.getTmpZon()).thenReturn(TmpZon.DRY);
 
         lot = mock(Lot.class);
         when(lot.getId()).thenReturn(5L);
@@ -83,13 +83,13 @@ class InvMovServiceTest {
         fromLoc = mock(Loc.class);
         when(fromLoc.getId()).thenReturn(10L);
         when(fromLoc.getLocCd()).thenReturn("DRY-A-01-01");
-        when(fromLoc.getLocTyp()).thenReturn(LocType.STORAGE);
+        when(fromLoc.getLocTyp()).thenReturn(LocTyp.STORAGE);
 
         toLoc = mock(Loc.class);
         when(toLoc.getId()).thenReturn(20L);
         when(toLoc.getLocCd()).thenReturn("DRY-B-01-01");
-        when(toLoc.getLocTyp()).thenReturn(LocType.STORAGE);
-        when(toLoc.getTmpZon()).thenReturn(TempZone.DRY);
+        when(toLoc.getLocTyp()).thenReturn(LocTyp.STORAGE);
+        when(toLoc.getTmpZon()).thenReturn(TmpZon.DRY);
         when(toLoc.getMaxQty()).thenReturn(100L);
 
         // 보유 10 / 예약 0 인 FROM 재고
@@ -139,7 +139,7 @@ class InvMovServiceTest {
     @Test
     @DisplayName("등록: 스테이징 재고는 이동 대상이 아니다 (보관 로케이션만)")
     void register_rejectsNonStorageFrom() {
-        when(fromLoc.getLocTyp()).thenReturn(LocType.STAGE);
+        when(fromLoc.getLocTyp()).thenReturn(LocTyp.STAGE);
         assertThrows(IllegalArgumentException.class, () -> invMovService.register(request(100L, 20L, 5L)));
     }
 
@@ -153,14 +153,14 @@ class InvMovServiceTest {
     @Test
     @DisplayName("등록: 도착지가 보관 로케이션이 아니면 거부")
     void register_rejectsNonStorageTo() {
-        when(toLoc.getLocTyp()).thenReturn(LocType.STAGE);
+        when(toLoc.getLocTyp()).thenReturn(LocTyp.STAGE);
         assertThrows(IllegalArgumentException.class, () -> invMovService.register(request(100L, 20L, 5L)));
     }
 
     @Test
     @DisplayName("등록: 상품 온도대와 도착지 온도대가 다르면 거부")
     void register_rejectsTempZoneMismatch() {
-        when(toLoc.getTmpZon()).thenReturn(TempZone.FRZ);
+        when(toLoc.getTmpZon()).thenReturn(TmpZon.FRZ);
         assertThrows(IllegalArgumentException.class, () -> invMovService.register(request(100L, 20L, 5L)));
     }
 
@@ -260,8 +260,8 @@ class InvMovServiceTest {
         assertEquals(-4L, hists.get(0).getQty());
         assertEquals(4L, hists.get(1).getQty());
         for (InvHist h : hists) {
-            assertEquals(TxType.MOVE, h.getTxTyp());
-            assertEquals(RefDocType.INV_MOV, h.getRfnDocTyp());
+            assertEquals(TxTyp.MOVE, h.getTxTyp());
+            assertEquals(RefDocTyp.INV_MOV, h.getRfnDocTyp());
             assertEquals("MV-20260803-001", h.getRfnDocNo());
             assertEquals(10L, h.getFromLocId());
             assertEquals(20L, h.getToLocId());

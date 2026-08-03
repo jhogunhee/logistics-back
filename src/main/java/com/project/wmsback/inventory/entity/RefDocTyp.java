@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
  */
 @Getter
 @RequiredArgsConstructor
-public enum RefDocType {
+public enum RefDocTyp {
     INBOUND("입고 문서"),
     OUTBOUND("출고 문서"),
     INV_MOV("이동지시");

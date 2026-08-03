@@ -1,7 +1,7 @@
 package com.project.wmsback.inventory.dto;
 
-import com.project.wmsback.warehouse.entity.LocType;
-import com.project.mdm.prod.entity.TempZone;
+import com.project.wmsback.warehouse.entity.LocTyp;
+import com.project.mdm.prod.entity.TmpZon;
 import lombok.Getter;
 
 import java.time.LocalDate;
@@ -16,21 +16,21 @@ public class InvResponse {
     private final Long invId;
     private final String prodCd;
     private final String prodNm;
-    private final TempZone tmpZon;
+    private final TmpZon tmpZon;
     private final String locCd;
     private final String zonCd;
-    private final LocType locTyp;
+    private final LocTyp locTyp;
     private final String lotNo;
     private final LocalDate expiryDt;
     private final Long onHandQty;
     private final Long alocQty;
     private final Long hldQty;
     /** 가용재고 = 보유 - 예약 - 보류 (파생값). 쿼리에서 계산해 내려준다 */
-    private final Long availableQty;
+    private final Long avalQty;
 
-    public InvResponse(Long invId, String prodCd, String prodNm, TempZone tmpZon,
-                       String locCd, String zonCd, LocType locTyp, String lotNo, LocalDate expiryDt,
-                       Long onHandQty, Long alocQty, Long hldQty, Long availableQty) {
+    public InvResponse(Long invId, String prodCd, String prodNm, TmpZon tmpZon,
+                       String locCd, String zonCd, LocTyp locTyp, String lotNo, LocalDate expiryDt,
+                       Long onHandQty, Long alocQty, Long hldQty, Long avalQty) {
         this.invId = invId;
         this.prodCd = prodCd;
         this.prodNm = prodNm;
@@ -43,6 +43,6 @@ public class InvResponse {
         this.onHandQty = onHandQty;
         this.alocQty = alocQty;
         this.hldQty = hldQty;
-        this.availableQty = availableQty;
+        this.avalQty = avalQty;
     }
 }

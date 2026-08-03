@@ -29,8 +29,8 @@ public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {
                 .where(
                         ibNoContains(cond.getIbNo()),
                         statusEq(cond.getStatus()),
-                        expctDtGoe(cond.getDateFrom()),
-                        expctDtLoe(cond.getDateTo())
+                        expctDeGoe(cond.getDateFrom()),
+                        expctDeLoe(cond.getDateTo())
                 )
                 .orderBy(ibOrder.id.desc())
                 .fetch();
@@ -46,11 +46,11 @@ public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {
         return status != null ? ibOrder.status.eq(status) : null;
     }
 
-    private BooleanExpression expctDtGoe(LocalDate dateFrom) {
+    private BooleanExpression expctDeGoe(LocalDate dateFrom) {
         return dateFrom != null ? ibOrder.expctDe.goe(dateFrom) : null;
     }
 
-    private BooleanExpression expctDtLoe(LocalDate dateTo) {
+    private BooleanExpression expctDeLoe(LocalDate dateTo) {
         return dateTo != null ? ibOrder.expctDe.loe(dateTo) : null;
     }
 }

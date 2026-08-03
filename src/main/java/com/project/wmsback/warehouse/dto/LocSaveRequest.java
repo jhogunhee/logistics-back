@@ -1,8 +1,8 @@
 package com.project.wmsback.warehouse.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.project.wmsback.warehouse.entity.LocType;
-import com.project.mdm.prod.entity.TempZone;
+import com.project.wmsback.warehouse.entity.LocTyp;
+import com.project.mdm.prod.entity.TmpZon;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -23,8 +23,8 @@ public class LocSaveRequest {
     private Long locId;
     private String locCd;
     private String zonCd;
-    private TempZone tmpZon;
-    private LocType locTyp;
+    private TmpZon tmpZon;
+    private LocTyp locTyp;
     private Integer pikngPrty;
     private Integer ptawyPrty;
 }

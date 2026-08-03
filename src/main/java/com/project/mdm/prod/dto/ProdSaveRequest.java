@@ -1,7 +1,7 @@
 package com.project.mdm.prod.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.project.mdm.prod.entity.TempZone;
+import com.project.mdm.prod.entity.TmpZon;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -21,7 +21,7 @@ public class ProdSaveRequest {
 
     private Long prodId;
     private String prodNm;
-    private TempZone tmpZon;
+    private TmpZon tmpZon;
     /** 발주·납품 단위 (공통코드 UOM). 그 상품의 포장이 없으면 낱개수량 1로 자동 생성된다 */
     private String inbUomCd;
     /** 재고 저장 단위 (공통코드 UOM). 마찬가지로 포장이 없으면 자동 생성된다 */

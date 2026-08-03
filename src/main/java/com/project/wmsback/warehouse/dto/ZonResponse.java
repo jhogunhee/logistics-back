@@ -2,7 +2,7 @@ package com.project.wmsback.warehouse.dto;
 
 import com.project.wmsback.warehouse.entity.BizDvsn;
 import com.project.wmsback.warehouse.entity.StrgTyp;
-import com.project.mdm.prod.entity.TempZone;
+import com.project.mdm.prod.entity.TmpZon;
 import com.project.wmsback.warehouse.entity.Zon;
 import lombok.Getter;
 
@@ -14,7 +14,7 @@ public class ZonResponse {
     private final Long zonId;
     private final String zonCd;
     private final String zonNm;
-    private final TempZone tmpZon;
+    private final TmpZon tmpZon;
     private final StrgTyp strgTyp;
     private final BizDvsn bizDvsn;
     private final String createdBy;

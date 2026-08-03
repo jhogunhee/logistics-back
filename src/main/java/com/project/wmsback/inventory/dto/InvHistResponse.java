@@ -1,8 +1,8 @@
 package com.project.wmsback.inventory.dto;
 
-import com.project.wmsback.inventory.entity.RefDocType;
-import com.project.wmsback.inventory.entity.TxType;
-import com.project.mdm.prod.entity.TempZone;
+import com.project.wmsback.inventory.entity.RefDocTyp;
+import com.project.wmsback.inventory.entity.TxTyp;
+import com.project.mdm.prod.entity.TmpZon;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
@@ -15,15 +15,15 @@ import java.time.LocalDateTime;
 public class InvHistResponse {
 
     private final Long invHistId;
-    private final TxType txTyp;
+    private final TxTyp txTyp;
     private final String prodCd;
     private final String prodNm;
     private final String locCd;
     private final String zonCd;
-    private final TempZone tmpZon;
+    private final TmpZon tmpZon;
     private final String lotNo;
     private final Long qty;
-    private final RefDocType rfnDocTyp;
+    private final RefDocTyp rfnDocTyp;
     private final String rfnDocNo;
     /** MOVE의 출발/도착 로케이션 코드 (양쪽 다리 모두 동일 값). MOVE가 아니면 둘 다 null */
     private final String fromLocCd;
@@ -31,9 +31,9 @@ public class InvHistResponse {
     private final String createdBy;
     private final LocalDateTime createdAt;
 
-    public InvHistResponse(Long invHistId, TxType txTyp, String prodCd, String prodNm,
-                            String locCd, String zonCd, TempZone tmpZon, String lotNo, Long qty,
-                            RefDocType rfnDocTyp, String rfnDocNo, String fromLocCd, String toLocCd,
+    public InvHistResponse(Long invHistId, TxTyp txTyp, String prodCd, String prodNm,
+                            String locCd, String zonCd, TmpZon tmpZon, String lotNo, Long qty,
+                            RefDocTyp rfnDocTyp, String rfnDocNo, String fromLocCd, String toLocCd,
                             String createdBy, LocalDateTime createdAt) {
         this.invHistId = invHistId;
         this.txTyp = txTyp;
