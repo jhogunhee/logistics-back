@@ -336,6 +336,10 @@ INSERT INTO code_group (grp_cd, grp_nm, description) VALUES
     ('ODR_DVSN', '발주구분', '입고주문의 성격 (oms_ib_order.odr_dvsn)');
 INSERT INTO code_group (grp_cd, grp_nm, description) VALUES
     ('UOM', '계량단위', '상품 포장의 단위 (prod_uom.uom_cd · prod.inb_uom_cd · outb_uom_cd)');
+INSERT INTO code_group (grp_cd, grp_nm, description) VALUES
+    ('HLD_RSN', '보류사유', '재고 보류 등록 사유 (inv_hld.rsn_cd). ETC(기타)일 때만 자유 텍스트 rsn_dscr를 받는다');
+INSERT INTO code_group (grp_cd, grp_nm, description) VALUES
+    ('HLD_RLZ_RSN', '보류 해제사유', '재고 보류 해제 사유 (inv_hld_rlz_acrst.rsn_cd). 등록 사유와 별개 그룹 — 「왜 묶었나」와 「왜 풀었나」는 다른 질문이다. ETC(기타)일 때만 자유 텍스트 rsn_dscr를 받는다');
 
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('TEMP_ZONE', 'DRY', '상온', 1);
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('TEMP_ZONE', 'CHL', '냉장', 2);
@@ -377,6 +381,16 @@ INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('ODR_DVSN', 
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('ODR_DVSN', 'URGT', '긴급', 2);
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('ODR_DVSN', 'RTNGS', '반품입고', 3);
 
+-- 보류사유·해제사유. ETC(기타)는 「코드가 기타면 자유 텍스트 입력」 규칙이 걸리는 값이라 지우면 안 된다.
+-- 동일 사유 미해제 중복 차단(uq_inv_hld_open_rsn)이 사유코드 단위로 걸리므로, 코드는 곧 병존 단위다.
+INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('HLD_RSN', 'QLTY', '품질이상', 1);
+INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('HLD_RSN', 'DAMG', '파손', 2);
+INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('HLD_RSN', 'EXPIRY', '유통기한', 3);
+INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('HLD_RSN', 'ETC', '기타', 4);
+INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('HLD_RLZ_RSN', 'NRML', '정상 확인', 1);
+INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('HLD_RLZ_RSN', 'ERR_REG', '오등록', 2);
+INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('HLD_RLZ_RSN', 'ETC', '기타', 3);
+
 -- 채번 규칙. 상품·벤더 코드와 주문/입고/출고 번호를 여기서 발급한다 (전용 시퀀스 폐기).
 INSERT INTO nbr_rule (rule_cd, rule_nm, prfx, prfx_dlmt, de_dlmt, seq_dgt, dync_ky_typ) VALUES
     ('PROD_CD',     '상품 코드',        'PROD', '-', '-', 4, 'NONE'),
@@ -385,7 +399,8 @@ INSERT INTO nbr_rule (rule_cd, rule_nm, prfx, prfx_dlmt, de_dlmt, seq_dgt, dync_
     ('IB_NO',       '입고 번호',        'IB',   '-', '-', 3, 'DAY'),
     ('OUTB_NO',     '출고 번호',        'OB',   '-', '-', 3, 'DAY'),
     ('OUTB_WAV_NO', '출고 웨이브 번호', 'WV',   '-', '-', 3, 'DAY'),
-    ('INV_MOV_NO',  '이동지시 번호',    'MV',   '-', '-', 3, 'DAY');
+    ('INV_MOV_NO',  '이동지시 번호',    'MV',   '-', '-', 3, 'DAY'),
+    ('HLD_NO',      '보류 번호',        'HD',   '-', '-', 3, 'DAY');
 COMMIT;
 
 
@@ -565,19 +580,22 @@ CREATE TABLE inv (
     lot_id      BIGINT          NOT NULL,
     on_hand_qty BIGINT          DEFAULT 0 NOT NULL,
     aloc_qty   BIGINT          DEFAULT 0 NOT NULL,
+    hld_qty     BIGINT          DEFAULT 0 NOT NULL,
     version     BIGINT          DEFAULT 0 NOT NULL,
     created_at  TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
     created_by  VARCHAR(30)     DEFAULT 'admin' NOT NULL,
     updated_at  TIMESTAMP,
     updated_by  VARCHAR(30),
     CONSTRAINT uq_inv UNIQUE (prod_id, loc_id, lot_id),
-    -- 동시성 실험의 최후 방어선: 애플리케이션 락이 실패해도 DB가 음수/과할당을 거부
-    CONSTRAINT ck_inv_qty CHECK (on_hand_qty >= 0 AND aloc_qty >= 0 AND aloc_qty <= on_hand_qty)
+    -- 동시성 실험의 최후 방어선: 애플리케이션 락이 실패해도 DB가 음수/과할당/과보류를 거부.
+    -- 예약과 보류는 배타(각각 가용에서만 잡는다)라 합산 상한 하나로 표현된다.
+    CONSTRAINT ck_inv_qty CHECK (on_hand_qty >= 0 AND aloc_qty >= 0 AND hld_qty >= 0 AND aloc_qty + hld_qty <= on_hand_qty)
 );
 
-COMMENT ON TABLE  inv IS '현재고 스냅샷. 키: 상품+Loc+Lot. 가용재고 = on_hand - alloc (파생값, 컬럼 아님)';
+COMMENT ON TABLE  inv IS '현재고 스냅샷. 키: 상품+Loc+Lot. 재고수량(on_hand) = 가용 + 예약(aloc) + 보류(hld). 가용재고 = on_hand - aloc - hld (파생값, 컬럼 아님)';
 COMMENT ON COLUMN inv.on_hand_qty IS '실물 보유 수량. 물리 변동(RECEIVE/MOVE/ADJUST/PICK 등) 시에만 증감';
 COMMENT ON COLUMN inv.aloc_qty   IS '예약 수량 — 출고 할당 전용이 아니라 예약수량 일반. 출고 할당(outb_alloc)과 이동지시(inv_mov_task)가 같은 컬럼으로 선점하고, 실행(피킹/이동확정)이 on_hand와 함께 소진. 물리 이동이 아니므로 이력에 기록하지 않음. 항등식: aloc_qty = 원천별 미소진 잔량 합 (대사 대상)';
+COMMENT ON COLUMN inv.hld_qty     IS '보류 수량 — 가용재고에서 뺀다(예약과 배타: 가용에서만 잡고, 예약분은 보류 불가). 물리 이동이 아니므로 이력에 기록하지 않고, 원장은 inv_hld/inv_hld_acrst/inv_hld_rlz_acrst가 담당. 항등식: hld_qty = SUM(HELD 건의 hld_qty - rlz_qty) (대사 대상)';
 COMMENT ON COLUMN inv.version     IS '낙관적 락 버전 (@Version). 비관적 락과의 비교 실험 대상';
 
 CREATE INDEX ix_inv_prod ON inv (prod_id);
@@ -664,6 +682,92 @@ CREATE INDEX ix_inv_mov_prod ON inv_mov_task (prod_id);
 -- 적재가능수량 계산: TO 로케이션별 미완료 지시 유입 잔량 SUM(drct_qty - cmpl_qty).
 -- putaway_task의 ix_ptwy_task_open_loc와 같은 이유로 DIRECTED만 담는 부분 인덱스.
 CREATE INDEX ix_inv_mov_open_to ON inv_mov_task (to_loc_id) WHERE status = 'DIRECTED';
+
+-- 재고 보류 (수량 방식: 등록이 inv.hld_qty를 늘려 가용재고에서 뺀다. 재고상태 컬럼 없음).
+-- 보류/해제는 물리 이동이 아니라 inv_hist(수량 원장)에 실을 수 없는데 등록·해제 각각의
+-- 사유 히스토리를 보존해야 하므로, 「물리 변동 실적 테이블 없음」 원칙의 유일한 예외로
+-- 전용 실적 테이블 2벌(inv_hld_acrst / inv_hld_rlz_acrst)을 둔다.
+-- v1 보류 대상은 보관(STORAGE) 로케이션 재고만 — 스테이징 허용은 적치·출고확정 파급을 수반.
+CREATE TABLE inv_hld (
+    inv_hld_id  BIGINT          GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    hld_no      VARCHAR(30)     NOT NULL,
+    prod_id     BIGINT          NOT NULL,
+    loc_id      BIGINT          NOT NULL,
+    lot_id      BIGINT          NOT NULL,
+    hld_qty     BIGINT          NOT NULL,
+    rlz_qty     BIGINT          DEFAULT 0 NOT NULL,
+    rsn_cd      VARCHAR(10)     NOT NULL,
+    rsn_dscr    VARCHAR(200),
+    status      VARCHAR(15)     NOT NULL,
+    rlz_dt      TIMESTAMP,
+    created_at  TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by  VARCHAR(30)     DEFAULT 'admin' NOT NULL,
+    updated_at  TIMESTAMP,
+    updated_by  VARCHAR(30),
+    CONSTRAINT uq_inv_hld_no UNIQUE (hld_no),
+    CONSTRAINT ck_inv_hld_status CHECK (status IN ('HELD', 'RELEASED')),
+    -- 과해제를 DB가 거부한다 (inv_mov_task의 ck_inv_mov_qty와 같은 방어)
+    CONSTRAINT ck_inv_hld_qty CHECK (hld_qty > 0 AND rlz_qty >= 0 AND rlz_qty <= hld_qty)
+);
+
+COMMENT ON TABLE  inv_hld IS '재고 보류 건. 등록 즉시 발효(지시→확정 2단계 아님) — inv.hld_qty 증가와 한 트랜잭션. 잔량 = hld_qty - rlz_qty 파생. 전량 해제돼도 행 보존(RELEASED 전이) — putaway_task 선례. 항등식: inv.hld_qty = SUM(HELD 건의 잔량)';
+COMMENT ON COLUMN inv_hld.hld_no   IS '보류 번호 (건당 유일 — 라인 구조 없음). nbr_rule HLD_NO 채번';
+COMMENT ON COLUMN inv_hld.prod_id  IS '보류 대상 상품. 재고 키(상품+Loc+Lot) 그대로 담는다 (inv_mov_task와 같은 형태)';
+COMMENT ON COLUMN inv_hld.hld_qty  IS '보류 수량. 등록 시점 가용재고(on_hand - aloc - hld) 이내 — 예약분은 보류 불가(배타)';
+COMMENT ON COLUMN inv_hld.rlz_qty  IS '해제 완료 수량 누계. 부분 해제 허용 — hld_qty에 도달하면 RELEASED';
+COMMENT ON COLUMN inv_hld.rsn_cd   IS '보류 사유 코드 (공통코드 HLD_RSN). ETC(기타)일 때만 rsn_dscr 필수';
+COMMENT ON COLUMN inv_hld.rsn_dscr IS '기타 사유 텍스트. rsn_cd = ETC일 때만 사용';
+COMMENT ON COLUMN inv_hld.status   IS 'HELD 보류중(부분 해제 포함) / RELEASED 전량 해제. 취소 상태 없음 — 오등록도 해제(사유: 오등록)로 흡수한다(등록 즉시 발효라 실행 전 취소 구간이 없다)';
+COMMENT ON COLUMN inv_hld.rlz_dt   IS '전량 해제 시각 (RELEASED 전이 시점)';
+
+-- 동일 사유 미해제 중복 차단: 같은 재고 행에는 사유코드가 다를 때만 보류가 병존한다
+CREATE UNIQUE INDEX uq_inv_hld_open_rsn ON inv_hld (prod_id, loc_id, lot_id, rsn_cd) WHERE status = 'HELD';
+-- 항등식 대사: 재고 키별 HELD 잔량 SUM vs inv.hld_qty 비교용 (위 부분 유니크가 겸한다)
+CREATE INDEX ix_inv_hld_prod ON inv_hld (prod_id);
+
+-- 보류 실적 (등록의 append-only 로그). 보류 건과 1:1이지만 자기완결로 둔다 —
+-- 건이 갱신(해제누계·상태 전이)돼도 등록 시점의 기록이 그대로 보존된다. 실적 시각 = created_at.
+CREATE TABLE inv_hld_acrst (
+    inv_hld_acrst_id BIGINT     GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    hld_no      VARCHAR(30)     NOT NULL,
+    prod_id     BIGINT          NOT NULL,
+    loc_id      BIGINT          NOT NULL,
+    lot_id      BIGINT          NOT NULL,
+    hld_qty     BIGINT          NOT NULL,
+    rsn_cd      VARCHAR(10)     NOT NULL,
+    rsn_dscr    VARCHAR(200),
+    created_at  TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by  VARCHAR(30)     DEFAULT 'admin' NOT NULL,
+    updated_at  TIMESTAMP,
+    updated_by  VARCHAR(30),
+    CONSTRAINT ck_inv_hld_acrst_qty CHECK (hld_qty > 0)
+);
+
+COMMENT ON TABLE  inv_hld_acrst IS '보류 실적 (등록 append-only 로그). 수정·삭제하지 않는다. hld_no는 inv_hld를 느슨하게 참조 (FK 없음)';
+
+CREATE INDEX ix_inv_hld_acrst_no ON inv_hld_acrst (hld_no);
+
+-- 해제 실적 (해제의 append-only 로그). 부분 해제가 N번이면 N행. 해제 사유는 등록 사유와
+-- 별개의 코드 그룹(HLD_RLZ_RSN)이다 — 「왜 묶었나」와 「왜 풀었나」는 다른 질문이다.
+CREATE TABLE inv_hld_rlz_acrst (
+    inv_hld_rlz_acrst_id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    hld_no      VARCHAR(30)     NOT NULL,
+    prod_id     BIGINT          NOT NULL,
+    loc_id      BIGINT          NOT NULL,
+    lot_id      BIGINT          NOT NULL,
+    rlz_qty     BIGINT          NOT NULL,
+    rsn_cd      VARCHAR(10)     NOT NULL,
+    rsn_dscr    VARCHAR(200),
+    created_at  TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by  VARCHAR(30)     DEFAULT 'admin' NOT NULL,
+    updated_at  TIMESTAMP,
+    updated_by  VARCHAR(30),
+    CONSTRAINT ck_inv_hld_rlz_acrst_qty CHECK (rlz_qty > 0)
+);
+
+COMMENT ON TABLE  inv_hld_rlz_acrst IS '보류 해제 실적 (append-only 로그). 해제는 특정 보류 건(hld_no)을 지목하며 부분 해제 허용 — N번 해제면 N행. rsn_cd는 공통코드 HLD_RLZ_RSN, ETC일 때만 rsn_dscr 필수';
+
+CREATE INDEX ix_inv_hld_rlz_acrst_no ON inv_hld_rlz_acrst (hld_no);
 
 
 -- =====================================================================

@@ -21,7 +21,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 현재고 스냅샷. 키: 상품+Loc+Lot. 가용재고 = onHand - alloc (파생값, 컬럼 아님).
+ * 현재고 스냅샷. 키: 상품+Loc+Lot. 재고수량(onHand) = 가용 + 예약(aloc) + 보류(hld).
+ * 가용재고 = onHand - aloc - hld (파생값, 컬럼 아님).
  * 할당 시 락을 거는 지점 (비관적/낙관적 락 비교 대상).
  */
 @Entity
@@ -59,6 +60,14 @@ public class Inv extends BaseEntity {
     @Column(name = "aloc_qty", nullable = false)
     private Long alocQty;
 
+    /**
+     * 보류 수량 — 가용재고에서 뺀다. 예약과 배타(가용에서만 잡고, 예약분은 보류 불가 — ck_inv_qty:
+     * aloc + hld <= onHand). 물리 이동이 아니므로 이력에 기록하지 않고, 원장은 inv_hld/실적 2테이블이 담당.
+     * 항등식: hldQty = SUM(HELD 건의 잔량) (대사 대상).
+     */
+    @Column(name = "hld_qty", nullable = false)
+    private Long hldQty;
+
     /** 낙관적 락 버전. 비관적 락과의 비교 실험 대상 */
     @Version
     @Column(name = "version", nullable = false)
@@ -71,11 +80,12 @@ public class Inv extends BaseEntity {
         this.lot = lot;
         this.onHandQty = 0L;
         this.alocQty = 0L;
+        this.hldQty = 0L;
     }
 
     /** 가용재고 (파생값) */
     public long availableQty() {
-        return onHandQty - alocQty;
+        return onHandQty - alocQty - hldQty;
     }
 
     /** 물리 증가 (입고/이동 입). 반드시 InvHist 기록과 한 트랜잭션에서 호출한다 */
@@ -96,5 +106,15 @@ public class Inv extends BaseEntity {
     /** 예약 해제/소진 (지시 취소·이동확정, 할당 해제·피킹) */
     public void release(long qty) {
         this.alocQty -= qty;
+    }
+
+    /** 보류 (보류 등록). 가용재고 검증 후 호출한다 — ck_inv_qty(aloc+hld<=onHand)가 최후 방어 */
+    public void hold(long qty) {
+        this.hldQty += qty;
+    }
+
+    /** 보류 해제 — 가용재고로 복귀 */
+    public void releaseHold(long qty) {
+        this.hldQty -= qty;
     }
 }

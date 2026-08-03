@@ -112,7 +112,7 @@ public class PutawayService {
 
         // 스테이징 재고가 0이 되면 스냅샷 행을 삭제한다 (재고 테이블엔 실물이 있는 행만 남긴다).
         // 이력 합계=스냅샷 불변식은 유지된다 — 이력 SUM=0 ↔ 스냅샷 행 없음(=0).
-        if (stagingInv.getOnHandQty() == 0 && stagingInv.getAlocQty() == 0) {
+        if (stagingInv.getOnHandQty() == 0 && stagingInv.getAlocQty() == 0 && stagingInv.getHldQty() == 0) {
             invRepository.delete(stagingInv);
         }
 

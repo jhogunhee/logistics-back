@@ -184,9 +184,9 @@ public class InvMovService {
 
         task.confirm(qty);
 
-        // 보유·예약이 모두 0이 된 스냅샷 행은 삭제한다 (PutawayService와 같은 관례 — 실물이 있는 행만 남긴다).
+        // 재고수량이 0(보유·예약·보류 모두 0)이 된 스냅샷 행은 삭제한다 (PutawayService와 같은 관례 — 실물이 있는 행만 남긴다).
         // 이력 합계=스냅샷 불변식은 유지된다: 이력 SUM=0 ↔ 행 없음.
-        if (fromInv.getOnHandQty() == 0 && fromInv.getAlocQty() == 0) {
+        if (fromInv.getOnHandQty() == 0 && fromInv.getAlocQty() == 0 && fromInv.getHldQty() == 0) {
             invRepository.delete(fromInv);
         }
     }

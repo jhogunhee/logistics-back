@@ -183,9 +183,9 @@
 </tr>
 <tr>
   <td class="name">재고 보류</td>
-  <td>특정 재고(상품+로케이션+Lot)를 <strong>보류 상태로 전환해 할당 대상에서 제외</strong>. 보류/보류해제, 사유 입력, 보류 재고 목록 조회. 유통기한 만료 Lot 자동 보류(배치) 여부는 추후 결정</td>
-  <td class="st"><span class="badge todo">미구현</span></td>
-  <td>신규 — <code>inv</code>에 재고상태 컬럼 추가 + <strong>할당 로직에서 보류 재고 제외</strong></td>
+  <td>특정 재고(상품+로케이션+Lot)의 <strong>일부/전량을 수량 단위로 보류해 가용재고에서 제외</strong>(<code>inv.hld_qty</code> — 재고상태 컬럼 아님). 등록/해제 각각 사유(공통코드, 기타 시 텍스트) 기록, 부분 해제 허용, 실적 2테이블 append-only 보존. 유통기한 만료 Lot 자동 보류(배치)는 백로그</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>POST /inventory/holds</code> · <code>GET /inventory/holds</code> · <code>POST /inventory/holds/{id}/release</code> · <code>GET /inventory/holds/acrsts</code> · <code>/rlz-acrsts</code></td>
 </tr>
 <tr>
   <td class="name">재고조사 (실사)</td>
@@ -344,7 +344,7 @@
 <tr><td class="name" rowspan="6">재고</td><td>현재고 조회</td><td><code>/stock/status</code></td><td><code>pages/stock/StockStatus.jsx</code> — 모니터링 그룹에서 이동</td></tr>
 <tr><td>재고 이력 조회</td><td><code>/stock/history</code></td><td><code>pages/stock/InvHistory.jsx</code></td></tr>
 <tr><td>재고 속성변경</td><td><code>/stock/attribute</code></td><td>Placeholder</td></tr>
-<tr><td>재고 보류</td><td><code>/stock/hold</code></td><td>Placeholder</td></tr>
+<tr><td>재고 보류</td><td><code>/stock/hold</code></td><td><code>pages/stock/StockHold.jsx</code> — 탭 3개(보류등록 <code>StockHoldRegister.jsx</code> / 보류 관리 <code>StockHoldList.jsx</code> / 실적 조회 <code>StockHoldAcrst.jsx</code>)</td></tr>
 <tr><td>재고 이동</td><td><code>/stock/move</code></td><td><code>pages/stock/StockMove.jsx</code> — 탭 2개(이동지시등록 <code>StockMoveOrder.jsx</code> / 이동지시 관리 <code>StockMoveTaskList.jsx</code>)</td></tr>
 <tr><td>재고조사</td><td><code>/stock/count</code></td><td>Placeholder</td></tr>
 
@@ -389,6 +389,7 @@
 <tr><td class="name">"입고 마감 UI는 백로그, 버튼 미노출"</td><td><strong>입고확정으로 재정의하고 흐름의 마지막 단계로 이동.</strong> 검수 직후가 아니라 적치가 진행된 뒤 결품을 확정한다</td></tr>
 <tr><td class="name">"COMPLETED는 RECEIVED 상태 and 전 라인 putawayQty == rcvdQty 두 조건이 충족된 시점에 자동 전이"</td><td>자동 전이 제거. <strong>사용자의 명시적 확정 액션</strong>으로만 종료하며, 전 라인 적치 완료가 확정의 선행 조건이 된다</td></tr>
 <tr><td class="name">백로그(v1 제외): "폐기/홀드(재고 상태 + 만료 Lot 자동 홀드 배치)"</td><td><strong>재고 보류를 v1에 포함.</strong> <code>inv</code>에 재고상태를 추가하고 할당 후보에서 보류 재고를 제외한다. 만료 Lot 자동 보류 배치와 폐기는 계속 백로그</td></tr>
+<tr><td class="name">"보류는 수량이 아니라 행 단위 재고상태"</td><td><strong>번복(2026-08-03) — 보류는 수량이다.</strong> 재고상태 컬럼 대신 <code>inv.hld_qty</code>(가용 = 보유 − 예약 − 보류, 예약과 배타) + 보류 3테이블(<code>inv_hld</code>/<code>inv_hld_acrst</code>/<code>inv_hld_rlz_acrst</code>). 부분수량 보류와 등록/해제 사유별 히스토리 보존 요구 때문 — 정의서 2절 참조</td></tr>
 <tr><td class="name">상태 <code>RECEIVED</code></td><td><strong>제거.</strong> 검수/적치 진행도는 라인 수량에서 파생되므로 중간 상태가 불필요 — <code>SCHEDULED → RECEIVING → COMPLETED</code></td></tr>
 <tr><td class="name">"할당은 오직 웨이브 릴리즈로만 일어난다"</td><td><strong>뒤집힘 — 할당은 주문 단위 화면에서만 일어난다.</strong> 웨이브 릴리즈는 v1 제외</td></tr>
 <tr><td class="name">"웨이브는 재고 할당의 단위다"</td><td><strong>웨이브는 피킹지시 발행 단위로 역할이 바뀐다.</strong> 할당은 주문 단위, 웨이브는 여러 주문의 집품을 한 번에 지시하는 그룹. 상태도 <code>PLANNED/RELEASED</code>가 아니라 "지시 발행 전/후"로 재정의 필요</td></tr>

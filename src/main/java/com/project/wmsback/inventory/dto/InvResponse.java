@@ -24,12 +24,13 @@ public class InvResponse {
     private final LocalDate expiryDt;
     private final Long onHandQty;
     private final Long alocQty;
-    /** 가용재고 = 보유 - 할당 (파생값). 쿼리에서 계산해 내려준다 */
+    private final Long hldQty;
+    /** 가용재고 = 보유 - 예약 - 보류 (파생값). 쿼리에서 계산해 내려준다 */
     private final Long availableQty;
 
     public InvResponse(Long invId, String prodCd, String prodNm, TempZone tmpZon,
                        String locCd, String zonCd, LocType locTyp, String lotNo, LocalDate expiryDt,
-                       Long onHandQty, Long alocQty, Long availableQty) {
+                       Long onHandQty, Long alocQty, Long hldQty, Long availableQty) {
         this.invId = invId;
         this.prodCd = prodCd;
         this.prodNm = prodNm;
@@ -41,6 +42,7 @@ public class InvResponse {
         this.expiryDt = expiryDt;
         this.onHandQty = onHandQty;
         this.alocQty = alocQty;
+        this.hldQty = hldQty;
         this.availableQty = availableQty;
     }
 }
