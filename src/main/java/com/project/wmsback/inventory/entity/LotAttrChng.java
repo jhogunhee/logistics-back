@@ -31,7 +31,6 @@ import java.time.LocalDate;
  * warehouse 밖에 있고(생성은 inbound의 ReceivingService), warehouse는 wmsback 안에서
  * 아무 패키지도 import하지 않는 잎이라 그 상태를 깨지 않는다. 쓰는 주체는 업무 프로세스다.
  *
- * docs/sg/wms-st-화면프로세스정의서.md 3절 참고.
  */
 @Entity
 @Table(name = "lot_attr_chng")

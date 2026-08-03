@@ -27,7 +27,7 @@ public class PutawayQueryRepository {
     /**
      * 온도대 일치 보관 로케이션 전체의 (점유수량 합, 해당 상품 보유 여부, 존 업무유형).
      * 점유 = 그 로케이션의 전체 상품 on_hand 합 — putaway_task 지시가 없는 현행 구조라
-     * 미완료 지시 잔량은 계산에 없다 (docs/st/전략_프로세스정의서.md §3.1).
+     * 미완료 지시 잔량은 계산에 없다.
      * 존 조인은 업무유형 조건(BIZ_DVSN) 판정용 — loc.zon_cd는 FK가 없어 left join (미등록 존이면 null).
      */
     public List<PutawayMethodContext.LocStock> storageStocks(TmpZon tmpZon, Long prodId) {

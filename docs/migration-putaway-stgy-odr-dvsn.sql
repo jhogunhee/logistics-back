@@ -1,7 +1,7 @@
 -- =====================================================================
 -- 증분 마이그레이션: 적치 전략 적용대상을 발주구분(odr_dvsn) 선택으로 교체
 --   대상: migration-add-loc-ptawy-prty.sql 까지 적용된 라이브 DB → docs/schema.sql 상태
---   근거: docs/st 카드1 절충안 (2026-08-03 확정) —
+--   근거 (2026-08-03 확정) —
 --     · 적용대상(tgt_cond 범용 조건)·우선순위(prty) 제거. 적용대상을 발주구분(공통코드
 --       ODR_DVSN) 단일 선택으로 좁히고, 유형당 전략 1개(UNIQUE)가 우선순위를 대체.
 --     · ib_order에 odr_dvsn 신설 — 확정 시 oms_ib_order에서 복사(wmsback→omsback import 금지라
@@ -55,7 +55,7 @@ BEGIN
 
     CREATE UNIQUE INDEX IF NOT EXISTS ux_ptawy_stgy_odr_dvsn ON ptawy_stgy (COALESCE(odr_dvsn, 'ALL'));
 
-    COMMENT ON TABLE  ptawy_stgy IS '적치 전략 헤더. 선택 기준은 발주구분 하나(유형당 1개 — ux_ptawy_stgy_odr_dvsn). 1차에서 전략은 추천만 한다 — 실행은 기존 즉시 MOVE 흐름 유지 (docs/st/전략_프로세스정의서.md §3)';
+    COMMENT ON TABLE  ptawy_stgy IS '적치 전략 헤더. 선택 기준은 발주구분 하나(유형당 1개 — ux_ptawy_stgy_odr_dvsn). 1차에서 전략은 추천만 한다 — 실행은 기존 즉시 MOVE 흐름 유지';
     COMMENT ON COLUMN ptawy_stgy.odr_dvsn IS '적용대상 발주구분 (공통코드 ODR_DVSN — NRML/URGT). NULL = 전체. 반품(RTNGS)은 스코프 아웃이라 저장 검증이 거부한다';
 
     -- ③ 단계의 loc_cond: 새 의미(BIZ_DVSN IN 지정)에 맞지 않는 기존 값은 비운다 → 전체 보관으로 동작

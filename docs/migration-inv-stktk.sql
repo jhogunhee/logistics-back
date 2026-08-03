@@ -2,7 +2,7 @@
 -- 재고조사(실사) 도입 — inv_stktk(조사 헤더) / inv_stktk_ln(조사 라인) 2테이블.
 --
 -- 현재 라이브 상태(migration-inv-hld.sql 적용) → schema.sql 상태.
--- 근거: docs/sg/wms-st-화면프로세스정의서.md 1절, docs/design.md 「재고조사(실사)」 (2026-08-03 확정).
+-- 근거: docs/design.md 「재고조사(실사)」 (2026-08-03 확정).
 --   - 건별 즉시 조정 화면을 두지 않는다 — 재고 수량 정정의 유일한 경로가 조사(실사)다.
 --     특정 재고 하나의 정정도 범위를 좁게 잡은 조사로 수행한다(입고 확정 후 수량 정정 포함).
 --   - 실적 테이블 없음 — 실적의 실체는 inv_hist의 ADJUST 행(rfn_doc_typ=INV_STKTK, rfn_doc_no=조사번호).

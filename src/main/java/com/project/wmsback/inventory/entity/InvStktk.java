@@ -33,7 +33,6 @@ import java.util.List;
  * 상태는 워크플로 단계만 표현한다 — 「부분확정」을 두지 않는다. 확정 후 재정정은 조사를 되열지 않고
  * 새 조사를 만든다(append-only 원칙). 실적 테이블은 없다 — 실적의 실체는 inv_hist의 ADJUST 행이다
  * (rfn_doc_typ=INV_STKTK, rfn_doc_no=stktkNo).
- * docs/sg/wms-st-화면프로세스정의서.md 1절 참고.
  */
 @Entity
 @Table(name = "inv_stktk", uniqueConstraints = @UniqueConstraint(name = "uq_inv_stktk_no", columnNames = "stktk_no"))

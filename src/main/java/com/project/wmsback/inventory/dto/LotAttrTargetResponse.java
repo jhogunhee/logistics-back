@@ -24,7 +24,7 @@ public class LotAttrTargetResponse {
     private final LocalDate mfgDt;
     private final LocalDate expiryDt;
 
-    /** 상품의 유통기한 일수. 화면이 제조일자 변경 시 유통기한 기본값을 제안하는 근거 (강제는 아니다 — 정의서 3-4) */
+    /** 상품의 유통기한 일수. 화면이 제조일자 변경 시 유통기한 기본값을 제안하는 근거 (강제는 아니다) */
     private final Integer shelfLifeDays;
 
     /** 이 Lot을 쓰는 재고 행 수 (로케이션이 다르면 다른 행) */

@@ -2,7 +2,7 @@
 -- 재고 보류 도입 — inv.hld_qty(보류수량) + 보류 3테이블(inv_hld / inv_hld_acrst / inv_hld_rlz_acrst).
 --
 -- 현재 라이브 상태(migration-inv-mov-task.sql·migration-inv-mov-dvsn.sql 적용) → schema.sql 상태.
--- 근거: docs/sg/wms-st-화면프로세스정의서.md 2절, docs/design.md 「재고 보류」 (2026-08-03 확정).
+-- 근거: docs/design.md 「재고 보류」 (2026-08-03 확정).
 --   - 보류는 상태가 아니라 수량 — 재고상태 컬럼 없이 inv.hld_qty가 가용재고에서 뺀다.
 --   - 재고수량(on_hand) = 가용 + 예약(aloc) + 보류(hld). 예약과 보류는 배타(보류는 가용에서만).
 --     ck_inv_qty가 aloc_qty + hld_qty <= on_hand_qty로 확장된다.

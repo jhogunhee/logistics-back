@@ -34,7 +34,7 @@ import java.util.List;
  * 확정이 inv_hist MOVE 2행을 남기며 예약을 소진한다 (피킹이 aloc를 소진하는 것과 같은 패턴).
  * 실적 테이블은 없다 — 분할확정 실적은 inv_hist에 확정 횟수만큼 쌓인다 (rfn_doc_no = 지시번호).
  * 적치지시가 선점을 두지 않는 것과 다른 이유: 적치 대상(스테이징)은 할당 후보가 아니지만
- * 이동 FROM(보관 재고)은 할당 후보 그 자체다. docs/sg/wms-st-화면프로세스정의서.md 4절 참고.
+ * 이동 FROM(보관 재고)은 할당 후보 그 자체다. docs/design.md 「재고 이동」 참고.
  */
 @Service
 @RequiredArgsConstructor

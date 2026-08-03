@@ -2,7 +2,7 @@
 -- 이동지시(inv_mov_task) 도입 — 보관 ↔ 보관 2단계 이동 (지시=예약 → 확정=실물 MOVE).
 --
 -- 현재 라이브 상태(migration-catchup-to-schema.sql 적용) → schema.sql 상태.
--- 근거: docs/sg/wms-st-화면프로세스정의서.md 4절 (2단계 예약 모델).
+-- 근거: docs/design.md 「재고 이동」 (2단계 예약 모델).
 --   - 등록 시 FROM 재고의 inv.aloc_qty를 선점(예약)한다 — aloc_qty는 출고 할당 전용이
 --     아니라 예약수량 일반이라는 의미 확정에 따름 (전용 예약 컬럼을 만들지 않는다).
 --   - 실적 테이블은 없다. 실적의 실체는 inv_hist의 MOVE 2행 (rfn_doc_no = inv_mov_no).

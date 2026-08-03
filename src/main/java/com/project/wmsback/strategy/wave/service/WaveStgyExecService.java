@@ -107,7 +107,7 @@ public class WaveStgyExecService {
         return new WaveStgyExecResponse(tgtCount, assignedTotal, results);
     }
 
-    /** 미저장 정의로 미리보기 — DB 변경 없음, 실행 로그도 남기지 않는다 (프로세스정의서 §4.4) */
+    /** 미저장 정의로 미리보기 — DB 변경 없음, 실행 로그도 남기지 않는다 */
     public WavPreviewResponse preview(WavStgyDefinition definition, WavPreviewRequest request) {
         List<WaveMatchResult> orders = targetOrders(request.expctDeFrom(), request.expctDeTo()).stream()
                 .map(order -> WaveMatcher.evaluate(definition.condGrp(), WaveOrderTarget.from(order)))

@@ -54,7 +54,7 @@ public class StgyExecLog extends BaseEntity {
     @Column(name = "rslt_smry", length = 200)
     private String rsltSmry;
 
-    /** 건별 판정 상세 JSON. 구조: docs/st/전략_테이블설계서.md §8.2 */
+    /** 건별 판정 상세 JSON. 구조의 주인은 판정 결과 DTO다 */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "dcsn_trc")
     private String dcsnTrc;

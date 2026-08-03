@@ -35,7 +35,6 @@ import java.util.Objects;
  * uq_lot은 (prod_id, lot_no)에만 걸려 DB가 잡아주지 않으므로 여기 검증이 유일한 방어선이고,
  * 동시성은 검수와 같은 락 순서(상품 → Lot)로 막는다.
  *
- * docs/sg/wms-st-화면프로세스정의서.md 3절 참고.
  */
 @Service
 @RequiredArgsConstructor

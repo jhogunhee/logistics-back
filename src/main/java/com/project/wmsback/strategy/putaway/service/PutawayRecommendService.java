@@ -108,7 +108,6 @@ public class PutawayRecommendService {
 
     /**
      * 추천 산정 본체 — 단계 순회 → 방식 후보 → 조건 필터 → 정렬 → 적재가능 계산·배정.
-     * docs/st/전략_프로세스정의서.md §3.3의 흐름 그대로다.
      */
     private PutawayRecommendResponse compute(PtawyStgyDefinition def, Long stgyId, String stgyNm,
                                              Long rvsnNo, Prod prod, PutawayTarget target, long reqQty) {

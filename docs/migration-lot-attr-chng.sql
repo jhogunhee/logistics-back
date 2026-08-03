@@ -2,7 +2,7 @@
 -- 재고 속성변경 도입 — lot_attr_chng(Lot 속성 정정 이력) + LOT_ATTR_RSN 공통코드.
 --
 -- 현재 라이브 상태(migration-inv-hld.sql·migration-inv-stktk.sql 적용) → schema.sql 상태.
--- 근거: docs/sg/wms-st-화면프로세스정의서.md 3절 (부록 C #7 확정).
+-- 근거: docs/design.md 「Lot 속성 정정」 (2026-08-03 확정).
 --   - 이 화면은 재고를 한 톨도 움직이지 않는다 — inv·inv_hist 무변경, 정정은 lot 행 UPDATE뿐.
 --     따라서 이 마이그레이션은 기존 테이블을 하나도 건드리지 않는다(신규 테이블 + 코드 시드).
 --   - 정정 대상은 lot.mfg_dt·expiry_dt 둘뿐. prod_id·lot_no·receipt_dt는 불변

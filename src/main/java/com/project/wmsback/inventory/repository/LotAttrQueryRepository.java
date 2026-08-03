@@ -25,8 +25,8 @@ import static com.project.wmsback.warehouse.entity.QLot.lot;
  * 집계가 inv라 어느 한쪽의 리포지토리 삼각형에 넣기 어렵다.
  *
  * 불변 전제가 여기서 강제된다: **유통기한 관리 상품(shelfLifeDays IS NOT NULL)의 Lot만** 내려간다.
- * 미관리 상품의 Lot은 제조일자·유통기한이 항상 NULL인 것이 그 상품의 정의이므로 정정 대상이 아니다
- * (docs/sg/wms-st-화면프로세스정의서.md 3-3). 서비스도 저장 시 같은 조건을 재검증한다.
+ * 미관리 상품의 Lot은 제조일자·유통기한이 항상 NULL인 것이 그 상품의 정의이므로 정정 대상이 아니다.
+ * 서비스도 저장 시 같은 조건을 재검증한다.
  */
 @Repository
 @RequiredArgsConstructor

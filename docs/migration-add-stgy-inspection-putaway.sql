@@ -1,15 +1,13 @@
 -- =====================================================================
 -- 증분 마이그레이션: 전략 시스템 1차 — 검수 제약 · 적치 전략 테이블 6개 신설
 --   대상: migration-catchup-to-schema.sql 까지 적용된 라이브 DB → docs/schema.sql 상태
---   근거: docs/st/전략_테이블설계서.md (컬럼 명세) · docs/st/전략_테이블설계안.md (결정 D1~D8)
 --
 --   재실행 안전: 모든 생성에 IF NOT EXISTS / 존재 확인을 건다.
 --   BEGIN/COMMIT 없이 DO 블록 하나다 — DBeaver에서 실패 시 죽은 트랜잭션(25P02)이
 --   연결에 남지 않게 하기 위함 (CLAUDE.md 「데이터베이스」).
 --
 --   시드 없음 — 전략은 관리자가 화면에서 만든다. 채번 규칙 없음 — 업무 번호 없는 대리키.
---   putaway_task 연결 컬럼은 1차 보류 (현행 코드가 putaway_task를 쓰지 않는다 —
---   docs/st/전략_테이블설계서.md 머리말).
+--   putaway_task 연결 컬럼은 1차 보류 (현행 코드가 putaway_task를 쓰지 않는다).
 -- =====================================================================
 
 DO $mig$
@@ -118,7 +116,7 @@ BEGIN
     COMMENT ON TABLE stgy_exec_log  IS '전략 실행 로그. 검수 위반(=검수 저장 롤백) 시에도 남아야 하므로 기록은 REQUIRES_NEW 별도 트랜잭션. created_at = 실행 시각';
     COMMENT ON TABLE insp_plcy      IS '검수 정책 헤더 (전역 1행 — 서비스 검증). 검수 저장 직전 규칙 전부를 AND 평가, 위반 시 저장 전체 거부';
     COMMENT ON TABLE insp_plcy_rule IS '검수 규칙. 규칙 끄기 = 행 삭제 (D4 — 사용여부 컬럼 없음). 삭제 전 구성은 정책 리비전 스냅샷이 보유';
-    COMMENT ON TABLE ptawy_stgy     IS '적치 전략 헤더. 1차에서 전략은 추천만 한다 — 실행은 기존 즉시 MOVE 흐름 유지 (docs/st/전략_프로세스정의서.md §3)';
+    COMMENT ON TABLE ptawy_stgy     IS '적치 전략 헤더. 1차에서 전략은 추천만 한다 — 실행은 기존 즉시 MOVE 흐름 유지';
     COMMENT ON TABLE ptawy_stgy_stg IS '적치 단계. srt_seq 순으로 시도, 잔여수량이 0이 되면 종료. "단계 0건 전략" 저장 거부는 서비스 검증(자식 행 존재는 CHECK 범위 밖)';
 
 END

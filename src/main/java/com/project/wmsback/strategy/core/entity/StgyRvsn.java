@@ -45,7 +45,7 @@ public class StgyRvsn extends BaseEntity {
     @Column(name = "rvsn_no", nullable = false)
     private Long rvsnNo;
 
-    /** 정의 전체(헤더+하위 구성) JSON. 구조: docs/st/전략_테이블설계서.md §8.1 */
+    /** 정의 전체(헤더+하위 구성) JSON. 구조의 주인은 저장 서비스가 쓰는 정의 DTO다 */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "snpsht", nullable = false)
     private String snpsht;

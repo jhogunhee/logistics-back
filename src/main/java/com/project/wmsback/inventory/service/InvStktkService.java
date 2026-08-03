@@ -48,7 +48,6 @@ import java.util.List;
  *
  * 실적 테이블은 없다 — 실적의 실체는 inv_hist의 ADJUST 행(rfn_doc_no = 조사번호)이며,
  * 「이력 1건 기록 + 스냅샷 갱신 = 한 트랜잭션」 불변식을 그대로 지킨다.
- * docs/sg/wms-st-화면프로세스정의서.md 1절 참고.
  */
 @Service
 @RequiredArgsConstructor

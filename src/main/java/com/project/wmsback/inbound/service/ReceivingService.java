@@ -62,7 +62,7 @@ public class ReceivingService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고예정입니다: " + ibOrderId));
 
         // 검수 제약 (전략): 위반이 하나라도 있으면 예외로 저장 전체 거부 — 전 위반을 한 번에 반환.
-        // 실행 로그는 REQUIRES_NEW라 이 트랜잭션이 롤백돼도 남는다 (docs/st/전략_프로세스정의서.md §2)
+        // 실행 로그는 REQUIRES_NEW라 이 트랜잭션이 롤백돼도 남는다
         inspectionService.checkReceive(order, req.getLines());
 
         order.startReceiving();

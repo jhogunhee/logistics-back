@@ -38,7 +38,7 @@ import java.util.List;
  * onHand 불변. 보류의 원장은 전용 실적 2테이블(inv_hld_acrst / inv_hld_rlz_acrst)이다 —
  * 「물리 변동 실적 테이블 없음」 원칙의 유일한 예외 (등록·해제 사유 히스토리 보존 요구).
  * 예약과 보류는 배타: 보류는 가용재고(onHand − aloc − hld)에서만 잡는다 (ck_inv_qty가 최후 방어).
- * docs/sg/wms-st-화면프로세스정의서.md 2절, docs/design.md 「재고 보류」 참고.
+ * docs/design.md 「재고 보류」 참고.
  */
 @Service
 @RequiredArgsConstructor
