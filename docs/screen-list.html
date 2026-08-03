@@ -83,7 +83,7 @@
 </header>
 
 <h2>1. OMS (주문)</h2>
-<p class="note">주문 원장 영역. WMS 작업문서(입고예정·출고주문)의 발생지. 등록 폼과 목록·취소 관리 화면을 분리한다.</p>
+<p class="note">주문 원장 영역. WMS 작업문서(입고예정·출고주문)의 발생지. 등록 폼과 목록·확정 관리 화면을 분리한다. 입고·출고 모두 <strong>작업문서의 생성·소멸은 여기서만</strong> 일어난다 — WMS 쪽에 등록·취소 화면을 두지 않는다.</p>
 <div class="tablebox">
 <table>
 <thead><tr><th style="width:150px">화면</th><th>주요 기능</th><th style="width:100px">상태</th><th style="width:260px">API</th></tr></thead>
@@ -118,7 +118,7 @@
 </tbody>
 </table>
 </div>
-<p class="note"><strong>결정됨 (2026-08-03):</strong> 출고도 입고와 같은 2계층으로 맞췄다. <code>outb_order.oms_outb_order_id</code>가 NOT NULL이라 주문 없는 창고 출고주문은 존재할 수 없고, WMS 등록 API(<code>POST /outbound/orders</code>)는 제거됐다. 확정과 창고 문서 생성은 <code>OmsOutbOrderService.confirm()</code>에서 한 트랜잭션으로 처리한다. 확정취소는 <code>OutbOrder.requireRevertible()</code>이 <strong>웨이브 편성 전</strong>까지만 허용한다. 출고예정일(<code>expct_de</code>)이 새로 생겨 <strong>웨이브 편성 대상 기간의 기준이 주문일에서 출고예정일로</strong> 바뀌었다.</p>
+<p class="note"><strong>결정됨 (2026-08-03):</strong> 출고도 입고와 같은 2계층으로 맞췄다. <code>outb_order.oms_outb_order_id</code>가 NOT NULL이라 주문 없는 창고 출고주문은 존재할 수 없고, WMS 등록 API(<code>POST /outbound/orders</code>)는 제거됐다. 확정과 창고 문서 생성은 <code>OmsOutbOrderService.confirm()</code>에서 한 트랜잭션으로 처리한다. 확정취소는 <code>OutbOrder.requireRevertible()</code>이 <strong>웨이브 편성 전</strong>까지만 허용한다. 창고 쪽 취소(<code>outb_order</code>의 <code>CANCELLED</code> · <code>POST /outbound/orders/{id}/cancel</code>)는 같은 「없앤다」가 두 갈래이던 것을 정리하며 <strong>폐지</strong>했다(<code>migration-drop-outb-cancelled.sql</code>) — 출고 화면프로세스 정의서 §1의 「취소는 웨이브 생성 이전만, 처리는 DELETE」와도 이제 맞는다. 출고예정일(<code>expct_de</code>)이 새로 생겨 <strong>웨이브 편성 대상 기간의 기준이 주문일에서 출고예정일로</strong> 바뀌었다.</p>
 <p class="note"><strong>결정됨 (2026-07-23):</strong> OMS 입고주문과 WMS 입고예정(ASN)의 관계는 <strong>① 주문 확정 시 ASN 자동 생성</strong>. <code>ib_order.oms_ib_order_id</code>가 NOT NULL이라 주문 없는 ASN은 존재할 수 없고, ASN 등록 화면·API(<code>POST /inbound/asns</code>)는 제거됐다. 확정과 ASN 생성은 <code>OmsIbOrderService.confirm()</code>에서 한 트랜잭션으로 처리한다.</p>
 <p class="note"><strong>남은 한계:</strong> ASN을 취소해도 상위 주문은 CONFIRMED로 남는다(역방향 상태 전파 없음). 확정 후 주문 취소·수정은 미지원 — 되돌리려면 ASN을 취소해야 한다. 패키지는 <code>com.project.omsback</code> / <code>com.project.wmsback</code>로 분리했고 의존은 <strong>omsback → wmsback 한 방향만</strong> 허용한다(그래서 <code>IbOrder</code>는 <code>OmsIbOrder</code>를 연관관계가 아닌 스칼라 ID로 참조).</p>
 

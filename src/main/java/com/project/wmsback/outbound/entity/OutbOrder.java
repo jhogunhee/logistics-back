@@ -173,12 +173,6 @@ public class OutbOrder extends BaseEntity {
         }
     }
 
-    /** 취소. 할당 전(CREATED)만 가능 — 편성돼 있었다면 함께 웨이브에서 빠진다 */
-    public void cancel() {
-        if (status != OutbStatus.CREATED) {
-            throw new IllegalStateException("할당 전(CREATED) 주문만 취소할 수 있습니다: " + outbNo);
-        }
-        unassignWave(); // 아직 CREATED라 위 가드를 통과한다 — 상태 전이보다 먼저 부르는 이유
-        this.status = OutbStatus.CANCELLED;
-    }
+    // 취소(cancel) 메서드는 없다. 없앨 출고주문은 상위 OMS 주문의 확정취소가 행째로 지운다 —
+    // 「지운 것도 아니고 쓰는 것도 아닌」 CANCELLED 상태를 두지 않기 위해서다 (OutbStatus 참고).
 }

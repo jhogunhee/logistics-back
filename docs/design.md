@@ -106,7 +106,7 @@ flowchart TD
 
 **출고예정일(`expct_de`)을 새로 두고, 웨이브 편성 대상 기간의 기준을 주문일에서 이쪽으로 옮겼다.** 그전에는 `outb_order.odr_de` 하나가 「들어온 날」과 「나갈 날」을 겸했다. 주문 원장이 생기면서 둘이 갈라졌고, 웨이브는 정의상 *같은 날 나갈 주문*을 묶는 단위라 기간 필터가 출고예정일을 봐야 한다(`OutbOrderSearchCond.dateFrom/To` · `WaveStgyExecRequest.expctDeFrom/To`). `odr_de`는 주문이 등록된 날로 남아 확정 시 복사된다.
 
-**남은 겹침 — `outb_order`의 `CANCELLED`와 확정취소.** 창고 쪽 취소(`POST /outbound/orders/{id}/cancel`)는 행을 `CANCELLED`로 눕히고 주문은 확정으로 남긴다. 확정취소는 행을 지우고 주문을 작성으로 되돌린다. 둘 다 남겨뒀지만 "지운 것도 아니고 쓰는 것도 아닌 상태"를 피한다는 이 문서의 원칙과는 어긋난다 — 정리하려면 취소 경로를 없애고 확정취소 하나로 모으는 쪽이 일관된다.
+**창고 쪽 취소(`outb_order.CANCELLED`)를 폐지하고 확정취소 하나로 모았다.** 같은 「없앤다」를 두 조작이 다르게 처리하고 있었다 — 취소는 행을 `CANCELLED`로 눕히고 주문을 확정으로 두었고, 확정취소는 행을 지우고 주문을 작성으로 되돌렸다. 화면에서는 무엇을 눌러야 하는지가 매번 애매했고 목록·집계에는 취소분을 빼는 필터가 따라붙는다. ASN이 같은 이유로 `CANCELLED`를 폐지한 선례를 따랐고(위 「입고주문 (OMS)」 절), 출고 화면프로세스 정의서 §1도 「취소는 웨이브 생성 이전만 가능, 처리는 DELETE」로 정의해 상태를 남기는 쪽이 정의서와도 어긋나 있었다. `POST /outbound/orders/{id}/cancel`은 제거됐다(`migration-drop-outb-cancelled.sql`).
 
 ## 입고 (Inbound)
 
@@ -213,13 +213,10 @@ stateDiagram-v2
     [*] --> CREATED : 출고주문 생성 (OMS 출고주문 확정)
     CREATED --> [*] : 확정취소 (행 삭제 — 웨이브 편성 전만)
     CREATED --> ALLOCATED : 할당 (주문 단위)
-    CREATED --> CANCELLED : 취소
     ALLOCATED --> PICKING : 피킹 시작
-    ALLOCATED --> CANCELLED : 취소 (할당 해제 동반)
     PICKING --> PICKED : 피킹 완료
     PICKED --> SHIPPED : 출고 확정
     SHIPPED --> [*]
-    CANCELLED --> [*]
 ```
 
 ### 웨이브 (피킹지시 발행 단위)
@@ -251,8 +248,9 @@ stateDiagram-v2
 
 ### 취소
 
-- CREATED → CANCELLED: 단순 종료.
-- ALLOCATED → CANCELLED: 할당 해제 동반 — `outb_alloc` 삭제 + `inv.aloc_qty` 복원(물리 이동 전이므로 이력 없음).
+- **취소 상태를 두지 않는다.** 없앨 출고주문은 상위 OMS 주문의 **확정취소**가 행을 지운다 — 창고 쪽에만 있던 `CANCELLED`는 폐지했다(위 「출고주문 (OMS)」 절).
+- **되돌릴 수 있는 구간은 웨이브 편성 전까지다**(`OutbOrder.requireRevertible()`). 편성된 뒤에 지우면 그 웨이브의 피킹지시와 전략 실행 로그가 존재하지 않는 주문을 가리킨다 — 웨이브에서 빼는 것이 먼저다.
+- 할당까지 간 주문을 되돌리는 경로는 **할당 해제**다(`outb_alloc` 삭제 + `inv.aloc_qty` 복원, 물리 이동 전이라 이력 없음). 해제로 `CREATED`에 돌아온 뒤에야 확정취소가 열린다 — 「없애기」와 「할당 되돌리기」를 한 버튼에 섞지 않는다.
 - **피킹 시작 이후 취소는 v1에서 지원하지 않는다**(보상 트랜잭션 범위 제한). 실물이 이미 SHIP-STAGE로 이동해, 되돌리려면 역방향 MOVE가 필요하므로 백로그로 미룬다.
 
 ## 재고 (Inventory)

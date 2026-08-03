@@ -971,7 +971,8 @@ CREATE INDEX ix_lot_attr_chng_prod_created ON lot_attr_chng (prod_id, created_at
 
 
 -- =====================================================================
--- 5. 출고 OUTB_* (CREATED → ALLOCATED → PICKING → PICKED → SHIPPED / CANCELLED)
+-- 5. 출고 OUTB_* (CREATED → ALLOCATED → PICKING → PICKED → SHIPPED)
+--    취소 상태 없음 — 확정취소(OMS 출고주문)가 행을 삭제한다 (웨이브 편성 전만). ASN과 같은 방식
 --    할당은 오직 웨이브 릴리즈로만 일어난다 (웨이브 = 할당 단위). 피킹/확정은 주문 단위.
 --    물리 재고는 2단계: PICK(보관→SHIP-STAGE) → SHIP(SHIP-STAGE 반출). 입고의 거울상.
 -- =====================================================================
@@ -1021,7 +1022,7 @@ CREATE TABLE outb_order (
     updated_at  TIMESTAMP,
     updated_by  VARCHAR(30),
     CONSTRAINT uq_outb_no UNIQUE (outb_no),
-    CONSTRAINT ck_outb_order_status CHECK (status IN ('CREATED', 'ALLOCATED', 'PICKING', 'PICKED', 'SHIPPED', 'CANCELLED')),
+    CONSTRAINT ck_outb_order_status CHECK (status IN ('CREATED', 'ALLOCATED', 'PICKING', 'PICKED', 'SHIPPED')),
     -- 편성 출처는 편성돼 있을 때만 존재한다. 편성 해제·주문 취소는 wav_id와 함께 이 컬럼도 비워야 한다
     CONSTRAINT ck_outb_order_wav_reg CHECK (
         (wav_id IS NULL AND wav_reg_typ IS NULL)
@@ -1029,10 +1030,10 @@ CREATE TABLE outb_order (
     )
 );
 
-COMMENT ON TABLE  outb_order IS '출고 주문 헤더 (B2B 점포 출고). 피킹 시작 이후 취소는 v1 미지원';
+COMMENT ON TABLE  outb_order IS '출고 주문 헤더 (B2B 점포 출고). OMS 출고주문 확정으로만 생성되고 확정취소로만 삭제된다. 피킹 시작 이후 취소는 v1 미지원';
 COMMENT ON COLUMN outb_order.outb_no  IS '출고 번호 (업무 식별자, 예: OB-20260714-001)';
 COMMENT ON COLUMN outb_order.oms_outb_order_id IS '이 출고주문을 발생시킨 OMS 출고주문. NOT NULL — 주문 없는 창고 출고주문은 존재할 수 없다(무결성은 애플리케이션이 보증, FK 없음). JPA는 연관관계가 아닌 스칼라로 매핑한다(패키지 의존을 omsback → wmsback 한 방향으로 유지)';
-COMMENT ON COLUMN outb_order.status   IS 'CREATED 생성 / ALLOCATED 할당 / PICKING 피킹중 / PICKED 피킹완료 / SHIPPED 출고확정 / CANCELLED 취소';
+COMMENT ON COLUMN outb_order.status   IS 'CREATED 생성 / ALLOCATED 할당 / PICKING 피킹중 / PICKED 피킹완료 / SHIPPED 출고확정. 취소 상태 없음 — 없앨 주문은 OMS 확정취소가 행을 삭제한다(웨이브 편성 전만). 같은 「없앤다」를 두 조작이 다르게 처리하던 겹침을 정리한 것이다 — migration-drop-outb-cancelled.sql';
 COMMENT ON COLUMN outb_order.outb_typ   IS '출고유형 (공통코드 OUTB_TYP — NRML 일반출고 / RTNGS 반품출고). 웨이브 편성 조건의 기준값. CHECK 없음 — 값 목록은 공통코드가 소유하고 존재 검증은 서비스가 한다';
 COMMENT ON COLUMN outb_order.vhcl_fltno IS '차량편수 (공통코드 VHCL_FLTNO — 1편·2편…). NULL = 배차 미정. 같은 차수에 실릴 주문만 함께 묶기 위한 웨이브 편성 조건';
 COMMENT ON COLUMN outb_order.store_id IS '출고처 점포. 할당 시 이 점포의 잔여수명 허용률로 Lot 필터';
