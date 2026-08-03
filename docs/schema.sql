@@ -16,14 +16,17 @@
 --  - 접두: 주문 OMS_* / 입고 IB_* / 출고 OUTB_* / 재고 INV* / 마스터는 무접두
 --          전략은 유형별 도메인 접두(INSP_* 검수 / PTAWY_* 적치, 2차: WAV_*·ALOC_*) + 공용 STGY_*
 --  - PK는 {테이블명}_id, FK는 참조 테이블 PK명 그대로
---  - 약어 사전 (새 컬럼도 반드시 이 사전을 따른다):
---      expected→expct  received→rcvd  rejected→rjct  putaway→ptwy
---      allocated/allocation→alloc  location→loc  history→hist
---      code→cd  name→nm  date→dt  vendor→vndr  priority→prty
+--  - 약어 사전의 주인은 docs/naming-dictionary.md 하나다. 아래는 이 파일에서 자주 보이는
+--    것만 추린 발췌이며, 새 이름은 반드시 사전에서 단어를 찾아 조합한다:
+--      expected→expct  received→rcvd  rejected→rjct  putaway→ptawy
+--      allocated/allocation→aloc  location→loc  history→hist  zone→zon
+--      code→cd  name→nm  vendor→vndr  priority→prty  temperature→tmp
+--      date→de(일자)  datetime→dt(일시)   ← 둘을 구분한다
 --  - 공통 감사 컬럼: 모든 테이블에 created_at/created_by/updated_at/updated_by.
 --    작성자는 JPA Auditing(AuditorAware)이 채운다 (인증 도입 전까지 'admin' 고정)
 --
--- 참고: ddl-auto=validate이므로 Hibernate는 테이블을 만들지 않는다.
+-- 참고: ddl-auto=none이므로 Hibernate는 테이블을 만들지도, 엔티티와 대조하지도 않는다.
+--       엔티티가 없는 컬럼을 가리켜도 기동 시점에는 조용하고 조회할 때 터진다.
 --       스키마 변경은 항상 이 파일(+증분 마이그레이션)을 DB에 먼저 적용한 뒤 엔티티를 고친다.
 -- =====================================================================
 

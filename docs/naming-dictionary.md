@@ -521,7 +521,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 
 ## 이미 쓰고 있는 이름과 어긋나는 곳
 
-원래 여기 16개 항목이 「확인 필요」로 올라와 있었다. `docs/migration-rename-columns-to-dictionary.sql`이 그중 해소 가능한 것을 사전 쪽으로 개명했다(컬럼 · 엔티티 필드 · DTO · 프론트 JSON 필드까지 함께).
+원래 여기 16개 항목이 「확인 필요」로 올라와 있었다. `docs/migration-catchup-to-schema.sql`의 컬럼 개명 루프(§2, 35쌍)가 그중 해소 가능한 것을 사전 쪽으로 개명했다(컬럼 · 엔티티 필드 · DTO · 프론트 JSON 필드까지 함께).
 
 ### 해소됨 — 사전대로 개명 완료
 
@@ -559,6 +559,10 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 **출고(`OUTB`)는 맞지만 `store.outb_life_rate`의 나머지 단어가 사전에 없다.** `life`(수명) · `rate`(비율) 어느 쪽도 등재돼 있지 않다. 짝이던 `prod.ib_life_rate`는 개명 대신 **삭제**했고(읽는 코드가 없는 write-only 컬럼이었다 — `docs/migration-uom.sql`), 이쪽은 실제로 쓰이고 있어 남겨 뒀다. 개명하려면 「잔여」·「비율」 등재가 먼저다.
 
 테이블 접두 `IB_*`(`ib_order` · `ib_line`)와 그 PK·FK는 **대상이 아니다** — 규칙 5가 사전보다 우선한다. 컬럼만 해당한다.
+
+**「적치」의 세 철자 중 둘은 정리했고 하나가 남았다.** 인덱스·제약의 `ptwy`는 `ptawy`로 개명했고(`docs/migration-rename-ptwy-to-ptawy.sql`), 컬럼(`ptawy_qty` · `ptawy_prty`)과 전략 테이블(`ptawy_stgy`)은 원래부터 사전대로였다. 남은 것은 **테이블명 `putaway_task`** 하나인데, 규칙 5(테이블명은 사전보다 위)에 걸려 개명하지 않았다 — 다만 이건 규칙이 인정하는 예외라기보다 **미해결**로 봐야 한다. 같은 스키마에 `ptawy_stgy`와 `putaway_task`가 나란히 있는 상태다.
+
+**`lot`의 일자 컬럼 셋이 `_dt`를 쓴다** — `receipt_dt` · `mfg_dt` · `expiry_dt` 모두 DATE인데 접미가 일시(`DT`)다. 사전은 일자를 `DE`로 구분하고 `ib_order.expct_de` 등은 그렇게 개명됐는데 이 셋만 남았다. 읽는 코드가 많아(엔티티 · DTO 6개 · 프론트 8곳) 개명 비용이 있어 미뤄 둔 상태다.
 
 ### 아직 사전에 없는 단어
 

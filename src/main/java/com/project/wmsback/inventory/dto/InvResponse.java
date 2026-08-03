@@ -8,7 +8,8 @@ import java.time.LocalDate;
 
 /**
  * 현재고 스냅샷 1건(상품+Loc+Lot) = 화면 1행.
- * QueryDSL Projections.constructor로 직접 채워지므로 생성자가 public이다 (가용수량은 쿼리에서 onHand-alloc으로 계산).
+ * QueryDSL Projections.constructor로 직접 채워지므로 생성자가 public이다
+ * (가용수량은 쿼리에서 onHand - aloc - hld 로 계산 — 컬럼이 아니라 파생값이다).
  */
 @Getter
 public class InvResponse {

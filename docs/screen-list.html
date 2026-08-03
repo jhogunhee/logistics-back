@@ -165,7 +165,7 @@
 <tbody>
 <tr>
   <td class="name">현재고 조회</td>
-  <td>상품 + 로케이션 + Lot 단위 스냅샷. 가용재고(<code>onHand − alloc</code>) 파생 컬럼, 유통기한 임박 강조</td>
+  <td>상품 + 로케이션 + Lot 단위 스냅샷. 가용재고(<code>onHand − aloc − hld</code>) 파생 컬럼, 유통기한 임박 강조</td>
   <td class="st"><span class="badge done">구현</span></td>
   <td><code>GET /inventory/stock</code></td>
 </tr>
@@ -274,6 +274,12 @@
   <td><code>/master/locs</code>, <code>/bulk</code>. 존 드롭다운은 존 마스터에서 조회(하드코딩 <code>ZONE_CODES</code> 제거). 보관 로케이션은 <strong>존의 온도구분</strong>과 온도대가 일치해야 한다</td>
 </tr>
 <tr>
+  <td class="name">벤더 관리</td>
+  <td>벤더코드/벤더명/담당자/연락처 편집. 벤더코드는 서버 채번(<code>VD-0001</code>)</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>/master/vendors</code>, <code>/bulk</code> · <code>pages/master/VendorMaster.jsx</code>. 사용여부 컬럼 없이 물리삭제로 운용 — 주문이 참조 중이면 서버가 거부한다</td>
+</tr>
+<tr>
   <td class="name">점포(Store) 관리</td>
   <td>점포코드/명 + <code>outb_life_rate</code>(잔여수명 허용률, FEFO 앞단 필터)</td>
   <td class="st"><span class="badge wip">진행중</span></td>
@@ -281,21 +287,21 @@
 </tr>
 <tr>
   <td class="name">적치 전략관리</td>
-  <td>적치지시가 로케이션을 고르는 규칙 정의. 적용 조건(존/온도대/상품 그룹) + 우선순위 + 배정 방식(동일 상품 집약 / 빈 로케이션 우선 / <code>pikng_prty</code> 순 등). 전략 시뮬레이션(이 배치면 어디로 가나) 있으면 유용</td>
-  <td class="st"><span class="badge todo">미구현</span></td>
-  <td>신규 — <strong>적치지시의 선행 조건</strong></td>
+  <td>적치 추천이 로케이션을 고르는 규칙 정의. 발주구분별 단계 목록(drag&amp;drop 순서) + 단계별 조건·방식 + 미리보기·리비전 이력</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>/strategy/putaway-strategies</code> · <code>pages/master/PutawayStrategy.jsx</code> (docs/st/전략_화면설계서.md SC-02). 1차에서 전략은 <strong>추천만</strong> 한다 — 지시 기반 전환은 적치지시 구현 시</td>
 </tr>
 <tr>
   <td class="name">공통코드 관리</td>
-  <td>코드그룹별 조회. 편집 화면은 선택 사항</td>
-  <td class="st"><span class="badge hold">보류</span></td>
-  <td>조회 API만 존재 — <code>GET /master/codes/{groupCd}</code>.<br><strong>사이드바 미등록</strong> — 편집 화면을 만들 때 추가</td>
+  <td>상하 2단 — 위에서 코드그룹을 고르면 아래에 그 그룹의 코드가 열린다. 양쪽 다 그리드 편집(행추가/삭제/일괄저장). 미저장 상태로 그룹을 바꾸려 하면 되묻는다</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>/master/codes/groups</code>, <code>/{grpCd}</code>, <code>/{grpCd}/bulk</code> · <code>pages/master/CodeMaster.jsx</code>. 코드 값은 로직이 리터럴로 참조하므로 등록 후 변경 불가</td>
 </tr>
 <tr>
   <td class="name">채번규칙 관리</td>
-  <td>규칙코드/규칙명/패턴/동적키유형/사용여부 편집, 패턴 미리보기, 선택 규칙의 현재 카운터 읽기전용 조회</td>
-  <td class="st"><span class="badge hold">보류</span></td>
-  <td>API만 존재(<code>/master/nbr-rules</code>, <code>/bulk</code>, <code>/{ruleCd}/seqs</code>, <code>/{ruleCd}/issue</code>, <code>/preview</code>). 그리드 화면은 별도 프론트 레포 — <strong>사이드바 미등록</strong>. 등록 후 동적키유형 변경 불가</td>
+  <td>규칙코드/규칙명/패턴(접두·구분자·자릿수)/동적키유형 편집, 패턴 미리보기, 선택 규칙의 현재 카운터 읽기전용 조회</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>/master/nbr-rules</code>, <code>/bulk</code>, <code>/{ruleCd}/seqs</code>, <code>/{ruleCd}/issue</code>, <code>/preview</code> · <code>pages/master/NbrRuleMaster.jsx</code>. 등록 후 동적키유형 변경 불가 — 이미 발급된 번호와 어긋난다</td>
 </tr>
 </tbody>
 </table>
@@ -363,7 +369,7 @@
 </tbody>
 </table>
 </div>
-<p class="note">변경분: 기존 <code>/outbound/orders</code> 라우트는 <code>/oms/outbound-orders</code>로 이관되어 제거됨. 공통코드 관리는 사이드바 미등록.</p>
+<p class="note">변경분: 기존 <code>/outbound/orders</code> 라우트는 <code>/oms/outbound-orders</code>로 이관되어 제거됨. 마스터 10개 화면은 모두 사이드바에 등록돼 있다(점포 관리만 Placeholder).</p>
 
 <h2>추천 진행 순서</h2>
 <ol class="steps">
