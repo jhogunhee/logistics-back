@@ -52,7 +52,7 @@ common  ← mdm ← wmsback ← omsback
 
 같은 이유로 **`@RestControllerAdvice`도 두 개다** — 공통은 `common.exception.GlobalExceptionHandler`, 검수 위반은 `wmsback.strategy.inspection.exception.InspectionExceptionHandler`. 후자를 공통으로 올리면 `common`이 `wmsback`을 import하게 된다.
 
-각 도메인 패키지는 `controller / dto / entity / repository / service` 구성을 따른다. `strategy`는 예외다 — 전략 커널이라 `condition / field / method / rule / exception`이 추가로 있고, `InspectionQueryRepository` · `PutawayQueryRepository`는 Spring Data 인터페이스 없이 `JPAQueryFactory`만 드는 **읽기 전용 조회 포트**로 아래 「QueryDSL 리포지토리 패턴」의 3파일 삼각형을 따르지 않는다.
+각 도메인 패키지는 `controller / dto / entity / repository / service` 구성을 따른다. `strategy`는 예외다 — 전략 커널이라 `condition / field / method / rule / component / exception`이 추가로 있고(`method`·`rule`·`component`는 유형별 구성요소 enum이 사는 자리로 이름만 다르다), `InspectionQueryRepository` · `PutawayQueryRepository` · `AllocQueryRepository`는 Spring Data 인터페이스 없이 `JPAQueryFactory`만 드는 **읽기 전용 조회 포트**로 아래 「QueryDSL 리포지토리 패턴」의 3파일 삼각형을 따르지 않는다.
 
 ### FK가 하나도 없다
 
@@ -104,6 +104,8 @@ unit of measure→uom(계량단위)  each→ea(낱개)  weight→wgt(중량)
 상품 마스터는 원래 `sku`였고 `prod`로 개명했다(`docs/migration-sku-to-prod.sql`). 업무 용어를 「상품」으로 통일하면서 `docs/naming-dictionary.md`의 `상품 = PROD`를 따른 것이다. **코드·컬럼·화면 라벨 어디에도 SKU를 다시 쓰지 않는다.**
 
 테이블 접두는 주문 `OMS_*`(`oms_ib_*` 입고주문 · `oms_outb_*` 출고주문) / 입고 `IB_*` / 출고 `OUTB_*` / 재고 `INV*`이고 마스터는 접두가 없다. PK는 `{테이블명}_id`, FK 컬럼은 참조 테이블 PK명을 그대로 쓴다.
+
+**전략은 유형별 도메인 접두**를 쓴다 — `insp_`(검수) / `ptawy_`(적치) / `wav_`(웨이브) / `aloc_`(할당) + 유형 공용 `stgy_`(리비전 · 실행로그). 유형을 하나의 `stgy_` 아래 모으지 않은 이유는 네 유형의 입력·출력이 본질적으로 다르기 때문이다 — 같은 테이블에 담으면 컬럼 하나가 유형마다 다른 뜻을 갖게 된다.
 
 ## 문서
 

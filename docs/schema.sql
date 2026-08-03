@@ -14,7 +14,7 @@
 --
 -- 네이밍 규칙
 --  - 접두: 주문 OMS_* / 입고 IB_* / 출고 OUTB_* / 재고 INV* / 마스터는 무접두
---          전략은 유형별 도메인 접두(INSP_* 검수 / PTAWY_* 적치, 2차: WAV_*·ALOC_*) + 공용 STGY_*
+--          전략은 유형별 도메인 접두(INSP_* 검수 / PTAWY_* 적치 / WAV_* 웨이브 / ALOC_* 할당) + 공용 STGY_*
 --  - PK는 {테이블명}_id, FK는 참조 테이블 PK명 그대로
 --  - 약어 사전의 주인은 docs/naming-dictionary.md 하나다. 아래는 이 파일에서 자주 보이는
 --    것만 추린 발췌이며, 새 이름은 반드시 사전에서 단어를 찾아 조합한다:
@@ -1285,7 +1285,7 @@ CREATE TABLE wav_stgy (
 COMMENT ON TABLE  wav_stgy IS '웨이브 전략. 실행 시 전략마다 웨이브를 1개 만들고 조건에 맞는 미편성 주문을 편입한다. 적치와 달리 "적용대상 1개 선택"이 아니라 전 전략을 prty 순으로 순회하는 유형이라 우선순위 컬럼이 있다';
 COMMENT ON COLUMN wav_stgy.stgy_nm      IS '전략명. 표시용 — 실행에 사용하지 않는다 (이름/조건 불일치는 미리보기가 보완)';
 COMMENT ON COLUMN wav_stgy.prty         IS '실행 순서. 낮을수록 먼저 — 주문은 먼저 실행된 전략이 선점한다(한 주문은 웨이브 1개). 동률은 wav_stgy_id 순으로 결정적이게 처리';
-COMMENT ON COLUMN wav_stgy.cond_grp     IS '조건그룹 [[{fld,op,vals},…],…]. 그룹끼리 OR, 그룹 안 AND. 필드: WaveOrderField enum — STORE 점포 · ODR_DE 주문일';
+COMMENT ON COLUMN wav_stgy.cond_grp     IS '조건그룹 [[{fld,op,vals},…],…]. 그룹끼리 OR, 그룹 안 AND. 필드: WaveOrderField enum — OUTB_TYP 출고유형 · VHCL_FLTNO 차량편수 (둘 다 값 목록의 주인은 공통코드다)';
 COMMENT ON COLUMN wav_stgy.last_rvsn_no IS '마지막 저장 리비전';
 
 
