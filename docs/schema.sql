@@ -159,7 +159,7 @@ COMMENT ON COLUMN loc.zon_cd   IS '존 코드. zon.zon_cd를 참조하지만 FK�
 COMMENT ON COLUMN loc.tmp_zon IS '존 온도대. 상품 온도대와 불일치하면 적치·이동 차단 (스테이징은 예외적으로 전 온도대 허용할지 서비스에서 판단)';
 COMMENT ON COLUMN loc.loc_typ  IS 'STAGE: 스테이징(RCV-STAGE 적치 대기 / SHIP-STAGE 반출 대기) / STORAGE: 보관(할당 대상)';
 COMMENT ON COLUMN loc.pikng_prty IS '할당 시 동일 유통기한(FEFO 동순위) 간 로케이션 우선순위. 낮을수록 먼저 할당. 적치 지시의 후보 순회 순서이기도 하다';
-COMMENT ON COLUMN loc.ptawy_prty IS '적치 우선순위. 적치 전략의 후보 정렬 기준(PTAWY_PRTY) — 낮을수록 먼저 배정. 피킹 동선(pikng_prty)과 적치 동선이 다른 창고를 위해 분리한다 (레거시 PTAWY_SRT_WAY의 대응)';
+COMMENT ON COLUMN loc.ptawy_prty IS '적치 우선순위. 적치 전략의 후보 정렬 기준(PTAWY_PRTY) — 낮을수록 먼저 배정. 피킹 동선(pikng_prty)과 적치 동선이 다른 창고를 위해 분리한다';
 COMMENT ON COLUMN loc.max_qty   IS '최대 적재 수량. 적재가능수량 = max_qty - 현재고 - 미완료 지시 잔량. NULL = 무제한(스테이징 전용), STORAGE는 NOT NULL 강제';
 
 -- Lot. 입고 처리 시점에 생성되며 유통기한을 보유한다 (FEFO 기준값).
@@ -343,7 +343,11 @@ INSERT INTO code_group (grp_cd, grp_nm, dscr) VALUES
 INSERT INTO code_group (grp_cd, grp_nm, dscr) VALUES
     ('ADJ_RSN', '재고조정 사유', '재고조사 확정 시 차이 라인의 조정 사유 (inv_stktk_ln.rsn_cd). 차이가 0이 아닌 라인만 필수이며, ETC(기타)일 때만 자유 텍스트 rsn_dscr를 받는다');
 INSERT INTO code_group (grp_cd, grp_nm, dscr) VALUES
-    ('LOT_ATTR_RSN', 'Lot 속성정정 사유', 'Lot 속성(제조일자·유통기한) 정정 사유 (lot_attr_chng.rsn_cd). 정정 유형이 하나뿐이라 레거시의 변경유형 종속 연쇄 콤보와 달리 단일 그룹이다. ETC(기타)일 때만 자유 텍스트 rsn_dscr를 받는다');
+    ('LOT_ATTR_RSN', 'Lot 속성정정 사유', 'Lot 속성(제조일자·유통기한) 정정 사유 (lot_attr_chng.rsn_cd). 정정 유형이 하나뿐이라 유형 선택 없이 단일 그룹이다. ETC(기타)일 때만 자유 텍스트 rsn_dscr를 받는다');
+INSERT INTO code_group (grp_cd, grp_nm, dscr) VALUES
+    ('OUTB_TYP', '출고유형', '출고주문의 성격 (outb_order.outb_typ). 웨이브 편성 조건의 기준값');
+INSERT INTO code_group (grp_cd, grp_nm, dscr) VALUES
+    ('VHCL_FLTNO', '차량편수', '출고 배차 차수 (outb_order.vhcl_fltno). 웨이브 편성 조건의 기준값 — 같은 차수에 실릴 주문만 함께 묶는다');
 
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('TEMP_ZONE', 'DRY', '상온', 1);
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('TEMP_ZONE', 'CHL', '냉장', 2);
@@ -385,6 +389,16 @@ INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('ODR_DVSN', 
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('ODR_DVSN', 'URGT', '긴급', 2);
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('ODR_DVSN', 'RTNGS', '반품입고', 3);
 
+-- 출고유형. NRML은 outb_order.outb_typ의 컬럼 DEFAULT가 가리키는 값이라 지우면 안 된다.
+INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('OUTB_TYP', 'NRML', '일반출고', 1);
+INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('OUTB_TYP', 'RTNGS', '반품출고', 2);
+
+-- 차량편수. 코드값이 곧 차수 숫자다. 편수가 늘면 코드관리 화면에서 추가하면 되고 컬럼·코드 변경은 없다.
+-- 조건 비교가 문자열이라 대소 연산자는 허용하지 않는다(10편이 2편보다 앞서게 된다) — EQ/IN 계열만 쓴다.
+INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('VHCL_FLTNO', '1', '1편', 1);
+INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('VHCL_FLTNO', '2', '2편', 2);
+INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('VHCL_FLTNO', '3', '3편', 3);
+
 -- 보류사유·해제사유. ETC(기타)는 「코드가 기타면 자유 텍스트 입력」 규칙이 걸리는 값이라 지우면 안 된다.
 -- 동일 사유 미해제 중복 차단(uq_inv_hld_open_rsn)이 사유코드 단위로 걸리므로, 코드는 곧 병존 단위다.
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('HLD_RSN', 'QLTY', '품질이상', 1);
@@ -396,7 +410,7 @@ INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('HLD_RLZ_RSN
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('HLD_RLZ_RSN', 'ETC', '기타', 3);
 
 -- 재고조정 사유 (재고조사 확정 시 차이 라인). 여기도 ETC가 자유 텍스트 규칙의 트리거라 지우면 안 된다.
--- 레거시는 이 그룹에 세트화·단위대체 등 타 업무 사유를 섞어 두고 화면에서 거르지도 않았다 — 조사 전용만 담는다.
+-- 세트화·단위대체 같은 타 업무 사유는 넣지 않는다 — 조사 전용만 담아 화면이 거를 필요가 없게 한다.
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('ADJ_RSN', 'DAMG', '파손', 1);
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('ADJ_RSN', 'LOSS', '분실', 2);
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('ADJ_RSN', 'ERR_WRK', '작업오류', 3);
@@ -689,7 +703,7 @@ CREATE TABLE inv_mov_task (
 
 COMMENT ON TABLE  inv_mov_task IS '이동지시 (보관↔보관 2단계: 지시=예약 → 확정=실물 MOVE). 지시는 권고가 아니라 명령 — 지시 TO와 다른 로케이션으로 확정할 수 없고, 다른 곳에 두려면 잔량 취소 후 재지시한다. 실적은 별도 테이블 없이 inv_hist의 MOVE 2행(rfn_doc_no = inv_mov_no)';
 COMMENT ON COLUMN inv_mov_task.inv_mov_no  IS '이동지시 번호 (건당 유일 — 라인 구조 없음). inv_hist 실적이 rfn_doc_no만으로 지시와 정확히 매칭되게 하는 전제. nbr_rule INV_MOV_NO 채번';
-COMMENT ON COLUMN inv_mov_task.mov_dvsn    IS '이동구분 — INV_MOV 재고이동 / PTAWY 적치 / PIKNG 피킹. 재고이동 화면의 등록은 INV_MOV 고정이고, 그 화면의 확정·취소도 INV_MOV만 허용한다(적치·피킹 유형은 각자의 경로 전용 — 레거시의 「재고업무 유형만 확정 가능, 입고적치 차단」 대응). 적치·피킹 지시를 이 테이블로 통합할지(별도 putaway_task 유지 여부)는 각 지시 구현 시 결정';
+COMMENT ON COLUMN inv_mov_task.mov_dvsn    IS '이동구분 — INV_MOV 재고이동 / PTAWY 적치 / PIKNG 피킹. 재고이동 화면의 등록은 INV_MOV 고정이고, 그 화면의 확정·취소도 INV_MOV만 허용한다(적치·피킹 유형은 각자의 화면 경로 전용). 적치·피킹 지시를 이 테이블로 통합할지(별도 putaway_task 유지 여부)는 각 지시 구현 시 결정';
 COMMENT ON COLUMN inv_mov_task.prod_id     IS '이동 대상 상품. Lot이 상품을 함의하지만 재고 키(상품+Loc+Lot) 그대로 담아 단독 조회를 가능하게 한다 (inv_hist와 같은 형태)';
 COMMENT ON COLUMN inv_mov_task.from_loc_id IS '출발 보관 로케이션. 등록 시 이 로케이션 재고의 aloc_qty를 잔여수량만큼 선점(예약)한다';
 COMMENT ON COLUMN inv_mov_task.to_loc_id   IS '도착 보관 로케이션. 온도대 일치 + 적재가능수량(max_qty − 현재고 − 미완료 지시 유입 잔량) 검증 대상';
@@ -837,7 +851,7 @@ CREATE TABLE inv_stktk_ln (
     created_by  VARCHAR(30)     DEFAULT 'admin' NOT NULL,
     updated_at  TIMESTAMP,
     updated_by  VARCHAR(30),
-    -- 한 조사 안에서 같은 재고를 두 번 세지 않는다 (레거시의 「중복되는 재고가 존재합니다」를 DB로 올린 것)
+    -- 한 조사 안에서 같은 재고를 두 번 세지 않는다 (서비스 검증이 아니라 DB가 막는다)
     CONSTRAINT uq_inv_stktk_ln UNIQUE (inv_stktk_id, prod_id, loc_id, lot_id),
     CONSTRAINT ck_inv_stktk_ln_qty CHECK (
         sys_qty >= 0
@@ -913,26 +927,35 @@ CREATE TABLE outb_wave (
     wav_no      VARCHAR(30)    NOT NULL,
     status       VARCHAR(15)    NOT NULL,
     released_at  TIMESTAMP,
+    wav_stgy_id  BIGINT,
+    rvsn_no      BIGINT,
     created_at   TIMESTAMP      DEFAULT CURRENT_TIMESTAMP NOT NULL,
     created_by   VARCHAR(30)    DEFAULT 'admin' NOT NULL,
     updated_at   TIMESTAMP,
     updated_by   VARCHAR(30),
     CONSTRAINT uq_wav_no UNIQUE (wav_no),
-    CONSTRAINT ck_outb_wave_status CHECK (status IN ('PLANNED', 'RELEASED'))
+    CONSTRAINT ck_outb_wave_status CHECK (status IN ('PLANNED', 'RELEASED')),
+    -- 전략 컬럼은 전략이 실제로 실행해 만든 행에만 채운다 — "전략 id 있음 = 전략이 실행함"이 성립해야 한다
+    CONSTRAINT ck_outb_wave_stgy CHECK ((wav_stgy_id IS NULL) = (rvsn_no IS NULL))
 );
 
 COMMENT ON TABLE  outb_wave IS '출고 웨이브. 재고 할당의 단위 — 릴리즈 시 소속 주문 전체를 한 트랜잭션에서 FEFO 할당. 릴리즈 이후 진행(피킹/확정)은 주문 단위라 웨이브는 여기서 역할이 끝난다';
 COMMENT ON COLUMN outb_wave.wav_no     IS '웨이브 번호 (업무 식별자, 예: WV-20260718-001)';
 COMMENT ON COLUMN outb_wave.status      IS 'PLANNED 편성중(주문 담기 가능) / RELEASED 릴리즈 완료(=할당 실행됨)';
 COMMENT ON COLUMN outb_wave.released_at IS '릴리즈(할당 실행) 시각';
+COMMENT ON COLUMN outb_wave.wav_stgy_id IS '이 웨이브를 만든 웨이브 전략 (느슨한 참조, FK 없음). NULL = 화면에서 수동 생성';
+COMMENT ON COLUMN outb_wave.rvsn_no     IS '생성에 사용된 전략 리비전. stgy_rvsn과 조합해 "그때의 조건"을 재구성한다 (P5)';
 
 -- 출고 주문 헤더. 부분할당 여부는 상태가 아니라 라인/할당 수량에서 파생.
 CREATE TABLE outb_order (
     outb_order_id BIGINT        GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     outb_no     VARCHAR(30)     NOT NULL,
     status      VARCHAR(15)     NOT NULL,
+    outb_typ    VARCHAR(10)     DEFAULT 'NRML' NOT NULL,
+    vhcl_fltno  VARCHAR(10),
     store_id    BIGINT          NOT NULL,
     wav_id     BIGINT,
+    wav_reg_typ VARCHAR(10),
     odr_de    DATE            NOT NULL,
     shmt_dt  TIMESTAMP,
     created_at  TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -940,14 +963,22 @@ CREATE TABLE outb_order (
     updated_at  TIMESTAMP,
     updated_by  VARCHAR(30),
     CONSTRAINT uq_outb_no UNIQUE (outb_no),
-    CONSTRAINT ck_outb_order_status CHECK (status IN ('CREATED', 'ALLOCATED', 'PICKING', 'PICKED', 'SHIPPED', 'CANCELLED'))
+    CONSTRAINT ck_outb_order_status CHECK (status IN ('CREATED', 'ALLOCATED', 'PICKING', 'PICKED', 'SHIPPED', 'CANCELLED')),
+    -- 편성 출처는 편성돼 있을 때만 존재한다. 편성 해제·주문 취소는 wav_id와 함께 이 컬럼도 비워야 한다
+    CONSTRAINT ck_outb_order_wav_reg CHECK (
+        (wav_id IS NULL AND wav_reg_typ IS NULL)
+        OR (wav_id IS NOT NULL AND wav_reg_typ IN ('STGY', 'MANUAL'))
+    )
 );
 
 COMMENT ON TABLE  outb_order IS '출고 주문 헤더 (B2B 점포 출고). 피킹 시작 이후 취소는 v1 미지원';
 COMMENT ON COLUMN outb_order.outb_no  IS '출고 번호 (업무 식별자, 예: OB-20260714-001)';
 COMMENT ON COLUMN outb_order.status   IS 'CREATED 생성 / ALLOCATED 할당 / PICKING 피킹중 / PICKED 피킹완료 / SHIPPED 출고확정 / CANCELLED 취소';
+COMMENT ON COLUMN outb_order.outb_typ   IS '출고유형 (공통코드 OUTB_TYP — NRML 일반출고 / RTNGS 반품출고). 웨이브 편성 조건의 기준값. CHECK 없음 — 값 목록은 공통코드가 소유하고 존재 검증은 서비스가 한다';
+COMMENT ON COLUMN outb_order.vhcl_fltno IS '차량편수 (공통코드 VHCL_FLTNO — 1편·2편…). NULL = 배차 미정. 같은 차수에 실릴 주문만 함께 묶기 위한 웨이브 편성 조건';
 COMMENT ON COLUMN outb_order.store_id IS '출고처 점포. 할당 시 이 점포의 잔여수명 허용률로 Lot 필터';
 COMMENT ON COLUMN outb_order.wav_id  IS '편성된 출고 웨이브. NULL = 아직 미편성. 할당은 이 웨이브의 릴리즈로만 일어난다';
+COMMENT ON COLUMN outb_order.wav_reg_typ IS '웨이브 편입 출처. STGY 전략 실행 / MANUAL 화면 수동 편성. NULL = 미편성. 수동 편성을 금지하지 않고 가시화한다 — 전략 조건과 안 맞는 주문이 웨이브에 있는 상황을 화면이 구분 표시';
 COMMENT ON COLUMN outb_order.odr_de IS '주문일';
 
 CREATE INDEX ix_outb_order_wav ON outb_order (wav_id);
@@ -993,7 +1024,7 @@ CREATE INDEX ix_alloc_inv ON outb_alloc (inv_id);
 
 
 -- =====================================================================
--- 6. 전략 STGY_* / INSP_* / PTAWY_*  (관리자 정의 실행 정책)
+-- 6. 전략 STGY_* / INSP_* / PTAWY_* / WAV_*  (관리자 정의 실행 정책)
 --    설계 근거: docs/st/전략_테이블설계안.md (결정 D1~D8) · docs/st/전략_테이블설계서.md
 --    - 로직·선택지·필드매핑은 코드 레지스트리가 소유하고, DB는 "무엇을 선택했고
 --      파라미터가 무엇인가"만 저장한다. rule_cd/mthd_cd에 CHECK를 걸지 않는 이유 —
@@ -1004,7 +1035,7 @@ CREATE INDEX ix_alloc_inv ON outb_alloc (inv_id);
 --    - 파라미터·조건 목록은 JSONB — 저장 시 서비스가 ParamSpec/필드 레지스트리로
 --      검증해 통과분만 담는다 (FK 0건과 같은 "검증은 애플리케이션" 철학).
 --      JSONB 구조는 docs/st/전략_테이블설계서.md §8이 정의한다.
---    - 웨이브·할당 테이블(WAV_*·ALOC_*)은 2차에서 추가한다.
+--    - 웨이브(wav_stgy)는 2차에서 추가됐다. 할당 테이블(ALOC_*)은 3차.
 -- =====================================================================
 
 -- 전략 리비전. 저장(생성·수정·복원)마다 정의 전체를 스냅샷으로 남기는 append-only 이력.
@@ -1062,7 +1093,7 @@ CREATE INDEX ix_stgy_exec_log_ref  ON stgy_exec_log (tgt_ref);
 
 -- 검수 정책 헤더. 시스템 전역 1행 — DB 강제 없이 서비스가 검증한다 (D8).
 -- prty가 없다: 검수는 "선택되는" 전략이 아니라 규칙 전부가 AND 실행되는 유형이라,
--- 선택 순서 컬럼이 있으면 스키마가 거짓말을 하게 된다 (레거시 "전부 합산 실행" 혼란의 재발 방지).
+-- 선택 순서 컬럼이 있으면 스키마가 거짓말을 하게 된다 ("여러 개 만들면 하나가 골라진다"는 오해를 부른다).
 CREATE TABLE insp_plcy (
     insp_plcy_id BIGINT       GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     stgy_nm      VARCHAR(100) NOT NULL,
@@ -1128,8 +1159,8 @@ COMMENT ON COLUMN ptawy_stgy.unt_splt_yn IS '입수 단위 배수 절사. 입수
 COMMENT ON COLUMN ptawy_stgy.loc_srt     IS '후보 정렬 [{"field":PIKNG_PRTY|PTAWY_PRTY|LOC_CD,"dir":ASC|DESC}]. 빈 배열 = 기본(피킹순위 ASC → 로케이션코드 ASC)';
 COMMENT ON COLUMN ptawy_stgy.last_rvsn_no IS '마지막 저장 리비전';
 
--- 적치 단계. 레거시의 "적치위치 × 추천방식 카티전 곱"을 관리자가 순서를 직접 배열하는
--- 단계 목록으로 대체 — 표현력 손실 없이(조합은 단계를 그만큼 나열) 실행 순서가 화면에 그대로 보인다.
+-- 적치 단계. "적치위치 × 추천방식"의 조합을 관리자가 순서를 직접 배열하는 단계 목록으로 표현한다 —
+-- 표현력 손실 없이(조합은 단계를 그만큼 나열) 실행 순서가 화면에 그대로 보인다.
 CREATE TABLE ptawy_stgy_stg (
     ptawy_stgy_stg_id BIGINT      GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     ptawy_stgy_id     BIGINT      NOT NULL,
@@ -1149,9 +1180,36 @@ CREATE TABLE ptawy_stgy_stg (
 COMMENT ON TABLE  ptawy_stgy_stg IS '적치 단계. srt_seq 순으로 시도, 잔여수량이 0이 되면 종료. "단계 0건 전략" 저장 거부는 서비스 검증(자식 행 존재는 CHECK 범위 밖)';
 COMMENT ON COLUMN ptawy_stgy_stg.ptawy_stgy_id IS '소속 전략. FK 없음 — 삭제 연쇄는 서비스가 수행';
 COMMENT ON COLUMN ptawy_stgy_stg.srt_seq   IS '실행 순서 (화면 drag&drop 순서 그대로)';
-COMMENT ON COLUMN ptawy_stgy_stg.mthd_cd   IS '추천 방식 code (1차: SAME_PROD_LOC 적재 / EMPTY_LOC 빈 / ANY_LOC 전체 보관). 레거시 FIXED_LOC은 고정상품 마스터가 없어 제외. CHECK 없음 — PutawayMethod enum이 소유';
+COMMENT ON COLUMN ptawy_stgy_stg.mthd_cd   IS '추천 방식 code (1차: SAME_PROD_LOC 적재 / EMPTY_LOC 빈 / ANY_LOC 전체 보관). 고정로케이션 방식은 고정상품 마스터가 없어 제외. CHECK 없음 — PutawayMethod enum이 소유';
 COMMENT ON COLUMN ptawy_stgy_stg.mthd_para IS '방식 파라미터 (1차 방식들은 빈 객체 — 확장 대비)';
 COMMENT ON COLUMN ptawy_stgy_stg.line_cond IS '조건 — 이 조건일 때만 이 단계를 적용 [{fld,op,vals}]. 빈 배열 = 항상 시도';
 COMMENT ON COLUMN ptawy_stgy_stg.loc_cond  IS '적치위치 지정 — 존 업무유형 IN 최대 1건 [{"fld":"BIZ_DVSN","op":"IN","vals":[...]}]. 조건이 아니라 적용기준값(여기에 둔다). 빈 배열 = 전체 보관 로케이션. 온도대 일치 + STORAGE는 불변 전제라 저장하지 않는다';
 
 CREATE INDEX ix_ptawy_stgy_stg ON ptawy_stgy_stg (ptawy_stgy_id);
+
+-- 웨이브 전략. 미편성 출고 주문을 조건으로 걸러 웨이브에 편입하는 규칙 — 도메인이 테이블 1개로 끝난다.
+-- 조건그룹은 개별 파라미터도 활성 플래그도 없이 항상 헤더와 통째로 저장되므로 하위 테이블이 아니라 JSONB다
+-- (편집 단위 = 저장 단위 기준, docs/st/전략_테이블설계안.md §1.2).
+CREATE TABLE wav_stgy (
+    wav_stgy_id  BIGINT       GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    stgy_nm      VARCHAR(100) NOT NULL,
+    prty         INTEGER      DEFAULT 0 NOT NULL,
+    cond_grp     JSONB        NOT NULL,
+    last_rvsn_no BIGINT       DEFAULT 1 NOT NULL,
+    created_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by   VARCHAR(30)  DEFAULT 'admin' NOT NULL,
+    updated_at   TIMESTAMP,
+    updated_by   VARCHAR(30),
+    CONSTRAINT ck_wav_stgy_prty CHECK (prty >= 0),
+    -- 조건 0건 전략은 모든 주문을 쓸어담는다. 실행 시점이 아니라 저장 시점에 막는다.
+    -- 그룹 안이 빈 배열인 경우([[]])는 CHECK로 표현할 수 없어 저장 서비스가 거부한다
+    CONSTRAINT ck_wav_stgy_cond_grp CHECK (
+        jsonb_typeof(cond_grp) = 'array' AND jsonb_array_length(cond_grp) > 0
+    )
+);
+
+COMMENT ON TABLE  wav_stgy IS '웨이브 전략. 실행 시 전략마다 웨이브를 1개 만들고 조건에 맞는 미편성 주문을 편입한다. 적치와 달리 "적용대상 1개 선택"이 아니라 전 전략을 prty 순으로 순회하는 유형이라 우선순위 컬럼이 있다';
+COMMENT ON COLUMN wav_stgy.stgy_nm      IS '전략명. 표시용 — 실행에 사용하지 않는다 (이름/조건 불일치는 미리보기가 보완)';
+COMMENT ON COLUMN wav_stgy.prty         IS '실행 순서. 낮을수록 먼저 — 주문은 먼저 실행된 전략이 선점한다(한 주문은 웨이브 1개). 동률은 wav_stgy_id 순으로 결정적이게 처리';
+COMMENT ON COLUMN wav_stgy.cond_grp     IS '조건그룹 [[{fld,op,vals},…],…]. 그룹끼리 OR, 그룹 안 AND. 필드: WaveOrderField enum — STORE 점포 · ODR_DE 주문일';
+COMMENT ON COLUMN wav_stgy.last_rvsn_no IS '마지막 저장 리비전';

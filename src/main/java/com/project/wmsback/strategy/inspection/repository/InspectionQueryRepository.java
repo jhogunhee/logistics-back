@@ -19,7 +19,7 @@ public class InspectionQueryRepository {
     /**
      * 해당 상품의 "보유 재고(on_hand>0)가 있는 로트" 중 최신 제조일자.
      * 역순제한(LOT_DATE_REVERSE)의 기준값 — excludeReceiptDt가 있으면 그 입고일자 로트는
-     * 계산에서 제외한다 (레거시의 "당일 입고분 제외" 동작을 파라미터로 승격한 것).
+     * 계산에서 제외한다 ("같은 날 들어온 로트는 기준으로 삼지 않는다"를 파라미터로 받는 것).
      */
     public LocalDate latestMfgDtWithStock(Long prodId, LocalDate excludeReceiptDt) {
         return queryFactory

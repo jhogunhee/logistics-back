@@ -64,7 +64,7 @@ BEGIN
     -- 2. 공통코드 시드 (Lot 속성정정 사유) ------------------------------------
     IF NOT EXISTS (SELECT 1 FROM code_group WHERE grp_cd = 'LOT_ATTR_RSN') THEN
         INSERT INTO code_group (grp_cd, grp_nm, dscr)
-        VALUES ('LOT_ATTR_RSN', 'Lot 속성정정 사유', 'Lot 속성(제조일자·유통기한) 정정 사유 (lot_attr_chng.rsn_cd). 정정 유형이 하나뿐이라 레거시의 변경유형 종속 연쇄 콤보와 달리 단일 그룹이다. ETC(기타)일 때만 자유 텍스트 rsn_dscr를 받는다');
+        VALUES ('LOT_ATTR_RSN', 'Lot 속성정정 사유', 'Lot 속성(제조일자·유통기한) 정정 사유 (lot_attr_chng.rsn_cd). 정정 유형이 하나뿐이라 유형 선택 없이 단일 그룹이다. ETC(기타)일 때만 자유 텍스트 rsn_dscr를 받는다');
         INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('LOT_ATTR_RSN', 'ERR_REG', '검수 오등록', 1);
         INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('LOT_ATTR_RSN', 'LABEL', '실물표기 상이', 2);
         INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('LOT_ATTR_RSN', 'VNDR', '거래처 정정 통보', 3);

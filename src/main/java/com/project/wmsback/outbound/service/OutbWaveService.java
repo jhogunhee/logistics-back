@@ -6,6 +6,7 @@ import com.project.wmsback.outbound.dto.OutbWaveResponse;
 import com.project.wmsback.outbound.dto.OutbWaveSearchCond;
 import com.project.wmsback.outbound.entity.OutbOrder;
 import com.project.wmsback.outbound.entity.OutbWave;
+import com.project.wmsback.outbound.entity.WavRegTyp;
 import com.project.wmsback.outbound.repository.OutbOrderRepository;
 import com.project.wmsback.outbound.repository.OutbWaveRepository;
 import lombok.RequiredArgsConstructor;
@@ -90,7 +91,8 @@ public class OutbWaveService {
         for (Long orderId : orderIds) {
             OutbOrder order = outbOrderRepository.findById(orderId)
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 출고 주문입니다: " + orderId));
-            order.assignWave(wave); // 상태(CREATED)·중복편성 검증은 엔티티가 한다
+            // 화면에서 직접 담은 편성이라 출처는 MANUAL — 전략 실행분과 구분해 표시하기 위함
+            order.assignWave(wave, WavRegTyp.MANUAL); // 상태(CREATED)·중복편성 검증은 엔티티가 한다
         }
     }
 }

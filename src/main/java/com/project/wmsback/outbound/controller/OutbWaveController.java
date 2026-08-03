@@ -4,6 +4,9 @@ import com.project.wmsback.outbound.dto.OutbWaveOrdersRequest;
 import com.project.wmsback.outbound.dto.OutbWaveResponse;
 import com.project.wmsback.outbound.dto.OutbWaveSearchCond;
 import com.project.wmsback.outbound.service.OutbWaveService;
+import com.project.wmsback.strategy.wave.dto.WaveStgyExecRequest;
+import com.project.wmsback.strategy.wave.dto.WaveStgyExecResponse;
+import com.project.wmsback.strategy.wave.service.WaveStgyExecService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,10 +25,21 @@ import java.util.List;
 public class OutbWaveController {
 
     private final OutbWaveService outbWaveService;
+    private final WaveStgyExecService waveStgyExecService;
 
     @GetMapping
     public List<OutbWaveResponse> list(@ModelAttribute OutbWaveSearchCond cond) {
         return outbWaveService.list(cond);
+    }
+
+    /**
+     * 웨이브 전략 실행 — 조건에 맞는 미편성 주문을 전략별 웨이브로 편성한다.
+     * body의 wavStgyId를 주면 선택실행, 비우면 전 전략 자동실행.
+     * 편입 0건인 전략은 웨이브를 만들지 않으므로 재실행해도 빈 웨이브가 쌓이지 않는다.
+     */
+    @PostMapping("/stgy-exec")
+    public WaveStgyExecResponse stgyExec(@RequestBody WaveStgyExecRequest req) {
+        return waveStgyExecService.execute(req);
     }
 
     @PostMapping

@@ -8,6 +8,7 @@ import com.project.wmsback.strategy.inspection.rule.InspectionRule;
 import com.project.wmsback.strategy.putaway.field.PutawayLocField;
 import com.project.wmsback.strategy.putaway.field.PutawayTargetField;
 import com.project.wmsback.strategy.putaway.method.PutawayMethod;
+import com.project.wmsback.strategy.wave.field.WaveOrderField;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -49,6 +50,8 @@ public class StrategyMetaController {
             case "putaway-target" -> Arrays.stream(PutawayTargetField.values())
                     .map(FieldDescriptorResponse::from).toList();
             case "putaway-loc" -> Arrays.stream(PutawayLocField.values())
+                    .map(FieldDescriptorResponse::from).toList();
+            case "wave-order" -> Arrays.stream(WaveOrderField.values())
                     .map(FieldDescriptorResponse::from).toList();
             default -> throw new IllegalArgumentException("없는 조건 필드 도메인입니다: " + domain);
         };

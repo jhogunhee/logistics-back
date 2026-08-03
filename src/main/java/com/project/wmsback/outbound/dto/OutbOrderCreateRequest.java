@@ -15,6 +15,10 @@ public class OutbOrderCreateRequest {
 
     private Long storeId;
     private LocalDate odrDe;
+    /** 출고유형 (공통코드 OUTB_TYP). 비우면 NRML(일반출고) */
+    private String outbTyp;
+    /** 차량편수 (공통코드 VHCL_FLTNO). 비우면 배차 미정 */
+    private String vhclFltno;
     private List<LineRequest> lines;
 
     @Getter

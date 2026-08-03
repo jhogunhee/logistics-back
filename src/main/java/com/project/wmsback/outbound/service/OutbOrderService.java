@@ -1,5 +1,7 @@
 package com.project.wmsback.outbound.service;
 
+import com.project.mdm.code.entity.CodeDetailId;
+import com.project.mdm.code.repository.CodeDetailRepository;
 import com.project.mdm.prod.entity.Prod;
 import com.project.mdm.store.entity.Store;
 import com.project.mdm.prod.repository.ProdRepository;
@@ -28,6 +30,7 @@ public class OutbOrderService {
     private final OutbLineRepository outbLineRepository;
     private final StoreRepository storeRepository;
     private final ProdRepository prodRepository;
+    private final CodeDetailRepository codeDetailRepository;
     private final NbrService nbrService;
 
     public List<OutbOrderResponse> list(OutbOrderSearchCond cond) {
@@ -58,6 +61,8 @@ public class OutbOrderService {
                 .outbNo(outbNo)
                 .store(store)
                 .odrDe(req.getOdrDe())
+                .outbTyp(req.getOutbTyp())
+                .vhclFltno(req.getVhclFltno())
                 .build();
         for (OutbOrderCreateRequest.LineRequest line : req.getLines()) {
             Prod prod = prodRepository.findById(line.getProdId())
@@ -86,6 +91,9 @@ public class OutbOrderService {
         if (req.getOdrDe() == null) {
             throw new IllegalArgumentException("주문일은 필수입니다.");
         }
+        // 공통코드 값은 존재만 확인한다 — 값 목록의 주인은 코드관리 화면이라 컬럼 CHECK를 걸지 않았다
+        requireCode("OUTB_TYP", req.getOutbTyp(), "출고유형");
+        requireCode("VHCL_FLTNO", req.getVhclFltno(), "차량편수");
         if (req.getLines() == null || req.getLines().isEmpty()) {
             throw new IllegalArgumentException("출고 라인은 최소 1건 필요합니다.");
         }
@@ -96,6 +104,16 @@ public class OutbOrderService {
             if (line.getOdrQty() == null || line.getOdrQty() < 1) {
                 throw new IllegalArgumentException("주문 수량은 1 이상이어야 합니다.");
             }
+        }
+    }
+
+    /** 비어 있으면 통과(선택 항목이거나 엔티티 기본값이 채운다), 값이 있으면 그 코드가 실존해야 한다 */
+    private void requireCode(String grpCd, String codeCd, String label) {
+        if (codeCd == null || codeCd.isBlank()) {
+            return;
+        }
+        if (!codeDetailRepository.existsById(new CodeDetailId(grpCd, codeCd))) {
+            throw new IllegalArgumentException("없는 " + label + " 코드입니다: " + codeCd);
         }
     }
 }

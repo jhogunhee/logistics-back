@@ -36,6 +36,11 @@ public class StrategyOptionService {
             case "odrDvsns" -> codeDetailRepository.findByGrpCdOrderBySrtSeq("ODR_DVSN").stream()
                     .filter(c -> !"RTNGS".equals(c.getCodeCd()))
                     .map(c -> new OptionResponse(c.getCodeCd(), c.getCodeNm())).toList();
+            // 웨이브 편성 조건의 기준값. 값 목록의 주인이 코드관리 화면이라 코드가 늘면 화면도 함께 늘어난다
+            case "outbTyps" -> codeDetailRepository.findByGrpCdOrderBySrtSeq("OUTB_TYP").stream()
+                    .map(c -> new OptionResponse(c.getCodeCd(), c.getCodeNm())).toList();
+            case "vhclFltnos" -> codeDetailRepository.findByGrpCdOrderBySrtSeq("VHCL_FLTNO").stream()
+                    .map(c -> new OptionResponse(c.getCodeCd(), c.getCodeNm())).toList();
             case "vendors" -> vendorRepository.findAll().stream()
                     .map(v -> new OptionResponse(v.getVndrCd(), v.getVndrNm())).toList();
             case "prods" -> prodRepository.findAll().stream()

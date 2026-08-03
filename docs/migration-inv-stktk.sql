@@ -96,8 +96,8 @@ BEGIN
     RAISE NOTICE 'inv_hist.rfn_doc_typ 코멘트에 INV_STKTK 추가';
 
     -- 4. 공통코드 시드 (조정사유) ---------------------------------------------
-    -- 레거시는 조정사유 그룹(C00767)에 세트화·단위대체 등 타 업무 사유가 섞여 있고 화면이
-    -- 필터링하지 않았다(레거시 정의서 부록 3). 여기서는 조사 전용 사유만 담는다.
+    -- 조정사유에는 조사 전용 사유만 담는다 — 세트화·단위대체 같은 타 업무 사유를 섞으면
+    -- 화면이 매번 걸러내야 한다.
     IF NOT EXISTS (SELECT 1 FROM code_group WHERE grp_cd = 'ADJ_RSN') THEN
         INSERT INTO code_group (grp_cd, grp_nm, dscr)
         VALUES ('ADJ_RSN', '재고조정 사유', '재고조사 확정 시 차이 라인의 조정 사유 (inv_stktk_ln.rsn_cd). 차이가 0이 아닌 라인만 필수이며, ETC(기타)일 때만 자유 텍스트 rsn_dscr를 받는다');

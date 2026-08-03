@@ -41,7 +41,7 @@ BEGIN
 
         COMMENT ON TABLE  inv_mov_task IS '이동지시 (보관↔보관 2단계: 지시=예약 → 확정=실물 MOVE). 지시는 권고가 아니라 명령 — 지시 TO와 다른 로케이션으로 확정할 수 없고, 다른 곳에 두려면 잔량 취소 후 재지시한다. 실적은 별도 테이블 없이 inv_hist의 MOVE 2행(rfn_doc_no = inv_mov_no)';
         COMMENT ON COLUMN inv_mov_task.inv_mov_no  IS '이동지시 번호 (건당 유일 — 라인 구조 없음). inv_hist 실적이 rfn_doc_no만으로 지시와 정확히 매칭되게 하는 전제. nbr_rule INV_MOV_NO 채번';
-        COMMENT ON COLUMN inv_mov_task.mov_dvsn    IS '이동구분 — INV_MOV 재고이동 / PTAWY 적치 / PIKNG 피킹. 재고이동 화면의 등록은 INV_MOV 고정이고, 그 화면의 확정·취소도 INV_MOV만 허용한다(적치·피킹 유형은 각자의 경로 전용 — 레거시의 「재고업무 유형만 확정 가능, 입고적치 차단」 대응). 적치·피킹 지시를 이 테이블로 통합할지(별도 putaway_task 유지 여부)는 각 지시 구현 시 결정';
+        COMMENT ON COLUMN inv_mov_task.mov_dvsn    IS '이동구분 — INV_MOV 재고이동 / PTAWY 적치 / PIKNG 피킹. 재고이동 화면의 등록은 INV_MOV 고정이고, 그 화면의 확정·취소도 INV_MOV만 허용한다(적치·피킹 유형은 각자의 화면 경로 전용). 적치·피킹 지시를 이 테이블로 통합할지(별도 putaway_task 유지 여부)는 각 지시 구현 시 결정';
         COMMENT ON COLUMN inv_mov_task.prod_id     IS '이동 대상 상품. Lot이 상품을 함의하지만 재고 키(상품+Loc+Lot) 그대로 담아 단독 조회를 가능하게 한다 (inv_hist와 같은 형태)';
         COMMENT ON COLUMN inv_mov_task.from_loc_id IS '출발 보관 로케이션. 등록 시 이 로케이션 재고의 aloc_qty를 잔여수량만큼 선점(예약)한다';
         COMMENT ON COLUMN inv_mov_task.to_loc_id   IS '도착 보관 로케이션. 온도대 일치 + 적재가능수량(max_qty − 현재고 − 미완료 지시 유입 잔량) 검증 대상';

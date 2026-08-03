@@ -50,12 +50,25 @@ public class OutbWave extends BaseEntity {
     @Column(name = "released_at")
     private LocalDateTime releasedAt;
 
+    /**
+     * 이 웨이브를 만든 웨이브 전략 (느슨한 참조 — FK 없음). NULL = 화면에서 수동 생성.
+     * rvsnNo와 짝이다 (ck_outb_wave_stgy) — 「전략 id 있음 = 전략이 실제로 실행함」을 보장한다.
+     */
+    @Column(name = "wav_stgy_id")
+    private Long wavStgyId;
+
+    /** 생성에 사용된 전략 리비전. stgy_rvsn과 조합해 "그때의 조건"을 재구성한다 */
+    @Column(name = "rvsn_no")
+    private Long rvsnNo;
+
     @OneToMany(mappedBy = "wave")
     private List<OutbOrder> orders = new ArrayList<>();
 
     @Builder
-    private OutbWave(String wavNo) {
+    private OutbWave(String wavNo, Long wavStgyId, Long rvsnNo) {
         this.wavNo = wavNo;
+        this.wavStgyId = wavStgyId;
+        this.rvsnNo = rvsnNo;
         this.status = WaveStatus.PLANNED;
     }
 

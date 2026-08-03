@@ -2,8 +2,8 @@
 -- 증분 마이그레이션: 적치 전략 적용대상을 발주구분(odr_dvsn) 선택으로 교체
 --   대상: migration-add-loc-ptawy-prty.sql 까지 적용된 라이브 DB → docs/schema.sql 상태
 --   근거: docs/st 카드1 절충안 (2026-08-03 확정) —
---     · 적용대상(tgt_cond 범용 조건)·우선순위(prty) 제거. 레거시 "일반/반품 선택" 모델을
---       발주구분(공통코드 ODR_DVSN) 단일 선택으로 복원, 유형당 전략 1개(UNIQUE)가 우선순위를 대체.
+--     · 적용대상(tgt_cond 범용 조건)·우선순위(prty) 제거. 적용대상을 발주구분(공통코드
+--       ODR_DVSN) 단일 선택으로 좁히고, 유형당 전략 1개(UNIQUE)가 우선순위를 대체.
 --     · ib_order에 odr_dvsn 신설 — 확정 시 oms_ib_order에서 복사(wmsback→omsback import 금지라
 --       조회 대신 복사). 기존 행은 여기서 backfill.
 --     · ptawy_stgy_stg.loc_cond는 "적치위치 지정(BIZ_DVSN IN 최대 1건)"으로 의미가 좁아짐

@@ -3,6 +3,7 @@ package com.project.wmsback.outbound.dto;
 import com.project.wmsback.outbound.entity.OutbLine;
 import com.project.wmsback.outbound.entity.OutbOrder;
 import com.project.wmsback.outbound.entity.OutbStatus;
+import com.project.wmsback.outbound.entity.WavRegTyp;
 import lombok.Getter;
 
 import java.time.LocalDate;
@@ -14,6 +15,8 @@ public class OutbOrderResponse {
     private final Long outbOrderId;
     private final String outbNo;
     private final OutbStatus status;
+    private final String outbTyp;
+    private final String vhclFltno;
     private final Long storeId;
     private final String storeCd;
     private final String storeNm;
@@ -21,6 +24,8 @@ public class OutbOrderResponse {
     /** 편성된 웨이브 (미편성이면 NULL) */
     private final Long wavId;
     private final String wavNo;
+    /** 편입 출처 (STGY 전략 실행 / MANUAL 수동 편성). 미편성이면 NULL */
+    private final WavRegTyp wavRegTyp;
     /** 전체 라인 수 (라인에서 파생) */
     private final int lineCount;
     /** 주문 수량 합계 (라인 파생) */
@@ -31,12 +36,15 @@ public class OutbOrderResponse {
         this.outbOrderId = order.getId();
         this.outbNo = order.getOutbNo();
         this.status = order.getStatus();
+        this.outbTyp = order.getOutbTyp();
+        this.vhclFltno = order.getVhclFltno();
         this.storeId = order.getStore().getId();
         this.storeCd = order.getStore().getStoreCd();
         this.storeNm = order.getStore().getStoreNm();
         this.odrDe = order.getOdrDe();
         this.wavId = order.getWave() != null ? order.getWave().getId() : null;
         this.wavNo = order.getWave() != null ? order.getWave().getWavNo() : null;
+        this.wavRegTyp = order.getWavRegTyp();
         this.lineCount = order.getLines().size();
         this.totalOrderQty = order.getLines().stream().mapToLong(OutbLine::getOdrQty).sum();
         this.createdAt = order.getCreatedAt();

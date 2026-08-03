@@ -115,7 +115,7 @@ public class InvMovService {
         fromInv.reserve(item.getQty());
         InvMovTask task = InvMovTask.builder()
                 .invMovNo(nbrService.issue(MOV_NO_RULE_CD, LocalDate.now()))
-                .movDvsn(InvMovDvsn.INV_MOV) // 이 화면 경로의 이동구분은 재고이동 고정 (레거시 '01' 고정과 동일)
+                .movDvsn(InvMovDvsn.INV_MOV) // 이 화면 경로의 이동구분은 재고이동 고정
                 .prod(prodEntity).lot(lotEntity)
                 .fromLoc(from).toLoc(to)
                 .drctQty(item.getQty())
@@ -135,7 +135,7 @@ public class InvMovService {
         }
         InvMovTask task = invMovTaskRepository.findById(taskId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 이동지시입니다: " + taskId));
-        // 재고이동 유형만 이 경로에서 확정 가능 — 적치·피킹 지시는 각자의 경로 전용 (레거시의 입고적치 차단과 같은 방어)
+        // 재고이동 유형만 이 경로에서 확정 가능 — 적치·피킹 지시는 각자의 화면 경로에서만 처리된다
         if (task.getMovDvsn() != InvMovDvsn.INV_MOV) {
             throw new IllegalArgumentException("재고이동 유형의 지시만 이 화면에서 확정할 수 있습니다 (이동구분 " + task.getMovDvsn().getLabel() + "): " + task.getInvMovNo());
         }

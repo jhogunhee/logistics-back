@@ -48,6 +48,17 @@ public class OutbOrder extends BaseEntity {
     @Column(name = "status", nullable = false, length = 15)
     private OutbStatus status;
 
+    /**
+     * 출고유형 (공통코드 OUTB_TYP — NRML 일반출고 / RTNGS 반품출고).
+     * 웨이브 편성 조건의 기준값이다 — 값 목록은 공통코드가 소유하므로 enum으로 두지 않는다.
+     */
+    @Column(name = "outb_typ", nullable = false, length = 10)
+    private String outbTyp;
+
+    /** 차량편수 (공통코드 VHCL_FLTNO — 1편·2편…). NULL = 배차 미정 */
+    @Column(name = "vhcl_fltno", length = 10)
+    private String vhclFltno;
+
     /** 출고처 점포. 할당 시 이 점포의 잔여수명 허용률로 Lot 필터 */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "store_id", nullable = false)
@@ -57,6 +68,11 @@ public class OutbOrder extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "wav_id")
     private OutbWave wave;
+
+    /** 편입 출처 (전략 실행 / 수동 편성). wave와 짝이라 항상 함께 채우고 함께 비운다 — ck_outb_order_wav_reg */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "wav_reg_typ", length = 10)
+    private WavRegTyp wavRegTyp;
 
     /** 주문일 */
     @Column(name = "odr_de", nullable = false)
@@ -70,12 +86,17 @@ public class OutbOrder extends BaseEntity {
     private List<OutbLine> lines = new ArrayList<>();
 
     @Builder
-    private OutbOrder(String outbNo, Store store, LocalDate odrDe) {
+    private OutbOrder(String outbNo, Store store, LocalDate odrDe, String outbTyp, String vhclFltno) {
         this.outbNo = outbNo;
         this.store = store;
         this.odrDe = odrDe;
+        this.outbTyp = outbTyp != null ? outbTyp : DFLT_OUTB_TYP;
+        this.vhclFltno = vhclFltno;
         this.status = OutbStatus.CREATED;
     }
+
+    /** 출고유형 기본값 — 컬럼 DEFAULT('NRML')와 같은 값이어야 한다 */
+    public static final String DFLT_OUTB_TYP = "NRML";
 
     public void addLine(OutbLine line) {
         lines.add(line);
@@ -85,8 +106,9 @@ public class OutbOrder extends BaseEntity {
     /**
      * 웨이브 편성. 아직 할당 전(CREATED)이고 다른 웨이브에 속하지 않은 주문만 담을 수 있다.
      * 웨이브가 PLANNED인지는 호출 전 OutbWave.assertPlanned()로 검증한다.
+     * 「이미 편성된 주문은 거부」가 곧 전략 실행의 선점 규칙이다 — 먼저 실행된 전략이 주문을 가져간다.
      */
-    public void assignWave(OutbWave wave) {
+    public void assignWave(OutbWave wave, WavRegTyp regTyp) {
         if (status != OutbStatus.CREATED) {
             throw new IllegalStateException("할당 전(CREATED) 주문만 웨이브에 담을 수 있습니다: " + outbNo);
         }
@@ -94,11 +116,13 @@ public class OutbOrder extends BaseEntity {
             throw new IllegalStateException("이미 웨이브에 편성된 주문입니다: " + outbNo);
         }
         this.wave = wave;
+        this.wavRegTyp = regTyp;
     }
 
-    /** 웨이브에서 제외 (주문 빼기/웨이브 해체/취소 시) */
+    /** 웨이브에서 제외 (주문 빼기/웨이브 해체/취소 시). 출처도 함께 비운다 — 짝 제약 유지 */
     public void unassignWave() {
         this.wave = null;
+        this.wavRegTyp = null;
     }
 
     /** 취소. 할당 전(CREATED)만 가능 — 편성돼 있었다면 함께 웨이브에서 빠진다 */
@@ -107,6 +131,6 @@ public class OutbOrder extends BaseEntity {
             throw new IllegalStateException("할당 전(CREATED) 주문만 취소할 수 있습니다: " + outbNo);
         }
         this.status = OutbStatus.CANCELLED;
-        this.wave = null;
+        unassignWave();
     }
 }

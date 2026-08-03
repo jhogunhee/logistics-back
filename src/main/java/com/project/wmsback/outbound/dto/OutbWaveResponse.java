@@ -15,6 +15,9 @@ public class OutbWaveResponse {
     /** 편성된 주문 수 (orders 매핑에서 파생) */
     private final int orderCount;
     private final LocalDateTime releasedAt;
+    /** 이 웨이브를 만든 전략 (NULL = 수동 생성) */
+    private final Long wavStgyId;
+    private final Long rvsnNo;
     private final LocalDateTime createdAt;
 
     private OutbWaveResponse(OutbWave wave) {
@@ -23,6 +26,8 @@ public class OutbWaveResponse {
         this.status = wave.getStatus();
         this.orderCount = wave.getOrders().size();
         this.releasedAt = wave.getReleasedAt();
+        this.wavStgyId = wave.getWavStgyId();
+        this.rvsnNo = wave.getRvsnNo();
         this.createdAt = wave.getCreatedAt();
     }
 
