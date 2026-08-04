@@ -29,9 +29,12 @@ public class IbLineRepositoryImpl implements IbLineRepositoryCustom {
 
     @Override
     public List<IbLine> findAllByOrderIdWithProd(Long ibOrderId) {
+        // 응답이 낱개수량(Prod.eaQtyOf → prod.uoms)까지 쓰므로 포장 컬렉션도 함께 로딩한다.
+        // 컬렉션 fetch join은 행을 곱하므로 distinct로 라인 중복을 걷어낸다.
         return queryFactory
-                .selectFrom(ibLine)
+                .selectFrom(ibLine).distinct()
                 .innerJoin(ibLine.prod, prod).fetchJoin()
+                .leftJoin(prod.uoms).fetchJoin()
                 .where(ibLine.ibOrder.id.eq(ibOrderId))
                 .orderBy(ibLine.id.asc())
                 .fetch();
