@@ -42,8 +42,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 검수 저장의 수량 규칙 — 입력은 입고단위(발주단위) 개수, 저장은 출고단위 환산값.
- * 환산은 Prod.toOutbQty가 하므로 여기서는 목으로 두고 "환산값이 세 곳(라인 누계 · 스냅샷 · 이력)에
+ * 검수 저장의 수량 규칙 — 입력은 입고단위(발주단위) 개수, 저장은 낱개(EA) 환산값.
+ * 환산은 Prod.toEaQty가 하므로 여기서는 목으로 두고 "환산값이 세 곳(라인 누계 · 스냅샷 · 이력)에
  * 같은 값으로 반영되는가"와 과입고 차단만 본다.
  */
 @ExtendWith(MockitoExtension.class)
@@ -74,8 +74,9 @@ class ReceivingServiceTest {
         when(prod.getId()).thenReturn(1L);
         when(prod.getProdCd()).thenReturn("PROD-0001");
         when(prod.getShelfLifeDays()).thenReturn(null); // 유통기한 미관리 — 제조일자 없이 검수 가능
-        // 입고단위 BOX(24EA) → 출고단위 EA: 1박스 = 24
-        when(prod.toOutbQty(anyLong())).thenAnswer(a -> a.getArgument(0, Long.class) * 24);
+        // 입고단위 BOX(24EA): 1박스 = 낱개 24
+        when(prod.getInbUomCd()).thenReturn("BOX");
+        when(prod.toEaQty(anyLong(), any())).thenAnswer(a -> a.getArgument(0, Long.class) * 24);
 
         order = mock(IbOrder.class);
         when(order.getId()).thenReturn(10L);
@@ -114,8 +115,8 @@ class ReceivingServiceTest {
     }
 
     @Test
-    @DisplayName("검수수량은 입고단위 개수로 받아 출고단위로 환산해 누계·스냅샷·이력에 같은 값으로 반영한다")
-    void receive_convertsInbUomQtyToOutbQty() {
+    @DisplayName("검수수량은 입고단위 개수로 받아 낱개(EA)로 환산해 누계·스냅샷·이력에 같은 값으로 반영한다")
+    void receive_convertsInbUomQtyToEaQty() {
         receivingService.receive(10L, request(5)); // 5박스 = 120
 
         verify(ibLine).receive(120L);

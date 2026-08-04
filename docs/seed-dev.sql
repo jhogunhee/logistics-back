@@ -321,14 +321,13 @@ new_asn AS (
 ),
 copied AS (
     INSERT INTO ib_line (ib_order_id, prod_id, expct_qty)
-    -- 발주 수량은 입고단위, ASN 예정 수량은 출고단위다 — OmsIbOrderService.convert()와 같은 환산을
-    -- 여기서도 한다 (Prod.toOutbQty: odr_qty × 낱개수량(입고단위) / 낱개수량(출고단위)).
-    SELECT a.ib_order_id, l.prod_id, l.odr_qty * i.ea_qty / o.ea_qty
+    -- 발주 수량은 입고단위, ASN 예정 수량은 낱개(EA)다 — OmsIbOrderService.confirm()과 같은 환산을
+    -- 여기서도 한다 (Prod.toEaQty: odr_qty × 낱개수량(입고단위)).
+    SELECT a.ib_order_id, l.prod_id, l.odr_qty * i.ea_qty
     FROM new_asn a
     JOIN oms_ib_line l ON l.oms_ib_order_id = a.oms_ib_order_id
     JOIN prod p ON p.prod_id = l.prod_id
     JOIN prod_uom i ON i.prod_id = p.prod_id AND i.uom_cd = p.inb_uom_cd
-    JOIN prod_uom o ON o.prod_id = p.prod_id AND o.uom_cd = p.outb_uom_cd
     RETURNING ib_line_id
 )
 UPDATE oms_ib_order o

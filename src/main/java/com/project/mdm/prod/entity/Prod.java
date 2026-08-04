@@ -132,16 +132,16 @@ public class Prod extends BaseEntity {
     }
 
     /**
-     * 입고단위 수량을 재고 저장 단위(출고단위)로 환산한다 — 낱개를 매개로 삼는다.
-     * 호출 지점은 {@code OmsIbOrderService.confirm()}(발주 → ASN)과
-     * {@code ReceivingService.receiveLine()}(검수 입력은 입고단위 개수) 두 곳이고,
-     * 적치 · 재고 · 출고는 전부 출고단위로만 계산한다.
-     * (화면의 「환산수량」은 이것과 다른 낱개(EA) 환산이다 — {@code OmsIbLineResponse} 참고)
-     * <p>
-     * 나눗셈이 딱 떨어지는 것은 ProdService가 저장 시점에 보장한다
-     * (입고단위 낱개수량 % 출고단위 낱개수량 == 0).
+     * 포장단위 수량을 재고 저장 단위인 낱개(EA)로 환산한다.
+     * WMS의 모든 수량 컬럼은 EA이고, OMS 주문 라인만 입력 단위를 유지하므로
+     * 호출 지점은 OMS → WMS 경계 세 곳뿐이다 —
+     * {@code OmsIbOrderService.confirm()}(발주 → ASN, 입고단위) ·
+     * {@code ReceivingService.receiveLine()}(검수 입력, 입고단위) ·
+     * {@code OmsOutbOrderService.confirm()}(출고주문 → 창고 출고주문, 출고단위).
+     * 이 밖에서 환산을 추가하지 말 것 — 환산 지점이 흩어지면 어느 행이 어느 단위인지
+     * 사후에 복원할 방법이 없다.
      */
-    public long toOutbQty(long inbQty) {
-        return inbQty * eaQtyOf(inbUomCd) / eaQtyOf(outbUomCd);
+    public long toEaQty(long qty, String uomCd) {
+        return qty * eaQtyOf(uomCd);
     }
 }

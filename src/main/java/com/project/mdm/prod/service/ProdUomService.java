@@ -11,9 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 
 /**
  * 단위(상품 포장) 관리. 상품마다 낱개·박스·파렛트를 등록하고 그 낱개수량·중량을 정한다.
@@ -42,44 +40,26 @@ public class ProdUomService {
      * 원래 포장을 지우는 조작이 자연스러운데, 행 순서대로 처리하면 삭제가 먼저 실행될 때
      * 그 포장이 아직 입고단위라 {@link #delete} 가드에 걸린다.
      * <p>
-     * 마지막에 손댄 상품마다 환산 전제를 다시 확인한다 — 역할 지정과 낱개수량 수정이
-     * 이 화면에서 함께 일어나므로 둘을 합친 결과가 성립하는지는 끝나봐야 안다.
+     * 저장 후 환산 검증은 없다 — 재고 저장 단위가 낱개(EA)로 통일되면서 환산(toEaQty)이
+     * 곱셈만 남아, 어떤 포장 조합이어도 수량이 깎일 수 없다 (예전엔 입고단위 낱개수량이
+     * 출고단위 낱개수량의 배수인지 마지막에 확인했다).
      */
     @Transactional
     public void saveAll(List<ProdUomSaveRequest> rows) {
-        Set<Prod> touched = new LinkedHashSet<>();
-
         for (ProdUomSaveRequest row : rows) {
             switch (row.getStatus()) {
-                case "C" -> touched.add(create(row));
-                case "U" -> touched.add(update(row));
+                case "C" -> create(row);
+                case "U" -> update(row);
                 case "D" -> { /* 아래에서 따로 처리한다 */ }
                 default -> throw new IllegalArgumentException("알 수 없는 행 상태입니다: " + row.getStatus());
             }
         }
         for (ProdUomSaveRequest row : rows) {
             if ("D".equals(row.getStatus())) {
-                touched.add(delete(row));
+                delete(row);
             }
         }
-
-        touched.forEach(this::validateConversion);
         prodUomRepository.flush();
-    }
-
-    /**
-     * 입고단위 낱개수량이 출고단위 낱개수량으로 나누어떨어지는지. 안 떨어지면
-     * {@link Prod#toOutbQty}의 정수 나눗셈이 발주 → ASN 변환에서 수량을 조용히 깎는다.
-     * (예: 입고 BOX 24, 출고 PACK 5 → 24 / 5 = 4, 낱개 4개가 증발한다)
-     */
-    private void validateConversion(Prod prod) {
-        long inbEaQty = prod.eaQtyOf(prod.getInbUomCd());
-        long outbEaQty = prod.eaQtyOf(prod.getOutbUomCd());
-        if (inbEaQty % outbEaQty != 0) {
-            throw new IllegalArgumentException(
-                    "입고단위 낱개수량(%d)은 출고단위 낱개수량(%d)의 배수여야 합니다: %s"
-                            .formatted(inbEaQty, outbEaQty, prod.getProdNm()));
-        }
     }
 
     /** 행이 지정한 역할(입고단위/출고단위)을 상품에 반영한다. true인 행만 본다 */

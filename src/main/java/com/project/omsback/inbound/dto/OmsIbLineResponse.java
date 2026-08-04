@@ -21,8 +21,7 @@ public class OmsIbLineResponse {
     private final Long inbEaQty;
     /**
      * 발주 수량을 낱개(EA)로 환산한 값 — 표시용.
-     * ASN 예정수량(출고단위, Prod.toOutbQty)과는 기준이 다르다 — 화면은 낱개로 통일해 보여주기로 했다
-     * (출고단위는 상품마다 EA/BOX가 갈려서 합계가 어색해진다).
+     * ASN 예정수량도 같은 낱개(EA) 기준이다 (재고 저장 단위가 EA로 통일되면서 둘이 일치하게 됐다).
      */
     private final Long cnvrQty;
 

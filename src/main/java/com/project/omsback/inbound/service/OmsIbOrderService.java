@@ -154,12 +154,12 @@ public class OmsIbOrderService {
                 .odrDvsn(order.getOdrDvsn())
                 .build();
         for (OmsIbLine line : order.getLines()) {
-            // 발주 수량은 입고단위(벤더 납품 단위), ASN 이후의 모든 수량은 출고단위(재고 저장 단위)다.
+            // 발주 수량은 입고단위(벤더 납품 단위), ASN부터 창고의 모든 수량은 낱개(EA)다.
             // 단위가 갈리는 경계가 여기라서 환산도 여기서 한 번만 한다.
             Prod prod = line.getProd();
             asn.addLine(IbLine.builder()
                     .prod(prod)
-                    .expctQty(prod.toOutbQty(line.getOdrQty()))
+                    .expctQty(prod.toEaQty(line.getOdrQty(), prod.getInbUomCd()))
                     .build());
         }
         ibOrderRepository.save(asn); // cascade로 라인까지 함께 저장

@@ -40,9 +40,9 @@ public class OmsOutbLine extends BaseEntity {
     private Prod prod;
 
     /**
-     * 주문 수량. 출고단위({@code prod.outb_uom_cd}) 기준이라 확정 시 그대로 복사된다 —
-     * 입고주문(발주는 입고단위)과 달리 환산이 없다. 출고는 재고를 그대로 덜어내는 일이라
-     * 저장 단위와 주문 단위가 갈릴 이유가 없다.
+     * 주문 수량. 출고단위({@code prod.outb_uom_cd}) 기준 — 주문서에 사람이 쓰는 단위다.
+     * 창고의 수량은 전부 낱개(EA)라 확정 시 낱개로 환산해 복사된다(Prod.toEaQty).
+     * 입고주문(발주 수량 = 입고단위)과 대칭이다.
      */
     @Column(name = "odr_qty", nullable = false)
     private Long odrQty;

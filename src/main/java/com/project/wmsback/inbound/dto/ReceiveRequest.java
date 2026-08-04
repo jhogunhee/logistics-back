@@ -26,7 +26,7 @@ public class ReceiveRequest {
         private Long ibLineId;
         /**
          * 이번 검수수량 — <b>입고단위(발주단위) 개수</b>다 (박스로 오면 박스 수).
-         * 출고단위 환산(Prod.toOutbQty)과 예정 잔량 초과 검증은 서버 책임. 입고단위 정수만 허용
+         * 낱개(EA) 환산(Prod.toEaQty)과 예정 잔량 초과 검증은 서버 책임. 입고단위 정수만 허용
          */
         private Long inspectQty;
         /** 입고일자 (실제 입고된 날). 소급 등록 대비 라인별 입력, 비우면 오늘 */

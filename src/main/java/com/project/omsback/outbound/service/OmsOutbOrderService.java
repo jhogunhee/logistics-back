@@ -110,8 +110,9 @@ public class OmsOutbOrderService {
      *
      * <p>WMS 출고주문 생성 경로는 여기 하나뿐이다 (WMS에는 등록 엔드포인트가 없다).
      *
-     * <p>수량은 환산하지 않는다 — 주문 수량이 이미 출고단위다. 입고(발주 수량이 입고단위라
-     * ASN 생성 때 환산)와 갈리는 지점이라 여기 적어둔다.
+     * <p>주문 수량은 출고단위, 창고 출고주문부터는 낱개(EA)다 — 입고(발주→ASN)와 대칭인
+     * 환산 경계라 여기서 한 번만 환산한다 (번복 — 원래 "출고단위 그대로 복사"였다.
+     * 재고 저장 단위를 출고단위에서 EA로 통일하면서 이 경계에 환산이 생겼다).
      *
      * @return 생성된 WMS 출고주문의 outb_order_id
      */
@@ -133,9 +134,10 @@ public class OmsOutbOrderService {
                 .expctDe(order.getExpctDe())
                 .build();
         for (OmsOutbLine line : order.getLines()) {
+            Prod prod = line.getProd();
             wmsOrder.addLine(OutbLine.builder()
-                    .prod(line.getProd())
-                    .odrQty(line.getOdrQty())
+                    .prod(prod)
+                    .odrQty(prod.toEaQty(line.getOdrQty(), prod.getOutbUomCd()))
                     .build());
         }
         outbOrderRepository.save(wmsOrder); // cascade로 라인까지 함께 저장

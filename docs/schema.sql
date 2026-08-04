@@ -54,7 +54,7 @@ CREATE TABLE prod (
     updated_by      VARCHAR(30),
     CONSTRAINT uq_prod_cd UNIQUE (prod_cd),
     CONSTRAINT ck_prod_tmp_zon CHECK (tmp_zon IN ('DRY', 'CHL', 'FRZ'))
-    -- 환산수량 컬럼을 두지 않는다. 입고단위 → 출고단위 환산은 prod_uom.ea_qty(낱개수량) 두 개로
+    -- 환산수량 컬럼을 두지 않는다. 포장단위 → 낱개(EA) 환산은 prod_uom.ea_qty(낱개수량)로
     -- 파생시킨다 (아래 prod_uom 주석 참고). 두 벌로 두면 서로 어긋날 수 있는 값이 생긴다.
 );
 
@@ -62,7 +62,7 @@ COMMENT ON TABLE  prod IS '상품 마스터. 보관 규칙(온도대)과 유통�
 COMMENT ON COLUMN prod.prod_cd          IS '상품 코드 (업무 식별자, 예: PROD-0001)';
 COMMENT ON COLUMN prod.tmp_zon       IS '보관 온도대 (DRY 상온 / CHL 냉장 / FRZ 냉동). 적치·이동 시 로케이션 온도대와 일치 검증';
 COMMENT ON COLUMN prod.inb_uom_cd      IS '입고단위 (prod_uom에 있는 uom_cd여야 한다, FK 없음). 벤더에게 발주하고 납품받는 단위 (예: BOX). 이 단위를 쓰는 곳은 oms_ib_line.odr_qty 하나뿐이다. CHECK를 걸지 않는 이유는 값 목록의 주인이 공통코드 UOM 그룹이라서, CHECK가 있으면 단위를 추가할 때마다 DDL을 고쳐야 하기 때문 (zon.tmp_zon 등과 같은 형태)';
-COMMENT ON COLUMN prod.outb_uom_cd     IS '출고단위 (prod_uom에 있는 uom_cd여야 한다, FK 없음). 재고 저장 단위이기도 하다 — inv · inv_hist · ib_line · putaway_task · outb_line · outb_alloc 의 모든 수량 컬럼이 이 단위다 (oms_ib_line.odr_qty만 예외)';
+COMMENT ON COLUMN prod.outb_uom_cd     IS '출고단위 (prod_uom에 있는 uom_cd여야 한다, FK 없음). 출고주문서에 사람이 쓰는 단위 (oms_outb_line.odr_qty가 이 기준). 재고 저장 단위가 아니다 — 창고의 모든 수량 컬럼은 낱개(EA)다';
 COMMENT ON COLUMN prod.shelf_life_days IS '제조일 기준 총 유통기한(일). NULL = 유통기한 미관리(공산품 등). 시더가 Lot 유통기한 생성 시 사용';
 
 -- 상품 코드(PROD-0001)는 채번 모듈이 발급한다 — nbr_rule 'PROD_CD' + nbr_seq.
@@ -101,7 +101,7 @@ CREATE TABLE prod_uom (
 
 COMMENT ON TABLE  prod_uom IS '상품 포장. (상품, 단위) 한 조합이 한 행 — 낱개수량과 중량을 포장마다 갖는다. 입고→출고단위 환산이 여기서 파생된다';
 COMMENT ON COLUMN prod_uom.uom_cd IS '단위 코드. 공통코드 UOM 그룹(code_detail) 참조, FK 없음 — 존재 검증은 ProdService';
-COMMENT ON COLUMN prod_uom.ea_qty IS '이 단위 1개가 낱개 몇 개인가 (예: BOX 1개 = 24). 낱개 그 자체면 1. 환산은 OmsIbOrderService.convert(발주→ASN) 한 곳에서만 일어나고 — odr_qty × ea_qty(입고단위) / ea_qty(출고단위) — ASN 이후의 검수·적치·재고·출고는 전부 출고단위로만 계산한다';
+COMMENT ON COLUMN prod_uom.ea_qty IS '이 단위 1개가 낱개 몇 개인가 (예: BOX 1개 = 24). 낱개 그 자체면 1. 환산(Prod.toEaQty = qty × ea_qty)은 OMS→WMS 경계 세 곳에서만 일어난다 — 발주→ASN(입고단위), 검수 입력(입고단위), 출고주문 확정(출고단위). 창고의 모든 수량 컬럼은 낱개(EA)다';
 COMMENT ON COLUMN prod_uom.wgt    IS '이 단위 1개의 중량(kg). 포장재 무게(tare)를 포함한 실측값이며 미측정이면 NULL. 낱개중량 × 낱개수량으로 파생시키지 않는 이유가 tare다';
 
 -- 존 마스터. 로케이션의 상위 그룹 (온도 · 보관형태 · 담당업무 단위).
@@ -496,8 +496,8 @@ CREATE TABLE oms_ib_line (
     CONSTRAINT ck_oms_ib_line_qty CHECK (odr_qty > 0)
 );
 
-COMMENT ON TABLE  oms_ib_line IS '입고주문 라인. 확정 시 ib_line으로 1:1 복사된다 (odr_qty를 출고단위로 환산 → expct_qty)';
-COMMENT ON COLUMN oms_ib_line.odr_qty IS '발주 수량. <<입고단위(prod.inb_uom_cd) 기준>> — DB에서 출고단위가 아닌 유일한 수량 컬럼이다. ASN 생성(주문확정) 시 prod_uom.ea_qty(입고단위)를 곱하고 ea_qty(출고단위)로 나눠 환산된다';
+COMMENT ON TABLE  oms_ib_line IS '입고주문 라인. 확정 시 ib_line으로 1:1 복사된다 (odr_qty를 낱개(EA)로 환산 → expct_qty)';
+COMMENT ON COLUMN oms_ib_line.odr_qty IS '발주 수량. <<입고단위(prod.inb_uom_cd) 기준>> — 주문 원장은 사람이 쓰는 단위를 유지한다 (출고 쪽은 oms_outb_line.odr_qty가 출고단위). ASN 생성(주문확정) 시 prod_uom.ea_qty(입고단위)를 곱해 낱개(EA)로 환산된다';
 
 CREATE INDEX ix_oms_ib_line_order ON oms_ib_line (oms_ib_order_id);
 CREATE INDEX ix_oms_ib_order_vendor ON oms_ib_order (vendor_id);
@@ -550,7 +550,7 @@ CREATE TABLE oms_outb_line (
 );
 
 COMMENT ON TABLE  oms_outb_line IS '출고주문 라인. 확정 시 outb_line으로 1:1 복사된다 (환산 없음)';
-COMMENT ON COLUMN oms_outb_line.odr_qty IS '주문 수량. <<출고단위(prod.outb_uom_cd) 기준>> — 입고주문(oms_ib_line.odr_qty)과 달리 환산하지 않는다. 출고는 재고를 그대로 덜어내는 일이라 저장 단위와 주문 단위가 갈릴 이유가 없다';
+COMMENT ON COLUMN oms_outb_line.odr_qty IS '주문 수량. <<출고단위(prod.outb_uom_cd) 기준>> — 주문 원장은 사람이 쓰는 단위를 유지한다 (입고 쪽은 oms_ib_line.odr_qty가 입고단위). 확정 시 prod_uom.ea_qty(출고단위)를 곱해 낱개(EA)로 환산돼 outb_line.odr_qty가 된다';
 
 CREATE INDEX ix_oms_outb_line_order ON oms_outb_line (oms_outb_order_id);
 CREATE INDEX ix_oms_outb_order_store ON oms_outb_order (store_id);
@@ -608,7 +608,7 @@ CREATE TABLE ib_line (
 );
 
 COMMENT ON TABLE  ib_line IS '입고 라인. Lot은 라인이 아니라 입고 처리(재고 이력) 단위로 기록되므로 여기엔 두지 않는다';
-COMMENT ON COLUMN ib_line.expct_qty IS '입고 예정 수량. 출고단위(prod.outb_uom_cd) 기준 — oms_ib_line.odr_qty(입고단위)를 prod_uom.ea_qty로 환산한 값이다. 이 아래 모든 수량 컬럼이 같은 단위다';
+COMMENT ON COLUMN ib_line.expct_qty IS '입고 예정 수량. 낱개(EA) 기준 — oms_ib_line.odr_qty(입고단위)에 prod_uom.ea_qty(입고단위)를 곱한 값이다. 창고의 모든 수량 컬럼이 같은 단위(EA)다';
 COMMENT ON COLUMN ib_line.rcvd_qty  IS '검수(개수 확인) 완료된 실제 입고(스테이징 입) 수량 누계. 실무 검수는 개수 대조 수준이라 불합격 수량은 관리하지 않는다';
 COMMENT ON COLUMN ib_line.ptawy_qty  IS '적치 완료 수량 누계 (스테이징 → 보관 MOVE 반영분)';
 
@@ -917,7 +917,7 @@ CREATE TABLE inv_stktk_ln (
 
 COMMENT ON TABLE  inv_stktk_ln IS '재고조사 라인. 재고 키 단위. 조정수량 = stktk_qty - cfm_sys_qty (파생, 컬럼 아님). 실사수량 미입력(NULL) 라인은 「미조사」로 확정에서 건너뛴다 — 0(실물 없음)과 구분된다';
 COMMENT ON COLUMN inv_stktk_ln.sys_qty     IS '조사 생성 시점의 전산수량 스냅샷 (on_hand_qty). 조정 계산의 기준이 아니라 「조사 시작 때는 얼마였나」의 기록 — 확정 기준은 cfm_sys_qty다';
-COMMENT ON COLUMN inv_stktk_ln.stktk_qty   IS '실사수량 (실물을 센 값). NULL = 미조사(확정 시 건너뜀), 0 = 실물 없음(전량 차감). 출고단위 기준';
+COMMENT ON COLUMN inv_stktk_ln.stktk_qty   IS '실사수량 (실물을 센 값). NULL = 미조사(확정 시 건너뜀), 0 = 실물 없음(전량 차감). 낱개(EA) 기준';
 COMMENT ON COLUMN inv_stktk_ln.cfm_sys_qty IS '확정 시점에 재고 행 락을 걸고 다시 읽은 전산수량(= 조정전수량). 조정수량 = stktk_qty - cfm_sys_qty이므로 확정 후 on_hand_qty는 실사수량과 정확히 일치한다. 조사 중 다른 업무로 재고가 변해도 실사값이 이긴다 (2026-08-03 결정 — 확정시점 기준). 확정 전에는 NULL';
 COMMENT ON COLUMN inv_stktk_ln.rsn_cd      IS '조정사유 코드 (공통코드 ADJ_RSN). 차이가 0이 아닌 라인만 필수 — 차이 0 라인은 ADJUST 자체가 없으므로 사유도 없다. ETC(기타)일 때만 rsn_dscr 필수';
 COMMENT ON COLUMN inv_stktk_ln.rsn_dscr    IS '기타 사유 텍스트. rsn_cd = ETC일 때만 사용';
@@ -1229,7 +1229,7 @@ CREATE UNIQUE INDEX ux_ptawy_stgy_odr_dvsn ON ptawy_stgy (COALESCE(odr_dvsn, 'AL
 COMMENT ON TABLE  ptawy_stgy IS '적치 전략 헤더. 선택 기준은 발주구분 하나(유형당 1개 — ux_ptawy_stgy_odr_dvsn). 1차에서 전략은 추천만 한다 — 실행은 기존 즉시 MOVE 흐름 유지';
 COMMENT ON COLUMN ptawy_stgy.stgy_nm     IS '전략명. 표시용 — 실행에 사용하지 않는다';
 COMMENT ON COLUMN ptawy_stgy.odr_dvsn    IS '적용대상 발주구분 (공통코드 ODR_DVSN — NRML/URGT). NULL = 전체. 반품(RTNGS)은 스코프 아웃이라 저장 검증이 거부한다';
-COMMENT ON COLUMN ptawy_stgy.unt_splt_yn IS '입수 단위 배수 절사. 입수 = ea_qty(입고단위)/ea_qty(출고단위). true면 로케이션별 배정수량을 입수 배수로 내림(낱개 혼적 방지), 몫 0인 로케이션은 스킵';
+COMMENT ON COLUMN ptawy_stgy.unt_splt_yn IS '입수 단위 배수 절사. 입수 = ea_qty(입고단위) — 재고가 낱개(EA)라 입고단위 낱개수량이 곧 배수다. true면 로케이션별 배정수량을 입수 배수로 내림(낱개 혼적 방지), 몫 0인 로케이션은 스킵';
 COMMENT ON COLUMN ptawy_stgy.loc_srt     IS '후보 정렬 [{"field":PIKNG_PRTY|PTAWY_PRTY|LOC_CD,"dir":ASC|DESC}]. 빈 배열 = 기본(피킹순위 ASC → 로케이션코드 ASC)';
 COMMENT ON COLUMN ptawy_stgy.last_rvsn_no IS '마지막 저장 리비전';
 

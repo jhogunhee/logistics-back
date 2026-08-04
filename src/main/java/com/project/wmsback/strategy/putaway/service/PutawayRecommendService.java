@@ -201,10 +201,9 @@ public class PutawayRecommendService {
                 List.copyOf(assignments.values()), trace);
     }
 
-    /** 입수 = ea_qty(입고단위) ÷ ea_qty(출고단위). 나눗셈 정합성은 ProdService 저장 검증이 보장 */
+    /** 입수 = ea_qty(입고단위). 재고 수량이 낱개(EA)라 입고단위 낱개수량이 곧 배수다 */
     private long unitOf(Prod prod) {
-        long unit = prod.eaQtyOf(prod.getInbUomCd()) / prod.eaQtyOf(prod.getOutbUomCd());
-        return Math.max(unit, 1);
+        return Math.max(prod.eaQtyOf(prod.getInbUomCd()), 1);
     }
 
     /** 후보 정렬. 빈 목록 = 기본(피킹순위 ASC → 로케이션코드 ASC). 끝에 id를 붙여 항상 결정적 */

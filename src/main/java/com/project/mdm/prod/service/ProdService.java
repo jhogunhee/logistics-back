@@ -79,17 +79,8 @@ public class ProdService {
     private void ensureUoms(Prod prod) {
         ensureUom(prod, prod.getOutbUomCd());
         ensureUom(prod, prod.getInbUomCd());
-
-        // 나누어떨어지지 않으면 toOutbQty의 정수 나눗셈이 조용히 수량을 깎는다.
-        // 자동 생성분은 둘 다 1이라 항상 통과하고, 단위 관리 화면에서 낱개수량을 고친 뒤
-        // 상품의 입고/출고단위를 바꾸는 경로에서만 걸린다.
-        long inbEaQty = prod.eaQtyOf(prod.getInbUomCd());
-        long outbEaQty = prod.eaQtyOf(prod.getOutbUomCd());
-        if (inbEaQty % outbEaQty != 0) {
-            throw new IllegalArgumentException(
-                    "입고단위 낱개수량(%d)은 출고단위 낱개수량(%d)의 배수여야 합니다: %s"
-                            .formatted(inbEaQty, outbEaQty, prod.getProdNm()));
-        }
+        // 나누어떨어짐 검증은 없다 — 재고 저장 단위가 낱개(EA)로 통일되면서 환산(toEaQty)이
+        // 곱셈만 남아, 어떤 포장 조합이어도 수량이 깎일 수 없다.
     }
 
     private void ensureUom(Prod prod, String uomCd) {
