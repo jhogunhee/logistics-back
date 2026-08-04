@@ -85,9 +85,20 @@ public class ReceivingService {
         }
 
         Prod prod = ibLine.getProd();
-        long inspect = line.getInspectQty() != null ? line.getInspectQty() : 0;
-        if (inspect < 1) {
+        long inspectUomQty = line.getInspectQty() != null ? line.getInspectQty() : 0;
+        if (inspectUomQty < 1) {
             throw new IllegalArgumentException("검수수량은 1 이상이어야 합니다: " + prod.getProdCd());
+        }
+
+        // 검수는 입고단위(발주단위) 개수로 세고, 저장은 재고 저장 단위(출고단위)로 환산한다.
+        // 입고단위 정수만 받으므로 부분 박스는 표현할 수 없다 — 딱 안 떨어지는 잔량은 마감으로 미입고 확정
+        long inspect = prod.toOutbQty(inspectUomQty);
+
+        // 과입고 차단: 예정 잔량을 넘는 검수는 거부 (프론트도 같은 검증을 하지만 서버가 최종 방어선)
+        long remaining = ibLine.getExpctQty() - ibLine.getRcvdQty();
+        if (inspect > remaining) {
+            throw new IllegalArgumentException("검수수량이 예정 잔량을 초과합니다: " + prod.getProdCd()
+                    + " (잔량 " + remaining + ", 검수 환산 " + inspect + ")");
         }
 
         ibLine.receive(inspect);
