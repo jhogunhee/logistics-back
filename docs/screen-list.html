@@ -141,15 +141,15 @@
 </tr>
 <tr>
   <td class="name">적치지시</td>
-  <td>스테이징 잔량이 있는 <strong>(라인, Lot) 배치</strong>에 대해 <strong>적치 전략에 따라 로케이션을 배정한 지시를 생성</strong>. 지시 목록 조회 / 재배정 / 취소</td>
-  <td class="st"><span class="badge todo">미구현</span></td>
-  <td>신규 — 지시 엔티티 + 전략 엔진 필요</td>
+  <td>탭 2개. <strong>지시 등록</strong> — <strong>입고건(주문) 단위</strong> 마스터-디테일. 상단에서 입고건을 고르고 <code>[이 입고 전체 지시]</code> 한 번으로 그 입고의 미지시 배치를 전략으로 일괄 배정(용량 부족 시 1:N 분할)해 확인 후 발행한다. 물건이 트럭 단위로 들어와 한 자리에 내려지므로 지시도 그 단위로 거는 것. 하단 (라인, Lot) 배치는 전략이 배정하지 못한 건을 <strong>수동 지시</strong>할 때 쓴다. 생성 시 스테이징 재고를 예약(aloc)한다.<br><strong>지시 관리</strong> — 지시 목록 조회 / 취소(실행 실적이 없는 건만). 재배정은 취소 후 재지시로 갈음</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>GET /inbound/putaway/lines</code><br><code>POST /inbound/putaway/tasks/preview</code><br><code>POST /inbound/putaway/tasks</code><br><code>GET /inbound/putaway/tasks</code><br><code>POST /tasks/{id}/cancel</code></td>
 </tr>
 <tr>
   <td class="name">적치</td>
-  <td>발행된 적치지시를 선택해 실행(보관 로케이션으로 MOVE) → 지시 소진. 지시 로케이션과 다른 곳에 넣은 경우 실적 로케이션 수정 허용 여부는 결정 필요</td>
-  <td class="st"><span class="badge wip">진행중</span></td>
-  <td><code>GET /inbound/putaway/lines</code><br><code>/lines/{id}/candidate-locs</code><br><code>POST /lines/{id}</code><br>→ <strong>지시 기반으로 재작성</strong></td>
+  <td><strong>상품 단위</strong> 마스터-디테일. 작업자가 스테이징에서 집어 드는 단위가 상품이라 상단은 상품별 집계(지시 건수 · 로케이션 수 · 잔여), 하단은 그 상품이 <strong>어느 로케이션에 얼마씩</strong> 가는지다 — 1:N 분할을 한눈에 보고 한 번 들고 나가 나눠 넣게 하려는 배치. <code>[전량 적치]</code>가 주 동선이고 건별 부분 실행은 하단 패널이 맡는다. <strong>지시받은 로케이션으로만</strong> 적치할 수 있다 — 다른 곳에 두려면 취소 후 재지시(실적 로케이션 수정은 두지 않기로 결정)</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>GET /inbound/putaway/tasks</code><br><code>POST /tasks/{id}/execute</code><br><code>POST /tasks/execute</code>(일괄)<br><code>/lines/{id}/candidate-locs</code>(수동 지시용)</td>
 </tr>
 <tr>
   <td class="name">입고확정</td>
@@ -305,7 +305,7 @@
   <td class="name">적치 전략관리</td>
   <td>적치 추천이 로케이션을 고르는 규칙 정의. 발주구분별 단계 목록(drag&amp;drop 순서) + 단계별 조건·방식 + 미리보기·리비전 이력</td>
   <td class="st"><span class="badge done">구현</span></td>
-  <td><code>/strategy/putaway-strategies</code> · <code>pages/strategy/PutawayStrategy.jsx</code>. 1차에서 전략은 <strong>추천만</strong> 한다 — 지시 기반 전환은 적치지시 구현 시</td>
+  <td><code>/strategy/putaway-strategies</code> · <code>pages/strategy/PutawayStrategy.jsx</code>. 전략의 배정 결과가 <strong>적치지시로 저장</strong>된다 — 지시 등록 화면의 일괄 추천이 같은 산정 함수를 쓴다(배치 간 용량 공유만 추가)</td>
 </tr>
 <tr>
   <td class="name">공통코드 관리</td>
@@ -359,8 +359,8 @@
 
 <tr><td class="name" rowspan="5">입고</td><td>입고예정(ASN) 관리</td><td><code>/inbound/asn</code></td><td><code>pages/inbound/AsnList.jsx</code></td></tr>
 <tr><td>입고검수</td><td><code>/inbound/receiving</code></td><td><code>pages/inbound/Receiving.jsx</code></td></tr>
-<tr><td>적치지시</td><td><code>/inbound/putaway-order</code></td><td>Placeholder</td></tr>
-<tr><td>적치</td><td><code>/inbound/putaway</code></td><td><code>pages/inbound/Putaway.jsx</code> — 지시 기반으로 재작성 예정</td></tr>
+<tr><td>적치지시</td><td><code>/inbound/putaway-order</code></td><td><code>pages/inbound/PutawayOrder.jsx</code> (탭: 지시 등록 · 지시 관리)</td></tr>
+<tr><td>적치</td><td><code>/inbound/putaway</code></td><td><code>pages/inbound/Putaway.jsx</code> — 지시 실행 워크리스트</td></tr>
 <tr><td>입고확정</td><td><code>/inbound/close</code></td><td>Placeholder</td></tr>
 
 <tr><td class="name" rowspan="6">재고</td><td>현재고 조회</td><td><code>/stock/status</code></td><td><code>pages/stock/StockStatus.jsx</code> — 모니터링 그룹에서 이동</td></tr>
@@ -395,7 +395,7 @@
 <ol class="steps">
   <li><s>OMS ↔ WMS 경계 결정</s> — <strong>완료(2026-07-23).</strong> ① 주문 확정 시 ASN 자동 생성으로 결정하고 입고주문 등록·관리 화면까지 구현. 다음 후보는 <strong>확정 후 주문 수정/취소</strong>(ASN 취소와의 연동 규칙 필요)</li>
   <li><strong>입고 상태 모델 재정의</strong> — 확정이 마지막 단계가 되면서 <code>RECEIVED</code>/<code>COMPLETED</code> 전이 지점이 바뀜. 코드 치기 전에 상태 기계부터 확정</li>
-  <li><strong>적치 전략관리</strong> → <strong>적치지시</strong> → <strong>적치</strong> — 전략이 없으면 지시를 만들 수 없으므로 이 순서 고정. 기존 적치 API는 지시 기반으로 재작성</li>
+  <li><s><strong>적치 전략관리</strong> → <strong>적치지시</strong> → <strong>적치</strong></s> — 완료(2026-08-04). 전략 없이도 수동 지시로 발행할 수 있게 해서 「전략이 없으면 지시를 만들 수 없다」는 전제는 풀렸다. 즉시 MOVE 경로(<code>POST /lines/{id}</code>)는 제거</li>
   <li><strong>입고확정</strong> — 적치까지 붙은 뒤에야 결품 확정 화면이 의미를 가짐</li>
   <li><s><strong>할당</strong></s> — <strong>완료 2026-08-03.</strong> 진입 단위는 <strong>웨이브</strong>이고 계산·결과는 라인 단위다(재번복 — 위 표 참조). v1의 유일한 할당 경로</li>
   <li><strong>피킹지시</strong>(웨이브 단위) → <strong>피킹</strong> → <strong>출고확정</strong> — 출고 흐름 완성</li>
@@ -410,8 +410,9 @@
 <table>
 <thead><tr><th style="width:220px">기존 설계 결정</th><th>변경 내용</th></tr></thead>
 <tbody>
-<tr><td class="name">"적치 지시 단계는 두지 않는다"</td><td>지시 엔티티를 도입한다. 사유: 전략 기반 로케이션 배정을 하려면 배정 결과를 담을 레코드가 필요</td></tr>
-<tr><td class="name">"적치 로케이션 배정은 v1에서 수동 선택 / 자동 슬로팅·전략 엔진은 백로그"</td><td>전략관리 + 자동 배정을 v1에 포함. 로케이션 용량 제약을 어디까지 볼지는 별도 결정 필요</td></tr>
+<tr><td class="name">"적치 지시 단계는 두지 않는다"</td><td><s>지시 엔티티를 도입한다.</s> <strong>반영 완료(2026-08-04)</strong> — <code>putaway_task</code> 엔티티·서비스·화면 구현, 즉시 MOVE 경로 제거</td></tr>
+<tr><td class="name">"적치 로케이션 배정은 v1에서 수동 선택 / 자동 슬로팅·전략 엔진은 백로그"</td><td><s>전략관리 + 자동 배정을 v1에 포함.</s> <strong>반영 완료</strong> — 전략 일괄 추천 + 수동 지시 병행. 용량 제약은 <code>max_qty − 현재고 − 미완료 지시 유입 잔량</code>으로 확정(<code>LocCapacityService</code> 단일 정의)</td></tr>
+<tr><td class="name">"적치 지시는 로케이션을 선점하지 않는다"</td><td><strong>출발지만 번복(2026-08-04)</strong> — 지시 생성이 스테이징 재고를 <code>aloc_qty</code>로 예약한다. 도착지는 그대로 파생식. 이로써 검수취소의 「미완료 적치지시 차단」 특례가 가용수량 체크로 대체됨</td></tr>
 <tr><td class="name">"입고 마감 UI는 백로그, 버튼 미노출"</td><td><strong>입고확정으로 재정의하고 흐름의 마지막 단계로 이동.</strong> 검수 직후가 아니라 적치가 진행된 뒤 결품을 확정한다</td></tr>
 <tr><td class="name">"COMPLETED는 RECEIVED 상태 and 전 라인 putawayQty == rcvdQty 두 조건이 충족된 시점에 자동 전이"</td><td>자동 전이 제거. <strong>사용자의 명시적 확정 액션</strong>으로만 종료하며, 전 라인 적치 완료가 확정의 선행 조건이 된다</td></tr>
 <tr><td class="name">백로그(v1 제외): "폐기/홀드(재고 상태 + 만료 Lot 자동 홀드 배치)"</td><td><strong>재고 보류를 v1에 포함.</strong> <code>inv</code>에 재고상태를 추가하고 할당 후보에서 보류 재고를 제외한다. 만료 Lot 자동 보류 배치와 폐기는 계속 백로그</td></tr>

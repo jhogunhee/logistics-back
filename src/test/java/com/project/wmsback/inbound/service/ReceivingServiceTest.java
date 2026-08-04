@@ -3,10 +3,12 @@ package com.project.wmsback.inbound.service;
 import com.project.wmsback.inbound.dto.ReceiveRequest;
 import com.project.wmsback.inbound.entity.IbLine;
 import com.project.wmsback.inbound.entity.IbOrder;
+import com.project.wmsback.inbound.entity.IbStatus;
 import com.project.wmsback.inbound.repository.IbLineRepository;
 import com.project.wmsback.inbound.repository.IbOrderRepository;
 import com.project.wmsback.inventory.entity.Inv;
 import com.project.wmsback.inventory.entity.InvHist;
+import com.project.wmsback.inventory.entity.TxTyp;
 import com.project.wmsback.inventory.repository.InvHistRepository;
 import com.project.wmsback.inventory.repository.InvRepository;
 import com.project.wmsback.warehouse.entity.Loc;
@@ -156,5 +158,37 @@ class ReceivingServiceTest {
                 () -> receivingService.receive(10L, request(0)));
 
         verify(invHistRepository, never()).save(any());
+    }
+
+    /**
+     * 적치지시가 예약(aloc)한 몫은 검수 취소로 빼갈 수 없다 — 「미완료 적치지시가 있으면 차단」 특례를
+     * 따로 두지 않고 가용재고 검증 하나로 처리한다는 판단의 회귀 방어 (docs/design.md 「검수 취소」).
+     */
+    @Test
+    @DisplayName("검수 취소 거부: 적치지시가 예약한 수량이 있어 가용재고가 모자라면 취소할 수 없다")
+    void cancelReceipt_rejectsWhenReservedByPutawayTask() {
+        InvHist receipt = mock(InvHist.class);
+        when(receipt.getId()).thenReturn(500L);
+        when(receipt.getTxTyp()).thenReturn(TxTyp.RECEIVE);
+        when(receipt.getIbLineId()).thenReturn(100L);
+        when(receipt.getProd()).thenReturn(prod);
+        when(receipt.getLoc()).thenReturn(staging);
+        when(receipt.getLot()).thenReturn(lot);
+        when(receipt.getQty()).thenReturn(30L);
+        when(invHistRepository.findById(500L)).thenReturn(Optional.of(receipt));
+        when(invHistRepository.findAllByIbLineIdAndTxTypeOrderByCreatedAtDesc(100L, TxTyp.ADJUST))
+                .thenReturn(List.of());
+        when(order.getStatus()).thenReturn(IbStatus.RECEIVING);
+
+        // 보유 30 전부를 적치지시가 예약한 상태 — 실물은 남아 있지만 가용은 0
+        Inv reserved = Inv.builder().prod(prod).loc(staging).lot(lot).build();
+        reserved.increaseOnHand(30L);
+        reserved.reserve(30L);
+        when(invRepository.findByKeyForUpdate(1L, 5L, 7L)).thenReturn(Optional.of(reserved));
+
+        assertThrows(IllegalStateException.class, () -> receivingService.cancelReceipt(10L, 500L));
+
+        assertEquals(30L, reserved.getOnHandQty());
+        verify(ibLine, never()).cancelReceive(anyLong());
     }
 }

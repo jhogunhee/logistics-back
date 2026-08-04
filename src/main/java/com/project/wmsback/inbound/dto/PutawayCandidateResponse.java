@@ -23,7 +23,15 @@ public class PutawayCandidateResponse {
     private final String lotNo;
     private final LocalDate receiptDt;
     private final LocalDate expiryDt;
+    /** 스테이징에 남은 미적치 잔량 (지시 발행 여부와 무관한 실물 기준) */
     private final Long pendingQty;
+    /**
+     * 이 배치에 이미 걸려 있는 미완료 지시 잔량. 쿼리를 하나로 묶지 않고 서비스가 채우는 이유는
+     * inv_hist 배치 집계와 putaway_task 집계가 각각 다른 축으로 그룹핑되기 때문이다.
+     */
+    private Long drctRemainQty;
+    /** 아직 지시하지 않은 수량 = pendingQty − drctRemainQty. 지시 등록 화면이 이 값으로 선택 가능 여부를 정한다 */
+    private Long unDrctQty;
 
     public PutawayCandidateResponse(Long ibLineId, Long ibOrderId, String ibNo, String vndrNm,
                                      String prodCd, String prodNm, TmpZon tmpZon,
@@ -41,5 +49,14 @@ public class PutawayCandidateResponse {
         this.receiptDt = receiptDt;
         this.expiryDt = expiryDt;
         this.pendingQty = pendingQty;
+        // 지시 집계를 붙이기 전 기본값 — 목록이 지시를 모르는 경로(전략 미리보기 등)에서도 값이 비지 않게 한다
+        this.drctRemainQty = 0L;
+        this.unDrctQty = pendingQty;
+    }
+
+    /** 미완료 지시 잔량을 반영해 미지시 수량을 파생시킨다 (PutawayTaskService가 목록 조립 시 호출) */
+    public void applyDirectedQty(long directedQty) {
+        this.drctRemainQty = directedQty;
+        this.unDrctQty = pendingQty - directedQty;
     }
 }

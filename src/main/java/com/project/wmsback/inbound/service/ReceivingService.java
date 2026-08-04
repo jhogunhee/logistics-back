@@ -215,10 +215,14 @@ public class ReceivingService {
 
         Prod prod = receipt.getProd();
         long qty = receipt.getQty();
-        Inv inv = invRepository.findByProdIdAndLocIdAndLotId(prod.getId(), receipt.getLoc().getId(), receipt.getLot().getId())
+        // 예약(적치지시)과 경합하므로 행 락으로 읽는다 — 검증과 차감 사이에 지시가 끼어들면 예약분을 밑에서 빼가게 된다
+        Inv inv = invRepository.findByKeyForUpdate(prod.getId(), receipt.getLoc().getId(), receipt.getLot().getId())
                 .orElseThrow(() -> new IllegalStateException("스테이징 재고를 찾을 수 없습니다: " + prod.getProdCd()));
-        if (inv.getOnHandQty() < qty) {
-            throw new IllegalStateException("이미 적치된 수량이 있어 검수를 취소할 수 없습니다: " + prod.getProdCd());
+        // 가용재고 기준 — 적치지시가 예약한 몫은 취소로 빼갈 수 없다.
+        // 「미완료 적치지시가 있으면 차단」 특례를 따로 두지 않고 이 한 줄로 처리한다 (docs/design.md 「검수 취소」)
+        if (inv.avalQty() < qty) {
+            throw new IllegalStateException("이미 적치됐거나 적치지시가 예약한 수량이 있어 검수를 취소할 수 없습니다 (가용 "
+                    + inv.avalQty() + "): " + prod.getProdCd());
         }
 
         inv.decreaseOnHand(qty);
@@ -233,7 +237,7 @@ public class ReceivingService {
                 .cnclInvHistId(receipt.getId())
                 .build());
         // 스테이징 재고가 0이 되면 스냅샷 행을 삭제한다 (재고 테이블엔 실물이 있는 행만 남긴다)
-        if (inv.getOnHandQty() == 0 && inv.getAlocQty() == 0) {
+        if (inv.getOnHandQty() == 0 && inv.getAlocQty() == 0 && inv.getHldQty() == 0) {
             invRepository.delete(inv);
         }
         order.reopenIfNoLongerFullyReceived(); // 전량검수로 자동 마감됐던 게 이 취소로 깨졌으면 RECEIVING으로 되돌림

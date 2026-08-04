@@ -60,6 +60,7 @@ class InvMovServiceTest {
     @Mock InvHistRepository invHistRepository;
     @Mock InvMovTaskRepository invMovTaskRepository;
     @Mock LocRepository locRepository;
+    @Mock LocCapacityService locCapacityService;
     @Mock NbrService nbrService;
 
     @InjectMocks InvMovService invMovService;
@@ -98,8 +99,8 @@ class InvMovServiceTest {
 
         when(invRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(fromInv));
         when(locRepository.findById(20L)).thenReturn(Optional.of(toLoc));
-        when(invRepository.sumOnHandQtyByLocId(20L)).thenReturn(0L);
-        when(invMovTaskRepository.sumOpenInboundQty(20L, InvMovStatus.DIRECTED)).thenReturn(0L);
+        // 적재가능수량 계산은 LocCapacityService가 단일 정의를 갖는다 (적치지시 유입분도 그쪽에서 합산)
+        when(locCapacityService.availCapacity(toLoc)).thenReturn(100L);
         when(nbrService.issue(anyString(), any(LocalDate.class))).thenReturn("MV-20260803-001");
         when(invMovTaskRepository.save(any(InvMovTask.class))).thenAnswer(inv -> inv.getArgument(0));
         when(invRepository.save(any(Inv.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -174,9 +175,15 @@ class InvMovServiceTest {
     @Test
     @DisplayName("등록: 도착지 적재가능수량(max_qty - 현재고 - 미완료 유입 잔량) 초과 거부")
     void register_rejectsOverCapacity() {
-        when(invRepository.sumOnHandQtyByLocId(20L)).thenReturn(60L);
-        when(invMovTaskRepository.sumOpenInboundQty(20L, InvMovStatus.DIRECTED)).thenReturn(35L); // 적재가능 5
+        when(locCapacityService.availCapacity(toLoc)).thenReturn(5L);
         assertThrows(IllegalArgumentException.class, () -> invMovService.register(request(100L, 20L, 6L)));
+    }
+
+    @Test
+    @DisplayName("등록: 최대 적재 수량 미설정(null)이면 용량 제한 없이 통과")
+    void register_allowsWhenCapacityUnset() {
+        when(locCapacityService.availCapacity(toLoc)).thenReturn(null);
+        assertEquals(1, invMovService.register(request(100L, 20L, 6L)).size());
     }
 
     @Test

@@ -33,8 +33,8 @@ import java.util.List;
  * 등록이 FROM 재고의 aloc를 선점해 출고 할당(FEFO)과의 경합을 원천 차단하고,
  * 확정이 inv_hist MOVE 2행을 남기며 예약을 소진한다 (피킹이 aloc를 소진하는 것과 같은 패턴).
  * 실적 테이블은 없다 — 분할확정 실적은 inv_hist에 확정 횟수만큼 쌓인다 (rfn_doc_no = 지시번호).
- * 적치지시가 선점을 두지 않는 것과 다른 이유: 적치 대상(스테이징)은 할당 후보가 아니지만
- * 이동 FROM(보관 재고)은 할당 후보 그 자체다. docs/design.md 「재고 이동」 참고.
+ * 적치지시(putaway_task)도 같은 형태로 스테이징 재고를 예약한다 — aloc_qty는 예약수량 일반이라
+ * 원천이 무엇이든 같은 컬럼을 쓴다. docs/design.md 「재고 이동」·「적치 지시」 참고.
  */
 @Service
 @RequiredArgsConstructor
@@ -47,6 +47,7 @@ public class InvMovService {
     private final InvHistRepository invHistRepository;
     private final InvMovTaskRepository invMovTaskRepository;
     private final LocRepository locRepository;
+    private final LocCapacityService locCapacityService;
     private final NbrService nbrService;
 
     public List<InvMovTaskResponse> list(InvMovTaskSearchCond cond) {
@@ -99,17 +100,12 @@ public class InvMovService {
             throw new IllegalArgumentException("이동수량이 가용재고를 초과했습니다 (가용 " + fromInv.avalQty() + "): "
                     + prodEntity.getProdCd() + " @ " + from.getLocCd());
         }
-        // 적재가능수량 = max_qty − 현재고 − 미완료 이동지시 유입 잔량. STORAGE는 max_qty NOT NULL이
-        // DB 강제이지만(ck_loc_storage_capacity) 강제 이전의 옛 행일 수 있어 null이면 무제한으로 본다.
-        // TODO 적치지시(putaway_task) 구현 시 그 미완료 잔량도 같은 항에 합산해야 한다 (양쪽 계산식 공통화).
-        if (to.getMaxQty() != null) {
-            long capacity = to.getMaxQty()
-                    - invRepository.sumOnHandQtyByLocId(to.getId())
-                    - invMovTaskRepository.sumOpenInboundQty(to.getId(), InvMovStatus.DIRECTED);
-            if (item.getQty() > capacity) {
-                throw new IllegalArgumentException("도착 로케이션의 적재가능수량을 초과했습니다 (적재가능 " + Math.max(capacity, 0)
-                        + "): " + to.getLocCd());
-            }
+        // 적재가능수량은 LocCapacityService가 단일 정의를 갖는다 (적치지시 유입분도 같은 항에 합산된다).
+        // null = max_qty 미설정(무제한) — STORAGE는 NOT NULL이 DB 강제이지만 강제 이전의 옛 행일 수 있다
+        Long capacity = locCapacityService.availCapacity(to);
+        if (capacity != null && item.getQty() > capacity) {
+            throw new IllegalArgumentException("도착 로케이션의 적재가능수량을 초과했습니다 (적재가능 " + capacity
+                    + "): " + to.getLocCd());
         }
 
         fromInv.reserve(item.getQty());

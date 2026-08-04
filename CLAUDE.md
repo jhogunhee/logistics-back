@@ -66,7 +66,7 @@ common  ← mdm ← wmsback ← omsback
 - **`inv_hist` 합계 = `inv` 스냅샷.** 재고를 건드리는 코드는 이력 1건 기록과 스냅샷 갱신을 **한 트랜잭션에서 함께** 한다. 둘 중 하나만 하는 코드를 쓰지 말 것.
 - `MOVE`는 **`inv_hist` 2행**이다(출발지 −, 도착지 +). 두 행 모두 같은 `from_loc_id`/`to_loc_id`를 가져서 한 행만 봐도 이동 전체를 알 수 있다.
 - 정정은 append-only다 — 검수 취소는 원본을 지우지 않고 `ADJUST(-수량)` 행을 추가한다.
-- `RCV-STAGE`는 입고 스테이징 로케이션이다. 코드값이 `IbLineRepositoryImpl` · `ReceivingService` · `PutawayService` 세 곳에 private 상수로 중복돼 있으니 바꿀 때 셋을 같이 고칠 것.
+- `RCV-STAGE`는 입고 스테이징 로케이션이다. 코드값이 `IbLineRepositoryImpl` · `ReceivingService` · `PutawayService` · `PutawayTaskService` 네 곳에 private 상수로 중복돼 있으니 바꿀 때 넷을 같이 고칠 것.
 
 ### 상태와 수량의 분담
 

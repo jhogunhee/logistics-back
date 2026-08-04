@@ -23,8 +23,4 @@ public interface InvRepository extends JpaRepository<Inv, Long>, InvRepositoryCu
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select i from Inv i where i.prod.id = :prodId and i.loc.id = :locId and i.lot.id = :lotId")
     Optional<Inv> findByKeyForUpdate(@Param("prodId") Long prodId, @Param("locId") Long locId, @Param("lotId") Long lotId);
-
-    /** 로케이션의 현재고 총량 — 적재가능수량(max_qty − 현재고 − 미완료 지시 유입 잔량) 계산용 */
-    @Query("select coalesce(sum(i.onHandQty), 0) from Inv i where i.loc.id = :locId")
-    long sumOnHandQtyByLocId(@Param("locId") Long locId);
 }
