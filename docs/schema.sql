@@ -99,7 +99,7 @@ CREATE TABLE prod_uom (
     CONSTRAINT ck_prod_uom_wgt CHECK (wgt IS NULL OR wgt > 0)
 );
 
-COMMENT ON TABLE  prod_uom IS '상품 포장. (상품, 단위) 한 조합이 한 행 — 낱개수량과 중량을 포장마다 갖는다. 입고→출고단위 환산이 여기서 파생된다';
+COMMENT ON TABLE  prod_uom IS '상품 포장. (상품, 단위) 한 조합이 한 행 — 낱개수량과 중량을 포장마다 갖는다. 어느 단위든 낱개(EA)를 매개로 환산되는 근거가 여기다';
 COMMENT ON COLUMN prod_uom.uom_cd IS '단위 코드. 공통코드 UOM 그룹(code_detail) 참조, FK 없음 — 존재 검증은 ProdService';
 COMMENT ON COLUMN prod_uom.ea_qty IS '이 단위 1개가 낱개 몇 개인가 (예: BOX 1개 = 24). 낱개 그 자체면 1. 환산(Prod.toEaQty = qty × ea_qty)은 OMS→WMS 경계 세 곳에서만 일어난다 — 발주→ASN(입고단위), 검수 입력(입고단위), 출고주문 확정(출고단위). 창고의 모든 수량 컬럼은 낱개(EA)다';
 COMMENT ON COLUMN prod_uom.wgt    IS '이 단위 1개의 중량(kg). 포장재 무게(tare)를 포함한 실측값이며 미측정이면 NULL. 낱개중량 × 낱개수량으로 파생시키지 않는 이유가 tare다';
@@ -549,7 +549,7 @@ CREATE TABLE oms_outb_line (
     CONSTRAINT ck_oms_outb_line_qty CHECK (odr_qty > 0)
 );
 
-COMMENT ON TABLE  oms_outb_line IS '출고주문 라인. 확정 시 outb_line으로 1:1 복사된다 (환산 없음)';
+COMMENT ON TABLE  oms_outb_line IS '출고주문 라인. 확정 시 outb_line으로 복사되며, 그때 수량만 prod_uom.ea_qty(출고단위)를 곱해 낱개(EA)로 환산된다';
 COMMENT ON COLUMN oms_outb_line.odr_qty IS '주문 수량. <<출고단위(prod.outb_uom_cd) 기준>> — 주문 원장은 사람이 쓰는 단위를 유지한다 (입고 쪽은 oms_ib_line.odr_qty가 입고단위). 확정 시 prod_uom.ea_qty(출고단위)를 곱해 낱개(EA)로 환산돼 outb_line.odr_qty가 된다';
 
 CREATE INDEX ix_oms_outb_line_order ON oms_outb_line (oms_outb_order_id);
@@ -1066,7 +1066,7 @@ CREATE TABLE outb_line (
 );
 
 COMMENT ON TABLE  outb_line IS '출고 주문 라인. 할당/피킹 수량은 컬럼으로 두지 않고 outb_alloc 집계로 파생 (수량-상태 불일치 원천 차단)';
-COMMENT ON COLUMN outb_line.odr_qty IS '주문 수량';
+COMMENT ON COLUMN outb_line.odr_qty IS '주문 수량. 낱개(EA) 기준 — oms_outb_line.odr_qty(출고단위)에 prod_uom.ea_qty(출고단위)를 곱한 값이다. 창고의 모든 수량 컬럼이 같은 단위(EA)다 (입고 쪽 대응은 ib_line.expct_qty)';
 
 CREATE INDEX ix_outb_line_order ON outb_line (outb_order_id);
 

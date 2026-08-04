@@ -3,6 +3,11 @@
 --   (겸 상품 마스터 정리 — 죽은 컬럼 prod.ib_life_rate 삭제)
 --   전제: docs/migration-catchup-to-schema.sql · migration-zon.sql 까지 적용된 DB.
 --
+--   ※ 이 스크립트가 심은 단위 규약(「저장 단위 = 출고단위」)은 이후 번복됐다 —
+--     지금은 창고의 모든 수량 컬럼이 낱개(EA)다. 아래 본문·주석은 당시 기록으로 남기고,
+--     현재 규약은 docs/design.md 「계량단위와 환산」과 docs/schema.sql 을 본다.
+--     라이브 DB 주석은 migration-uom-comment-sync.sql 이 현재 규약으로 맞춘다.
+--
 --   배경 —
 --   지금까지 단위 개념이 스키마에 전혀 없었다. 모든 수량이 단위 없는 BIGINT이고
 --   입수량은 상품명 문자열에 갇혀 있었다 ('코카콜라 350ml (24입)').
