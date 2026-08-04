@@ -29,6 +29,7 @@ public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {
                 .where(
                         ibNoContains(cond.getIbNo()),
                         statusEq(cond.getStatus()),
+                        vndrNmContains(cond.getVndrNm()),
                         expctDeGoe(cond.getDateFrom()),
                         expctDeLoe(cond.getDateTo())
                 )
@@ -44,6 +45,10 @@ public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {
 
     private BooleanExpression statusEq(IbStatus status) {
         return status != null ? ibOrder.status.eq(status) : null;
+    }
+
+    private BooleanExpression vndrNmContains(String vndrNm) {
+        return StringUtils.hasText(vndrNm) ? vendor.vndrNm.containsIgnoreCase(vndrNm) : null;
     }
 
     private BooleanExpression expctDeGoe(LocalDate dateFrom) {

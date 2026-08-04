@@ -17,6 +17,9 @@ public class IbOrderSearchCond {
     private String ibNo;
     private IbStatus status;
 
+    /** 벤더명 (contains). 화면은 벤더 선택 팝업에서 고른 이름을 그대로 보낸다 — OMS 주문목록과 같은 방식 */
+    private String vndrNm;
+
     /** 입고 예정일 범위 (from ~ to) */
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate dateFrom;
