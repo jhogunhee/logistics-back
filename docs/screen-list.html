@@ -212,6 +212,13 @@
 <thead><tr><th style="width:150px">화면</th><th>주요 기능</th><th style="width:100px">상태</th><th style="width:260px">API</th></tr></thead>
 <tbody>
 <tr>
+  <td class="name">출고예정</td>
+  <td>목록 검색(출고번호/상태/출고유형/차량편수/출고예정일), 헤더–라인 2단 구조. <strong>등록·취소 기능 없음 — 조회 전용이다</strong>(2026-08-04 확정). 출고주문은 OMS 출고주문 확정으로만 생성되고 확정취소로만 사라진다(입고예정 ASN과 같은 구조). <strong>이 화면을 프로세스 화면(생성/취소)으로 규정한 참고 설계는 따르지 않는다</strong> — 창고가 예정을 스스로 만들거나 없애면 「주문은 확정인데 창고엔 아무것도 없는」 상태가 고착된다. 기능 누락이 아니므로 되살리지 말 것.
+  <br>입고예정에 없는 컬럼이 둘이다 — <strong>웨이브</strong>(편성된 웨이브번호 + 편입 출처, 비어 있으면 미편성)와 <strong>할당 진행/할당수량</strong>. 뒤엣것은 저장 컬럼이 아니라 <code>outb_alloc</code> 집계다(할당 수량을 라인에 두지 않는 원칙). 라인의 잔량은 「아직 못 채운 부분할당」이라 음수가 나지 않는다 — 과입고가 가능한 입고 잔량과 갈리는 지점</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>GET /outbound/orders</code><br><code>/{id}/lines</code><br><code>/outbound/order</code></td>
+</tr>
+<tr>
   <td class="name">웨이브 편성</td>
   <td>좌: 웨이브 목록(선택 = 작업 대상) / 우 상: 미편성 주문 · 우 하: 웨이브 소속 주문. 담기(↓)·빼기(↑)·해체.<br><strong>웨이브 = 피킹지시 발행 단위</strong> — 여러 주문을 묶어 한 번에 집품 지시를 내기 위한 그룹
   <br><strong>전략 편성이 같은 화면에 있다</strong> — 전략을 하나 골라 선택실행하거나 비워서 전 전략 자동실행(우선순위 순, 앞 전략이 주문을 선점). 실행 전 <strong>미리보기</strong>로 주문별 판정 근거를 조건 단위까지 볼 수 있고(DB 변경 없음), 실행 후에는 전략별로 「웨이브를 만들었는지 / 왜 안 만들었는지」를 보여준다. 편입 0건이면 웨이브를 만들지 않으므로 재실행해도 빈 웨이브가 쌓이지 않는다.
@@ -363,7 +370,8 @@
 <tr><td>재고 이동</td><td><code>/stock/move</code></td><td><code>pages/stock/StockMove.jsx</code> — 탭 2개(이동지시등록 <code>StockMoveOrder.jsx</code> / 이동지시 관리 <code>StockMoveTaskList.jsx</code>)</td></tr>
 <tr><td>재고조사</td><td><code>/stock/count</code></td><td><code>pages/stock/StockCount.jsx</code> — 탭 2개(조사 목록 <code>StockCountList.jsx</code> / 실사 입력·확정 <code>StockCountDetail.jsx</code>)</td></tr>
 
-<tr><td class="name" rowspan="5">출고</td><td>웨이브 편성</td><td><code>/outbound/wave</code></td><td><code>pages/outbound/Wave.jsx</code> — 웨이브 목록 + 미편성/소속 주문 2단, 담기·빼기·해체, 전략 선택·자동 실행과 미리보기</td></tr>
+<tr><td class="name" rowspan="6">출고</td><td>출고예정 관리</td><td><code>/outbound/order</code></td><td><code>pages/outbound/OutbOrderList.jsx</code> — 헤더–라인 2단 조회 전용. 입고예정(<code>AsnList.jsx</code>)과 같은 구조에 웨이브 편성 여부와 할당 진행이 더 붙는다</td></tr>
+<tr><td>웨이브 편성</td><td><code>/outbound/wave</code></td><td><code>pages/outbound/Wave.jsx</code> — 웨이브 목록 + 미편성/소속 주문 2단, 담기·빼기·해체, 전략 선택·자동 실행과 미리보기</td></tr>
 <tr><td>할당</td><td><code>/outbound/allocation</code></td><td><code>pages/outbound/Allocation.jsx</code> — 대상 웨이브 + 라인·할당내역 2단, 자동할당·수동할당(<code>components/outbound/AllocCandidateModal.jsx</code>)·해제. 자동할당은 <strong>할당 전략(SC-04)</strong>을 적용하고, 전략이 없으면 기본 동작(FEFO·점포 잔여수명·순차 소진)으로 실행된다 — 실행 결과에 적용 전략명·리비전이 표시되고 할당내역에 전략/수동 출처가 구분된다</td></tr>
 <tr><td>피킹지시</td><td><code>/outbound/pick-order</code></td><td>Placeholder</td></tr>
 <tr><td>피킹</td><td><code>/outbound/picking</code></td><td>Placeholder</td></tr>
