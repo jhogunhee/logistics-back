@@ -25,41 +25,52 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 할당 산정기 — <b>순수 함수다.</b> 입력은 (정의, 라인 목록, 후보 재고 스냅샷)이고
- * 출력은 (라인별 배정 + 판정 근거)이며, 재고도 DB도 건드리지 않는다.
+ * 할당 산정기 — 상품 그룹 하나를 받아 「어느 재고를 어느 라인에 얼마씩 줄지」를 계산한다.
  *
- * <p>그래서 실전과 미리보기가 이 산정 하나를 공유한다 (P4) — 실전은 「락 → 산정 → 예약」,
- * 미리보기는 「락 없이 산정만」이라 갈리는 지점이 산정 바깥에만 있다.
+ * <p><b>순수 함수다.</b> 입력은 (전략 정의 · 라인 목록 · 후보 재고 스냅샷), 출력은
+ * (라인별 배정 + 판정 근거)이며 재고도 DB도 건드리지 않는다. 덕분에 실전과 미리보기가
+ * 이 산정 하나를 공유한다 (P4) — 실전은 「락 → 산정 → 예약」, 미리보기는 「락 없이 산정만」이라
+ * 갈리는 지점이 전부 산정 바깥에 있다.
+ *
+ * <p><b>흐름</b>은 계층을 하나씩 도는 것이다. 계층마다 ① 쓸 수 있는 후보를 추려 정렬하고
+ * ② 부족하면 분배 슬롯으로 라인별 상한을 정한 뒤 ③ 상한 안에서 재고를 소진하고
+ * ④ 그래도 재고가 남으면 순차로 마저 배정한다. 계층을 다 돌면 라인별로 집계해 근거와 함께 낸다.
  *
  * <p><b>정의가 null이면 전부 기본 동작</b>이다: 계층 없음 · 점포 잔여수명 필터 · FEFO ·
  * 출고예정일순 · 순차 소진. 이것이 전략 도입 전의 붙박이 로직 그대로라, 전략을 하나도 만들지
  * 않은 창고에서 할당 결과가 달라지지 않는다.
  *
- * <p>전략이 건드릴 수 없는 것(하드 가드)은 이 클래스가 무조건 적용한다 —
+ * <p><b>전략이 건드릴 수 없는 것(하드 가드)</b>은 이 클래스가 무조건 적용한다 —
  * 유통기한 경과 Lot 제외 · 과할당 금지(상한 = 라인 잔여요청) · 정렬의 마지막 동률 해소.
  * 보관 로케이션 한정과 가용 &gt; 0은 후보 조회가 이미 강제한 상태로 들어온다.
  *
- * <p>산정 상태(재고 잔량 · 라인 잔여요청)를 인스턴스 필드로 들고 <b>인스턴스는 산정 1회마다
- * 새로 만든다</b> — 상태를 파라미터로 돌리면 메서드마다 장부 6개를 끌고 다니게 되고,
- * 공유 인스턴스를 두면 순수성이 깨진다.
+ * <p><b>산정 상태</b>(재고 잔량 · 라인 잔여요청 · 배정 · 제외 사유)는 인스턴스 필드로 들고
+ * <b>인스턴스는 산정 1회마다 새로 만든다</b> — 상태를 파라미터로 돌리면 메서드마다 통째로
+ * 끌고 다니게 되고, 공유 인스턴스를 두면 순수성이 깨진다.
  */
 public final class AllocationPlanner {
 
-    /** trace에 담을 제외 사유의 최대 건수. 넘어가면 건수만 남긴다 — 로그 한 건이 비대해지는 것을 막는다 */
+    /** 제외 사유를 남기는 최대 건수. 넘어가면 건수만 센다 — 근거 한 덩어리가 비대해지는 것을 막는다 */
     private static final int MAX_SKIP_TRACE = 50;
+
+    // ── 입력 — 만들고 나면 바뀌지 않는다 ──────────────────────────────────────
 
     private final AlocStgyDefinition def;
     private final List<AlocStgyDefinition.SlotDef> rstrctSlots;
     private final List<AllocLineTarget> lines;              // 정렬된 라인
     private final List<AllocInvnCandidate> candidates;
 
+    // ── 산정 상태 — 계층을 넘어가며 이어서 깎인다 ─────────────────────────────
+
     /** 후보별 남은 가용수량. 입력 레코드는 불변으로 두어 같은 목록으로 몇 번이든 다시 산정할 수 있다 */
     private final Map<Long, Long> stock = new LinkedHashMap<>();
     /** 라인별 남은 요청량 */
     private final Map<Long, Long> remainReq = new LinkedHashMap<>();
+    /** 라인별 배정 결과 */
     private final Map<Long, List<AllocGroupPlan.Assignment>> assignments = new LinkedHashMap<>();
-    /** 라인별 제외 사유. 같은 (재고, 라인) 조합은 한 번만 담는다 — 계층·정리 패스에서 반복 평가되므로 */
+    /** 라인별 제외 사유. 같은 (재고, 라인) 조합은 한 번만 담는다 — 계층·sweep 패스에서 반복 평가되므로 */
     private final Map<Long, List<AllocGroupPlan.Skip>> skipsByLine = new LinkedHashMap<>();
+    /** 위 중복 판정용 키 (라인id:재고id) */
     private final Set<String> skipKeys = new HashSet<>();
     private int skipCount;
 
@@ -81,6 +92,8 @@ public final class AllocationPlanner {
      * 상품 그룹 하나를 산정한다.
      *
      * @param def        전략 정의. null = 전략 미설정(전부 기본 동작)
+     * @param prodId     이 그룹의 상품 id (결과에 그대로 실린다)
+     * @param prodCd     이 그룹의 상품코드 (결과·근거에 그대로 실린다)
      * @param lines      이 그룹의 라인들 (정렬 전)
      * @param candidates 이 그룹의 후보 재고 스냅샷 (보관 · 가용 &gt; 0이 이미 걸린 상태)
      */
@@ -89,6 +102,7 @@ public final class AllocationPlanner {
         return new AllocationPlanner(def, lines, candidates).run(prodId, prodCd);
     }
 
+    /** 계층을 차례로 돌린 뒤, 남은 산정 상태를 라인별로 집계해 계획과 근거(trace)로 만든다 */
     private AllocGroupPlan run(Long prodId, String prodCd) {
         List<AlocStgyDefinition.SlotDef> tiers = def != null ? def.slotsOf(AllocSlotTyp.INVN_FLTR) : List.of();
         List<Map<String, Object>> tierTraces = new ArrayList<>();
@@ -103,6 +117,7 @@ public final class AllocationPlanner {
             }
         }
 
+        // 라인별 집계
         List<AllocGroupPlan.LinePlan> linePlans = new ArrayList<>();
         List<Map<String, Object>> skipTraces = new ArrayList<>();
         long totalReq = 0;
@@ -126,6 +141,7 @@ public final class AllocationPlanner {
             }
         }
 
+        // 근거 — 결품 테이블이 없으므로 「왜 이만큼만 받았는지」가 남는 곳은 여기뿐이다
         Map<String, Object> trace = new LinkedHashMap<>();
         trace.put("prodCd", prodCd);
         trace.put("reqQty", totalReq);
@@ -144,13 +160,23 @@ public final class AllocationPlanner {
         return new AllocGroupPlan(prodId, prodCd, totalReq, totalAsgn, linePlans, trace);
     }
 
-    // ── 계층 1회 ─────────────────────────────────────────────────────────────
+    // ── 계층 · 분배 ──────────────────────────────────────────────────────────
 
+    /**
+     * 계층 1회 — 이 계층의 후보로 추려 배정까지 마친다.
+     *
+     * <p>계층들은 산정 상태를 공유한다. 뒤 계층은 앞 계층이 깎고 남긴 잔량·잔여요청을 그대로
+     * 이어받으므로, 이것이 곧 「앞 계층부터 소진」의 구현이다.
+     *
+     * @param tier 계층 슬롯. null = 계층 없음(후보 전체가 한 덩어리)
+     * @param seq  근거에 남길 계층 순번
+     */
     private Map<String, Object> runTier(AlocStgyDefinition.SlotDef tier, int seq) {
         Map<String, Object> trace = new LinkedHashMap<>();
         trace.put("seq", seq);
         trace.put("cond", tier != null ? describeCond(tier.condOrEmpty()) : "전체 (계층 없음)");
 
+        // ① 후보 추리기 — 아직 남은 것 중 이 계층 조건에 맞는 것만, 재고 정렬 순서로
         List<AllocInvnCandidate> tierCandidates = candidates.stream()
                 .filter(candidate -> stock.getOrDefault(candidate.invId(), 0L) > 0)
                 .filter(candidate -> tier == null
@@ -171,6 +197,7 @@ public final class AllocationPlanner {
             return trace;
         }
 
+        // ② 라인별 상한 — 부족할 때만 분배 슬롯이 개입한다
         Map<Long, Long> caps;
         if (tierAval >= totalReq) {
             // 부족이 아니다 — 분배 슬롯은 아예 평가하지 않는다
@@ -182,9 +209,10 @@ public final class AllocationPlanner {
             caps = distribute(tierAval, active, trace);
         }
 
+        // ③ 상한 안에서 소진
         assign(tierCandidates, caps);
 
-        // 제약으로 못 쓴 재고가 남고 아직 못 받은 라인이 있으면 순차로 마저 배정한다.
+        // ④ 재고가 남았는데 못 받은 라인이 있으면 상한을 풀고 순차로 마저 배정한다.
         // 분배 산정은 그룹 수준이라 라인별 제약을 모른다 — 어떤 라인이 자기 상한을 다 쓰지 못하고
         // 남긴 재고를 다른 라인이 쓸 수 있는데도 놀리는 것은 부족 상황에서 특히 나쁘다.
         if (availOf(tierCandidates) > 0 && activeLines().stream().anyMatch(line -> room(line) > 0)) {
@@ -196,7 +224,11 @@ public final class AllocationPlanner {
         return trace;
     }
 
-    /** 분배 슬롯 순회. 슬롯이 0건이면 순차 소진 1건과 동치다 */
+    /**
+     * 부족할 때의 라인별 배분 상한을 산정한다 — <b>실제 배정은 하지 않는다.</b>
+     * 슬롯을 앞에서부터 돌며 남은 가용을 나눠 주고, 슬롯이 0건이면 순차 소진 1건과 동치다.
+     * 근거는 {@code tierTrace}의 {@code dstrb}에 담는다.
+     */
     private Map<Long, Long> distribute(long avalQty, List<AllocLineTarget> active,
                                        Map<String, Object> tierTrace) {
         List<AlocStgyDefinition.SlotDef> slots = def != null ? def.slotsOf(AllocSlotTyp.DSTRB) : List.of();
@@ -229,6 +261,7 @@ public final class AllocationPlanner {
                 slotTrace.put("result", "SKIP — 남은 가용 없음");
                 continue;
             }
+            // 이미 준 상한을 빼고 봐야 슬롯끼리 같은 여유를 두 번 나눠 주지 않는다 (아래 람다도 같다)
             List<AllocLineTarget> targets = active.stream()
                     .filter(line -> ConditionEvaluator.matchesAll(
                             slot.condOrEmpty(), AlocLineField.BY_CODE, line))
@@ -282,6 +315,7 @@ public final class AllocationPlanner {
                     addSkip(candidate, line, reason);
                     continue;
                 }
+                // 재고 잔량 · 라인 잔여요청 · 배정을 한자리에서 함께 갱신한다
                 long take = Math.min(avail, want);
                 stock.put(candidate.invId(), avail - take);
                 remainReq.merge(line.outbLineId(), -take, Long::sum);
@@ -308,6 +342,7 @@ public final class AllocationPlanner {
         if (rstrctSlots.isEmpty()) {
             return AlocRstrct.SHELF_LIFE_PCT.reject(candidate, line, Map.of()).orElse(null);
         }
+        // 슬롯이 여럿이면 AND — 먼저 걸린 사유 하나만 돌려주고 나머지는 보지 않는다
         for (AlocStgyDefinition.SlotDef slot : rstrctSlots) {
             String reason = AlocRstrct.of(slot.cmpntCd())
                     .reject(candidate, line, slot.paraOrEmpty()).orElse(null);
@@ -318,16 +353,19 @@ public final class AllocationPlanner {
         return null;
     }
 
-    // ── 장부 조회 ────────────────────────────────────────────────────────────
+    // ── 산정 상태 조회 ───────────────────────────────────────────────────────
 
+    /** 이 라인이 더 받을 수 있는 수량 */
     private long room(AllocLineTarget line) {
         return remainReq.getOrDefault(line.outbLineId(), 0L);
     }
 
+    /** 이 후보 묶음에 남아 있는 가용수량 합계 */
     private long availOf(List<AllocInvnCandidate> group) {
         return group.stream().mapToLong(candidate -> stock.getOrDefault(candidate.invId(), 0L)).sum();
     }
 
+    /** 아직 다 받지 못한 라인들 (정렬 순서 유지) */
     private List<AllocLineTarget> activeLines() {
         return lines.stream().filter(line -> room(line) > 0).toList();
     }
@@ -367,6 +405,7 @@ public final class AllocationPlanner {
         return comparator.thenComparing(AllocLineTarget::outbLineId);
     }
 
+    /** 정렬 슬롯의 기준 목록. 전략이 없거나 슬롯을 등록하지 않았으면 빈 목록 = 기본값을 쓴다 */
     private List<SortCriterion> criteriaOf(AllocSlotTyp slotTyp) {
         if (def == null) {
             return List.of();
@@ -375,10 +414,10 @@ public final class AllocationPlanner {
         return slot == null ? List.of() : AlocSrt.criteriaOf(slot.paraOrEmpty());
     }
 
-    // ── trace 보조 ───────────────────────────────────────────────────────────
+    // ── 근거(trace) 보조 ─────────────────────────────────────────────────────
 
+    /** 제외 사유 1건 기록. 같은 조합은 계층·sweep 패스에서 여러 번 평가되므로 최초 1건만 남긴다 */
     private void addSkip(AllocInvnCandidate candidate, AllocLineTarget line, String reason) {
-        // 같은 조합은 계층·정리 패스에서 여러 번 평가되므로 최초 1건만 남긴다
         if (!skipKeys.add(line.outbLineId() + ":" + candidate.invId())) {
             return;
         }
@@ -391,6 +430,7 @@ public final class AllocationPlanner {
                         candidate.lotNo(), reason));
     }
 
+    /** 조건 목록을 화면에 그대로 쓸 한 줄로 */
     private static String describeCond(List<FieldCondition> conds) {
         if (conds == null || conds.isEmpty()) {
             return "조건 없음";
@@ -400,6 +440,7 @@ public final class AllocationPlanner {
         return String.join(" AND ", parts);
     }
 
+    /** 정렬 기준을 화면에 그대로 쓸 한 줄로. 미설정이면 기본값 문구에 표시를 붙인다 */
     private String describeSort(AllocSlotTyp slotTyp, String dflt) {
         List<SortCriterion> criteria = criteriaOf(slotTyp);
         if (criteria.isEmpty()) {

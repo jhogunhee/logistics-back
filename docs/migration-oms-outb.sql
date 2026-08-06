@@ -2,6 +2,10 @@
 -- OMS 출고주문(oms_outb_order · oms_outb_line) 신설 + WMS 출고주문을 그 하위로 묶기
 --   전제: docs/migration-catchup-to-schema.sql 까지 적용된 DB (= 현재 라이브 상태).
 --
+--   ※ 이 스크립트의 oms_outb_line 주석(「확정 시 1:1 복사 · 환산 없음」)은 이후 번복됐다 —
+--     지금은 확정 시 prod_uom.ea_qty(출고단위)를 곱해 낱개(EA)로 환산한다.
+--     당시 기록으로 남기고, 라이브 DB 주석은 migration-uom-comment-sync.sql 이 맞춘다.
+--
 --   배경 —
 --   입고는 「OMS 입고주문 확정 → WMS 입고예정(ASN) 생성」 한 방향뿐인데, 출고는 WMS
 --   outb_order 를 직접 등록하는 경로밖에 없었다. 주문 원장이 없으니 수정·확정·확정취소가
