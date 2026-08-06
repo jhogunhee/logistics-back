@@ -4,13 +4,10 @@ import com.project.wmsback.inventory.dto.InvMovRegisterRequest;
 import com.project.wmsback.inventory.dto.InvMovTaskResponse;
 import com.project.wmsback.inventory.dto.InvMovTaskSearchCond;
 import com.project.wmsback.inventory.entity.Inv;
-import com.project.wmsback.inventory.entity.InvHist;
 import com.project.wmsback.inventory.entity.InvMovDvsn;
 import com.project.wmsback.inventory.entity.InvMovStatus;
 import com.project.wmsback.inventory.entity.InvMovTask;
 import com.project.wmsback.inventory.entity.RefDocTyp;
-import com.project.wmsback.inventory.entity.TxTyp;
-import com.project.wmsback.inventory.repository.InvHistRepository;
 import com.project.wmsback.inventory.repository.InvMovTaskRepository;
 import com.project.wmsback.inventory.repository.InvRepository;
 import com.project.wmsback.warehouse.entity.Loc;
@@ -44,7 +41,7 @@ public class InvMovService {
     private static final String MOV_NO_RULE_CD = "INV_MOV_NO";
 
     private final InvRepository invRepository;
-    private final InvHistRepository invHistRepository;
+    private final InvStore invStore;
     private final InvMovTaskRepository invMovTaskRepository;
     private final LocRepository locRepository;
     private final NbrService nbrService;
@@ -112,7 +109,7 @@ public class InvMovService {
             }
         }
 
-        fromInv.reserve(item.getQty());
+        invStore.reserve(fromInv, item.getQty());
         InvMovTask task = InvMovTask.builder()
                 .invMovNo(nbrService.issue(MOV_NO_RULE_CD, LocalDate.now()))
                 .movDvsn(InvMovDvsn.INV_MOV) // 이 화면 경로의 이동구분은 재고이동 고정
@@ -158,37 +155,12 @@ public class InvMovService {
                     + " / 예약 " + fromInv.getAlocQty() + "): " + task.getInvMovNo());
         }
 
-        // 실물 이동 + 예약 소진 (피킹이 onHand와 aloc를 함께 줄이는 것과 같은 패턴)
-        fromInv.decreaseOnHand(qty);
-        fromInv.release(qty);
-        Inv toInv = invRepository.findByProdIdAndLocIdAndLotId(prodEntity.getId(), to.getId(), lotEntity.getId())
-                .orElseGet(() -> invRepository.save(Inv.builder().prod(prodEntity).loc(to).lot(lotEntity).build()));
-        toInv.increaseOnHand(qty);
-
-        invHistRepository.save(InvHist.builder()
-                .txTyp(TxTyp.MOVE)
-                .prod(prodEntity).loc(from).lot(lotEntity)
-                .qty(-qty)
-                .rfnDocTyp(RefDocTyp.INV_MOV)
-                .rfnDocNo(task.getInvMovNo())
-                .fromLocId(from.getId()).toLocId(to.getId())
-                .build());
-        invHistRepository.save(InvHist.builder()
-                .txTyp(TxTyp.MOVE)
-                .prod(prodEntity).loc(to).lot(lotEntity)
-                .qty(qty)
-                .rfnDocTyp(RefDocTyp.INV_MOV)
-                .rfnDocNo(task.getInvMovNo())
-                .fromLocId(from.getId()).toLocId(to.getId())
-                .build());
+        // 예약 소진 + 실물 이동 (피킹이 aloc와 onHand를 함께 줄이는 것과 같은 패턴).
+        // 예약을 먼저 푸는 이유는 순서가 뒤집히면 FROM 행이 「예약은 남았는데 실물은 0」인 중간 상태를 지나기 때문
+        invStore.release(fromInv, qty);
+        invStore.move(fromInv, to, qty, InvDocRef.of(RefDocTyp.INV_MOV, task.getInvMovNo()));
 
         task.confirm(qty);
-
-        // 재고수량이 0(보유·예약·보류 모두 0)이 된 스냅샷 행은 삭제한다 (PutawayService와 같은 관례 — 실물이 있는 행만 남긴다).
-        // 이력 합계=스냅샷 불변식은 유지된다: 이력 SUM=0 ↔ 행 없음.
-        if (fromInv.getOnHandQty() == 0 && fromInv.getAlocQty() == 0 && fromInv.getHldQty() == 0) {
-            invRepository.delete(fromInv);
-        }
     }
 
     /** 이동취소 (잔량 취소 — 예약 해제). 물리 이동이 없으므로 inv_hist 기록도 없다. */
@@ -212,7 +184,7 @@ public class InvMovService {
                     + " / 잔여 " + remaining + "): " + task.getInvMovNo());
         }
 
-        fromInv.release(remaining);
+        invStore.release(fromInv, remaining);
         task.cancelRemainder();
     }
 }

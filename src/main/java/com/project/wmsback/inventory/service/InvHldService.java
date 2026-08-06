@@ -51,6 +51,7 @@ public class InvHldService {
     private static final String ETC_RSN_CD = "ETC";
 
     private final InvRepository invRepository;
+    private final InvStore invStore;
     private final InvHldRepository invHldRepository;
     private final InvHldAcrstRepository invHldAcrstRepository;
     private final InvHldRlzAcrstRepository invHldRlzAcrstRepository;
@@ -114,7 +115,7 @@ public class InvHldService {
                     + prodEntity.getProdCd() + " @ " + locEntity.getLocCd());
         }
 
-        inv.hold(item.getQty());
+        invStore.hold(inv, item.getQty());
         InvHld hld = InvHld.builder()
                 .hldNo(nbrService.issue(HLD_NO_RULE_CD, LocalDate.now()))
                 .prod(prodEntity).loc(locEntity).lot(lotEntity)
@@ -162,7 +163,7 @@ public class InvHldService {
         }
 
         hld.release(request.getQty());
-        inv.releaseHold(request.getQty());
+        invStore.releaseHold(inv, request.getQty());
         invHldRlzAcrstRepository.save(InvHldRlzAcrst.builder()
                 .hldNo(hld.getHldNo())
                 .prod(hld.getProd()).loc(hld.getLoc()).lot(hld.getLot())

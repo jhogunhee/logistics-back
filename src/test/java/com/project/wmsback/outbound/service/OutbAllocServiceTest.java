@@ -3,7 +3,9 @@ package com.project.wmsback.outbound.service;
 import com.project.mdm.prod.entity.Prod;
 import com.project.mdm.store.entity.Store;
 import com.project.wmsback.inventory.entity.Inv;
+import com.project.wmsback.inventory.repository.InvHistRepository;
 import com.project.wmsback.inventory.repository.InvRepository;
+import com.project.wmsback.inventory.service.InvStore;
 import com.project.wmsback.outbound.dto.AllocExecuteRequest;
 import com.project.wmsback.outbound.dto.AllocExecuteResponse;
 import com.project.wmsback.outbound.dto.AllocReleaseRequest;
@@ -27,7 +29,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -65,13 +66,15 @@ class OutbAllocServiceTest {
     @Mock OutbWaveRepository outbWaveRepository;
     @Mock OutbLineRepository outbLineRepository;
     @Mock InvRepository invRepository;
+    @Mock InvHistRepository invHistRepository; // 예약·해제는 이력을 남기지 않는다 — InvStore 생성에만 필요
     // 이 테스트는 전부 「전략 미설정」 상태를 본다 — 산정기의 기본 동작(FEFO · 점포 잔여수명 ·
     // 순차 소진)이 전략 도입 전과 같은지가 여기 검증의 전제다. 전략별 동작은 산정기 테스트 몫.
     @Mock AlocStgyService alocStgyService;
     @Mock AllocQueryRepository allocQueryRepository;
     @Mock StgyExecLogService stgyExecLogService;
 
-    @InjectMocks OutbAllocService outbAllocService;
+    // 재고 쓰기 포트는 목이 아니라 실물을 쓴다 — 예약(aloc) 증감이 검증 대상이기 때문
+    private OutbAllocService outbAllocService;
 
     private static final LocalDate EXPCT_DE = LocalDate.of(2026, 8, 10);
 
@@ -83,6 +86,10 @@ class OutbAllocServiceTest {
 
     @BeforeEach
     void setUp() {
+        outbAllocService = new OutbAllocService(outbAllocRepository, outbWaveRepository, outbLineRepository,
+                invRepository, new InvStore(invRepository, invHistRepository),
+                alocStgyService, allocQueryRepository, stgyExecLogService);
+
         invById.clear();
         seq = 0;
 

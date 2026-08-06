@@ -9,6 +9,7 @@ import com.project.wmsback.inventory.entity.Inv;
 import com.project.wmsback.inventory.entity.InvHist;
 import com.project.wmsback.inventory.repository.InvHistRepository;
 import com.project.wmsback.inventory.repository.InvRepository;
+import com.project.wmsback.inventory.service.InvStore;
 import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.Lot;
 import com.project.wmsback.warehouse.repository.LocRepository;
@@ -21,7 +22,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -59,7 +59,8 @@ class ReceivingServiceTest {
     @Mock ProdRepository prodRepository;
     @Mock InspectionService inspectionService;
 
-    @InjectMocks ReceivingService receivingService;
+    // 재고 쓰기 포트는 목이 아니라 실물을 쓴다 — 스냅샷 증감·이력 기록이 검증 대상이기 때문
+    private ReceivingService receivingService;
 
     private IbOrder order;
     private IbLine ibLine;
@@ -70,6 +71,10 @@ class ReceivingServiceTest {
 
     @BeforeEach
     void setUp() {
+        receivingService = new ReceivingService(ibOrderRepository, ibLineRepository, lotRepository, locRepository,
+                invRepository, invHistRepository, new InvStore(invRepository, invHistRepository),
+                prodRepository, inspectionService);
+
         prod = mock(Prod.class);
         when(prod.getId()).thenReturn(1L);
         when(prod.getProdCd()).thenReturn("PROD-0001");

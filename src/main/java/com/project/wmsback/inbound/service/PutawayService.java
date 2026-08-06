@@ -5,11 +5,10 @@ import com.project.wmsback.inbound.dto.PutawaySearchCond;
 import com.project.wmsback.inbound.entity.IbLine;
 import com.project.wmsback.inbound.repository.IbLineRepository;
 import com.project.wmsback.inventory.entity.Inv;
-import com.project.wmsback.inventory.entity.InvHist;
 import com.project.wmsback.inventory.entity.RefDocTyp;
-import com.project.wmsback.inventory.entity.TxTyp;
-import com.project.wmsback.inventory.repository.InvHistRepository;
 import com.project.wmsback.inventory.repository.InvRepository;
+import com.project.wmsback.inventory.service.InvDocRef;
+import com.project.wmsback.inventory.service.InvStore;
 import com.project.wmsback.warehouse.dto.LocResponse;
 import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.LocTyp;
@@ -39,7 +38,7 @@ public class PutawayService {
     private final LocRepository locRepository;
     private final LotRepository lotRepository;
     private final InvRepository invRepository;
-    private final InvHistRepository invHistRepository;
+    private final InvStore invStore;
 
     /** 적치 대상 (라인, Lot) 배치 전체 — 검수는 됐지만 아직 전량 적치되지 않은 것 */
     public List<PutawayCandidateResponse> pendingLines(PutawaySearchCond cond) {
@@ -86,35 +85,8 @@ public class PutawayService {
             throw new IllegalArgumentException("적치수량이 이 배치의 미적치 잔량을 초과했습니다 (다른 주문과 공유된 Lot이 먼저 적치됐을 수 있습니다): " + prod.getProdCd());
         }
 
-        stagingInv.decreaseOnHand(qty);
-        Inv targetInv = invRepository.findByProdIdAndLocIdAndLotId(prod.getId(), target.getId(), lot.getId())
-                .orElseGet(() -> invRepository.save(Inv.builder().prod(prod).loc(target).lot(lot).build()));
-        targetInv.increaseOnHand(qty);
-
-        invHistRepository.save(InvHist.builder()
-                .txTyp(TxTyp.MOVE)
-                .prod(prod).loc(staging).lot(lot)
-                .qty(-qty)
-                .rfnDocTyp(RefDocTyp.INBOUND)
-                .rfnDocNo(ibLine.getIbOrder().getIbNo())
-                .ibLineId(ibLineId)
-                .fromLocId(staging.getId()).toLocId(target.getId())
-                .build());
-        invHistRepository.save(InvHist.builder()
-                .txTyp(TxTyp.MOVE)
-                .prod(prod).loc(target).lot(lot)
-                .qty(qty)
-                .rfnDocTyp(RefDocTyp.INBOUND)
-                .rfnDocNo(ibLine.getIbOrder().getIbNo())
-                .ibLineId(ibLineId)
-                .fromLocId(staging.getId()).toLocId(target.getId())
-                .build());
-
-        // 스테이징 재고가 0이 되면 스냅샷 행을 삭제한다 (재고 테이블엔 실물이 있는 행만 남긴다).
-        // 이력 합계=스냅샷 불변식은 유지된다 — 이력 SUM=0 ↔ 스냅샷 행 없음(=0).
-        if (stagingInv.getOnHandQty() == 0 && stagingInv.getAlocQty() == 0 && stagingInv.getHldQty() == 0) {
-            invRepository.delete(stagingInv);
-        }
+        invStore.move(stagingInv, target, qty,
+                InvDocRef.ofIbLine(RefDocTyp.INBOUND, ibLine.getIbOrder().getIbNo(), ibLineId));
 
         ibLine.putaway(qty);
         ibLine.getIbOrder().checkAndComplete();

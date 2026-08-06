@@ -12,12 +12,10 @@ import com.project.wmsback.inventory.dto.InvStktkLnSaveRequest;
 import com.project.wmsback.inventory.dto.InvStktkResponse;
 import com.project.wmsback.inventory.dto.InvStktkSearchCond;
 import com.project.wmsback.inventory.entity.Inv;
-import com.project.wmsback.inventory.entity.InvHist;
 import com.project.wmsback.inventory.entity.InvStktk;
 import com.project.wmsback.inventory.entity.InvStktkLn;
 import com.project.wmsback.inventory.entity.RefDocTyp;
 import com.project.wmsback.inventory.entity.TxTyp;
-import com.project.wmsback.inventory.repository.InvHistRepository;
 import com.project.wmsback.inventory.repository.InvRepository;
 import com.project.wmsback.inventory.repository.InvStktkLnRepository;
 import com.project.wmsback.inventory.repository.InvStktkRepository;
@@ -59,7 +57,7 @@ public class InvStktkService {
     private static final String ETC_RSN_CD = "ETC";
 
     private final InvRepository invRepository;
-    private final InvHistRepository invHistRepository;
+    private final InvStore invStore;
     private final InvStktkRepository invStktkRepository;
     private final InvStktkLnRepository invStktkLnRepository;
     private final LocRepository locRepository;
@@ -249,6 +247,7 @@ public class InvStktkService {
             }
             requireRsn(ln);
 
+            InvDocRef ref = InvDocRef.of(RefDocTyp.INV_STKTK, stktk.getStktkNo());
             if (adjQty < 0) {
                 // 예약·보류분은 실사로 지울 수 없다 — 먼저 풀어야 한다 (ck_inv_qty가 최후 방어)
                 long reserved = inv.getAlocQty() + inv.getHldQty();
@@ -258,27 +257,10 @@ public class InvStktkService {
                             + prod.getProdCd() + " @ " + loc.getLocCd()
                             + " — 할당 해제·이동지시 취소·보류 해제로 먼저 정리한 뒤 확정하세요.");
                 }
-                inv.decreaseOnHand(-adjQty);
+                invStore.decrease(inv, -adjQty, TxTyp.ADJUST, ref);
             } else {
-                if (inv == null) {
-                    // 장부에 없던 재고를 실사에서 발견한 경우 — 재고 행을 새로 만든다 (기초재고 등록도 이 경로)
-                    inv = invRepository.save(Inv.builder().prod(prod).loc(loc).lot(lot).build());
-                }
-                inv.increaseOnHand(adjQty);
-            }
-
-            invHistRepository.save(InvHist.builder()
-                    .txTyp(TxTyp.ADJUST)
-                    .prod(prod).loc(loc).lot(lot)
-                    .qty(adjQty)
-                    .rfnDocTyp(RefDocTyp.INV_STKTK)
-                    .rfnDocNo(stktk.getStktkNo())
-                    .build());
-
-            // 재고수량이 0(보유·예약·보류 모두 0)이 된 스냅샷 행은 삭제한다 (PutawayService·InvMovService와 같은 관례).
-            // 이력 합계=스냅샷 불변식은 유지된다: 이력 SUM=0 ↔ 행 없음.
-            if (inv.getOnHandQty() == 0 && inv.getAlocQty() == 0 && inv.getHldQty() == 0) {
-                invRepository.delete(inv);
+                // 장부에 없던 재고를 실사에서 발견했으면 재고 행이 새로 생긴다 (기초재고 등록도 이 경로)
+                invStore.increase(prod, loc, lot, adjQty, TxTyp.ADJUST, ref);
             }
         }
 

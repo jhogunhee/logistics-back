@@ -13,6 +13,8 @@ import com.project.wmsback.inventory.entity.RefDocTyp;
 import com.project.wmsback.inventory.entity.TxTyp;
 import com.project.wmsback.inventory.repository.InvHistRepository;
 import com.project.wmsback.inventory.repository.InvRepository;
+import com.project.wmsback.inventory.service.InvDocRef;
+import com.project.wmsback.inventory.service.InvStore;
 import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.Lot;
 import com.project.mdm.prod.entity.Prod;
@@ -49,6 +51,7 @@ public class ReceivingService {
     private final LocRepository locRepository;
     private final InvRepository invRepository;
     private final InvHistRepository invHistRepository;
+    private final InvStore invStore;
     private final ProdRepository prodRepository;
     private final InspectionService inspectionService;
 
@@ -108,17 +111,8 @@ public class ReceivingService {
 
         // 검수분: Lot 확보 → 스테이징 스냅샷 증가 → 재고 이력. 셋이 항상 한 트랜잭션
         Lot lot = findOrCreateLot(prod, line.getMfgDt(), receiptDt);
-        Inv inv = invRepository.findByProdIdAndLocIdAndLotId(prod.getId(), staging.getId(), lot.getId())
-                .orElseGet(() -> invRepository.save(Inv.builder().prod(prod).loc(staging).lot(lot).build()));
-        inv.increaseOnHand(inspect);
-        invHistRepository.save(InvHist.builder()
-                .txTyp(TxTyp.RECEIVE)
-                .prod(prod).loc(staging).lot(lot)
-                .qty(inspect)
-                .rfnDocTyp(RefDocTyp.INBOUND)
-                .rfnDocNo(order.getIbNo())
-                .ibLineId(ibLine.getId())
-                .build());
+        invStore.increase(prod, staging, lot, inspect, TxTyp.RECEIVE,
+                InvDocRef.ofIbLine(RefDocTyp.INBOUND, order.getIbNo(), ibLine.getId()));
     }
 
     /**
@@ -221,21 +215,9 @@ public class ReceivingService {
             throw new IllegalStateException("이미 적치된 수량이 있어 검수를 취소할 수 없습니다: " + prod.getProdCd());
         }
 
-        inv.decreaseOnHand(qty);
         ibLine.cancelReceive(qty);
-        invHistRepository.save(InvHist.builder()
-                .txTyp(TxTyp.ADJUST)
-                .prod(prod).loc(receipt.getLoc()).lot(receipt.getLot())
-                .qty(-qty)
-                .rfnDocTyp(RefDocTyp.INBOUND)
-                .rfnDocNo(order.getIbNo())
-                .ibLineId(ibLine.getId())
-                .cnclInvHistId(receipt.getId())
-                .build());
-        // 스테이징 재고가 0이 되면 스냅샷 행을 삭제한다 (재고 테이블엔 실물이 있는 행만 남긴다)
-        if (inv.getOnHandQty() == 0 && inv.getAlocQty() == 0) {
-            invRepository.delete(inv);
-        }
+        invStore.decrease(inv, qty, TxTyp.ADJUST,
+                InvDocRef.ofIbLine(RefDocTyp.INBOUND, order.getIbNo(), ibLine.getId()).cancelling(receipt.getId()));
         order.reopenIfNoLongerFullyReceived(); // 전량검수로 자동 마감됐던 게 이 취소로 깨졌으면 RECEIVING으로 되돌림
     }
 }

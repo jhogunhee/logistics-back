@@ -3,6 +3,7 @@ package com.project.wmsback.outbound.service;
 import com.project.mdm.store.entity.Store;
 import com.project.wmsback.inventory.entity.Inv;
 import com.project.wmsback.inventory.repository.InvRepository;
+import com.project.wmsback.inventory.service.InvStore;
 import com.project.wmsback.outbound.dto.AllocCandidateResponse;
 import com.project.wmsback.outbound.dto.AllocExecuteRequest;
 import com.project.wmsback.outbound.dto.AllocExecuteResponse;
@@ -80,6 +81,7 @@ public class OutbAllocService {
     private final OutbWaveRepository outbWaveRepository;
     private final OutbLineRepository outbLineRepository;
     private final InvRepository invRepository;
+    private final InvStore invStore;
     private final AlocStgyService alocStgyService;
     private final AllocQueryRepository allocQueryRepository;
     private final StgyExecLogService stgyExecLogService;
@@ -295,7 +297,7 @@ public class OutbAllocService {
     /** 재고 예약 + 할당 레코드 기록. 물리 이동이 아니므로 inv_hist에는 아무것도 남기지 않는다 */
     private void reserve(OutbLine line, Inv candidate, long qty, Map<String, OutbAlloc> existingAllocs,
                          Long alocStgyId, Long rvsnNo) {
-        candidate.reserve(qty);
+        invStore.reserve(candidate, qty);
         String key = allocKey(line.getId(), candidate.getId());
         OutbAlloc existing = existingAllocs.get(key);
         if (existing != null) {
@@ -457,7 +459,7 @@ public class OutbAllocService {
             Inv target = invRepository.findByIdForUpdate(invId)
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 재고입니다: " + invId));
             for (OutbAlloc alloc : byInv.get(invId)) {
-                target.release(alloc.getAlocQty());
+                invStore.release(target, alloc.getAlocQty());
             }
         }
 

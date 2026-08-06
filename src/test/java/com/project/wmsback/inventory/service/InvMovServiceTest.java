@@ -23,7 +23,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -62,7 +61,8 @@ class InvMovServiceTest {
     @Mock LocRepository locRepository;
     @Mock NbrService nbrService;
 
-    @InjectMocks InvMovService invMovService;
+    // 재고 쓰기 포트는 목이 아니라 실물을 쓴다 — aloc 증감·MOVE 2행·0행 삭제가 검증 대상이기 때문
+    private InvMovService invMovService;
 
     private Prod prod;
     private Lot lot;
@@ -72,6 +72,9 @@ class InvMovServiceTest {
 
     @BeforeEach
     void setUp() {
+        invMovService = new InvMovService(invRepository, new InvStore(invRepository, invHistRepository),
+                invMovTaskRepository, locRepository, nbrService);
+
         prod = mock(Prod.class);
         when(prod.getId()).thenReturn(1L);
         when(prod.getProdCd()).thenReturn("PROD-0001");
