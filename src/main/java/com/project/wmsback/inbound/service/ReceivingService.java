@@ -67,6 +67,9 @@ public class ReceivingService {
         IbOrder order = ibOrderRepository.findById(ibOrderId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고예정입니다: " + ibOrderId));
 
+        // 상품 락이 먼저다 — 아래 lockProds 참고. 라인을 읽는 것은 전부 이 뒤로 온다
+        lockProds(order, req.getLines());
+
         // 검수 제약 (전략): 위반이 하나라도 있으면 예외로 저장 전체 거부 — 전 위반을 한 번에 반환.
         // 실행 로그는 REQUIRES_NEW라 이 트랜잭션이 롤백돼도 남는다
         inspectionService.checkReceive(order, req.getLines());
@@ -81,6 +84,38 @@ public class ReceivingService {
         }
 
         order.checkAndAutoReceive(); // 전 라인 전량 검수됐으면 마감 없이 바로 RECEIVED(→ 적치까지 끝났다면 COMPLETED)로 전이
+    }
+
+    /**
+     * 요청 라인이 가리키는 상품을 <b>id 오름차순으로 한 건씩</b> 잠근다. 라인을 읽는 어떤 코드보다도
+     * 앞서야 하고(검수 제약 포함), 그 대가로 둘을 얻는다.
+     *
+     * <p><b>① 교착 회피.</b> 락은 커밋까지 유지되므로 요청이 보낸 순서대로 잠그면 상품이 겹치는 두
+     * 검수가 서로 반대 순서로 잡아 교착이 난다(A: 상품1→상품2 / B: 상품2→상품1). 라인 id로 정렬해서는
+     * 안 된다 — 라인 id 순서와 상품 id 순서는 입고마다 다르다. 락 순서를 하나로 고정하는 것은 출고
+     * 할당이 후보를 {@code inv_id} 오름차순으로 잠그는 것과 같은 원칙이다(OutbAllocService#lockCandidates).
+     *
+     * <p><b>② 잔량 검사와 누계 갱신의 직렬화.</b> 같은 라인을 동시에 검수한 둘이 같은 잔량을 보고
+     * 통과하면, 각자 자기 스냅샷에 더한 {@code rcvd_qty}를 절대값으로 덮어써 한쪽 검수가 증발한다
+     * (이력엔 두 건이 남아 라인 누계와 어긋난다). {@code ib_line}에는 {@code @Version}이 없고
+     * {@code ck_ib_line_qty}도 {@code rcvd_qty ≤ expct_qty}를 보지 않아 아무도 막지 않는다.
+     *
+     * <p>그래서 잠글 상품을 라인 엔티티가 아니라 <b>스칼라 조회</b>로 고른다. 정렬하려고 라인을 미리
+     * 읽으면 영속성 컨텍스트에 올라가 락 뒤에도 값이 갱신되지 않아 ②가 그대로 되살아난다.
+     */
+    private void lockProds(IbOrder order, List<ReceiveRequest.Line> lines) {
+        // 라인 id가 비어 온 요청은 여기서 거르고 findLine이 거부하게 둔다 (조회에 null을 넘기지 않는다)
+        List<Long> ibLineIds = lines.stream()
+                .map(ReceiveRequest.Line::getIbLineId)
+                .filter(Objects::nonNull)
+                .toList();
+        if (ibLineIds.isEmpty()) {
+            return;
+        }
+        List<Long> prodIds = ibLineRepository.findProdIdsByOrderIdAndIdIn(order.getId(), ibLineIds);
+        for (Long prodId : prodIds.stream().sorted().toList()) {
+            prodRepository.findByIdForUpdate(prodId);
+        }
     }
 
     private IbLine findLine(IbOrder order, Long ibLineId) {
@@ -126,13 +161,10 @@ public class ReceivingService {
      * 같은 배치(상품+입고일자+제조일자)는 같은 Lot을 재사용한다
      * (증분 검수로 같은 라인을 여러 번 나눠 검수해도 Lot이 쪼개지지 않도록).
      * 유통기한 미관리 상품은 제조일자가 항상 null이라 사실상 상품+입고일자로만 구분된다.
+     * 동시 검수의 "재사용 조회 → 채번 → 저장"이 겹치지 않는 것은 receive()가 미리 잡아 둔 상품 로우 락 덕이다.
      */
     private Lot findOrCreateLot(Prod prod, LocalDate mfgDt, LocalDate receiptDt) {
         LocalDate effectiveMfgDt = validateMfgDt(prod, mfgDt, receiptDt);
-
-        // 상품 로우 락: 동시 검수로 같은 상품의 "재사용 조회 → 채번 → 저장"이 겹치지 않게 직렬화
-        prodRepository.findByIdForUpdate(prod.getId());
-
         return lotRepository.findByProdIdAndReceiptDtAndMfgDt(prod.getId(), receiptDt, effectiveMfgDt)
                 .orElseGet(() -> createLot(prod, receiptDt, effectiveMfgDt));
     }
@@ -154,7 +186,7 @@ public class ReceivingService {
         return mfgDt;
     }
 
-    /** 호출 전 상품 로우 락 필수 — 채번(nextLotNo)이 그 락에 얹혀 직렬화된다 */
+    /** 상품 로우 락(receive의 lockProds) 안에서만 부를 것 — 채번(nextLotNo)이 그 락에 얹혀 직렬화된다 */
     private Lot createLot(Prod prod, LocalDate receiptDt, LocalDate mfgDt) {
         LocalDate expiryDt = mfgDt != null ? mfgDt.plusDays(prod.getShelfLifeDays()) : null;
         return lotRepository.save(Lot.builder()
@@ -172,7 +204,7 @@ public class ReceivingService {
      * <p>
      * NbrService를 쓰지 않는 이유: 채번 규칙의 리셋 단위는 날짜뿐이라 상품별 리셋을 표현할 수 없고
      * (순번이 그날 창고 전체 통번이 되어 위 의미가 사라진다), nbr_seq 카운터 행이 상품이 달라도
-     * 부딪히는 전역 직렬화 지점이 된다. 여기 채번은 findOrCreateLot의 상품 로우 락에 얹혀
+     * 부딪히는 전역 직렬화 지점이 된다. 여기 채번은 receive가 잡아 둔 상품 로우 락에 얹혀
      * 상품 단위로만 직렬화된다. 건수+1이 안전한 것은 Lot이 삭제되지 않아 단조 증가이기 때문이다 —
      * 삭제가 생기면 번호가 재사용되니 그때는 기존 번호의 최대 순번 파싱으로 바꿀 것(uq_lot이 최후 방어).
      */
