@@ -45,6 +45,9 @@ public class ReceivingService {
     /** 검수 합격분이 들어가는 입고 스테이징. 온도대 검증은 여기선 하지 않는다 (적치 때 수행) */
     private static final String STAGING_LOC_CD = "RCV-STAGE";
 
+    /** Lot 번호의 입고일자 조각 형식 — 채번 근거는 nextLotNo 참고 */
+    private static final DateTimeFormatter LOT_NO_DT_FMT = DateTimeFormatter.ofPattern("yyMMdd");
+
     private final IbOrderRepository ibOrderRepository;
     private final IbLineRepository ibLineRepository;
     private final LotRepository lotRepository;
@@ -80,13 +83,17 @@ public class ReceivingService {
         order.checkAndAutoReceive(); // 전 라인 전량 검수됐으면 마감 없이 바로 RECEIVED(→ 적치까지 끝났다면 COMPLETED)로 전이
     }
 
-    private void receiveLine(IbOrder order, Loc staging, ReceiveRequest.Line line) {
-        IbLine ibLine = ibLineRepository.findById(line.getIbLineId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고 라인입니다: " + line.getIbLineId()));
+    private IbLine findLine(IbOrder order, Long ibLineId) {
+        IbLine ibLine = ibLineRepository.findById(ibLineId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고 라인입니다: " + ibLineId));
         if (!ibLine.getIbOrder().getId().equals(order.getId())) {
-            throw new IllegalArgumentException("다른 입고의 라인입니다: " + line.getIbLineId());
+            throw new IllegalArgumentException("다른 입고의 라인입니다: " + ibLineId);
         }
+        return ibLine;
+    }
 
+    private void receiveLine(IbOrder order, Loc staging, ReceiveRequest.Line line) {
+        IbLine ibLine = findLine(order, line.getIbLineId());
         Prod prod = ibLine.getProd();
         long inspectUomQty = line.getInspectQty() != null ? line.getInspectQty() : 0;
         if (inspectUomQty < 1) {
@@ -121,34 +128,57 @@ public class ReceivingService {
      * 유통기한 미관리 상품은 제조일자가 항상 null이라 사실상 상품+입고일자로만 구분된다.
      */
     private Lot findOrCreateLot(Prod prod, LocalDate mfgDt, LocalDate receiptDt) {
-        boolean tracksShelfLife = prod.getShelfLifeDays() != null;
-        if (tracksShelfLife) {
-            if (mfgDt == null) {
-                throw new IllegalArgumentException("제조일자는 필수입니다: " + prod.getProdCd());
-            }
-            if (mfgDt.isAfter(receiptDt)) {
-                throw new IllegalArgumentException("제조일자가 입고일자보다 미래일 수 없습니다: " + prod.getProdCd());
-            }
-        }
-        LocalDate effectiveMfgDt = tracksShelfLife ? mfgDt : null;
+        LocalDate effectiveMfgDt = validateMfgDt(prod, mfgDt, receiptDt);
 
-        // 상품 로우 락: 동시 검수로 같은 상품의 "재사용 조회 → 건수 세기 → 채번"이 겹치지 않게 직렬화
+        // 상품 로우 락: 동시 검수로 같은 상품의 "재사용 조회 → 채번 → 저장"이 겹치지 않게 직렬화
         prodRepository.findByIdForUpdate(prod.getId());
 
         return lotRepository.findByProdIdAndReceiptDtAndMfgDt(prod.getId(), receiptDt, effectiveMfgDt)
-                .orElseGet(() -> {
-                    long seq = lotRepository.countByProdIdAndReceiptDt(prod.getId(), receiptDt) + 1;
-                    String lotNo = String.format("LOT-%s-%03d",
-                            receiptDt.format(DateTimeFormatter.ofPattern("yyMMdd")), seq);
-                    LocalDate expiryDt = tracksShelfLife ? effectiveMfgDt.plusDays(prod.getShelfLifeDays()) : null;
-                    return lotRepository.save(Lot.builder()
-                            .prod(prod)
-                            .lotNo(lotNo)
-                            .receiptDt(receiptDt)
-                            .mfgDt(effectiveMfgDt)
-                            .expiryDt(expiryDt)
-                            .build());
-                });
+                .orElseGet(() -> createLot(prod, receiptDt, effectiveMfgDt));
+    }
+
+    /**
+     * 유통기한 관리 상품만 제조일자를 검증해 그대로 쓰고, 미관리 상품은 입력값을 버리고 null로 통일한다
+     * (미관리 상품의 Lot은 두 날짜가 항상 null인 것이 정의 — LotAttrChngService의 정정 차단과 같은 원칙).
+     */
+    private LocalDate validateMfgDt(Prod prod, LocalDate mfgDt, LocalDate receiptDt) {
+        if (prod.getShelfLifeDays() == null) {
+            return null;
+        }
+        if (mfgDt == null) {
+            throw new IllegalArgumentException("제조일자는 필수입니다: " + prod.getProdCd());
+        }
+        if (mfgDt.isAfter(receiptDt)) {
+            throw new IllegalArgumentException("제조일자가 입고일자보다 미래일 수 없습니다: " + prod.getProdCd());
+        }
+        return mfgDt;
+    }
+
+    /** 호출 전 상품 로우 락 필수 — 채번(nextLotNo)이 그 락에 얹혀 직렬화된다 */
+    private Lot createLot(Prod prod, LocalDate receiptDt, LocalDate mfgDt) {
+        LocalDate expiryDt = mfgDt != null ? mfgDt.plusDays(prod.getShelfLifeDays()) : null;
+        return lotRepository.save(Lot.builder()
+                .prod(prod)
+                .lotNo(nextLotNo(prod, receiptDt))
+                .receiptDt(receiptDt)
+                .mfgDt(mfgDt)
+                .expiryDt(expiryDt)
+                .build());
+    }
+
+    /**
+     * Lot 번호 채번: LOT-{입고일자}-{순번}. 순번은 상품별·입고일자별로 1부터 —
+     * "이 상품이 그날 몇 번째 배치인가"라는 뜻이고, 유일성 단위도 uq_lot(prod_id, lot_no)라 이걸로 충분하다.
+     * <p>
+     * NbrService를 쓰지 않는 이유: 채번 규칙의 리셋 단위는 날짜뿐이라 상품별 리셋을 표현할 수 없고
+     * (순번이 그날 창고 전체 통번이 되어 위 의미가 사라진다), nbr_seq 카운터 행이 상품이 달라도
+     * 부딪히는 전역 직렬화 지점이 된다. 여기 채번은 findOrCreateLot의 상품 로우 락에 얹혀
+     * 상품 단위로만 직렬화된다. 건수+1이 안전한 것은 Lot이 삭제되지 않아 단조 증가이기 때문이다 —
+     * 삭제가 생기면 번호가 재사용되니 그때는 기존 번호의 최대 순번 파싱으로 바꿀 것(uq_lot이 최후 방어).
+     */
+    private String nextLotNo(Prod prod, LocalDate receiptDt) {
+        long seq = lotRepository.countByProdIdAndReceiptDt(prod.getId(), receiptDt) + 1;
+        return String.format("LOT-%s-%03d", receiptDt.format(LOT_NO_DT_FMT), seq);
     }
 
     /** 입고 마감 — 상태 검증/전이는 엔티티가 한다. 잔량(예정-검수)은 미입고로 확정 */
