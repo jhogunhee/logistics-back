@@ -20,7 +20,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -61,21 +64,55 @@ public class LotAttrChngService {
     }
 
     /**
-     * Lot 속성 정정. lot UPDATE + lot_attr_chng INSERT가 한 트랜잭션이다.
+     * Lot 속성 정정. 여러 건의 lot UPDATE + lot_attr_chng INSERT가 **한 트랜잭션**이다 —
+     * 한 건이라도 검증에 걸리면 전량 롤백된다. 정정에는 취소 경로가 없어서, 절반만 반영된 결과를
+     * 되돌리는 방법이 반대 방향 정정뿐이기 때문이다.
      *
      * Lot 단위 정정이므로 그 Lot을 공유하는 모든 재고 행(로케이션이 달라도)에 일괄 반영된다.
      * 이미 생성된 할당은 건드리지 않는다 — 재검증·재할당 없이 이후 할당부터 새 값이 반영된다.
      */
     @Transactional
-    public void change(Long lotId, LotAttrChngRequest request) {
-        String rsnDscr = validateRsn(request.getRsnCd(), request.getRsnDscr());
+    public void change(LotAttrChngRequest request) {
+        List<LotAttrChngRequest.Item> items = request.getItems();
+        if (items == null || items.isEmpty()) {
+            throw new IllegalArgumentException("정정할 Lot이 없습니다.");
+        }
+
+        // 정정 1건이 잠그는 것은 (상품, Lot) 한 쌍인데, 다건이면 한 트랜잭션이 여러 쌍을 동시에 쥔다.
+        // 두 요청이 겹치는 Lot을 서로 반대 순서로 보내면 교착이 나므로 상품·Lot 오름차순으로 정렬해
+        // 모든 요청이 같은 순서로 잡게 만든다. 상품은 Lot이 정해지면 바뀌지 않아 락 없이 미리 읽어도 된다.
+        Map<Long, Long> prodIdByLotId = new LinkedHashMap<>();
+        for (LotAttrChngRequest.Item item : items) {
+            Long lotId = item.getLotId();
+            if (lotId == null) {
+                throw new IllegalArgumentException("정정할 Lot이 지정되지 않았습니다.");
+            }
+            // 같은 Lot을 두 번 실으면 뒤엣것이 앞엣것을 덮어쓰면서 이력만 두 줄 남는다 — 애초에 거부한다
+            if (prodIdByLotId.containsKey(lotId)) {
+                throw new IllegalArgumentException("같은 Lot이 두 번 실렸습니다 — 한 번에 한 값으로만 정정할 수 있습니다: " + lotId);
+            }
+            prodIdByLotId.put(lotId, lotRepository.findById(lotId)
+                    .map(l -> l.getProd().getId())
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 Lot입니다: " + lotId)));
+        }
+
+        items.stream()
+                .sorted(Comparator
+                        .comparing((LotAttrChngRequest.Item it) -> prodIdByLotId.get(it.getLotId()))
+                        .thenComparing(LotAttrChngRequest.Item::getLotId))
+                .forEach(item -> changeOne(prodIdByLotId.get(item.getLotId()), item));
+    }
+
+    /**
+     * 정정 1건. 앞 건의 변경은 이 시점에 이미 영속성 컨텍스트에 있어, 배치 재사용 키 검사가
+     * 같은 요청 안의 앞 건까지 보고 판단한다 (A→B, B→C처럼 이어지는 정정이 한 번에 통과한다).
+     */
+    private void changeOne(Long prodId, LotAttrChngRequest.Item item) {
+        Long lotId = item.getLotId();
+        String rsnDscr = validateRsn(item.getRsnCd(), item.getRsnDscr());
 
         // 상품 로우 락 → Lot 로우 락. 검수(findOrCreateLot)와 같은 순서라 교착이 없고,
         // 「정정이 배치 키를 X로 바꾸는 사이 검수가 X 배치를 새로 만드는」 경합이 직렬화된다.
-        // 어느 상품을 잠글지 알려면 Lot을 먼저 읽어야 하므로 조회 → 상품 락 → Lot 락 순이다.
-        Long prodId = lotRepository.findById(lotId)
-                .map(l -> l.getProd().getId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 Lot입니다: " + lotId));
         prodRepository.findByIdForUpdate(prodId);
         Lot lot = lotRepository.findByIdForUpdate(lotId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 Lot입니다: " + lotId));
@@ -88,8 +125,8 @@ public class LotAttrChngService {
                     + prod.getProdCd() + " / " + lot.getLotNo());
         }
 
-        LocalDate mfgDt = request.getMfgDt();
-        LocalDate expiryDt = request.getExpiryDt();
+        LocalDate mfgDt = item.getMfgDt();
+        LocalDate expiryDt = item.getExpiryDt();
         if (mfgDt == null || expiryDt == null) {
             throw new IllegalArgumentException("제조일자와 유통기한은 모두 필수입니다 (관리 상품의 Lot에서 비울 수 없습니다): "
                     + lot.getLotNo());
@@ -127,7 +164,7 @@ public class LotAttrChngService {
                 .lot(lot).prod(prod).lotNo(lot.getLotNo())
                 .bfrMfgDt(bfrMfgDt).aftMfgDt(mfgDt)
                 .bfrExpiryDt(bfrExpiryDt).aftExpiryDt(expiryDt)
-                .rsnCd(request.getRsnCd()).rsnDscr(rsnDscr)
+                .rsnCd(item.getRsnCd()).rsnDscr(rsnDscr)
                 .build());
     }
 
