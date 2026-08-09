@@ -29,7 +29,12 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * 재고 보류 (수량 방식 — 등록이 inv.hld_qty를 늘려 가용재고에서 빼고, 해제가 되돌린다).
@@ -72,15 +77,30 @@ public class InvHldService {
 
     /**
      * 보류 등록 (등록 즉시 발효). 전체가 한 트랜잭션 — 한 건이라도 검증에 걸리면 전량 롤백.
-     * @return 발급된 보류 번호 목록
+     *
+     * 재고 행 락을 inv id 오름차순으로 잡는다. 요청이 보낸 순서대로 잡으면 같은 재고 행이 겹치는
+     * 두 요청이 서로 반대 순서로 보냈을 때 그대로 맞물린다 (해제가 재고 행을 정렬해 잠그는 것과
+     * 같은 규칙). 같은 재고 행이 사유를 달리해 여러 번 실릴 수 있는데, 그 둘의 선후는 서로
+     * 영향이 없어 정렬에서 갈라놓지 않는다 — 같은 값끼리는 보낸 순서가 유지된다.
+     *
+     * @return 발급된 보류 번호 목록 (처리 순서 = inv id 오름차순)
      */
     @Transactional
     public List<String> register(InvHldRegisterRequest request) {
         if (request.getItems() == null || request.getItems().isEmpty()) {
             throw new IllegalArgumentException("보류 대상이 없습니다.");
         }
+        List<InvHldRegisterRequest.Item> items = new ArrayList<>(request.getItems());
+        for (InvHldRegisterRequest.Item item : items) {
+            // 정렬 키라 여기서 걸러야 한다 — 비어 있으면 비교가 터진다
+            if (item.getInvId() == null) {
+                throw new IllegalArgumentException("보류할 재고가 지정되지 않았습니다.");
+            }
+        }
+        items.sort(Comparator.comparing(InvHldRegisterRequest.Item::getInvId));
+
         List<String> hldNos = new ArrayList<>();
-        for (InvHldRegisterRequest.Item item : request.getItems()) {
+        for (InvHldRegisterRequest.Item item : items) {
             hldNos.add(registerOne(item));
         }
         return hldNos;
@@ -134,43 +154,92 @@ public class InvHldService {
     }
 
     /**
-     * 보류 해제 (특정 보류 건 지목, 부분 해제 허용). 오등록 취소도 이 경로다 —
-     * 별도 취소 상태 없이 해제(사유: 오등록)로 흡수한다.
+     * 보류 해제 (보류 건을 지목해 잔량 이내로, 건마다 부분 해제 허용).
+     * 오등록 취소도 이 경로다 — 별도 취소 상태 없이 해제(사유: 오등록)로 흡수한다.
+     * 전체가 한 트랜잭션 — 한 건이라도 검증에 걸리면 전량 롤백.
+     *
+     * 락은 재고 행을 전부 잡은 뒤 보류 건을 잡는다. 건별로 「보류 건 → 그 건의 재고 행」 순서로
+     * 잡으면 다건에서 교착이 난다 — 한 재고 행에 사유가 다른 보류가 병존할 수 있어서,
+     * 그 행의 보류 둘을 함께 해제하는 요청이 앞 건에서 재고 행을 쥔 채 뒤 건의 보류 건을 기다리는
+     * 동안, 그 보류 건 하나만 해제하는 요청이 반대로 물린다. 그래서 재고 행을 먼저 모두 잠그고
+     * (상품·로케이션·Lot 오름차순), 보류 건은 id 오름차순으로 잡아 모든 요청의 순서를 맞춘다.
      */
     @Transactional
-    public void release(Long hldId, InvHldReleaseRequest request) {
-        if (request.getQty() == null || request.getQty() < 1) {
+    public void release(InvHldReleaseRequest request) {
+        if (request.getItems() == null || request.getItems().isEmpty()) {
+            throw new IllegalArgumentException("해제 대상이 없습니다.");
+        }
+        Set<Long> hldIds = new LinkedHashSet<>();
+        for (InvHldReleaseRequest.Item item : request.getItems()) {
+            Long hldId = item.getHldId();
+            if (hldId == null) {
+                throw new IllegalArgumentException("해제할 보류 건이 지정되지 않았습니다.");
+            }
+            // 같은 건을 두 번 실으면 잔량을 두 번 깎으면서 실적만 두 줄 남는다 — 애초에 거부한다
+            if (!hldIds.add(hldId)) {
+                throw new IllegalArgumentException("같은 보류 건이 두 번 실렸습니다 — 한 번에 한 값으로만 해제할 수 있습니다: " + hldId);
+            }
+        }
+
+        // 잠글 재고 행을 고르기 위한 사전 조회. 정렬 키(상품·로케이션·Lot)는 보류 건이 만들어질 때
+        // 정해져 바뀌지 않으므로 락 없이 미리 읽는다
+        Map<Long, InvKey> keyByHldId = new HashMap<>();
+        for (Object[] row : invHldRepository.findLockKeysByIdIn(hldIds)) {
+            keyByHldId.put((Long) row[0], new InvKey((Long) row[1], (Long) row[2], (Long) row[3]));
+        }
+        for (Long hldId : hldIds) {
+            if (!keyByHldId.containsKey(hldId)) {
+                throw new IllegalArgumentException("존재하지 않는 보류 건입니다: " + hldId);
+            }
+        }
+
+        // 없는 행을 여기서 문제 삼지 않는다 — 전량 해제된 건은 재고 행이 남아 있지 않을 수 있고,
+        // 그건 아래 상태 검증이 「보류중인 건만 해제할 수 있다」로 잡아야 할 몫이다
+        keyByHldId.values().stream().distinct()
+                .sorted(Comparator.comparing(InvKey::prodId).thenComparing(InvKey::locId).thenComparing(InvKey::lotId))
+                .forEach(k -> invRepository.findByKeyForUpdate(k.prodId(), k.locId(), k.lotId()));
+
+        request.getItems().stream()
+                .sorted(Comparator.comparing(InvHldReleaseRequest.Item::getHldId))
+                .forEach(this::releaseOne);
+    }
+
+    private void releaseOne(InvHldReleaseRequest.Item item) {
+        if (item.getQty() == null || item.getQty() < 1) {
             throw new IllegalArgumentException("해제수량은 1 이상이어야 합니다.");
         }
-        String rsnDscr = validateRsn(HLD_RLZ_RSN_GRP_CD, "해제사유", request.getRsnCd(), request.getRsnDscr());
+        String rsnDscr = validateRsn(HLD_RLZ_RSN_GRP_CD, "해제사유", item.getRsnCd(), item.getRsnDscr());
 
-        // 보류 건 락 → inv 행 락 순서 (등록은 inv 행만 잡으므로 순서 역전이 없다)
-        InvHld hld = invHldRepository.findByIdForUpdate(hldId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 보류 건입니다: " + hldId));
+        InvHld hld = invHldRepository.findByIdForUpdate(item.getHldId())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 보류 건입니다: " + item.getHldId()));
         if (hld.getStatus() != InvHldStatus.HELD) {
             throw new IllegalArgumentException("보류중 상태의 건만 해제할 수 있습니다 (현재 " + hld.getStatus().getLabel() + "): " + hld.getHldNo());
         }
-        if (request.getQty() > hld.remainingQty()) {
+        if (item.getQty() > hld.remainingQty()) {
             throw new IllegalArgumentException("해제수량이 미해제 잔량을 초과했습니다 (잔량 " + hld.remainingQty() + "): " + hld.getHldNo());
         }
 
-        // 보류 잔량이 있는 한 inv 행은 삭제되지 않으므로(ck_inv_qty: hld <= onHand → onHand > 0) 없으면 정합성 오류다
+        // 보류 잔량이 있는 한 inv 행은 삭제되지 않으므로(ck_inv_qty: hld <= onHand → onHand > 0) 없으면 정합성 오류다.
+        // 위에서 이미 잠근 행이라 여기서는 같은 락을 다시 잡는 것뿐이다
         Inv inv = invRepository.findByKeyForUpdate(hld.getProd().getId(), hld.getLoc().getId(), hld.getLot().getId())
                 .orElseThrow(() -> new IllegalStateException("보류 건이 잡아둔 재고가 없습니다 (정합성 오류): " + hld.getHldNo()));
-        if (inv.getHldQty() < request.getQty()) {
+        if (inv.getHldQty() < item.getQty()) {
             throw new IllegalStateException("보류 잔량보다 재고의 보류 수량이 적습니다 (정합성 오류 — 보류 " + inv.getHldQty()
-                    + " / 해제 " + request.getQty() + "): " + hld.getHldNo());
+                    + " / 해제 " + item.getQty() + "): " + hld.getHldNo());
         }
 
-        hld.release(request.getQty());
-        invStore.releaseHold(inv, request.getQty());
+        hld.release(item.getQty());
+        invStore.releaseHold(inv, item.getQty());
         invHldRlzAcrstRepository.save(InvHldRlzAcrst.builder()
                 .hldNo(hld.getHldNo())
                 .prod(hld.getProd()).loc(hld.getLoc()).lot(hld.getLot())
-                .rlzQty(request.getQty())
-                .rsnCd(request.getRsnCd()).rsnDscr(rsnDscr)
+                .rlzQty(item.getQty())
+                .rsnCd(item.getRsnCd()).rsnDscr(rsnDscr)
                 .build());
     }
+
+    /** 재고 행을 지목하는 키 — 락 순서를 정하려고만 쓴다 */
+    private record InvKey(Long prodId, Long locId, Long lotId) {}
 
     /**
      * 사유코드 검증 — 그룹에 존재해야 하고, ETC(기타)일 때만 텍스트 필수·그 외에는 무시(null 저장).

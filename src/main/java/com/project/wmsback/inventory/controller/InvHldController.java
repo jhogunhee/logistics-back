@@ -10,7 +10,6 @@ import com.project.wmsback.inventory.service.InvHldService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -36,10 +35,10 @@ public class InvHldController {
         return invHldService.list(cond);
     }
 
-    /** 보류 해제 (특정 건 지목, 부분 해제 허용) */
-    @PostMapping("/{id}/release")
-    public void release(@PathVariable Long id, @RequestBody InvHldReleaseRequest request) {
-        invHldService.release(id, request);
+    /** 보류 해제 (건을 지목해 다건, 건마다 부분 해제 허용) */
+    @PostMapping("/release")
+    public void release(@RequestBody InvHldReleaseRequest request) {
+        invHldService.release(request);
     }
 
     /** 보류 실적 조회 (등록 로그) */
