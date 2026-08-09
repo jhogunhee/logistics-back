@@ -87,7 +87,7 @@ public class LotAttrChngService {
             if (lotId == null) {
                 throw new IllegalArgumentException("정정할 Lot이 지정되지 않았습니다.");
             }
-            // 같은 Lot을 두 번 실으면 뒤엣것이 앞엣것을 덮어쓰면서 이력만 두 줄 남는다 — 애초에 거부한다
+            // 같은 Lot을 두 번 실으면 뒤가 앞을 덮어쓰면서 이력만 두 줄 남는다 — 애초에 거부한다
             if (prodIdByLotId.containsKey(lotId)) {
                 throw new IllegalArgumentException("같은 Lot이 두 번 실렸습니다 — 한 번에 한 값으로만 정정할 수 있습니다: " + lotId);
             }
