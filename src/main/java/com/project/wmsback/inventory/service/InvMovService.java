@@ -1,5 +1,6 @@
 package com.project.wmsback.inventory.service;
 
+import com.project.wmsback.inventory.dto.InvMovConfirmRequest;
 import com.project.wmsback.inventory.dto.InvMovRegisterRequest;
 import com.project.wmsback.inventory.dto.InvMovTaskResponse;
 import com.project.wmsback.inventory.dto.InvMovTaskSearchCond;
@@ -22,9 +23,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -142,16 +146,65 @@ public class InvMovService {
     }
 
     /**
-     * 이동확정 (실물 MOVE, 부분확정 허용). 지시 TO와 다른 로케이션으로는 확정할 수 없다 —
-     * 지시는 권고가 아니라 명령이며, 다른 곳에 두려면 잔량 취소 후 재지시한다.
+     * 이동확정 (실물 MOVE, 건마다 부분확정 허용). 전체가 한 트랜잭션 — 한 건이라도 검증에 걸리면 전량 롤백.
+     * 지시 TO와 다른 로케이션으로는 확정할 수 없다 — 지시는 권고가 아니라 명령이며,
+     * 다른 곳에 두려면 잔량 취소 후 재지시한다.
+     *
+     * 락은 재고 행(FROM·TO)을 전부 잡은 뒤 지시를 잡는다. 건별로 「지시 → 그 지시의 재고 행」 순서로
+     * 잡으면 다건에서 교착이 난다 — 한 재고 행에 지시가 여러 건 병존할 수 있어서, 그 행의 지시 둘을
+     * 함께 확정하는 요청이 앞 건에서 재고 행을 쥔 채 뒤 건의 지시를 기다리는 동안, 그 지시 하나만
+     * 확정하는 요청이 반대로 물린다 (보류 해제와 같은 짝). 그래서 재고 행을 먼저 모두 선락하고
+     * (InvStore가 키 오름차순으로 잠근다), 지시는 id 오름차순으로 잡아 순서를 맞춘다.
      */
     @Transactional
-    public void confirm(Long taskId, Long qty) {
+    public void confirm(InvMovConfirmRequest request) {
+        if (request.getItems() == null || request.getItems().isEmpty()) {
+            throw new IllegalArgumentException("확정 대상이 없습니다.");
+        }
+        Set<Long> taskIds = new LinkedHashSet<>();
+        for (InvMovConfirmRequest.Item item : request.getItems()) {
+            Long taskId = item.getTaskId();
+            if (taskId == null) {
+                throw new IllegalArgumentException("확정할 이동지시가 지정되지 않았습니다.");
+            }
+            // 같은 지시를 두 번 실으면 잔여를 두 번 깎으면서 실적만 두 벌 남는다 — 애초에 거부한다
+            if (!taskIds.add(taskId)) {
+                throw new IllegalArgumentException("같은 이동지시가 두 번 실렸습니다 — 한 번에 한 값으로만 확정할 수 있습니다: " + taskId);
+            }
+        }
+
+        // 잠글 재고 행을 고르기 위한 사전 조회. 정렬 키(상품·로케이션·Lot)는 지시가 만들어질 때
+        // 정해져 바뀌지 않으므로 락 없이 미리 읽는다
+        Map<Long, InvMovLockKey> keyByTaskId = new HashMap<>();
+        for (InvMovLockKey row : invMovTaskRepository.findLockKeysByIdIn(taskIds)) {
+            keyByTaskId.put(row.taskId(), row);
+        }
+        List<InvKey> keys = new ArrayList<>();
+        for (Long taskId : taskIds) {
+            InvMovLockKey row = keyByTaskId.get(taskId);
+            if (row == null) {
+                throw new IllegalArgumentException("존재하지 않는 이동지시입니다: " + taskId);
+            }
+            keys.add(row.fromKey());
+            keys.add(row.toKey());
+        }
+
+        // 도착 행은 아직 없을 수 있어 결과에서 빠진다 (없으면 move가 만든다).
+        // 출발 행이 없는 것은 예약이 사라졌다는 뜻이라 건별 처리가 정합성 오류로 잡는다
+        Map<InvKey, Inv> locked = invStore.lockAll(keys);
+
+        request.getItems().stream()
+                .sorted(Comparator.comparing(InvMovConfirmRequest.Item::getTaskId))
+                .forEach(item -> confirmOne(item, locked));
+    }
+
+    private void confirmOne(InvMovConfirmRequest.Item item, Map<InvKey, Inv> locked) {
+        Long qty = item.getQty();
         if (qty == null || qty < 1) {
             throw new IllegalArgumentException("확정수량은 1 이상이어야 합니다.");
         }
-        InvMovTask task = invMovTaskRepository.findById(taskId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 이동지시입니다: " + taskId));
+        InvMovTask task = invMovTaskRepository.findByIdForUpdate(item.getTaskId())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 이동지시입니다: " + item.getTaskId()));
         // 재고이동 유형만 이 경로에서 확정 가능 — 적치·피킹 지시는 각자의 화면 경로에서만 처리된다
         if (task.getMovDvsn() != InvMovDvsn.INV_MOV) {
             throw new IllegalArgumentException("재고이동 유형의 지시만 이 화면에서 확정할 수 있습니다 (이동구분 " + task.getMovDvsn().getLabel() + "): " + task.getInvMovNo());
@@ -168,13 +221,10 @@ public class InvMovService {
         Loc from = task.getFromLoc();
         Loc to = task.getToLoc();
 
-        // FROM과 도착지를 함께 선락한다 (InvStore가 키 오름차순으로 잠근다) — 도착 행도 증가 전에
-        // 잠가야 같은 행으로 동시에 들어오는 유입이 서로 덮어쓰지 않는다. 도착 행이 아직 없으면
-        // 여기서 빠지고 move가 만든다 (동시 생성은 uq_inv가 방어)
-        InvKey fromKey = new InvKey(prodEntity.getId(), from.getId(), lotEntity.getId());
-        Map<InvKey, Inv> locked = invStore.lockAll(List.of(
-                fromKey, new InvKey(prodEntity.getId(), to.getId(), lotEntity.getId())));
-        Inv fromInv = locked.get(fromKey);
+        // 선락 단계에서 잠근 행을 꺼내 쓴다 (지시의 재고 키는 등록 후 바뀌지 않는다). 도착 행도
+        // 증가 전에 잠가야 같은 행으로 동시에 들어오는 유입이 서로 덮어쓰지 않아 함께 잠겨 있고,
+        // 아직 없던 행이면 거기서 빠져 move가 만든다 (동시 생성은 uq_inv가 방어)
+        Inv fromInv = locked.get(new InvKey(prodEntity.getId(), from.getId(), lotEntity.getId()));
         if (fromInv == null) {
             throw new IllegalStateException("이동지시가 예약한 재고가 없습니다 (정합성 오류): " + task.getInvMovNo());
         }
@@ -191,10 +241,21 @@ public class InvMovService {
         task.confirm(qty);
     }
 
-    /** 이동취소 (잔량 취소 — 예약 해제). 물리 이동이 없으므로 inv_hist 기록도 없다. */
+    /**
+     * 이동취소 (잔량 취소 — 예약 해제). 물리 이동이 없으므로 inv_hist 기록도 없다.
+     * 단건이지만 락 순서는 확정과 같다 — 재고 행 먼저, 지시는 그 뒤. 뒤집으면 다건 확정과 맞물려
+     * 교착 짝이 된다. 잠글 키는 스칼라로 선조회한다 (지시를 엔티티로 먼저 읽으면 뒤에 거는 락이
+     * 그때 올라간 낡은 인스턴스를 그대로 돌려줘 완료수량이 갱신되지 않는다).
+     */
     @Transactional
     public void cancel(Long taskId) {
-        InvMovTask task = invMovTaskRepository.findById(taskId)
+        InvMovLockKey lockKey = invMovTaskRepository.findLockKeysByIdIn(List.of(taskId)).stream().findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 이동지시입니다: " + taskId));
+        // 없는 행을 여기서 문제 삼지 않는다 — 이미 취소·완료된 지시는 재고 행이 남아 있지 않을 수 있고,
+        // 그건 아래 상태 검증이 「지시 상태의 지시만 취소할 수 있다」로 잡아야 할 몫이다
+        Optional<Inv> lockedFrom = invStore.lock(lockKey.fromKey());
+
+        InvMovTask task = invMovTaskRepository.findByIdForUpdate(taskId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 이동지시입니다: " + taskId));
         // 재고이동 유형만 이 경로에서 취소 가능 (확정과 같은 방어)
         if (task.getMovDvsn() != InvMovDvsn.INV_MOV) {
@@ -205,7 +266,7 @@ public class InvMovService {
         }
         long remaining = task.remainingQty();
 
-        Inv fromInv = invStore.lock(new InvKey(task.getProd().getId(), task.getFromLoc().getId(), task.getLot().getId()))
+        Inv fromInv = lockedFrom
                 .orElseThrow(() -> new IllegalStateException("이동지시가 예약한 재고가 없습니다 (정합성 오류): " + task.getInvMovNo()));
         if (fromInv.getAlocQty() < remaining) {
             throw new IllegalStateException("예약 잔량보다 재고의 예약 수량이 적습니다 (정합성 오류 — 예약 " + fromInv.getAlocQty()
