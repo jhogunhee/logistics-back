@@ -1,6 +1,7 @@
 package com.project.wmsback.inventory.controller;
 
 import com.project.wmsback.inventory.dto.InvStktkCreateRequest;
+import com.project.wmsback.inventory.dto.InvStktkCreateResponse;
 import com.project.wmsback.inventory.dto.InvStktkDetailResponse;
 import com.project.wmsback.inventory.dto.InvStktkLnAddRequest;
 import com.project.wmsback.inventory.dto.InvStktkLnSaveRequest;
@@ -27,9 +28,9 @@ public class InvStktkController {
 
     private final InvStktkService invStktkService;
 
-    /** 조사 생성 (범위 지정 → 라인 자동 생성 + 전산수량 스냅샷). 발급된 조사번호를 돌려준다 */
+    /** 조사 생성 (범위 지정 → 라인 자동 생성 + 전산수량 스냅샷). 생성된 조사의 PK와 조사번호를 돌려준다 */
     @PostMapping
-    public String create(@RequestBody InvStktkCreateRequest request) {
+    public InvStktkCreateResponse create(@RequestBody InvStktkCreateRequest request) {
         return invStktkService.create(request);
     }
 

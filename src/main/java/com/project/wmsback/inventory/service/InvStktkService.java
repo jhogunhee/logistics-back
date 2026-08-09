@@ -6,6 +6,7 @@ import com.project.mdm.nbr.service.NbrService;
 import com.project.mdm.prod.entity.Prod;
 import com.project.mdm.prod.repository.ProdRepository;
 import com.project.wmsback.inventory.dto.InvStktkCreateRequest;
+import com.project.wmsback.inventory.dto.InvStktkCreateResponse;
 import com.project.wmsback.inventory.dto.InvStktkDetailResponse;
 import com.project.wmsback.inventory.dto.InvStktkLnAddRequest;
 import com.project.wmsback.inventory.dto.InvStktkLnSaveRequest;
@@ -79,10 +80,10 @@ public class InvStktkService {
     /**
      * 조사 생성. 범위(존/로케이션/상품 — 모두 선택)에 걸리는 보관 재고를 훑어 라인을 만들고
      * 각 라인에 전산수량을 스냅샷한다. 재고를 선점하지 않으므로 이력·예약 어느 쪽도 건드리지 않는다.
-     * @return 발급된 조사번호
+     * @return 생성된 조사의 PK와 발급된 조사번호
      */
     @Transactional
-    public String create(InvStktkCreateRequest request) {
+    public InvStktkCreateResponse create(InvStktkCreateRequest request) {
         Loc scopeLoc = request.getLocId() == null ? null
                 : locRepository.findById(request.getLocId())
                         .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 로케이션입니다: " + request.getLocId()));
@@ -115,7 +116,7 @@ public class InvStktkService {
                     .build());
         }
         invStktkRepository.save(stktk);
-        return stktk.getStktkNo();
+        return new InvStktkCreateResponse(stktk.getId(), stktk.getStktkNo());
     }
 
     /**
