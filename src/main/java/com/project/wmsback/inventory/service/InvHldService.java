@@ -43,7 +43,8 @@ import java.util.Set;
  * onHand 불변. 보류의 원장은 전용 실적 2테이블(inv_hld_acrst / inv_hld_rlz_acrst)이다 —
  * 「물리 변동 실적 테이블 없음」 원칙의 유일한 예외 (등록·해제 사유 히스토리 보존 요구).
  * 예약과 보류는 배타: 보류는 가용재고(onHand − aloc − hld)에서만 잡는다 (ck_inv_qty가 최후 방어).
- * docs/design.md 「재고 보류」 참고.
+ * 같은 재고 행에는 사유가 같든 다르든 보류가 여러 건 병존한다 (합산도 차단도 하지 않는 이유는
+ * docs/design.md 「재고 보류」 참고 — 중복 등록 실수는 해제(사유: 오등록)로 되돌린다).
  */
 @Service
 @RequiredArgsConstructor
@@ -80,7 +81,7 @@ public class InvHldService {
      *
      * 재고 행 락을 inv id 오름차순으로 잡는다. 요청이 보낸 순서대로 잡으면 같은 재고 행이 겹치는
      * 두 요청이 서로 반대 순서로 보냈을 때 그대로 맞물린다 (해제가 재고 행을 정렬해 잠그는 것과
-     * 같은 규칙). 같은 재고 행이 사유를 달리해 여러 번 실릴 수 있는데, 그 둘의 선후는 서로
+     * 같은 규칙). 같은 재고 행이 여러 번 실릴 수 있는데, 그 둘의 선후는 서로
      * 영향이 없어 정렬에서 갈라놓지 않는다 — 같은 값끼리는 보낸 순서가 유지된다.
      *
      * @return 발급된 보류 번호 목록 (처리 순서 = inv id 오름차순)
@@ -123,12 +124,6 @@ public class InvHldService {
         if (locEntity.getLocTyp() != LocTyp.STORAGE) {
             throw new IllegalArgumentException("보관 로케이션의 재고만 보류할 수 있습니다: " + locEntity.getLocCd());
         }
-        // 동일 사유 미해제 중복 차단 — 사유가 다를 때만 같은 재고 행에 병존한다 (uq_inv_hld_open_rsn이 최후 방어)
-        if (invHldRepository.existsByProdIdAndLocIdAndLotIdAndRsnCdAndStatus(
-                prodEntity.getId(), locEntity.getId(), lotEntity.getId(), item.getRsnCd(), InvHldStatus.HELD)) {
-            throw new IllegalArgumentException("같은 사유의 미해제 보류가 이미 있습니다 (사유 " + item.getRsnCd() + "): "
-                    + prodEntity.getProdCd() + " @ " + locEntity.getLocCd());
-        }
         // 예약과 보류는 배타 — 보류는 가용재고에서만 잡는다 (예약 잔량이 있어도 남은 가용분은 보류 가능)
         if (item.getQty() > inv.avalQty()) {
             throw new IllegalArgumentException("보류수량이 가용재고를 초과했습니다 (가용 " + inv.avalQty() + "): "
@@ -159,7 +154,7 @@ public class InvHldService {
      * 전체가 한 트랜잭션 — 한 건이라도 검증에 걸리면 전량 롤백.
      *
      * 락은 재고 행을 전부 잡은 뒤 보류 건을 잡는다. 건별로 「보류 건 → 그 건의 재고 행」 순서로
-     * 잡으면 다건에서 교착이 난다 — 한 재고 행에 사유가 다른 보류가 병존할 수 있어서,
+     * 잡으면 다건에서 교착이 난다 — 한 재고 행에 보류가 여러 건 병존할 수 있어서,
      * 그 행의 보류 둘을 함께 해제하는 요청이 앞 건에서 재고 행을 쥔 채 뒤 건의 보류 건을 기다리는
      * 동안, 그 보류 건 하나만 해제하는 요청이 반대로 물린다. 그래서 재고 행을 먼저 모두 잠그고
      * (상품·로케이션·Lot 오름차순), 보류 건은 id 오름차순으로 잡아 모든 요청의 순서를 맞춘다.
