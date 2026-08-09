@@ -78,7 +78,7 @@ class ReceivingServiceTest {
     @BeforeEach
     void setUp() {
         receivingService = new ReceivingService(ibOrderRepository, ibLineRepository, lotRepository, locRepository,
-                invRepository, invHistRepository, new InvStore(invRepository, invHistRepository),
+                invHistRepository, new InvStore(invRepository, invHistRepository),
                 prodRepository, inspectionService);
 
         prod = mock(Prod.class);
@@ -113,7 +113,7 @@ class ReceivingServiceTest {
                 .thenReturn(Optional.of(lot));
 
         inv = mock(Inv.class);
-        when(invRepository.findByProdIdAndLocIdAndLotId(1L, 5L, 7L)).thenReturn(Optional.of(inv));
+        when(invRepository.findByKeyForUpdate(1L, 5L, 7L)).thenReturn(Optional.of(inv));
     }
 
     private ReceiveRequest request(long inspectQty) {
@@ -184,7 +184,7 @@ class ReceivingServiceTest {
         when(lotRepository.findByProdIdAndReceiptDtAndMfgDt(anyLong(), any(), any())).thenReturn(Optional.empty());
         when(lotRepository.countByProdIdAndReceiptDt(1L, LocalDate.of(2026, 8, 4))).thenReturn(2L);
         when(lotRepository.save(any(Lot.class))).thenAnswer(a -> a.getArgument(0));
-        when(invRepository.findByProdIdAndLocIdAndLotId(any(), any(), any())).thenReturn(Optional.of(inv));
+        when(invRepository.findByKeyForUpdate(any(), any(), any())).thenReturn(Optional.of(inv));
 
         receivingService.receive(10L, request(5));
 
@@ -203,7 +203,7 @@ class ReceivingServiceTest {
         when(lotRepository.findByProdIdAndReceiptDtAndMfgDt(anyLong(), any(), any())).thenReturn(Optional.empty());
         when(lotRepository.countByProdIdAndReceiptDt(anyLong(), any())).thenReturn(0L);
         when(lotRepository.save(any(Lot.class))).thenAnswer(a -> a.getArgument(0));
-        when(invRepository.findByProdIdAndLocIdAndLotId(any(), any(), any())).thenReturn(Optional.of(inv));
+        when(invRepository.findByKeyForUpdate(any(), any(), any())).thenReturn(Optional.of(inv));
 
         ReceiveRequest.Line line = line(100L, 5);
         line.setMfgDt(LocalDate.of(2026, 8, 1));
@@ -224,7 +224,7 @@ class ReceivingServiceTest {
         when(lotRepository.findByProdIdAndReceiptDtAndMfgDt(anyLong(), any(), any())).thenReturn(Optional.empty());
         when(lotRepository.countByProdIdAndReceiptDt(anyLong(), any())).thenReturn(0L);
         when(lotRepository.save(any(Lot.class))).thenAnswer(a -> a.getArgument(0));
-        when(invRepository.findByProdIdAndLocIdAndLotId(any(), any(), any())).thenReturn(Optional.of(inv));
+        when(invRepository.findByKeyForUpdate(any(), any(), any())).thenReturn(Optional.of(inv));
 
         ReceiveRequest.Line line = line(100L, 5);
         line.setMfgDt(LocalDate.of(2026, 8, 1));
@@ -272,7 +272,7 @@ class ReceivingServiceTest {
     void receive_locksProdsInAscendingProdIdOrder() {
         // 조회는 상품 id 순서를 보장하지 않는다 — 3이 먼저 나와도 2를 먼저 잠가야 한다
         when(prod.getId()).thenReturn(3L);
-        when(invRepository.findByProdIdAndLocIdAndLotId(3L, 5L, 7L)).thenReturn(Optional.of(inv));
+        when(invRepository.findByKeyForUpdate(3L, 5L, 7L)).thenReturn(Optional.of(inv));
         when(ibLineRepository.findProdIdsByOrderIdAndIdIn(eq(10L), any())).thenReturn(List.of(3L, 2L));
 
         Prod otherProd = mock(Prod.class);
@@ -288,7 +288,7 @@ class ReceivingServiceTest {
         when(ibLine2.getExpctQty()).thenReturn(240L);
         when(ibLine2.getRcvdQty()).thenReturn(0L);
         when(ibLineRepository.findById(200L)).thenReturn(Optional.of(ibLine2));
-        when(invRepository.findByProdIdAndLocIdAndLotId(2L, 5L, 7L)).thenReturn(Optional.of(mock(Inv.class)));
+        when(invRepository.findByKeyForUpdate(2L, 5L, 7L)).thenReturn(Optional.of(mock(Inv.class)));
 
         receivingService.receive(10L, request(line(100L, 1), line(200L, 1)));
 

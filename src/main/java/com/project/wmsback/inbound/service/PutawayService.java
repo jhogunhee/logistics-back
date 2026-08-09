@@ -6,8 +6,8 @@ import com.project.wmsback.inbound.entity.IbLine;
 import com.project.wmsback.inbound.repository.IbLineRepository;
 import com.project.wmsback.inventory.entity.Inv;
 import com.project.wmsback.inventory.entity.RefDocTyp;
-import com.project.wmsback.inventory.repository.InvRepository;
 import com.project.wmsback.inventory.service.InvDocRef;
+import com.project.wmsback.inventory.service.InvKey;
 import com.project.wmsback.inventory.service.InvStore;
 import com.project.wmsback.warehouse.dto.LocResponse;
 import com.project.wmsback.warehouse.entity.Loc;
@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 적치. 재고 이동(MOVE)의 특수 케이스 — 별도 지시/단계 없이 스테이징 재고를 바로 옮긴다 (docs/design.md 참고).
@@ -37,7 +38,6 @@ public class PutawayService {
     private final IbLineRepository ibLineRepository;
     private final LocRepository locRepository;
     private final LotRepository lotRepository;
-    private final InvRepository invRepository;
     private final InvStore invStore;
 
     /** 적치 대상 (라인, Lot) 배치 전체 — 검수는 됐지만 아직 전량 적치되지 않은 것 */
@@ -79,8 +79,16 @@ public class PutawayService {
             throw new IllegalArgumentException("온도대가 일치하지 않습니다 (상품 " + prod.getTmpZon() + " / 로케이션 " + target.getTmpZon() + "): " + target.getLocCd());
         }
 
-        Inv stagingInv = invRepository.findByProdIdAndLocIdAndLotId(prod.getId(), staging.getId(), lot.getId())
-                .orElseThrow(() -> new IllegalStateException("스테이징 재고를 찾을 수 없습니다: " + prod.getProdCd()));
+        // 스테이징·대상 행을 함께 선락한다 (InvStore가 키 오름차순으로 잠근다). 락 없이 읽고 옮기면
+        // 같은 스테이징 행의 동시 적치·검수취소가 각자 읽은 수량 기준으로 서로 덮어쓴다.
+        // 대상 행이 아직 없으면 빠지고 move가 만든다 (동시 생성은 uq_inv가 방어)
+        InvKey stagingKey = new InvKey(prod.getId(), staging.getId(), lot.getId());
+        Map<InvKey, Inv> locked = invStore.lockAll(List.of(
+                stagingKey, new InvKey(prod.getId(), target.getId(), lot.getId())));
+        Inv stagingInv = locked.get(stagingKey);
+        if (stagingInv == null) {
+            throw new IllegalStateException("스테이징 재고를 찾을 수 없습니다: " + prod.getProdCd());
+        }
         if (qty > stagingInv.getOnHandQty()) {
             throw new IllegalArgumentException("적치수량이 이 배치의 미적치 잔량을 초과했습니다 (다른 주문과 공유된 Lot이 먼저 적치됐을 수 있습니다): " + prod.getProdCd());
         }

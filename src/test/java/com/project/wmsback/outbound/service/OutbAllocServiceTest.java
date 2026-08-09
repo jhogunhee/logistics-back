@@ -5,6 +5,7 @@ import com.project.mdm.store.entity.Store;
 import com.project.wmsback.inventory.entity.Inv;
 import com.project.wmsback.inventory.repository.InvHistRepository;
 import com.project.wmsback.inventory.repository.InvRepository;
+import com.project.wmsback.inventory.service.InvLockKey;
 import com.project.wmsback.inventory.service.InvStore;
 import com.project.wmsback.outbound.dto.AllocExecuteRequest;
 import com.project.wmsback.outbound.dto.AllocExecuteResponse;
@@ -36,6 +37,7 @@ import org.mockito.quality.Strictness;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,7 +58,7 @@ import static org.mockito.Mockito.when;
  * {@code InvMovServiceTest}가 이동지시 예약을 검증하는 것과 같은 방식이다.
  *
  * <p>여기서 못 덮는 것은 동시성 하나뿐이다(락 순서·데드락). 통합 테스트를 두지 않기로 해서
- * 그 규칙은 {@code lockCandidates()} 주석과 코드 리뷰로 지켜진다.
+ * 그 규칙은 {@code InvStore}의 락 창구(키 오름차순)와 코드 리뷰로 지켜진다.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -87,7 +89,7 @@ class OutbAllocServiceTest {
     @BeforeEach
     void setUp() {
         outbAllocService = new OutbAllocService(outbAllocRepository, outbWaveRepository, outbLineRepository,
-                invRepository, new InvStore(invRepository, invHistRepository),
+                new InvStore(invRepository, invHistRepository),
                 alocStgyService, allocQueryRepository, stgyExecLogService);
 
         invById.clear();
@@ -107,8 +109,23 @@ class OutbAllocServiceTest {
         when(outbAllocRepository.sumAlocQtyByLineIds(anyList())).thenReturn(Map.of());
         when(outbAllocRepository.findByOutbLineIdIn(anyList())).thenReturn(List.of());
         when(outbAllocRepository.save(any(OutbAlloc.class))).thenAnswer(i -> i.getArgument(0));
-        when(invRepository.findByIdForUpdate(any()))
-                .thenAnswer(i -> Optional.ofNullable(invById.get(i.<Long>getArgument(0))));
+        // 락 경로(InvStore.lockAllByIds): id → 키 선조회 → 키 락. 픽스처 저장소 invById로 흉내낸다
+        when(invRepository.findLockKeysByIdIn(any())).thenAnswer(i -> {
+            List<InvLockKey> rows = new ArrayList<>();
+            for (Long id : i.<Collection<Long>>getArgument(0)) {
+                Inv found = invById.get(id);
+                if (found != null) {
+                    rows.add(new InvLockKey(id, found.getProd().getId(), found.getLoc().getId(), found.getLot().getId()));
+                }
+            }
+            return rows;
+        });
+        when(invRepository.findByKeyForUpdate(any(), any(), any()))
+                .thenAnswer(i -> invById.values().stream()
+                        .filter(candidate -> candidate.getProd().getId().equals(i.getArgument(0))
+                                && candidate.getLoc().getId().equals(i.getArgument(1))
+                                && candidate.getLot().getId().equals(i.getArgument(2)))
+                        .findFirst());
         when(alocStgyService.select(anyList())).thenReturn(Optional.empty());
         when(allocQueryRepository.bizDvsnByZon()).thenReturn(Map.of());
     }

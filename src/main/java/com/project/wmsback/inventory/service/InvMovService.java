@@ -22,7 +22,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * 재고 이동지시 (보관 ↔ 보관 2단계: 지시=예약 → 확정=실물 MOVE).
@@ -52,27 +55,44 @@ public class InvMovService {
 
     /**
      * 이동지시 등록 (예약). 전체가 한 트랜잭션 — 한 건이라도 검증에 걸리면 전량 롤백.
-     * @return 발급된 이동지시 번호 목록
+     *
+     * FROM 재고 행을 전부 선락(InvStore가 키 오름차순으로 잠근다)한 뒤 건별 처리로 들어간다 —
+     * 건별로 「재고 락 → 채번」을 반복하면 채번 카운터 행 락이 재고 행 락 사이에 끼어
+     * 재고가 겹치는 두 요청이 카운터와 재고를 나눠 쥐고 맞물린다 (보류 등록과 같은 2단계).
+     *
+     * @return 발급된 이동지시 번호 목록 (요청 순서)
      */
     @Transactional
     public List<String> register(InvMovRegisterRequest request) {
         if (request.getItems() == null || request.getItems().isEmpty()) {
             throw new IllegalArgumentException("이동지시 대상이 없습니다.");
         }
+        Set<Long> invIds = new LinkedHashSet<>();
+        for (InvMovRegisterRequest.Item item : request.getItems()) {
+            if (item.getInvId() == null) {
+                throw new IllegalArgumentException("이동할 재고가 지정되지 않았습니다.");
+            }
+            invIds.add(item.getInvId());
+        }
+
+        // FROM 재고 행 선락 — 예약(aloc) 증감의 직렬화 지점 (출고 할당이 같은 행을 잡는 지점과 동일)
+        Map<Long, Inv> locked = invStore.lockAllByIds(invIds);
+
         List<String> movNos = new ArrayList<>();
         for (InvMovRegisterRequest.Item item : request.getItems()) {
-            movNos.add(registerOne(item));
+            Inv fromInv = locked.get(item.getInvId());
+            if (fromInv == null) {
+                throw new IllegalArgumentException("존재하지 않는 재고입니다: " + item.getInvId());
+            }
+            movNos.add(registerOne(item, fromInv));
         }
         return movNos;
     }
 
-    private String registerOne(InvMovRegisterRequest.Item item) {
+    private String registerOne(InvMovRegisterRequest.Item item, Inv fromInv) {
         if (item.getQty() == null || item.getQty() < 1) {
             throw new IllegalArgumentException("이동수량은 1 이상이어야 합니다.");
         }
-        // FROM 재고 행 락 — 예약(aloc) 증감의 직렬화 지점 (출고 할당이 같은 행을 잡는 지점과 동일)
-        Inv fromInv = invRepository.findByIdForUpdate(item.getInvId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 재고입니다: " + item.getInvId()));
         Prod prodEntity = fromInv.getProd();
         Lot lotEntity = fromInv.getLot();
         Loc from = fromInv.getLoc();
@@ -148,8 +168,16 @@ public class InvMovService {
         Loc from = task.getFromLoc();
         Loc to = task.getToLoc();
 
-        Inv fromInv = invRepository.findByKeyForUpdate(prodEntity.getId(), from.getId(), lotEntity.getId())
-                .orElseThrow(() -> new IllegalStateException("이동지시가 예약한 재고가 없습니다 (정합성 오류): " + task.getInvMovNo()));
+        // FROM과 도착지를 함께 선락한다 (InvStore가 키 오름차순으로 잠근다) — 도착 행도 증가 전에
+        // 잠가야 같은 행으로 동시에 들어오는 유입이 서로 덮어쓰지 않는다. 도착 행이 아직 없으면
+        // 여기서 빠지고 move가 만든다 (동시 생성은 uq_inv가 방어)
+        InvKey fromKey = new InvKey(prodEntity.getId(), from.getId(), lotEntity.getId());
+        Map<InvKey, Inv> locked = invStore.lockAll(List.of(
+                fromKey, new InvKey(prodEntity.getId(), to.getId(), lotEntity.getId())));
+        Inv fromInv = locked.get(fromKey);
+        if (fromInv == null) {
+            throw new IllegalStateException("이동지시가 예약한 재고가 없습니다 (정합성 오류): " + task.getInvMovNo());
+        }
         if (fromInv.getOnHandQty() < qty || fromInv.getAlocQty() < qty) {
             throw new IllegalStateException("예약 수량보다 실재고가 적습니다 (정합성 오류 — 보유 " + fromInv.getOnHandQty()
                     + " / 예약 " + fromInv.getAlocQty() + "): " + task.getInvMovNo());
@@ -177,7 +205,7 @@ public class InvMovService {
         }
         long remaining = task.remainingQty();
 
-        Inv fromInv = invRepository.findByKeyForUpdate(task.getProd().getId(), task.getFromLoc().getId(), task.getLot().getId())
+        Inv fromInv = invStore.lock(new InvKey(task.getProd().getId(), task.getFromLoc().getId(), task.getLot().getId()))
                 .orElseThrow(() -> new IllegalStateException("이동지시가 예약한 재고가 없습니다 (정합성 오류): " + task.getInvMovNo()));
         if (fromInv.getAlocQty() < remaining) {
             throw new IllegalStateException("예약 잔량보다 재고의 예약 수량이 적습니다 (정합성 오류 — 예약 " + fromInv.getAlocQty()

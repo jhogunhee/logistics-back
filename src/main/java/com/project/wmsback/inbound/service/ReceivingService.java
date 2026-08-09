@@ -12,8 +12,8 @@ import com.project.wmsback.inventory.entity.InvHist;
 import com.project.wmsback.inventory.entity.RefDocTyp;
 import com.project.wmsback.inventory.entity.TxTyp;
 import com.project.wmsback.inventory.repository.InvHistRepository;
-import com.project.wmsback.inventory.repository.InvRepository;
 import com.project.wmsback.inventory.service.InvDocRef;
+import com.project.wmsback.inventory.service.InvKey;
 import com.project.wmsback.inventory.service.InvStore;
 import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.Lot;
@@ -52,7 +52,6 @@ public class ReceivingService {
     private final IbLineRepository ibLineRepository;
     private final LotRepository lotRepository;
     private final LocRepository locRepository;
-    private final InvRepository invRepository;
     private final InvHistRepository invHistRepository;
     private final InvStore invStore;
     private final ProdRepository prodRepository;
@@ -92,8 +91,8 @@ public class ReceivingService {
      *
      * <p><b>① 교착 회피.</b> 락은 커밋까지 유지되므로 요청이 보낸 순서대로 잠그면 상품이 겹치는 두
      * 검수가 서로 반대 순서로 잡아 교착이 난다(A: 상품1→상품2 / B: 상품2→상품1). 라인 id로 정렬해서는
-     * 안 된다 — 라인 id 순서와 상품 id 순서는 입고마다 다르다. 락 순서를 하나로 고정하는 것은 출고
-     * 할당이 후보를 {@code inv_id} 오름차순으로 잠그는 것과 같은 원칙이다(OutbAllocService#lockCandidates).
+     * 안 된다 — 라인 id 순서와 상품 id 순서는 입고마다 다르다. 락 순서를 하나로 고정하는 것은
+     * 재고 행 락이 표준 순서(재고 키 오름차순, InvStore)를 따르는 것과 같은 원칙이다.
      *
      * <p><b>② 잔량 검사와 누계 갱신의 직렬화.</b> 같은 라인을 동시에 검수한 둘이 같은 잔량을 보고
      * 통과하면, 각자 자기 스냅샷에 더한 {@code rcvd_qty}를 절대값으로 덮어써 한쪽 검수가 증발한다
@@ -271,7 +270,8 @@ public class ReceivingService {
 
         Prod prod = receipt.getProd();
         long qty = receipt.getQty();
-        Inv inv = invRepository.findByProdIdAndLocIdAndLotId(prod.getId(), receipt.getLoc().getId(), receipt.getLot().getId())
+        // 스테이징 행 락 — 락 없이 읽고 줄이면 같은 행의 동시 적치·검수와 서로 덮어쓴다
+        Inv inv = invStore.lock(new InvKey(prod.getId(), receipt.getLoc().getId(), receipt.getLot().getId()))
                 .orElseThrow(() -> new IllegalStateException("스테이징 재고를 찾을 수 없습니다: " + prod.getProdCd()));
         if (inv.getOnHandQty() < qty) {
             throw new IllegalStateException("이미 적치된 수량이 있어 검수를 취소할 수 없습니다: " + prod.getProdCd());

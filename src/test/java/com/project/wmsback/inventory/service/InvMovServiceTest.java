@@ -99,7 +99,10 @@ class InvMovServiceTest {
         fromInv = Inv.builder().prod(prod).loc(fromLoc).lot(lot).build();
         fromInv.increaseOnHand(10L);
 
-        when(invRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(fromInv));
+        // 등록의 선락 경로: id → 키 선조회 → 키 락 (InvStore.lockAllByIds)
+        when(invRepository.findLockKeysByIdIn(any()))
+                .thenReturn(List.of(new InvLockKey(100L, 1L, 10L, 5L)));
+        when(invRepository.findByKeyForUpdate(1L, 10L, 5L)).thenReturn(Optional.of(fromInv));
         when(locRepository.findById(20L)).thenReturn(Optional.of(toLoc));
         when(invRepository.sumOnHandQtyByLocId(20L)).thenReturn(0L);
         when(invMovTaskRepository.sumOpenInboundQty(20L, InvMovStatus.DIRECTED)).thenReturn(0L);
@@ -247,7 +250,6 @@ class InvMovServiceTest {
         InvMovTask directed = task(6L);
         when(invMovTaskRepository.findById(1L)).thenReturn(Optional.of(directed));
         when(invRepository.findByKeyForUpdate(1L, 10L, 5L)).thenReturn(Optional.of(fromInv));
-        when(invRepository.findByProdIdAndLocIdAndLotId(1L, 20L, 5L)).thenReturn(Optional.empty());
 
         invMovService.confirm(1L, 4L);
 
@@ -279,7 +281,6 @@ class InvMovServiceTest {
         InvMovTask directed = task(10L);
         when(invMovTaskRepository.findById(1L)).thenReturn(Optional.of(directed));
         when(invRepository.findByKeyForUpdate(1L, 10L, 5L)).thenReturn(Optional.of(fromInv));
-        when(invRepository.findByProdIdAndLocIdAndLotId(1L, 20L, 5L)).thenReturn(Optional.empty());
 
         invMovService.confirm(1L, 10L);
 

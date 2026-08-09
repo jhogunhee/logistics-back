@@ -1,6 +1,7 @@
 package com.project.wmsback.inventory.repository;
 
 import com.project.wmsback.inventory.entity.InvHld;
+import com.project.wmsback.inventory.service.InvLockKey;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -22,11 +23,8 @@ public interface InvHldRepository extends JpaRepository<InvHld, Long>, InvHldRep
     @Query("select h from InvHld h where h.id = :id")
     Optional<InvHld> findByIdForUpdate(@Param("id") Long id);
 
-    /**
-     * 다건 해제가 잠글 재고 행을 고르기 위한 사전 조회 — (보류건 id, 상품 id, 로케이션 id, Lot id).
-     * 엔티티가 아니라 스칼라로 읽는 이유는 영속성 컨텍스트다 — InvHld를 락 없이 먼저 읽어두면
-     * 뒤에 findByIdForUpdate로 락을 잡아도 그때 올라간 인스턴스가 그대로 나와 잔량이 갱신되지 않는다.
-     */
-    @Query("select h.id, h.prod.id, h.loc.id, h.lot.id from InvHld h where h.id in :ids")
-    List<Object[]> findLockKeysByIdIn(@Param("ids") Collection<Long> ids);
+    /** 다건 해제가 잠글 재고 행을 고르기 위한 사전 조회. 엔티티가 아니라 프로젝션인 이유는 InvLockKey 참고 */
+    @Query("select new com.project.wmsback.inventory.service.InvLockKey(h.id, h.prod.id, h.loc.id, h.lot.id) "
+            + "from InvHld h where h.id in :ids")
+    List<InvLockKey> findLockKeysByIdIn(@Param("ids") Collection<Long> ids);
 }

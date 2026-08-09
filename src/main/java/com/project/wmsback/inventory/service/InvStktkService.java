@@ -31,6 +31,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 재고조사(실사). 조사 범위를 지정해 라인을 만들고(전산수량 스냅샷), 실사수량을 입력한 뒤
@@ -223,12 +224,17 @@ public class InvStktkService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 재고조사입니다: " + stktkId));
         stktk.requireEditable();
 
-        // 재고 키 오름차순 — 여러 조사가 동시에 확정돼도 재고 행 락을 같은 순서로 잡게 해 교착을 피한다
         List<InvStktkLn> lines = invStktkLnRepository.findByStktkIdOrderByInvKey(stktkId);
         List<InvStktkLn> counted = lines.stream().filter(InvStktkLn::counted).toList();
         if (counted.isEmpty()) {
             throw new IllegalArgumentException("실사수량이 입력된 라인이 없습니다: " + stktk.getStktkNo());
         }
+
+        // 실사 라인의 재고 행 전부 선락 — 여러 조사가 동시에 확정돼도 InvStore가 키 오름차순으로
+        // 잠가 교착이 없다. 없는 행(전량 소진·수동 추가 라인)은 빠지고 아래에서 0으로 본다
+        Map<InvKey, Inv> locked = invStore.lockAll(counted.stream()
+                .map(ln -> new InvKey(ln.getProd().getId(), ln.getLoc().getId(), ln.getLot().getId()))
+                .toList());
 
         for (InvStktkLn ln : counted) {
             Prod prod = ln.getProd();
@@ -236,8 +242,7 @@ public class InvStktkService {
             Lot lot = ln.getLot();
 
             // 확정 기준은 지금 이 순간의 전산수량이다 — 조사 생성 시점 스냅샷(sysQty)이 아니다.
-            // 재고 행이 없으면(전량 소진·수동 추가 라인) 0으로 본다.
-            Inv inv = invRepository.findByKeyForUpdate(prod.getId(), loc.getId(), lot.getId()).orElse(null);
+            Inv inv = locked.get(new InvKey(prod.getId(), loc.getId(), lot.getId()));
             long cfmSysQty = inv == null ? 0L : inv.getOnHandQty();
             ln.confirm(cfmSysQty);
 
