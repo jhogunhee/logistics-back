@@ -3,6 +3,7 @@ package com.project.wmsback.inbound.service;
 import com.project.wmsback.inbound.dto.IbLineResponse;
 import com.project.wmsback.inbound.dto.IbOrderResponse;
 import com.project.wmsback.inbound.dto.IbOrderSearchCond;
+import com.project.wmsback.inbound.entity.IbLine;
 import com.project.wmsback.inbound.entity.IbOrder;
 import com.project.wmsback.inbound.repository.IbLineRepository;
 import com.project.wmsback.inbound.repository.IbOrderRepository;
@@ -10,7 +11,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -21,9 +25,28 @@ public class IbOrderService {
     private final IbLineRepository ibLineRepository;
 
     public List<IbOrderResponse> list(IbOrderSearchCond cond) {
-        return ibOrderRepository.search(cond).stream()
-                .map(IbOrderResponse::from)
+        List<IbOrder> orders = ibOrderRepository.search(cond);
+
+        // search()가 라인을 fetch join으로 이미 들고 오므로 라인 id는 메모리에서 뽑는다 (추가 조회 없음).
+        // 검수일시는 건별로 구하면 그대로 N+1이라 한 번에 받아 주문별로 접는다
+        List<Long> ibLineIds = orders.stream()
+                .flatMap(o -> o.getLines().stream())
+                .map(IbLine::getId)
                 .toList();
+        Map<Long, LocalDateTime> lastReceiveDtByLine = ibOrderRepository.lastReceiveDtByLine(ibLineIds);
+
+        return orders.stream()
+                .map(o -> IbOrderResponse.of(o, lastReceiveDt(o, lastReceiveDtByLine)))
+                .toList();
+    }
+
+    /** 입고건의 최종 검수일시 = 그 라인들 중 가장 늦은 것 (검수 전이면 null) */
+    private LocalDateTime lastReceiveDt(IbOrder order, Map<Long, LocalDateTime> byLine) {
+        return order.getLines().stream()
+                .map(l -> byLine.get(l.getId()))
+                .filter(Objects::nonNull)
+                .max(LocalDateTime::compareTo)
+                .orElse(null);
     }
 
     public List<IbLineResponse> lines(Long ibOrderId) {

@@ -13,7 +13,9 @@ import lombok.RequiredArgsConstructor;
 public enum IbStatus {
     SCHEDULED("입고예정"),
     RECEIVING("입고중"),
-    RECEIVED("입고마감"),
+    // 업무 용어는 「입고확정」이다 — 미입고 잔량이 확정되어 「얼마나 왔나」가 더는 바뀌지 않는 시점.
+    // 상태값 이름(RECEIVED)과 close() · POST /{id}/close 는 상태 모델 변경이 올 때 함께 고친다.
+    RECEIVED("입고확정"),
     COMPLETED("적치완료");
 
     private final String label;
