@@ -19,9 +19,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * 재고 속성변경 — Lot 속성(제조일자·유통기한) 정정.
@@ -76,20 +78,27 @@ public class LotAttrChngService {
 
         // 정정 1건이 잠그는 것은 (상품, Lot) 한 쌍인데, 다건이면 한 트랜잭션이 여러 쌍을 동시에 쥔다.
         // 두 요청이 겹치는 Lot을 서로 반대 순서로 보내면 교착이 나므로 상품·Lot 오름차순으로 정렬해
-        // 모든 요청이 같은 순서로 잡게 만든다. 상품은 Lot이 정해지면 바뀌지 않아 락 없이 미리 읽어도 된다.
-        Map<Long, Long> prodIdByLotId = new LinkedHashMap<>();
+        // 모든 요청이 같은 순서로 잡게 만든다. 상품은 Lot이 정해지면 바뀌지 않아 락 없이 미리 읽어도 되지만,
+        // 엔티티가 아니라 스칼라로 읽는다 (LotLockKey 참고 — 미리 올라간 인스턴스는 락을 걸어도 낡은 값이다)
+        Set<Long> lotIds = new LinkedHashSet<>();
         for (LotAttrChngRequest.Item item : items) {
             Long lotId = item.getLotId();
             if (lotId == null) {
                 throw new IllegalArgumentException("정정할 Lot이 지정되지 않았습니다.");
             }
             // 같은 Lot을 두 번 실으면 뒤가 앞을 덮어쓰면서 이력만 두 줄 남는다 — 애초에 거부한다
-            if (prodIdByLotId.containsKey(lotId)) {
+            if (!lotIds.add(lotId)) {
                 throw new IllegalArgumentException("같은 Lot이 두 번 실렸습니다 — 한 번에 한 값으로만 정정할 수 있습니다: " + lotId);
             }
-            prodIdByLotId.put(lotId, lotRepository.findById(lotId)
-                    .map(l -> l.getProd().getId())
-                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 Lot입니다: " + lotId)));
+        }
+        Map<Long, Long> prodIdByLotId = new LinkedHashMap<>();
+        for (LotLockKey row : lotAttrChngRepository.findLotLockKeysByIdIn(lotIds)) {
+            prodIdByLotId.put(row.lotId(), row.prodId());
+        }
+        for (Long lotId : lotIds) {
+            if (!prodIdByLotId.containsKey(lotId)) {
+                throw new IllegalArgumentException("존재하지 않는 Lot입니다: " + lotId);
+            }
         }
 
         items.stream()
@@ -109,10 +118,11 @@ public class LotAttrChngService {
 
         // 상품 로우 락 → Lot 로우 락. 검수(findOrCreateLot)와 같은 순서라 교착이 없고,
         // 「정정이 배치 키를 X로 바꾸는 사이 검수가 X 배치를 새로 만드는」 경합이 직렬화된다.
-        prodRepository.findByIdForUpdate(prodId);
+        // FK가 없어 상품 행 부재를 DB가 못 잡는다 — 조용히 락 없이 지나가지 않게 정합성 오류로 세운다
+        Prod prod = prodRepository.findByIdForUpdate(prodId)
+                .orElseThrow(() -> new IllegalStateException("Lot이 참조하는 상품이 없습니다 (정합성 오류): " + prodId));
         Lot lot = lotRepository.findByIdForUpdate(lotId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 Lot입니다: " + lotId));
-        Prod prod = lot.getProd();
 
         // 유통기한 미관리 상품의 Lot은 두 날짜가 항상 NULL인 것이 그 상품의 정의다 —
         // 값을 넣는 것은 정정이 아니라 상품 관리방식 전환이고 그건 상품 마스터의 소관이다.
