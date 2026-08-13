@@ -3,6 +3,7 @@ package com.project.wmsback.strategy.allocation.service;
 import com.project.wmsback.strategy.allocation.component.AlocDstrb;
 import com.project.wmsback.strategy.allocation.component.AlocRstrct;
 import com.project.wmsback.strategy.allocation.component.AlocSrt;
+import com.project.wmsback.strategy.allocation.dto.AlocDecisionTrace;
 import com.project.wmsback.strategy.allocation.dto.AlocStgyDefinition;
 import com.project.wmsback.strategy.allocation.dto.AlocGroupPlan;
 import com.project.wmsback.strategy.allocation.entity.AlocSlotTyp;
@@ -105,7 +106,7 @@ public final class AlocPlanner {
     /** 계층을 차례로 돌린 뒤, 남은 산정 상태를 라인별로 집계해 계획과 근거(trace)로 만든다 */
     private AlocGroupPlan run(Long prodId, String prodCd) {
         List<AlocStgyDefinition.SlotDef> tiers = def != null ? def.slotsOf(AlocSlotTyp.INVN_FLTR) : List.of();
-        List<Map<String, Object>> tierTraces = new ArrayList<>();
+        List<AlocDecisionTrace.TierTrace> tierTraces = new ArrayList<>();
 
         if (tiers.isEmpty()) {
             // 계층 없음 = 보관 재고 전체가 한 덩어리 (기본 동작)
@@ -119,7 +120,7 @@ public final class AlocPlanner {
 
         // 라인별 집계
         List<AlocGroupPlan.LinePlan> linePlans = new ArrayList<>();
-        List<Map<String, Object>> skipTraces = new ArrayList<>();
+        List<AlocDecisionTrace.SkipTrace> skipTraces = new ArrayList<>();
         long totalReq = 0;
         long totalAsgn = 0;
         for (AlocLineTarget line : lines) {
@@ -131,31 +132,20 @@ public final class AlocPlanner {
             linePlans.add(new AlocGroupPlan.LinePlan(line.outbLineId(), line.outbNo(),
                     line.storeCd(), line.prodCd(), line.reqQty(), asgnQty, asgn, lineSkips));
             for (AlocGroupPlan.Skip skip : lineSkips) {
-                Map<String, Object> entry = new LinkedHashMap<>();
-                entry.put("outbNo", line.outbNo());
-                entry.put("storeCd", line.storeCd());
-                entry.put("locCd", skip.locCd());
-                entry.put("lotNo", skip.lotNo());
-                entry.put("reason", skip.reason());
-                skipTraces.add(entry);
+                skipTraces.add(new AlocDecisionTrace.SkipTrace(line.outbNo(), line.storeCd(),
+                        skip.locCd(), skip.lotNo(), skip.reason()));
             }
         }
 
         // 근거 — 결품 테이블이 없으므로 「왜 이만큼만 받았는지」가 남는 곳은 여기뿐이다
-        Map<String, Object> trace = new LinkedHashMap<>();
-        trace.put("prodCd", prodCd);
-        trace.put("reqQty", totalReq);
-        trace.put("asgnQty", totalAsgn);
-        trace.put("odrSrt", describeSort(AlocSlotTyp.ODR_SRT, "출고예정일 ASC → 출고번호 ASC"));
-        trace.put("invnSrt", describeSort(AlocSlotTyp.INVN_SRT, "FEFO (유통기한 ASC → 피킹순위 → 로케이션코드)"));
-        trace.put("rstrct", rstrctSlots.isEmpty()
-                ? "잔여수명 비율 · 점포 기준 (기본값)"
-                : rstrctSlots.stream().map(AlocStgyDefinition.SlotDef::cmpntCd).toList().toString());
-        trace.put("tiers", tierTraces);
-        trace.put("skips", skipTraces);
-        if (skipCount > skipTraces.size()) {
-            trace.put("skipsOmitted", skipCount - skipTraces.size());
-        }
+        AlocDecisionTrace trace = new AlocDecisionTrace(prodCd, totalReq, totalAsgn,
+                describeSort(AlocSlotTyp.ODR_SRT, "출고예정일 ASC → 출고번호 ASC"),
+                describeSort(AlocSlotTyp.INVN_SRT, "FEFO (유통기한 ASC → 피킹순위 → 로케이션코드)"),
+                rstrctSlots.isEmpty()
+                        ? "잔여수명 비율 · 점포 기준 (기본값)"
+                        : rstrctSlots.stream().map(AlocStgyDefinition.SlotDef::cmpntCd).toList().toString(),
+                tierTraces, skipTraces,
+                skipCount > skipTraces.size() ? (long) (skipCount - skipTraces.size()) : null);
 
         return new AlocGroupPlan(prodId, prodCd, totalReq, totalAsgn, linePlans, trace);
     }
@@ -171,10 +161,8 @@ public final class AlocPlanner {
      * @param tier 계층 슬롯. null = 계층 없음(후보 전체가 한 덩어리)
      * @param seq  근거에 남길 계층 순번
      */
-    private Map<String, Object> runTier(AlocStgyDefinition.SlotDef tier, int seq) {
-        Map<String, Object> trace = new LinkedHashMap<>();
-        trace.put("seq", seq);
-        trace.put("cond", tier != null ? describeCond(tier.condOrEmpty()) : "전체 (계층 없음)");
+    private AlocDecisionTrace.TierTrace runTier(AlocStgyDefinition.SlotDef tier, int seq) {
+        String cond = tier != null ? describeCond(tier.condOrEmpty()) : "전체 (계층 없음)";
 
         // ① 후보 추리기 — 아직 남은 것 중 이 계층 조건에 맞는 것만, 재고 정렬 순서로
         List<AlocInvnCandidate> tierCandidates = candidates.stream()
@@ -188,25 +176,23 @@ public final class AlocPlanner {
         List<AlocLineTarget> active = activeLines();
         long totalReq = active.stream().mapToLong(this::room).sum();
 
-        trace.put("cndtCnt", tierCandidates.size());
-        trace.put("avalQty", tierAval);
-        trace.put("reqQty", totalReq);
-
         if (tierAval <= 0 || active.isEmpty()) {
-            trace.put("result", tierAval <= 0 ? "후보 재고 없음" : "남은 요청 없음");
-            return trace;
+            return new AlocDecisionTrace.TierTrace(seq, cond, tierCandidates.size(), tierAval, totalReq,
+                    tierAval <= 0 ? "후보 재고 없음" : "남은 요청 없음", null, null, null);
         }
 
         // ② 라인별 상한 — 부족할 때만 분배 슬롯이 개입한다
+        boolean shortage = tierAval < totalReq;
         Map<Long, Long> caps;
-        if (tierAval >= totalReq) {
+        List<AlocDecisionTrace.DstrbTrace> dstrbTraces = null;
+        if (!shortage) {
             // 부족이 아니다 — 분배 슬롯은 아예 평가하지 않는다
-            trace.put("shortage", false);
             caps = new LinkedHashMap<>();
             active.forEach(line -> caps.put(line.outbLineId(), room(line)));
         } else {
-            trace.put("shortage", true);
-            caps = distribute(tierAval, active, trace);
+            DstrbOutcome outcome = distribute(tierAval, active);
+            caps = outcome.caps();
+            dstrbTraces = outcome.traces();
         }
 
         // ③ 상한 안에서 소진
@@ -215,50 +201,43 @@ public final class AlocPlanner {
         // ④ 재고가 남았는데 못 받은 라인이 있으면 상한을 풀고 순차로 마저 배정한다.
         // 분배 산정은 그룹 수준이라 라인별 제약을 모른다 — 어떤 라인이 자기 상한을 다 쓰지 못하고
         // 남긴 재고를 다른 라인이 쓸 수 있는데도 놀리는 것은 부족 상황에서 특히 나쁘다.
+        String sweep = null;
         if (availOf(tierCandidates) > 0 && activeLines().stream().anyMatch(line -> room(line) > 0)) {
-            Map<Long, Long> sweep = new LinkedHashMap<>();
-            activeLines().forEach(line -> sweep.put(line.outbLineId(), room(line)));
-            assign(tierCandidates, sweep);
-            trace.put("sweep", "제약 잔여 순차 배정");
+            Map<Long, Long> sweepCaps = new LinkedHashMap<>();
+            activeLines().forEach(line -> sweepCaps.put(line.outbLineId(), room(line)));
+            assign(tierCandidates, sweepCaps);
+            sweep = "제약 잔여 순차 배정";
         }
-        return trace;
+        return new AlocDecisionTrace.TierTrace(seq, cond, tierCandidates.size(), tierAval, totalReq,
+                null, shortage, dstrbTraces, sweep);
     }
 
     /**
      * 부족할 때의 라인별 배분 상한을 산정한다 — <b>실제 배정은 하지 않는다.</b>
      * 슬롯을 앞에서부터 돌며 남은 가용을 나눠 주고, 슬롯이 0건이면 순차 소진 1건과 동치다.
-     * 근거는 {@code tierTrace}의 {@code dstrb}에 담는다.
+     * 상한과 함께 슬롯별 근거({@code dstrb})를 돌려준다.
      */
-    private Map<Long, Long> distribute(long avalQty, List<AlocLineTarget> active,
-                                       Map<String, Object> tierTrace) {
+    private DstrbOutcome distribute(long avalQty, List<AlocLineTarget> active) {
         List<AlocStgyDefinition.SlotDef> slots = def != null ? def.slotsOf(AlocSlotTyp.DSTRB) : List.of();
         Map<Long, Long> caps = new LinkedHashMap<>();
-        List<Map<String, Object>> traces = new ArrayList<>();
+        List<AlocDecisionTrace.DstrbTrace> traces = new ArrayList<>();
 
         if (slots.isEmpty()) {
             caps.putAll(AlocDstrb.SEQUENTIAL.distribute(avalQty, active, this::room));
-            Map<String, Object> dflt = new LinkedHashMap<>();
-            dflt.put("seq", 1);
-            dflt.put("cmpntCd", AlocDstrb.SEQUENTIAL.name());
-            dflt.put("dflt", true);
-            dflt.put("tgtLineCnt", active.size());
-            dflt.put("asgnQty", caps.values().stream().mapToLong(Long::longValue).sum());
-            traces.add(dflt);
-            tierTrace.put("dstrb", traces);
-            return caps;
+            traces.add(new AlocDecisionTrace.DstrbTrace(1, AlocDstrb.SEQUENTIAL.name(), true, null,
+                    null, active.size(), caps.values().stream().mapToLong(Long::longValue).sum()));
+            return new DstrbOutcome(caps, traces);
         }
 
         long left = avalQty;
         int seq = 1;
         for (AlocStgyDefinition.SlotDef slot : slots) {
-            Map<String, Object> slotTrace = new LinkedHashMap<>();
-            slotTrace.put("seq", seq++);
-            slotTrace.put("cmpntCd", slot.cmpntCd());
-            slotTrace.put("cond", describeCond(slot.condOrEmpty()));
-            traces.add(slotTrace);
+            int slotSeq = seq++;
+            String cond = describeCond(slot.condOrEmpty());
 
             if (left <= 0) {
-                slotTrace.put("result", "SKIP — 남은 가용 없음");
+                traces.add(new AlocDecisionTrace.DstrbTrace(slotSeq, slot.cmpntCd(), null, cond,
+                        "SKIP — 남은 가용 없음", null, null));
                 continue;
             }
             // 이미 준 상한을 빼고 봐야 슬롯끼리 같은 여유를 두 번 나눠 주지 않는다 (아래 람다도 같다)
@@ -267,9 +246,9 @@ public final class AlocPlanner {
                             slot.condOrEmpty(), AlocLineField.BY_CODE, line))
                     .filter(line -> room(line) - caps.getOrDefault(line.outbLineId(), 0L) > 0)
                     .toList();
-            slotTrace.put("tgtLineCnt", targets.size());
             if (targets.isEmpty()) {
-                slotTrace.put("result", "SKIP — 대상 라인 없음");
+                traces.add(new AlocDecisionTrace.DstrbTrace(slotSeq, slot.cmpntCd(), null, cond,
+                        "SKIP — 대상 라인 없음", 0, null));
                 continue;
             }
 
@@ -283,10 +262,14 @@ public final class AlocPlanner {
                 }
             }
             left -= given;
-            slotTrace.put("asgnQty", given);
+            traces.add(new AlocDecisionTrace.DstrbTrace(slotSeq, slot.cmpntCd(), null, cond,
+                    null, targets.size(), given));
         }
-        tierTrace.put("dstrb", traces);
-        return caps;
+        return new DstrbOutcome(caps, traces);
+    }
+
+    /** 분배 산정의 결과 묶음 — 라인별 상한과 슬롯별 근거를 함께 돌려준다 */
+    private record DstrbOutcome(Map<Long, Long> caps, List<AlocDecisionTrace.DstrbTrace> traces) {
     }
 
     // ── 배정 ─────────────────────────────────────────────────────────────────

@@ -19,6 +19,7 @@ import com.project.wmsback.outbound.repository.OutbAllocRepository;
 import com.project.wmsback.outbound.repository.OutbLineRepository;
 import com.project.wmsback.outbound.repository.OutbWaveRepository;
 import com.project.wmsback.strategy.allocation.component.AlocRstrct;
+import com.project.wmsback.strategy.allocation.dto.AlocDecisionTrace;
 import com.project.wmsback.strategy.allocation.dto.AlocStgyResponse;
 import com.project.wmsback.strategy.allocation.dto.AlocStgyDefinition;
 import com.project.wmsback.strategy.allocation.dto.AlocGroupPlan;
@@ -187,7 +188,7 @@ public class OutbAllocService {
         Map<String, String> bizDvsnByZon = allocQueryRepository.bizDvsnByZon();
 
         List<AllocExecuteResponse.LineResult> results = new ArrayList<>();
-        List<Map<String, Object>> groupTraces = new ArrayList<>();
+        List<AlocDecisionTrace> groupTraces = new ArrayList<>();
         Set<Long> touchedWaves = new HashSet<>();
         long totalReq = 0;
         long totalAloc = 0;

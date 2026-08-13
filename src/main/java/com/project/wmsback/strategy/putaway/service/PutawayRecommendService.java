@@ -16,6 +16,7 @@ import com.project.wmsback.strategy.putaway.dto.PtawyStgyDefinition;
 import com.project.wmsback.strategy.putaway.dto.PtawyStgyResponse;
 import com.project.wmsback.strategy.putaway.dto.PutawayBulkRecommendRequest;
 import com.project.wmsback.strategy.putaway.dto.PutawayBulkRecommendResponse;
+import com.project.wmsback.strategy.putaway.dto.PutawayDecisionTrace;
 import com.project.wmsback.strategy.putaway.dto.PutawayRecommendResponse;
 import com.project.wmsback.strategy.putaway.entity.PtawyStgy;
 import com.project.wmsback.strategy.putaway.field.PutawayLocField;
@@ -165,27 +166,21 @@ public class PutawayRecommendService {
 
         long remaining = reqQty;
         Map<Long, PutawayRecommendResponse.Assignment> assignments = new LinkedHashMap<>();
-        List<Map<String, Object>> stageTraces = new ArrayList<>();
+        List<PutawayDecisionTrace.StageTrace> stageTraces = new ArrayList<>();
 
         List<PtawyStgyDefinition.StageDef> stages = def.stages().stream()
                 .sorted(Comparator.comparing(s -> s.srtSeq() != null ? s.srtSeq() : 0))
                 .toList();
 
         for (PtawyStgyDefinition.StageDef stage : stages) {
-            Map<String, Object> stageTrace = new LinkedHashMap<>();
-            stageTrace.put("srtSeq", stage.srtSeq());
-            stageTrace.put("mthdCd", stage.mthdCd());
-            stageTraces.add(stageTrace);
-
             if (remaining == 0) {
-                stageTrace.put("gate", "SKIP — 잔여수량 없음");
+                stageTraces.add(stageTrace(stage, "SKIP — 잔여수량 없음", null));
                 continue;
             }
             if (!ConditionEvaluator.matchesAll(stage.lineCond(), PutawayTargetField.BY_CODE, target)) {
-                stageTrace.put("gate", "SKIP — 라인 조건 불일치");
+                stageTraces.add(stageTrace(stage, "SKIP — 라인 조건 불일치", null));
                 continue;
             }
-            stageTrace.put("gate", "PASS");
 
             List<PutawayMethodContext.LocStock> candidates = PutawayMethod.of(stage.mthdCd())
                     .candidates(new PutawayMethodContext(prod, stocks))
@@ -194,9 +189,7 @@ public class PutawayRecommendService {
                     .sorted(locComparator(def.locSrt()))
                     .toList();
 
-            List<Map<String, Object>> locTraces = new ArrayList<>();
-            stageTrace.put("locs", locTraces);
-
+            List<PutawayDecisionTrace.LocTrace> locTraces = new ArrayList<>();
             for (PutawayMethodContext.LocStock candidate : candidates) {
                 if (remaining == 0) {
                     break;
@@ -222,20 +215,13 @@ public class PutawayRecommendService {
                     assign = assign / unit * unit;
                 }
 
-                Map<String, Object> locTrace = new LinkedHashMap<>();
-                locTrace.put("locCd", candidateLoc.getLocCd());
-                locTrace.put("avalQty", avail);
-                locTrace.put("asgnQty", assign);
-                if (inflow > 0) {
-                    locTrace.put("inflowQty", inflow); // 미완료 지시가 이미 잡아둔 자리
-                }
-                if (candidateLoc.getMaxQty() == null) {
-                    locTrace.put("warn", "최대 적재 수량 미설정 — 무제한으로 계산");
-                }
-                if (assign == 0) {
-                    locTrace.put("skip", avail == 0 ? "적재 가능 수량 없음" : "입수 단위(" + unit + ") 미만");
-                }
-                locTraces.add(locTrace);
+                locTraces.add(new PutawayDecisionTrace.LocTrace(
+                        candidateLoc.getLocCd(), avail, assign,
+                        inflow > 0 ? inflow : null, // 미완료 지시가 이미 잡아둔 자리
+                        candidateLoc.getMaxQty() == null ? "최대 적재 수량 미설정 — 무제한으로 계산" : null,
+                        assign == 0
+                                ? (avail == 0 ? "적재 가능 수량 없음" : "입수 단위(" + unit + ") 미만")
+                                : null));
 
                 if (assign > 0) {
                     long total = assignedHere + assign;
@@ -244,16 +230,19 @@ public class PutawayRecommendService {
                     remaining -= assign;
                 }
             }
+            stageTraces.add(stageTrace(stage, "PASS", locTraces));
         }
 
         long assigned = reqQty - remaining;
-        Map<String, Object> trace = new LinkedHashMap<>();
-        trace.put("reqQty", reqQty);
-        trace.put("asgnQty", assigned);
-        trace.put("stages", stageTraces);
-
         return new PutawayRecommendResponse(true, stgyId, stgyNm, rvsnNo, reqQty, assigned, remaining,
-                List.copyOf(assignments.values()), trace);
+                List.copyOf(assignments.values()),
+                new PutawayDecisionTrace(reqQty, assigned, stageTraces));
+    }
+
+    private static PutawayDecisionTrace.StageTrace stageTrace(PtawyStgyDefinition.StageDef stage,
+                                                              String gate,
+                                                              List<PutawayDecisionTrace.LocTrace> locs) {
+        return new PutawayDecisionTrace.StageTrace(stage.srtSeq(), stage.mthdCd(), gate, locs);
     }
 
     /** 입수 = ea_qty(입고단위). 재고 수량이 낱개(EA)라 입고단위 낱개수량이 곧 배수다 */

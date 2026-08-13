@@ -15,7 +15,7 @@ public record PutawayRecommendResponse(
         long asgnQty,
         long remainQty,
         List<Assignment> assignments,
-        Object trace
+        PutawayDecisionTrace trace
 ) {
 
     public record Assignment(Long locId, String locCd, long qty) {
