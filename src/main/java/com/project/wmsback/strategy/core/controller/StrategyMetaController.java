@@ -15,6 +15,7 @@ import com.project.wmsback.strategy.core.dto.OptionResponse;
 import com.project.wmsback.strategy.core.service.StrategyOptionService;
 import com.project.wmsback.strategy.inspection.rule.InspectionRule;
 import com.project.wmsback.strategy.putaway.field.PutawayLocField;
+import com.project.wmsback.strategy.putaway.field.PutawaySortField;
 import com.project.wmsback.strategy.putaway.field.PutawayTargetField;
 import com.project.wmsback.strategy.putaway.method.PutawayMethod;
 import com.project.wmsback.strategy.wave.field.WaveOrderField;
@@ -76,13 +77,15 @@ public class StrategyMetaController {
         };
     }
 
-    /** 정렬 기준 목록 (MULTI_SORT의 para.criteria가 고를 수 있는 field) */
+    /** 정렬 기준 목록 (MULTI_SORT의 para.criteria와 적치 loc_srt가 고를 수 있는 field) */
     @GetMapping("/sort-fields/{domain}")
     public List<OptionResponse> sortFields(@PathVariable String domain) {
         return switch (domain) {
             case "allocation-invn" -> Arrays.stream(InvnSortField.values())
                     .map(f -> new OptionResponse(f.name(), f.label())).toList();
             case "allocation-order" -> Arrays.stream(OdrSortField.values())
+                    .map(f -> new OptionResponse(f.name(), f.label())).toList();
+            case "putaway-loc" -> Arrays.stream(PutawaySortField.values())
                     .map(f -> new OptionResponse(f.name(), f.label())).toList();
             default -> throw new IllegalArgumentException("없는 정렬 기준 도메인입니다: " + domain);
         };

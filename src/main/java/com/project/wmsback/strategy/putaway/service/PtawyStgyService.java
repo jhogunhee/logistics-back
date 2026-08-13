@@ -14,6 +14,7 @@ import com.project.wmsback.strategy.putaway.dto.PtawyStgySummaryResponse;
 import com.project.wmsback.strategy.putaway.entity.PtawyStgy;
 import com.project.wmsback.strategy.putaway.entity.PtawyStgyStg;
 import com.project.wmsback.strategy.putaway.field.PutawayLocField;
+import com.project.wmsback.strategy.putaway.field.PutawaySortField;
 import com.project.wmsback.strategy.putaway.field.PutawayTargetField;
 import com.project.wmsback.strategy.putaway.method.PutawayMethod;
 import com.project.wmsback.strategy.putaway.repository.PtawyStgyRepository;
@@ -34,7 +35,6 @@ import java.util.Set;
 @Transactional(readOnly = true)
 public class PtawyStgyService {
 
-    private static final Set<String> SORT_FIELDS = Set.of("PIKNG_PRTY", "PTAWY_PRTY", "LOC_CD");
     /** 적용대상 선택지 — 반품(RTNGS)은 스코프 아웃이라 제외. 재도입 시 여기와 옵션 소스에 추가 */
     private static final Set<String> ODR_DVSNS = Set.of("NRML", "URGT");
 
@@ -125,7 +125,7 @@ public class PtawyStgyService {
             throw new IllegalArgumentException("단계가 1개 이상 필요합니다.");
         }
         for (SortCriterion criterion : definition.locSrt() != null ? definition.locSrt() : List.<SortCriterion>of()) {
-            if (!SORT_FIELDS.contains(criterion.field())) {
+            if (PutawaySortField.find(criterion.field()).isEmpty()) {
                 throw new IllegalArgumentException("없는 정렬 기준입니다: " + criterion.field());
             }
             if (criterion.dir() != null && !"ASC".equalsIgnoreCase(criterion.dir())

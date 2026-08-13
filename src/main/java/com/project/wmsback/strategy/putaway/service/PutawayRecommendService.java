@@ -19,6 +19,7 @@ import com.project.wmsback.strategy.putaway.dto.PutawayBulkRecommendResponse;
 import com.project.wmsback.strategy.putaway.dto.PutawayRecommendResponse;
 import com.project.wmsback.strategy.putaway.entity.PtawyStgy;
 import com.project.wmsback.strategy.putaway.field.PutawayLocField;
+import com.project.wmsback.strategy.putaway.field.PutawaySortField;
 import com.project.wmsback.strategy.putaway.field.PutawayTarget;
 import com.project.wmsback.strategy.putaway.field.PutawayTargetField;
 import com.project.wmsback.strategy.putaway.method.PutawayMethod;
@@ -263,19 +264,13 @@ public class PutawayRecommendService {
     /** 후보 정렬. 빈 목록 = 기본(피킹순위 ASC → 로케이션코드 ASC). 끝에 id를 붙여 항상 결정적 */
     private Comparator<PutawayMethodContext.LocStock> locComparator(List<SortCriterion> criteria) {
         List<SortCriterion> effective = criteria == null || criteria.isEmpty()
-                ? List.of(new SortCriterion("PIKNG_PRTY", "ASC"), new SortCriterion("LOC_CD", "ASC"))
+                ? List.of(new SortCriterion(PutawaySortField.PIKNG_PRTY.name(), "ASC"),
+                        new SortCriterion(PutawaySortField.LOC_CD.name(), "ASC"))
                 : criteria;
         Comparator<PutawayMethodContext.LocStock> comparator = null;
         for (SortCriterion criterion : effective) {
-            Comparator<PutawayMethodContext.LocStock> one = switch (criterion.field()) {
-                case "PIKNG_PRTY" -> Comparator.comparing(ls -> ls.loc().getPikngPrty());
-                case "PTAWY_PRTY" -> Comparator.comparing(ls -> ls.loc().getPtawyPrty());
-                case "LOC_CD" -> Comparator.comparing(ls -> ls.loc().getLocCd());
-                default -> throw new IllegalStateException("저장된 정렬 기준이 배포본과 어긋납니다: " + criterion.field());
-            };
-            if (!criterion.asc()) {
-                one = one.reversed();
-            }
+            Comparator<PutawayMethodContext.LocStock> one =
+                    PutawaySortField.of(criterion.field()).comparator(criterion.asc());
             comparator = comparator == null ? one : comparator.thenComparing(one);
         }
         return comparator.thenComparing(ls -> ls.loc().getId());
