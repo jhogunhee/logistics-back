@@ -4,7 +4,7 @@ import com.project.wmsback.strategy.allocation.component.AlocDstrb;
 import com.project.wmsback.strategy.allocation.component.AlocRstrct;
 import com.project.wmsback.strategy.allocation.component.AlocSrt;
 import com.project.wmsback.strategy.allocation.dto.AlocStgyDefinition;
-import com.project.wmsback.strategy.allocation.entity.AllocSlotTyp;
+import com.project.wmsback.strategy.allocation.entity.AlocSlotTyp;
 import com.project.wmsback.strategy.allocation.field.InvnSortField;
 import com.project.wmsback.strategy.core.condition.ConditionOperator;
 import com.project.wmsback.strategy.core.condition.FieldCondition;
@@ -87,7 +87,7 @@ class AlocStgyServiceValidateTest {
     @DisplayName("정렬 기준이 비면 거부 — 비워두려면 슬롯을 지워야 기본값(FEFO)이 산다")
     void sortNeedsCriteria() {
         assertThrows(IllegalArgumentException.class, () -> service.validate(def(List.of(
-                new AlocStgyDefinition.SlotDef(AllocSlotTyp.INVN_SRT, 1,
+                new AlocStgyDefinition.SlotDef(AlocSlotTyp.INVN_SRT, 1,
                         AlocSrt.MULTI_SORT.name(), Map.of(), List.of())))));
     }
 
@@ -98,7 +98,7 @@ class AlocStgyServiceValidateTest {
                 dstrb(AlocDstrb.RATIO, storeCond()),
                 dstrb(AlocDstrb.SEQUENTIAL, List.of()))));
 
-        List<AlocStgyDefinition.SlotDef> slots = result.slotsOf(AllocSlotTyp.DSTRB);
+        List<AlocStgyDefinition.SlotDef> slots = result.slotsOf(AlocSlotTyp.DSTRB);
         assertEquals(1, slots.get(0).srtSeq());
         assertEquals(2, slots.get(1).srtSeq());
     }
@@ -107,7 +107,7 @@ class AlocStgyServiceValidateTest {
     @DisplayName("재고위치 슬롯에 구현체를 보내면 거부 — 이 슬롯은 조건이 곧 정의다")
     void filterSlotRejectsComponent() {
         assertThrows(IllegalArgumentException.class, () -> service.validate(def(List.of(
-                new AlocStgyDefinition.SlotDef(AllocSlotTyp.INVN_FLTR, 1, "ANYTHING",
+                new AlocStgyDefinition.SlotDef(AlocSlotTyp.INVN_FLTR, 1, "ANYTHING",
                         Map.of(), bizDvsnCond())))));
     }
 
@@ -126,21 +126,21 @@ class AlocStgyServiceValidateTest {
     }
 
     private AlocStgyDefinition.SlotDef dstrb(AlocDstrb cmpnt, List<FieldCondition> cond) {
-        return new AlocStgyDefinition.SlotDef(AllocSlotTyp.DSTRB, 1, cmpnt.name(), Map.of(), cond);
+        return new AlocStgyDefinition.SlotDef(AlocSlotTyp.DSTRB, 1, cmpnt.name(), Map.of(), cond);
     }
 
     private AlocStgyDefinition.SlotDef rstrct() {
-        return new AlocStgyDefinition.SlotDef(AllocSlotTyp.RSTRCT, 1,
+        return new AlocStgyDefinition.SlotDef(AlocSlotTyp.RSTRCT, 1,
                 AlocRstrct.SHELF_LIFE_PCT.name(), Map.of(AlocRstrct.PARA_BASIS, AlocRstrct.BASIS_STORE),
                 List.of());
     }
 
     private AlocStgyDefinition.SlotDef tier(List<FieldCondition> cond) {
-        return new AlocStgyDefinition.SlotDef(AllocSlotTyp.INVN_FLTR, 1, null, Map.of(), cond);
+        return new AlocStgyDefinition.SlotDef(AlocSlotTyp.INVN_FLTR, 1, null, Map.of(), cond);
     }
 
     private AlocStgyDefinition.SlotDef multiSort(InvnSortField field) {
-        return new AlocStgyDefinition.SlotDef(AllocSlotTyp.INVN_SRT, 1, AlocSrt.MULTI_SORT.name(),
+        return new AlocStgyDefinition.SlotDef(AlocSlotTyp.INVN_SRT, 1, AlocSrt.MULTI_SORT.name(),
                 Map.of(AlocSrt.PARA_CRITERIA, List.of(Map.of("field", field.name(), "dir", "ASC"))),
                 List.of());
     }

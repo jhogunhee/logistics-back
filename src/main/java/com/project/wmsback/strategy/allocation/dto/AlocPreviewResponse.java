@@ -18,14 +18,14 @@ public record AlocPreviewResponse(
         long asgnQty,
         long shortQty,
         boolean estimated,
-        List<AllocGroupPlan> groups
+        List<AlocGroupPlan> groups
 ) {
 
     public static AlocPreviewResponse of(String stgyNm, Long alocStgyId, Long rvsnNo,
-                                         List<AllocGroupPlan> groups) {
+                                         List<AlocGroupPlan> groups) {
         int lineCount = groups.stream().mapToInt(group -> group.lines().size()).sum();
-        long reqQty = groups.stream().mapToLong(AllocGroupPlan::reqQty).sum();
-        long asgnQty = groups.stream().mapToLong(AllocGroupPlan::asgnQty).sum();
+        long reqQty = groups.stream().mapToLong(AlocGroupPlan::reqQty).sum();
+        long asgnQty = groups.stream().mapToLong(AlocGroupPlan::asgnQty).sum();
         return new AlocPreviewResponse(stgyNm, alocStgyId, rvsnNo, lineCount,
                 reqQty, asgnQty, reqQty - asgnQty, true, groups);
     }

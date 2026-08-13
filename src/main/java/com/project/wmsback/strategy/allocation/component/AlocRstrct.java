@@ -1,7 +1,7 @@
 package com.project.wmsback.strategy.allocation.component;
 
-import com.project.wmsback.strategy.allocation.field.AllocInvnCandidate;
-import com.project.wmsback.strategy.allocation.field.AllocLineTarget;
+import com.project.wmsback.strategy.allocation.field.AlocInvnCandidate;
+import com.project.wmsback.strategy.allocation.field.AlocLineTarget;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -38,7 +38,7 @@ public enum AlocRstrct {
                     + "기준은 점포별(store.outb_life_rate) 또는 고정값 중에 고릅니다.") {
 
         @Override
-        public Optional<String> reject(AllocInvnCandidate candidate, AllocLineTarget line,
+        public Optional<String> reject(AlocInvnCandidate candidate, AlocLineTarget line,
                                        Map<String, Object> para) {
             BigDecimal rate = lifeRate(candidate, line);
             if (rate == null) {
@@ -99,7 +99,7 @@ public enum AlocRstrct {
     }
 
     /** 제외 사유. empty면 통과 — 조용히 빠지는 재고를 만들지 않으려고 사유를 문자열로 돌려준다 */
-    public abstract Optional<String> reject(AllocInvnCandidate candidate, AllocLineTarget line,
+    public abstract Optional<String> reject(AlocInvnCandidate candidate, AlocLineTarget line,
                                             Map<String, Object> para);
 
     /** 저장 시 파라미터 검증 (P2). 실패 = 저장 거부 */
@@ -115,7 +115,7 @@ public enum AlocRstrct {
      * 차단하지 않고 경고만 하지만, 표시되는 비율과 자동할당이 거르는 비율이 다르면 화면을 믿을 수
      * 없게 된다 — 계산은 한 곳에만 있어야 한다.
      */
-    public static BigDecimal lifeRate(AllocInvnCandidate candidate, AllocLineTarget line) {
+    public static BigDecimal lifeRate(AlocInvnCandidate candidate, AlocLineTarget line) {
         if (candidate.expiryDt() == null || candidate.mfgDt() == null) {
             return null;
         }
@@ -135,7 +135,7 @@ public enum AlocRstrct {
         return raw != null ? String.valueOf(raw) : BASIS_STORE;
     }
 
-    static long minPct(Map<String, Object> para, AllocLineTarget line) {
+    static long minPct(Map<String, Object> para, AlocLineTarget line) {
         if (BASIS_FIXED.equals(basis(para)) && para.get(PARA_MIN_PCT) instanceof Number number) {
             return number.longValue();
         }

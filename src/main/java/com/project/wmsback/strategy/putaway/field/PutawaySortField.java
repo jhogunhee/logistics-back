@@ -1,6 +1,6 @@
 package com.project.wmsback.strategy.putaway.field;
 
-import com.project.wmsback.strategy.putaway.method.PutawayMethodContext;
+import com.project.wmsback.strategy.putaway.component.PutawayMethodContext;
 
 import java.util.Comparator;
 import java.util.Optional;

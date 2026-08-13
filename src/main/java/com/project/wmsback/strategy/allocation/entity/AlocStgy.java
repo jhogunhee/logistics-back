@@ -94,7 +94,7 @@ public class AlocStgy extends BaseEntity {
     }
 
     /** 슬롯 타입별 목록 (srt_seq 순). 없으면 빈 목록 = 그 역할은 기본 동작 */
-    public List<AlocStgySlot> slotsOf(AllocSlotTyp slotTyp) {
+    public List<AlocStgySlot> slotsOf(AlocSlotTyp slotTyp) {
         return slots.stream()
                 .filter(slot -> slot.getSlotTyp() == slotTyp)
                 .sorted(java.util.Comparator.comparing(AlocStgySlot::getSrtSeq))

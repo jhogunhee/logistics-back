@@ -52,7 +52,7 @@ common  ← mdm ← wmsback ← omsback
 
 같은 이유로 **`@RestControllerAdvice`도 두 개다** — 공통은 `common.exception.GlobalExceptionHandler`, 검수 위반은 `wmsback.strategy.inspection.exception.InspectionExceptionHandler`. 후자를 공통으로 올리면 `common`이 `wmsback`을 import하게 된다.
 
-각 도메인 패키지는 `controller / dto / entity / repository / service` 구성을 따른다. `strategy`는 예외다 — 전략 커널이라 `condition / field / method / rule / component / exception`이 추가로 있고(`method`·`rule`·`component`는 유형별 구성요소 enum이 사는 자리로 이름만 다르다), `InspectionQueryRepository` · `PutawayQueryRepository` · `AllocQueryRepository`는 Spring Data 인터페이스 없이 `JPAQueryFactory`만 드는 **읽기 전용 조회 포트**로 아래 「QueryDSL 리포지토리 패턴」의 3파일 삼각형을 따르지 않는다.
+각 도메인 패키지는 `controller / dto / entity / repository / service` 구성을 따른다. `strategy`는 예외다 — 전략 커널이라 `condition / field / component / exception`이 추가로 있고(`component`는 유형별 구성요소 enum과 그 입출력이 사는 자리 — 검수 규칙·적치 방식·할당 구현체), `InspectionQueryRepository` · `PutawayQueryRepository` · `AlocQueryRepository`는 Spring Data 인터페이스 없이 `JPAQueryFactory`만 드는 **읽기 전용 조회 포트**로 아래 「QueryDSL 리포지토리 패턴」의 3파일 삼각형을 따르지 않는다.
 
 ### FK가 하나도 없다
 

@@ -12,7 +12,7 @@ import com.project.wmsback.strategy.inspection.dto.InspPreviewResponse;
 import com.project.wmsback.strategy.inspection.entity.InspPlcy;
 import com.project.wmsback.strategy.inspection.entity.InspPlcyRule;
 import com.project.wmsback.strategy.inspection.repository.InspPlcyRepository;
-import com.project.wmsback.strategy.inspection.rule.InspectionRule;
+import com.project.wmsback.strategy.inspection.component.InspectionRule;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

@@ -1,4 +1,4 @@
-package com.project.wmsback.strategy.putaway.method;
+package com.project.wmsback.strategy.putaway.component;
 
 import com.project.wmsback.warehouse.entity.Loc;
 import com.project.mdm.prod.entity.Prod;

@@ -1,4 +1,4 @@
-package com.project.wmsback.strategy.inspection.rule;
+package com.project.wmsback.strategy.inspection.component;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;

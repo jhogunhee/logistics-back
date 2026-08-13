@@ -20,7 +20,7 @@ import com.project.wmsback.outbound.entity.WavRegTyp;
 import com.project.wmsback.outbound.repository.OutbAllocRepository;
 import com.project.wmsback.outbound.repository.OutbLineRepository;
 import com.project.wmsback.outbound.repository.OutbWaveRepository;
-import com.project.wmsback.strategy.allocation.repository.AllocQueryRepository;
+import com.project.wmsback.strategy.allocation.repository.AlocQueryRepository;
 import com.project.wmsback.strategy.allocation.service.AlocStgyService;
 import com.project.wmsback.strategy.core.service.StgyExecLogService;
 import com.project.wmsback.warehouse.entity.Loc;
@@ -72,7 +72,7 @@ class OutbAllocServiceTest {
     // 이 테스트는 전부 「전략 미설정」 상태를 본다 — 산정기의 기본 동작(FEFO · 점포 잔여수명 ·
     // 순차 소진)이 전략 도입 전과 같은지가 여기 검증의 전제다. 전략별 동작은 산정기 테스트 몫.
     @Mock AlocStgyService alocStgyService;
-    @Mock AllocQueryRepository allocQueryRepository;
+    @Mock AlocQueryRepository allocQueryRepository;
     @Mock StgyExecLogService stgyExecLogService;
 
     // 재고 쓰기 포트는 목이 아니라 실물을 쓴다 — 예약(aloc) 증감이 검증 대상이기 때문

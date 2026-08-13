@@ -45,7 +45,7 @@ public class AlocStgySlot extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "slot_typ", nullable = false, length = 15)
-    private AllocSlotTyp slotTyp;
+    private AlocSlotTyp slotTyp;
 
     /** 다중 슬롯 안의 순서. INVN_FLTR은 후보 계층 순서, DSTRB는 분배 실행 순서 */
     @Column(name = "srt_seq", nullable = false)
@@ -68,7 +68,7 @@ public class AlocStgySlot extends BaseEntity {
     private List<FieldCondition> cond;
 
     @Builder
-    private AlocStgySlot(AllocSlotTyp slotTyp, Integer srtSeq, String cmpntCd,
+    private AlocStgySlot(AlocSlotTyp slotTyp, Integer srtSeq, String cmpntCd,
                          Map<String, Object> para, List<FieldCondition> cond) {
         this.slotTyp = slotTyp;
         this.srtSeq = srtSeq != null ? srtSeq : 0;

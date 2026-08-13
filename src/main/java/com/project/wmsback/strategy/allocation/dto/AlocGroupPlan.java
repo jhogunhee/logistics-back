@@ -10,7 +10,7 @@ import java.util.Map;
  * <p>{@code trace}가 「이 라인이 왜 이만큼만 받았는지」를 담는다. 결품 테이블이 없는
  * 이 프로젝트에서 미충족의 근거는 여기와 실행 로그의 {@code dcsn_trc} 뿐이다.
  */
-public record AllocGroupPlan(
+public record AlocGroupPlan(
         Long prodId,
         String prodCd,
         long reqQty,

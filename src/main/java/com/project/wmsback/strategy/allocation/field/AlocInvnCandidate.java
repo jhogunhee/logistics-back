@@ -14,7 +14,7 @@ import java.time.LocalDate;
  * <p>{@code bizDvsn}은 존 마스터에서 온다(로케이션 → 존코드 → 존). 존이 등록되지 않은
  * 로케이션이면 null이고, 그때는 계층 지정(BIZ_DVSN IN) 조건에서 자연히 빠진다.
  */
-public record AllocInvnCandidate(
+public record AlocInvnCandidate(
         Long invId,
         Long locId,
         String locCd,
@@ -28,9 +28,9 @@ public record AllocInvnCandidate(
         long avalQty
 ) {
 
-    public static AllocInvnCandidate of(Inv inv, String bizDvsn) {
+    public static AlocInvnCandidate of(Inv inv, String bizDvsn) {
         Integer pikngPrty = inv.getLoc().getPikngPrty();
-        return new AllocInvnCandidate(
+        return new AlocInvnCandidate(
                 inv.getId(),
                 inv.getLoc().getId(), inv.getLoc().getLocCd(), pikngPrty != null ? pikngPrty : 0,
                 bizDvsn,

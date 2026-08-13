@@ -13,7 +13,7 @@ import lombok.RequiredArgsConstructor;
  */
 @Getter
 @RequiredArgsConstructor
-public enum AllocSlotTyp {
+public enum AlocSlotTyp {
 
     /** 재고위치 — 후보를 계층으로 나눠 앞 계층부터 소진. 구현체 없이 조건이 곧 정의다 */
     INVN_FLTR("재고위치", true, false),

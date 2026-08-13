@@ -21,12 +21,12 @@ import com.project.wmsback.outbound.repository.OutbWaveRepository;
 import com.project.wmsback.strategy.allocation.component.AlocRstrct;
 import com.project.wmsback.strategy.allocation.dto.AlocStgyResponse;
 import com.project.wmsback.strategy.allocation.dto.AlocStgyDefinition;
-import com.project.wmsback.strategy.allocation.dto.AllocGroupPlan;
+import com.project.wmsback.strategy.allocation.dto.AlocGroupPlan;
 import com.project.wmsback.strategy.allocation.entity.AlocStgy;
-import com.project.wmsback.strategy.allocation.field.AllocInvnCandidate;
-import com.project.wmsback.strategy.allocation.field.AllocLineTarget;
-import com.project.wmsback.strategy.allocation.repository.AllocQueryRepository;
-import com.project.wmsback.strategy.allocation.service.AllocationPlanner;
+import com.project.wmsback.strategy.allocation.field.AlocInvnCandidate;
+import com.project.wmsback.strategy.allocation.field.AlocLineTarget;
+import com.project.wmsback.strategy.allocation.repository.AlocQueryRepository;
+import com.project.wmsback.strategy.allocation.service.AlocPlanner;
 import com.project.wmsback.strategy.allocation.service.AlocStgyService;
 import com.project.wmsback.strategy.core.entity.StgyTyp;
 import com.project.wmsback.strategy.core.entity.TrgrTyp;
@@ -67,7 +67,7 @@ import java.util.Set;
  * 결품 테이블도 사유코드도 두지 않는다(docs/design.md 「재고 할당」).
  *
  * <p><b>「무엇을 얼마나」는 전략이, 「어떻게 안전하게 쓰는가」는 이 서비스가 정한다.</b>
- * 후보 선정·정렬·배분은 {@link AllocationPlanner}에 있는 순수 산정으로 빠졌고, 여기 남은 것은
+ * 후보 선정·정렬·배분은 {@link AlocPlanner}에 있는 순수 산정으로 빠졌고, 여기 남은 것은
  * 락 순서 · 예약 반영 · 트랜잭션 경계다. 전략이 하나도 없으면 산정기가 기본 동작(FEFO ·
  * 점포 잔여수명 · 순차 소진)으로 돌아 <b>전략 도입 전과 결과가 같다.</b>
  */
@@ -81,7 +81,7 @@ public class OutbAllocService {
     private final OutbLineRepository outbLineRepository;
     private final InvStore invStore;
     private final AlocStgyService alocStgyService;
-    private final AllocQueryRepository allocQueryRepository;
+    private final AlocQueryRepository allocQueryRepository;
     private final StgyExecLogService stgyExecLogService;
 
     // ── 조회 ─────────────────────────────────────────────────────────────────
@@ -107,14 +107,14 @@ public class OutbAllocService {
     public List<AllocCandidateResponse> candidates(Long outbLineId) {
         OutbLine line = findLine(outbLineId);
         Store store = line.getOutbOrder().getStore();
-        AllocLineTarget target = AllocLineTarget.of(line, 0L);
+        AlocLineTarget target = AlocLineTarget.of(line, 0L);
 
         List<AllocCandidateResponse> result = new ArrayList<>();
         for (Inv candidate : outbAllocRepository.findCandidates(line.getProd().getId())) {
             if (expired(candidate.getLot(), target.expctDe())) {
                 continue;
             }
-            BigDecimal rate = AlocRstrct.lifeRate(AllocInvnCandidate.of(candidate, null), target);
+            BigDecimal rate = AlocRstrct.lifeRate(AlocInvnCandidate.of(candidate, null), target);
             result.add(new AllocCandidateResponse(
                     candidate.getId(),
                     candidate.getLoc().getId(), candidate.getLoc().getLocCd(),
@@ -197,22 +197,22 @@ public class OutbAllocService {
             Map<Long, Inv> lockedById = new LinkedHashMap<>();
             locked.forEach(inv -> lockedById.put(inv.getId(), inv));
 
-            List<AllocInvnCandidate> candidates = locked.stream()
-                    .map(inv -> AllocInvnCandidate.of(inv, bizDvsnOf(bizDvsnByZon, inv)))
+            List<AlocInvnCandidate> candidates = locked.stream()
+                    .map(inv -> AlocInvnCandidate.of(inv, bizDvsnOf(bizDvsnByZon, inv)))
                     .toList();
 
             Map<Long, OutbLine> lineById = new LinkedHashMap<>();
             group.getValue().forEach(line -> lineById.put(line.getId(), line));
-            List<AllocLineTarget> targets = group.getValue().stream()
+            List<AlocLineTarget> targets = group.getValue().stream()
                     .map(line -> target(line, alreadyByLine)).toList();
 
-            AllocGroupPlan plan = AllocationPlanner.plan(def, group.getKey(),
+            AlocGroupPlan plan = AlocPlanner.plan(def, group.getKey(),
                     group.getValue().get(0).getProd().getProdCd(), targets, candidates);
             groupTraces.add(plan.trace());
 
-            for (AllocGroupPlan.LinePlan linePlan : plan.lines()) {
+            for (AlocGroupPlan.LinePlan linePlan : plan.lines()) {
                 OutbLine line = lineById.get(linePlan.outbLineId());
-                for (AllocGroupPlan.Assignment assignment : linePlan.assignments()) {
+                for (AlocGroupPlan.Assignment assignment : linePlan.assignments()) {
                     reserve(line, lockedById.get(assignment.invId()), assignment.qty(),
                             existingAllocs, stgyId, rvsnNo);
                 }
@@ -258,11 +258,11 @@ public class OutbAllocService {
         return zonCd != null ? bizDvsnByZon.get(zonCd) : null;
     }
 
-    private AllocLineTarget target(OutbLine line, Map<Long, Long> alreadyByLine) {
-        return AllocLineTarget.of(line, alreadyByLine.getOrDefault(line.getId(), 0L));
+    private AlocLineTarget target(OutbLine line, Map<Long, Long> alreadyByLine) {
+        return AlocLineTarget.of(line, alreadyByLine.getOrDefault(line.getId(), 0L));
     }
 
-    private static AllocExecuteResponse.LineResult toLineResult(AllocGroupPlan.LinePlan plan) {
+    private static AllocExecuteResponse.LineResult toLineResult(AlocGroupPlan.LinePlan plan) {
         List<AllocExecuteResponse.Assignment> assignments = plan.assignments().stream()
                 .map(a -> new AllocExecuteResponse.Assignment(a.invId(), a.locCd(), a.lotNo(), a.qty()))
                 .toList();

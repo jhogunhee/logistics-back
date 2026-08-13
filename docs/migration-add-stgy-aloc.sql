@@ -82,7 +82,7 @@ BEGIN
 
     COMMENT ON TABLE  aloc_stgy_slot IS '할당 슬롯. 할당이 하는 일을 역할로 쪼갠 5종 — INVN_FLTR 재고위치(다중=계층) · RSTRCT 출고제약(다중) · INVN_SRT 재고정렬(단일) · ODR_SRT 주문순서(단일) · DSTRB 분배(다중=실행순서)';
     COMMENT ON COLUMN aloc_stgy_slot.aloc_stgy_id IS '할당 전략 헤더 (느슨한 참조, FK 없음)';
-    COMMENT ON COLUMN aloc_stgy_slot.slot_typ     IS '슬롯 타입. 값 목록이 코드 구조 그 자체(AllocSlotTyp enum)라 공통코드가 아니라 CHECK로 고정한다 — status류와 같은 취급';
+    COMMENT ON COLUMN aloc_stgy_slot.slot_typ     IS '슬롯 타입. 값 목록이 코드 구조 그 자체(AlocSlotTyp enum)라 공통코드가 아니라 CHECK로 고정한다 — status류와 같은 취급';
     COMMENT ON COLUMN aloc_stgy_slot.srt_seq      IS '다중 슬롯 안의 순서. INVN_FLTR은 후보 계층 순서(앞 계층부터 소진), DSTRB는 분배 실행 순서. 단일 슬롯에서는 무의미';
     COMMENT ON COLUMN aloc_stgy_slot.cmpnt_cd     IS '구현체 code (enum name — SHELF_LIFE_PCT · MULTI_SORT · SEQUENTIAL · RATIO · EQUAL). CHECK 없음: 구현체 추가로 DDL을 고치지 않기 위함이고 존재 검증은 저장 서비스가 한다. INVN_FLTR만 NULL';
     COMMENT ON COLUMN aloc_stgy_slot.para         IS '구현체 파라미터. MULTI_SORT는 {"criteria":[{"field","dir"},…]}, SHELF_LIFE_PCT는 {"basis":"STORE"} 또는 {"basis":"FIXED","minPct":40}';

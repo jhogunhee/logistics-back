@@ -16,7 +16,7 @@ import com.project.wmsback.strategy.putaway.entity.PtawyStgyStg;
 import com.project.wmsback.strategy.putaway.field.PutawayLocField;
 import com.project.wmsback.strategy.putaway.field.PutawaySortField;
 import com.project.wmsback.strategy.putaway.field.PutawayTargetField;
-import com.project.wmsback.strategy.putaway.method.PutawayMethod;
+import com.project.wmsback.strategy.putaway.component.PutawayMethod;
 import com.project.wmsback.strategy.putaway.repository.PtawyStgyRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
