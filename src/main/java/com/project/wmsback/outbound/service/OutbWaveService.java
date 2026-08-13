@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 출고 웨이브 편성. 여러 출고 주문을 하나의 할당 단위로 묶는다.
@@ -52,11 +53,10 @@ public class OutbWaveService {
         return wave.getId();
     }
 
-    /** 주문 추가 편성 */
+    /** 주문 추가 편성. 웨이브 행 락 — 해체·할당 실행과 직렬화해 삭제된 웨이브에 담기는 것을 막는다 */
     @Transactional
     public void addOrders(Long wavId, OutbWaveOrdersRequest req) {
-        OutbWave wave = outbWaveRepository.findById(wavId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 웨이브입니다: " + wavId));
+        OutbWave wave = lockWave(wavId);
         wave.assertPlanned();
         assignOrders(wave, req.getOrderIds());
     }
@@ -68,8 +68,8 @@ public class OutbWaveService {
      */
     @Transactional
     public void unassignOrders(Long wavId, OutbWaveOrdersRequest req) {
-        OutbWave wave = outbWaveRepository.findById(wavId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 웨이브입니다: " + wavId));
+        // 웨이브 행 락 — 같은 웨이브의 편성 변경·할당 실행과 직렬화 (락 순서: 웨이브 → 주문)
+        OutbWave wave = lockWave(wavId);
         wave.assertPlanned();
         if (req.getOrderIds() == null || req.getOrderIds().isEmpty()) {
             throw new IllegalArgumentException("편성 해제할 주문을 선택하세요.");
@@ -87,8 +87,8 @@ public class OutbWaveService {
     /** 웨이브 해체. 소속 주문을 모두 편성 해제하고 웨이브를 삭제한다 (PLANNED만) */
     @Transactional
     public void disband(Long wavId) {
-        OutbWave wave = outbWaveRepository.findById(wavId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 웨이브입니다: " + wavId));
+        // 웨이브 행 락 — 담기(addOrders)와 직렬화해 삭제 중인 웨이브에 주문이 들어오는 것을 막는다
+        OutbWave wave = lockWave(wavId);
         wave.assertPlanned();
         List<OutbOrder> orders = outbOrderRepository.findByWaveId(wavId);
         // 해제 가드는 주문 단위라 메시지도 주문을 가리킨다 — 해체는 웨이브 단위 조작이므로 여기서 먼저
@@ -102,15 +102,27 @@ public class OutbWaveService {
         outbWaveRepository.delete(wave);
     }
 
+    /**
+     * 주문 행을 <b>id 오름차순으로 잠그며 처음 읽고</b> 편입한다. assignWave의 「이미 편성됨」
+     * 가드가 신선한 행 위에서 판정되게 하기 위함 — 락 없이는 전략 실행·다른 수동 편성과
+     * 동시에 같은 주문을 잡았을 때 마지막 커밋이 조용히 이긴다 (@Version 없음).
+     * 오름차순은 전략 실행(searchIds)의 잠금 순서와 같아 교착이 없다.
+     */
     private void assignOrders(OutbWave wave, List<Long> orderIds) {
         if (orderIds == null || orderIds.isEmpty()) {
             return;
         }
-        for (Long orderId : orderIds) {
-            OutbOrder order = outbOrderRepository.findById(orderId)
+        List<Long> sorted = orderIds.stream().filter(Objects::nonNull).distinct().sorted().toList();
+        for (Long orderId : sorted) {
+            OutbOrder order = outbOrderRepository.findByIdForUpdate(orderId)
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 출고 주문입니다: " + orderId));
             // 화면에서 직접 담은 편성이라 출처는 MANUAL — 전략 실행분과 구분해 표시하기 위함
             order.assignWave(wave, WavRegTyp.MANUAL); // 상태(CREATED)·중복편성 검증은 엔티티가 한다
         }
+    }
+
+    private OutbWave lockWave(Long wavId) {
+        return outbWaveRepository.findByIdForUpdate(wavId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 웨이브입니다: " + wavId));
     }
 }
