@@ -106,6 +106,8 @@ class OutbAllocServiceTest {
         when(store.getOutbLifeRate()).thenReturn((short) 50);
 
         when(outbWaveRepository.findById(100L)).thenReturn(Optional.of(wave));
+        // 실행·수동할당은 웨이브 행 락을 먼저 잡는다
+        when(outbWaveRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(wave));
         when(outbAllocRepository.sumAlocQtyByLineIds(anyList())).thenReturn(Map.of());
         when(outbAllocRepository.findByOutbLineIdIn(anyList())).thenReturn(List.of());
         when(outbAllocRepository.save(any(OutbAlloc.class))).thenAnswer(i -> i.getArgument(0));

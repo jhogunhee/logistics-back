@@ -140,8 +140,12 @@ public class OutbAllocService {
         }
         List<String> wavNos = new ArrayList<>();
         for (Long wavId : wavIds) {
+            // 웨이브 행 락 — 같은 웨이브의 동시 실행을 직렬화한다. 라인별 기할당 합(alreadyByLine)을
+            // 재고 락보다 먼저 읽으므로, 이 락이 없으면 동시 실행 둘이 같은 잔여요청을 보고 각자
+            // 예약해 라인 과할당(SUM(aloc_qty) > odr_qty)이 난다. distinct()가 wavId를 오름차순으로
+            // 정렬해 주므로 다건 실행끼리도 교착이 없다.
+            OutbWave wave = lockWave(wavId);
             // 피킹지시가 발행된(ISSUED) 웨이브에 더 할당하면 지시 없는 할당이 남는다
-            OutbWave wave = findWave(wavId);
             wave.assertPlanned();
             wavNos.add(wave.getWavNo());
         }
@@ -327,7 +331,8 @@ public class OutbAllocService {
         if (items == null || items.isEmpty()) {
             throw new IllegalArgumentException("할당할 대상이 없습니다.");
         }
-        findWave(wavId).assertPlanned();
+        // 웨이브 행 락 — 라인 잔여 검증(②)이 재고 락보다 먼저라, 자동할당과 같은 이유로 잠근다
+        lockWave(wavId).assertPlanned();
 
         // ① 라인·재고를 모으고 요청 자체의 형식을 본다
         Map<Long, Long> reqByLine = new LinkedHashMap<>();
@@ -503,6 +508,12 @@ public class OutbAllocService {
 
     private OutbWave findWave(Long wavId) {
         return outbWaveRepository.findById(wavId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 웨이브입니다: " + wavId));
+    }
+
+    /** 실행 단위 직렬화용 웨이브 행 락. 락 순서는 웨이브(오름차순) → 재고(재고 키 오름차순) 한 방향이다 */
+    private OutbWave lockWave(Long wavId) {
+        return outbWaveRepository.findByIdForUpdate(wavId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 웨이브입니다: " + wavId));
     }
 
