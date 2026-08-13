@@ -220,6 +220,30 @@ public class ReceivingService {
         order.close();
     }
 
+    /**
+     * 입고건 전체의 검수 이력(RECEIVE 건) 목록. 최근 순 — 검수 화면의 「검수 이력」 탭이 쓴다.
+     * <p>
+     * 라인마다 부르지 않고 한 번에 받는다. 라인이 20개면 조회도 20번이 되기 때문이다.
+     * 취소 판정(ADJUST가 가리키는 원본)도 전 라인분을 한 번에 모아 대조한다.
+     */
+    public List<ReceiptResponse> receipts(Long ibOrderId) {
+        IbOrder order = ibOrderRepository.findById(ibOrderId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고예정입니다: " + ibOrderId));
+        List<Long> ibLineIds = order.getLines().stream().map(IbLine::getId).toList();
+
+        List<InvHist> receiveRows = invHistRepository
+                .findAllByIbLineIdInAndTxTypeOrderByCreatedAtDesc(ibLineIds, TxTyp.RECEIVE);
+        Set<Long> cancelledIds = invHistRepository
+                .findAllByIbLineIdInAndTxTypeOrderByCreatedAtDesc(ibLineIds, TxTyp.ADJUST)
+                .stream()
+                .map(InvHist::getCnclInvHistId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        return receiveRows.stream()
+                .map(r -> ReceiptResponse.from(r, cancelledIds.contains(r.getId())))
+                .toList();
+    }
+
     /** 특정 라인의 검수 이력(RECEIVE 건) 목록. 최근 순 — 검수 취소 대상 선택용. 이미 취소된 건은 cancelled=true로 표시 */
     public List<ReceiptResponse> receipts(Long ibOrderId, Long ibLineId) {
         IbLine ibLine = ibLineRepository.findById(ibLineId)

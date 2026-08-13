@@ -5,12 +5,19 @@ import com.project.wmsback.inventory.dto.InvHistSearchCond;
 import com.project.wmsback.inventory.entity.InvHist;
 import com.project.wmsback.inventory.entity.TxTyp;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface InvHistRepositoryCustom {
 
     /** 라인의 검수 이력(최근 순) — 검수 취소 대상 선택용 */
     List<InvHist> findAllByIbLineIdAndTxTypeOrderByCreatedAtDesc(Long ibLineId, TxTyp txTyp);
+
+    /**
+     * 여러 라인의 이력을 한 번에(최근 순). 입고건 하나의 검수 이력 탭이 라인마다 조회하면
+     * 그대로 N+1이라 라인 id를 모아 한 번에 받는다.
+     */
+    List<InvHist> findAllByIbLineIdInAndTxTypeOrderByCreatedAtDesc(Collection<Long> ibLineIds, TxTyp txTyp);
 
     /** 재고이력 조회 화면용 검색 (최근 순). MOVE 짝의 로케이션(pairedLocCd)까지 자기 조인으로 함께 채운다 */
     List<InvHistResponse> search(InvHistSearchCond cond);

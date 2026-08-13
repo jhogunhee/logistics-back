@@ -52,6 +52,12 @@ public class IbOrderController {
         receivingService.close(ibOrderId);
     }
 
+    /** 입고건 전체의 검수 이력 — 검수 화면의 「검수 이력」 탭 */
+    @GetMapping("/{ibOrderId}/receipts")
+    public List<ReceiptResponse> receipts(@PathVariable Long ibOrderId) {
+        return receivingService.receipts(ibOrderId);
+    }
+
     @GetMapping("/{ibOrderId}/lines/{ibLineId}/receipts")
     public List<ReceiptResponse> receipts(@PathVariable Long ibOrderId, @PathVariable Long ibLineId) {
         return receivingService.receipts(ibOrderId, ibLineId);

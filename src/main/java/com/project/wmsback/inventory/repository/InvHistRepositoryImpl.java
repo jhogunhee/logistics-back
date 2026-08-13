@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 
 import static com.project.wmsback.inventory.entity.QInvHist.invHist;
@@ -29,6 +30,21 @@ public class InvHistRepositoryImpl implements InvHistRepositoryCustom {
         return queryFactory
                 .selectFrom(invHist)
                 .where(invHist.ibLineId.eq(ibLineId), invHist.txTyp.eq(txTyp))
+                .orderBy(invHist.createdAt.desc())
+                .fetch();
+    }
+
+    @Override
+    public List<InvHist> findAllByIbLineIdInAndTxTypeOrderByCreatedAtDesc(Collection<Long> ibLineIds, TxTyp txTyp) {
+        if (ibLineIds.isEmpty()) {
+            return List.of();
+        }
+        // 상품과 Lot은 응답이 바로 쓰므로 fetch join으로 함께 로딩한다 (행마다 다시 조회하지 않게)
+        return queryFactory
+                .selectFrom(invHist)
+                .join(invHist.prod, prod).fetchJoin()
+                .join(invHist.lot, lot).fetchJoin()
+                .where(invHist.ibLineId.in(ibLineIds), invHist.txTyp.eq(txTyp))
                 .orderBy(invHist.createdAt.desc())
                 .fetch();
     }
