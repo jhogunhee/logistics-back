@@ -1,5 +1,6 @@
 package com.project.wmsback.inventory.service;
 
+import com.project.wmsback.inventory.dto.InvMovConfirmRequest;
 import com.project.wmsback.inventory.dto.InvMovRegisterRequest;
 import com.project.wmsback.inventory.entity.Inv;
 import com.project.wmsback.inventory.entity.InvHist;
@@ -23,7 +24,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -41,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -63,7 +64,8 @@ class InvMovServiceTest {
     @Mock LocCapacityService locCapacityService;
     @Mock NbrService nbrService;
 
-    @InjectMocks InvMovService invMovService;
+    // 재고 쓰기 포트는 목이 아니라 실물을 쓴다 — aloc 증감·MOVE 2행·0행 삭제가 검증 대상이기 때문
+    private InvMovService invMovService;
 
     private Prod prod;
     private Lot lot;
@@ -73,6 +75,9 @@ class InvMovServiceTest {
 
     @BeforeEach
     void setUp() {
+        invMovService = new InvMovService(invRepository, new InvStore(invRepository, invHistRepository),
+                invMovTaskRepository, locRepository, locCapacityService, nbrService);
+
         prod = mock(Prod.class);
         when(prod.getId()).thenReturn(1L);
         when(prod.getProdCd()).thenReturn("PROD-0001");
@@ -97,11 +102,19 @@ class InvMovServiceTest {
         fromInv = Inv.builder().prod(prod).loc(fromLoc).lot(lot).build();
         fromInv.increaseOnHand(10L);
 
-        when(invRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(fromInv));
+        // 등록의 선락 경로: id → 키 선조회 → 키 락 (InvStore.lockAllByIds)
+        when(invRepository.findLockKeysByIdIn(any()))
+                .thenReturn(List.of(new InvLockKey(100L, 1L, 10L, 5L)));
+        when(invRepository.findByKeyForUpdate(1L, 10L, 5L)).thenReturn(Optional.of(fromInv));
         when(locRepository.findById(20L)).thenReturn(Optional.of(toLoc));
         // 적재가능수량 계산은 LocCapacityService가 단일 정의를 갖는다 (적치지시 유입분도 그쪽에서 합산)
         when(locCapacityService.availCapacity(toLoc)).thenReturn(100L);
         when(nbrService.issue(anyString(), any(LocalDate.class))).thenReturn("MV-20260803-001");
+
+        // 확정의 선락 경로: 지시 id → FROM·TO 키 선조회 → 키 락 (InvStore.lockAll)
+        when(invMovTaskRepository.findLockKeysByIdIn(any()))
+                .thenReturn(List.of(new InvMovLockKey(1L, 1L, 5L, 10L, 20L)));
+
         when(invMovTaskRepository.save(any(InvMovTask.class))).thenAnswer(inv -> inv.getArgument(0));
         when(invRepository.save(any(Inv.class))).thenAnswer(inv -> inv.getArgument(0));
     }
@@ -113,6 +126,19 @@ class InvMovServiceTest {
         item.setQty(qty);
         InvMovRegisterRequest req = new InvMovRegisterRequest();
         req.setItems(List.of(item));
+        return req;
+    }
+
+    private InvMovConfirmRequest.Item confirmItem(Long taskId, Long qty) {
+        InvMovConfirmRequest.Item item = new InvMovConfirmRequest.Item();
+        item.setTaskId(taskId);
+        item.setQty(qty);
+        return item;
+    }
+
+    private InvMovConfirmRequest confirmRequest(Long taskId, Long qty) {
+        InvMovConfirmRequest req = new InvMovConfirmRequest();
+        req.setItems(List.of(confirmItem(taskId, qty)));
         return req;
     }
 
@@ -207,15 +233,15 @@ class InvMovServiceTest {
     @Test
     @DisplayName("확정: 재고이동 유형이 아닌 지시(적치·피킹)는 이 경로에서 거부")
     void confirm_rejectsNonInvMovDvsn() {
-        when(invMovTaskRepository.findById(1L)).thenReturn(Optional.of(task(6L, InvMovDvsn.PTAWY)));
-        assertThrows(IllegalArgumentException.class, () -> invMovService.confirm(1L, 1L));
+        when(invMovTaskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(task(6L, InvMovDvsn.PTAWY)));
+        assertThrows(IllegalArgumentException.class, () -> invMovService.confirm(confirmRequest(1L, 1L)));
         verify(invHistRepository, never()).save(any());
     }
 
     @Test
     @DisplayName("취소: 재고이동 유형이 아닌 지시(적치·피킹)는 이 경로에서 거부")
     void cancel_rejectsNonInvMovDvsn() {
-        when(invMovTaskRepository.findById(1L)).thenReturn(Optional.of(task(6L, InvMovDvsn.PIKNG)));
+        when(invMovTaskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(task(6L, InvMovDvsn.PIKNG)));
         assertThrows(IllegalArgumentException.class, () -> invMovService.cancel(1L));
     }
 
@@ -233,15 +259,15 @@ class InvMovServiceTest {
     void confirm_rejectsNonDirected() {
         InvMovTask done = task(4L);
         done.confirm(4L); // DONE
-        when(invMovTaskRepository.findById(1L)).thenReturn(Optional.of(done));
-        assertThrows(IllegalArgumentException.class, () -> invMovService.confirm(1L, 1L));
+        when(invMovTaskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(done));
+        assertThrows(IllegalArgumentException.class, () -> invMovService.confirm(confirmRequest(1L, 1L)));
     }
 
     @Test
     @DisplayName("확정: 잔여수량 초과 거부 (서버 재검증)")
     void confirm_rejectsOverRemaining() {
-        when(invMovTaskRepository.findById(1L)).thenReturn(Optional.of(task(6L)));
-        assertThrows(IllegalArgumentException.class, () -> invMovService.confirm(1L, 7L));
+        when(invMovTaskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(task(6L)));
+        assertThrows(IllegalArgumentException.class, () -> invMovService.confirm(confirmRequest(1L, 7L)));
     }
 
     @Test
@@ -249,11 +275,10 @@ class InvMovServiceTest {
     void confirm_partial() {
         fromInv.reserve(6L);
         InvMovTask directed = task(6L);
-        when(invMovTaskRepository.findById(1L)).thenReturn(Optional.of(directed));
+        when(invMovTaskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(directed));
         when(invRepository.findByKeyForUpdate(1L, 10L, 5L)).thenReturn(Optional.of(fromInv));
-        when(invRepository.findByProdIdAndLocIdAndLotId(1L, 20L, 5L)).thenReturn(Optional.empty());
 
-        invMovService.confirm(1L, 4L);
+        invMovService.confirm(confirmRequest(1L, 4L));
 
         assertEquals(6L, fromInv.getOnHandQty());
         assertEquals(2L, fromInv.getAlocQty()); // 예약 소진
@@ -281,11 +306,10 @@ class InvMovServiceTest {
     void confirm_fullMovesAllAndDeletesEmptyRow() {
         fromInv.reserve(10L);
         InvMovTask directed = task(10L);
-        when(invMovTaskRepository.findById(1L)).thenReturn(Optional.of(directed));
+        when(invMovTaskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(directed));
         when(invRepository.findByKeyForUpdate(1L, 10L, 5L)).thenReturn(Optional.of(fromInv));
-        when(invRepository.findByProdIdAndLocIdAndLotId(1L, 20L, 5L)).thenReturn(Optional.empty());
 
-        invMovService.confirm(1L, 10L);
+        invMovService.confirm(confirmRequest(1L, 10L));
 
         assertEquals(InvMovStatus.DONE, directed.getStatus());
         assertNotNull(directed.getCmplDt());
@@ -297,9 +321,47 @@ class InvMovServiceTest {
     @Test
     @DisplayName("확정: 예약된 재고 행이 없으면 정합성 오류")
     void confirm_missingReservedInvIsIllegalState() {
-        when(invMovTaskRepository.findById(1L)).thenReturn(Optional.of(task(6L)));
+        when(invMovTaskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(task(6L)));
         when(invRepository.findByKeyForUpdate(anyLong(), anyLong(), anyLong())).thenReturn(Optional.empty());
-        assertThrows(IllegalStateException.class, () -> invMovService.confirm(1L, 1L));
+        assertThrows(IllegalStateException.class, () -> invMovService.confirm(confirmRequest(1L, 1L)));
+    }
+
+    @Test
+    @DisplayName("확정: 같은 지시가 두 번 실린 요청은 거부 (잔여를 두 번 깎는 요청)")
+    void confirm_rejectsDuplicateTask() {
+        InvMovConfirmRequest req = new InvMovConfirmRequest();
+        req.setItems(List.of(confirmItem(1L, 1L), confirmItem(1L, 2L)));
+
+        assertThrows(IllegalArgumentException.class, () -> invMovService.confirm(req));
+        verify(invHistRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("다건확정: 같은 FROM 행을 공유하는 두 지시를 한 트랜잭션에서 각각 소진")
+    void confirm_multipleTasksSharingFromRow() {
+        fromInv.reserve(9L); // 두 지시의 예약 합 (6 + 3)
+        InvMovTask first = task(6L);
+        InvMovTask second = task(3L);
+        when(invMovTaskRepository.findLockKeysByIdIn(any())).thenReturn(List.of(
+                new InvMovLockKey(1L, 1L, 5L, 10L, 20L),
+                new InvMovLockKey(2L, 1L, 5L, 10L, 20L)));
+        when(invMovTaskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(first));
+        when(invMovTaskRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(second));
+        when(invRepository.findByKeyForUpdate(1L, 10L, 5L)).thenReturn(Optional.of(fromInv));
+
+        InvMovConfirmRequest req = new InvMovConfirmRequest();
+        req.setItems(List.of(confirmItem(1L, 6L), confirmItem(2L, 3L)));
+        invMovService.confirm(req);
+
+        assertEquals(InvMovStatus.DONE, first.getStatus());
+        assertEquals(InvMovStatus.DONE, second.getStatus());
+        assertEquals(1L, fromInv.getOnHandQty()); // 10 - 9
+        assertEquals(0L, fromInv.getAlocQty());
+        verify(invHistRepository, times(4)).save(any()); // 지시마다 MOVE 2행
+        verify(invRepository, never()).delete(any(Inv.class)); // 보유 1이 남아 행은 유지된다
+        // 선락이 잡은 키 — 두 지시가 같은 FROM 행을 가리키므로 락은 한 번이다 (선조회 인자 순서도 여기서 굳는다)
+        verify(invRepository).findByKeyForUpdate(1L, 10L, 5L);
+        verify(invRepository, atLeastOnce()).findByKeyForUpdate(1L, 20L, 5L);
     }
 
     // ---------- 취소 (예약 해제) ----------
@@ -309,7 +371,7 @@ class InvMovServiceTest {
     void cancel_wholeBecomesCancelled() {
         fromInv.reserve(6L);
         InvMovTask directed = task(6L);
-        when(invMovTaskRepository.findById(1L)).thenReturn(Optional.of(directed));
+        when(invMovTaskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(directed));
         when(invRepository.findByKeyForUpdate(1L, 10L, 5L)).thenReturn(Optional.of(fromInv));
 
         invMovService.cancel(1L);
@@ -329,7 +391,7 @@ class InvMovServiceTest {
         directed.confirm(2L); // 부분확정 상태 (잔여 4)
         fromInv.decreaseOnHand(2L);
         fromInv.release(2L);  // 확정분 소진 반영 (보유 8 / 예약 4)
-        when(invMovTaskRepository.findById(1L)).thenReturn(Optional.of(directed));
+        when(invMovTaskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(directed));
         when(invRepository.findByKeyForUpdate(1L, 10L, 5L)).thenReturn(Optional.of(fromInv));
 
         invMovService.cancel(1L);
@@ -347,7 +409,7 @@ class InvMovServiceTest {
     void cancel_rejectsNonDirected() {
         InvMovTask cancelled = task(6L);
         cancelled.cancelRemainder(); // CANCELLED
-        when(invMovTaskRepository.findById(1L)).thenReturn(Optional.of(cancelled));
+        when(invMovTaskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(cancelled));
         assertThrows(IllegalArgumentException.class, () -> invMovService.cancel(1L));
         assertTrue(cancelled.getStatus() == InvMovStatus.CANCELLED);
     }

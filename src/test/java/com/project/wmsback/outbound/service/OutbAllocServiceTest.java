@@ -3,7 +3,10 @@ package com.project.wmsback.outbound.service;
 import com.project.mdm.prod.entity.Prod;
 import com.project.mdm.store.entity.Store;
 import com.project.wmsback.inventory.entity.Inv;
+import com.project.wmsback.inventory.repository.InvHistRepository;
 import com.project.wmsback.inventory.repository.InvRepository;
+import com.project.wmsback.inventory.service.InvLockKey;
+import com.project.wmsback.inventory.service.InvStore;
 import com.project.wmsback.outbound.dto.AllocExecuteRequest;
 import com.project.wmsback.outbound.dto.AllocExecuteResponse;
 import com.project.wmsback.outbound.dto.AllocReleaseRequest;
@@ -27,7 +30,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -35,6 +37,7 @@ import org.mockito.quality.Strictness;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,7 +58,7 @@ import static org.mockito.Mockito.when;
  * {@code InvMovServiceTest}가 이동지시 예약을 검증하는 것과 같은 방식이다.
  *
  * <p>여기서 못 덮는 것은 동시성 하나뿐이다(락 순서·데드락). 통합 테스트를 두지 않기로 해서
- * 그 규칙은 {@code lockCandidates()} 주석과 코드 리뷰로 지켜진다.
+ * 그 규칙은 {@code InvStore}의 락 창구(키 오름차순)와 코드 리뷰로 지켜진다.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -65,13 +68,15 @@ class OutbAllocServiceTest {
     @Mock OutbWaveRepository outbWaveRepository;
     @Mock OutbLineRepository outbLineRepository;
     @Mock InvRepository invRepository;
+    @Mock InvHistRepository invHistRepository; // 예약·해제는 이력을 남기지 않는다 — InvStore 생성에만 필요
     // 이 테스트는 전부 「전략 미설정」 상태를 본다 — 산정기의 기본 동작(FEFO · 점포 잔여수명 ·
     // 순차 소진)이 전략 도입 전과 같은지가 여기 검증의 전제다. 전략별 동작은 산정기 테스트 몫.
     @Mock AlocStgyService alocStgyService;
     @Mock AllocQueryRepository allocQueryRepository;
     @Mock StgyExecLogService stgyExecLogService;
 
-    @InjectMocks OutbAllocService outbAllocService;
+    // 재고 쓰기 포트는 목이 아니라 실물을 쓴다 — 예약(aloc) 증감이 검증 대상이기 때문
+    private OutbAllocService outbAllocService;
 
     private static final LocalDate EXPCT_DE = LocalDate.of(2026, 8, 10);
 
@@ -83,6 +88,10 @@ class OutbAllocServiceTest {
 
     @BeforeEach
     void setUp() {
+        outbAllocService = new OutbAllocService(outbAllocRepository, outbWaveRepository, outbLineRepository,
+                new InvStore(invRepository, invHistRepository),
+                alocStgyService, allocQueryRepository, stgyExecLogService);
+
         invById.clear();
         seq = 0;
 
@@ -100,8 +109,23 @@ class OutbAllocServiceTest {
         when(outbAllocRepository.sumAlocQtyByLineIds(anyList())).thenReturn(Map.of());
         when(outbAllocRepository.findByOutbLineIdIn(anyList())).thenReturn(List.of());
         when(outbAllocRepository.save(any(OutbAlloc.class))).thenAnswer(i -> i.getArgument(0));
-        when(invRepository.findByIdForUpdate(any()))
-                .thenAnswer(i -> Optional.ofNullable(invById.get(i.<Long>getArgument(0))));
+        // 락 경로(InvStore.lockAllByIds): id → 키 선조회 → 키 락. 픽스처 저장소 invById로 흉내낸다
+        when(invRepository.findLockKeysByIdIn(any())).thenAnswer(i -> {
+            List<InvLockKey> rows = new ArrayList<>();
+            for (Long id : i.<Collection<Long>>getArgument(0)) {
+                Inv found = invById.get(id);
+                if (found != null) {
+                    rows.add(new InvLockKey(id, found.getProd().getId(), found.getLoc().getId(), found.getLot().getId()));
+                }
+            }
+            return rows;
+        });
+        when(invRepository.findByKeyForUpdate(any(), any(), any()))
+                .thenAnswer(i -> invById.values().stream()
+                        .filter(candidate -> candidate.getProd().getId().equals(i.getArgument(0))
+                                && candidate.getLoc().getId().equals(i.getArgument(1))
+                                && candidate.getLot().getId().equals(i.getArgument(2)))
+                        .findFirst());
         when(alocStgyService.select(anyList())).thenReturn(Optional.empty());
         when(allocQueryRepository.bizDvsnByZon()).thenReturn(Map.of());
     }

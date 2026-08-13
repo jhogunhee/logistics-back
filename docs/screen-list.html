@@ -198,9 +198,9 @@
 </tr>
 <tr>
   <td class="name">재고 이동</td>
-  <td>보관 ↔ 보관 이동을 <strong>2단계(지시=예약 → 확정=실물 MOVE)</strong>로 처리. <strong>메뉴는 하나, 화면 안 탭 2개</strong> — ① <strong>이동지시등록</strong>: 현재고에서 대상 선택 → TO·수량 담기 → 일괄 등록 시 <code>inv.aloc_qty</code> 선점(예약 — <code>aloc_qty</code>는 예약수량 일반), 온도대·적재가능수량(<code>max_qty − 현재고 − 미완료 지시 유입 잔량</code>) 검증. ② <strong>이동지시 관리</strong>: 지시 목록, <strong>확정</strong>(부분 허용 — <code>inv_hist</code> MOVE 2행 + 예약 소진, 전량 시 DONE), <strong>취소</strong>(잔량 예약 해제 — 실적 없으면 CANCELLED, 부분확정 후면 지시수량 차감 후 DONE). <strong>확정·취소는 이동구분(<code>mov_dvsn</code>)이 재고이동(INV_MOV)인 지시만</strong> — 적치·피킹 유형은 각자의 화면 전용. 실적 테이블 없음 — 실적 조회는 재고 이력 조회로 수렴</td>
+  <td>보관 ↔ 보관 이동을 <strong>2단계(지시=예약 → 확정=실물 MOVE)</strong>로 처리. <strong>메뉴는 하나, 화면 안 탭 2개</strong> — ① <strong>이동지시등록</strong>: 현재고에서 대상 선택 → TO·수량 담기 → 일괄 등록 시 <code>inv.aloc_qty</code> 선점(예약 — <code>aloc_qty</code>는 예약수량 일반), 온도대·적재가능수량(<code>max_qty − 현재고 − 미완료 지시 유입 잔량</code>) 검증. ② <strong>이동지시 관리</strong>: 지시 목록, <strong>확정</strong>(다건 일괄 — 한 건이라도 걸리면 전량 롤백, 건마다 부분 허용 — <code>inv_hist</code> MOVE 2행 + 예약 소진, 전량 시 DONE), <strong>취소</strong>(잔량 예약 해제 — 실적 없으면 CANCELLED, 부분확정 후면 지시수량 차감 후 DONE). <strong>확정·취소는 이동구분(<code>mov_dvsn</code>)이 재고이동(INV_MOV)인 지시만</strong> — 적치·피킹 유형은 각자의 화면 전용. 실적 테이블 없음 — 실적 조회는 재고 이력 조회로 수렴</td>
   <td class="st"><span class="badge done">구현</span></td>
-  <td><code>POST·GET /inventory/moves</code><br><code>POST /inventory/moves/{id}/confirm</code><br><code>POST /inventory/moves/{id}/cancel</code></td>
+  <td><code>POST·GET /inventory/moves</code><br><code>POST /inventory/moves/confirm</code><br><code>POST /inventory/moves/{id}/cancel</code></td>
 </tr>
 </tbody>
 </table>
@@ -418,6 +418,7 @@
 <tr><td class="name">백로그(v1 제외): "폐기/홀드(재고 상태 + 만료 Lot 자동 홀드 배치)"</td><td><strong>재고 보류를 v1에 포함.</strong> <code>inv</code>에 재고상태를 추가하고 할당 후보에서 보류 재고를 제외한다. 만료 Lot 자동 보류 배치와 폐기는 계속 백로그</td></tr>
 <tr><td class="name">재고조사: "차이 = 실사수량 − 조사 생성 시점 전산수량"</td><td><strong>번복(2026-08-03) — 확정시점 전산수량 기준.</strong> 확정이 라인별 재고 행 락을 걸고 전산수량을 다시 읽어(<code>cfm_sys_qty</code>) 조정하므로 확정 후 전산수량이 실사수량과 정확히 일치한다. 조사 생성부터 확정까지의 시간차를 스냅샷 기준으로 두면 확정 후에도 전산 ≠ 실사가 되어 실사의 목적이 무너지기 때문 — 대가는 실사 이후 입고분이 덮이는 것</td></tr>
 <tr><td class="name">"보류는 수량이 아니라 행 단위 재고상태"</td><td><strong>번복(2026-08-03) — 보류는 수량이다.</strong> 재고상태 컬럼 대신 <code>inv.hld_qty</code>(가용 = 보유 − 예약 − 보류, 예약과 배타) + 보류 3테이블(<code>inv_hld</code>/<code>inv_hld_acrst</code>/<code>inv_hld_rlz_acrst</code>). 부분수량 보류와 등록/해제 사유별 히스토리 보존 요구 때문</td></tr>
+<tr><td class="name">보류: "동일 사유의 미해제 중복은 부분 UNIQUE 인덱스로 막는다"</td><td><strong>번복(2026-08-09) — 같은 재고 행에 같은 사유의 미해제 보류가 여러 건 병존한다.</strong> 그 규칙엔 기간 개념이 없어 「같은 Lot이 다른 날 같은 사유로 또 걸리는」 정당한 업무를 해제 전까지 영구히 막았다. 기존 건에 합산하지도 않는다 — 보류 건은 보류번호·사유 텍스트·등록 시각·부분해제 이력을 각자 갖는 독립 단위라 합치면 첫 건에 흡수된다. 중복 제출 실수는 해제(사유: 오등록)로 되돌린다(<code>migration-inv-hld-multi-open.sql</code>)</td></tr>
 <tr><td class="name">상태 <code>RECEIVED</code></td><td><strong>제거.</strong> 검수/적치 진행도는 라인 수량에서 파생되므로 중간 상태가 불필요 — <code>SCHEDULED → RECEIVING → COMPLETED</code></td></tr>
 <tr><td class="name">"할당은 오직 웨이브 릴리즈로만 일어난다"</td><td><strong>뒤집힘 — 할당은 주문 단위 화면에서만 일어난다.</strong> 웨이브 릴리즈는 v1 제외
 <br><strong>재번복(2026-08-03) — 할당은 웨이브를 대상으로 실행한다.</strong> 뒤집은 이유는 <strong>피킹지시가 웨이브 단위</strong>여서다 — 할당만 주문 단위로 두면 편성(웨이브) → 할당(주문) → 피킹지시(웨이브)로 흐름 중간에서 단위가 한 번 어긋나고, 아래 피킹지시의 미결 항목이 바로 그 어긋남의 증상이다.

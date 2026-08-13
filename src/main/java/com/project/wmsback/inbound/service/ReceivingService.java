@@ -12,7 +12,9 @@ import com.project.wmsback.inventory.entity.InvHist;
 import com.project.wmsback.inventory.entity.RefDocTyp;
 import com.project.wmsback.inventory.entity.TxTyp;
 import com.project.wmsback.inventory.repository.InvHistRepository;
-import com.project.wmsback.inventory.repository.InvRepository;
+import com.project.wmsback.inventory.service.InvDocRef;
+import com.project.wmsback.inventory.service.InvKey;
+import com.project.wmsback.inventory.service.InvStore;
 import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.Lot;
 import com.project.mdm.prod.entity.Prod;
@@ -43,12 +45,15 @@ public class ReceivingService {
     /** 검수 합격분이 들어가는 입고 스테이징. 온도대 검증은 여기선 하지 않는다 (적치 때 수행) */
     private static final String STAGING_LOC_CD = "RCV-STAGE";
 
+    /** Lot 번호의 입고일자 조각 형식 — 채번 근거는 nextLotNo 참고 */
+    private static final DateTimeFormatter LOT_NO_DT_FMT = DateTimeFormatter.ofPattern("yyMMdd");
+
     private final IbOrderRepository ibOrderRepository;
     private final IbLineRepository ibLineRepository;
     private final LotRepository lotRepository;
     private final LocRepository locRepository;
-    private final InvRepository invRepository;
     private final InvHistRepository invHistRepository;
+    private final InvStore invStore;
     private final ProdRepository prodRepository;
     private final InspectionService inspectionService;
 
@@ -60,6 +65,9 @@ public class ReceivingService {
         }
         IbOrder order = ibOrderRepository.findById(ibOrderId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고예정입니다: " + ibOrderId));
+
+        // 상품 락이 먼저다 — 아래 lockProds 참고. 라인을 읽는 것은 전부 이 뒤로 온다
+        lockProds(order, req.getLines());
 
         // 검수 제약 (전략): 위반이 하나라도 있으면 예외로 저장 전체 거부 — 전 위반을 한 번에 반환.
         // 실행 로그는 REQUIRES_NEW라 이 트랜잭션이 롤백돼도 남는다
@@ -77,13 +85,49 @@ public class ReceivingService {
         order.checkAndAutoReceive(); // 전 라인 전량 검수됐으면 마감 없이 바로 RECEIVED(→ 적치까지 끝났다면 COMPLETED)로 전이
     }
 
-    private void receiveLine(IbOrder order, Loc staging, ReceiveRequest.Line line) {
-        IbLine ibLine = ibLineRepository.findById(line.getIbLineId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고 라인입니다: " + line.getIbLineId()));
-        if (!ibLine.getIbOrder().getId().equals(order.getId())) {
-            throw new IllegalArgumentException("다른 입고의 라인입니다: " + line.getIbLineId());
+    /**
+     * 요청 라인이 가리키는 상품을 <b>id 오름차순으로 한 건씩</b> 잠근다. 라인을 읽는 어떤 코드보다도
+     * 앞서야 하고(검수 제약 포함), 그 대가로 둘을 얻는다.
+     *
+     * <p><b>① 교착 회피.</b> 락은 커밋까지 유지되므로 요청이 보낸 순서대로 잠그면 상품이 겹치는 두
+     * 검수가 서로 반대 순서로 잡아 교착이 난다(A: 상품1→상품2 / B: 상품2→상품1). 라인 id로 정렬해서는
+     * 안 된다 — 라인 id 순서와 상품 id 순서는 입고마다 다르다. 락 순서를 하나로 고정하는 것은
+     * 재고 행 락이 표준 순서(재고 키 오름차순, InvStore)를 따르는 것과 같은 원칙이다.
+     *
+     * <p><b>② 잔량 검사와 누계 갱신의 직렬화.</b> 같은 라인을 동시에 검수한 둘이 같은 잔량을 보고
+     * 통과하면, 각자 자기 스냅샷에 더한 {@code rcvd_qty}를 절대값으로 덮어써 한쪽 검수가 증발한다
+     * (이력엔 두 건이 남아 라인 누계와 어긋난다). {@code ib_line}에는 {@code @Version}이 없고
+     * {@code ck_ib_line_qty}도 {@code rcvd_qty ≤ expct_qty}를 보지 않아 아무도 막지 않는다.
+     *
+     * <p>그래서 잠글 상품을 라인 엔티티가 아니라 <b>스칼라 조회</b>로 고른다. 정렬하려고 라인을 미리
+     * 읽으면 영속성 컨텍스트에 올라가 락 뒤에도 값이 갱신되지 않아 ②가 그대로 되살아난다.
+     */
+    private void lockProds(IbOrder order, List<ReceiveRequest.Line> lines) {
+        // 라인 id가 비어 온 요청은 여기서 거르고 findLine이 거부하게 둔다 (조회에 null을 넘기지 않는다)
+        List<Long> ibLineIds = lines.stream()
+                .map(ReceiveRequest.Line::getIbLineId)
+                .filter(Objects::nonNull)
+                .toList();
+        if (ibLineIds.isEmpty()) {
+            return;
         }
+        List<Long> prodIds = ibLineRepository.findProdIdsByOrderIdAndIdIn(order.getId(), ibLineIds);
+        for (Long prodId : prodIds.stream().sorted().toList()) {
+            prodRepository.findByIdForUpdate(prodId);
+        }
+    }
 
+    private IbLine findLine(IbOrder order, Long ibLineId) {
+        IbLine ibLine = ibLineRepository.findById(ibLineId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고 라인입니다: " + ibLineId));
+        if (!ibLine.getIbOrder().getId().equals(order.getId())) {
+            throw new IllegalArgumentException("다른 입고의 라인입니다: " + ibLineId);
+        }
+        return ibLine;
+    }
+
+    private void receiveLine(IbOrder order, Loc staging, ReceiveRequest.Line line) {
+        IbLine ibLine = findLine(order, line.getIbLineId());
         Prod prod = ibLine.getProd();
         long inspectUomQty = line.getInspectQty() != null ? line.getInspectQty() : 0;
         if (inspectUomQty < 1) {
@@ -108,53 +152,64 @@ public class ReceivingService {
 
         // 검수분: Lot 확보 → 스테이징 스냅샷 증가 → 재고 이력. 셋이 항상 한 트랜잭션
         Lot lot = findOrCreateLot(prod, line.getMfgDt(), receiptDt);
-        Inv inv = invRepository.findByProdIdAndLocIdAndLotId(prod.getId(), staging.getId(), lot.getId())
-                .orElseGet(() -> invRepository.save(Inv.builder().prod(prod).loc(staging).lot(lot).build()));
-        inv.increaseOnHand(inspect);
-        invHistRepository.save(InvHist.builder()
-                .txTyp(TxTyp.RECEIVE)
-                .prod(prod).loc(staging).lot(lot)
-                .qty(inspect)
-                .rfnDocTyp(RefDocTyp.INBOUND)
-                .rfnDocNo(order.getIbNo())
-                .ibLineId(ibLine.getId())
-                .build());
+        invStore.increase(prod, staging, lot, inspect, TxTyp.RECEIVE,
+                InvDocRef.ofIbLine(RefDocTyp.INBOUND, order.getIbNo(), ibLine.getId()));
     }
 
     /**
      * 같은 배치(상품+입고일자+제조일자)는 같은 Lot을 재사용한다
      * (증분 검수로 같은 라인을 여러 번 나눠 검수해도 Lot이 쪼개지지 않도록).
      * 유통기한 미관리 상품은 제조일자가 항상 null이라 사실상 상품+입고일자로만 구분된다.
+     * 동시 검수의 "재사용 조회 → 채번 → 저장"이 겹치지 않는 것은 receive()가 미리 잡아 둔 상품 로우 락 덕이다.
      */
     private Lot findOrCreateLot(Prod prod, LocalDate mfgDt, LocalDate receiptDt) {
-        boolean tracksShelfLife = prod.getShelfLifeDays() != null;
-        if (tracksShelfLife) {
-            if (mfgDt == null) {
-                throw new IllegalArgumentException("제조일자는 필수입니다: " + prod.getProdCd());
-            }
-            if (mfgDt.isAfter(receiptDt)) {
-                throw new IllegalArgumentException("제조일자가 입고일자보다 미래일 수 없습니다: " + prod.getProdCd());
-            }
-        }
-        LocalDate effectiveMfgDt = tracksShelfLife ? mfgDt : null;
-
-        // 상품 로우 락: 동시 검수로 같은 상품의 "재사용 조회 → 건수 세기 → 채번"이 겹치지 않게 직렬화
-        prodRepository.findByIdForUpdate(prod.getId());
-
+        LocalDate effectiveMfgDt = validateMfgDt(prod, mfgDt, receiptDt);
         return lotRepository.findByProdIdAndReceiptDtAndMfgDt(prod.getId(), receiptDt, effectiveMfgDt)
-                .orElseGet(() -> {
-                    long seq = lotRepository.countByProdIdAndReceiptDt(prod.getId(), receiptDt) + 1;
-                    String lotNo = String.format("LOT-%s-%03d",
-                            receiptDt.format(DateTimeFormatter.ofPattern("yyMMdd")), seq);
-                    LocalDate expiryDt = tracksShelfLife ? effectiveMfgDt.plusDays(prod.getShelfLifeDays()) : null;
-                    return lotRepository.save(Lot.builder()
-                            .prod(prod)
-                            .lotNo(lotNo)
-                            .receiptDt(receiptDt)
-                            .mfgDt(effectiveMfgDt)
-                            .expiryDt(expiryDt)
-                            .build());
-                });
+                .orElseGet(() -> createLot(prod, receiptDt, effectiveMfgDt));
+    }
+
+    /**
+     * 유통기한 관리 상품만 제조일자를 검증해 그대로 쓰고, 미관리 상품은 입력값을 버리고 null로 통일한다
+     * (미관리 상품의 Lot은 두 날짜가 항상 null인 것이 정의 — LotAttrChngService의 정정 차단과 같은 원칙).
+     */
+    private LocalDate validateMfgDt(Prod prod, LocalDate mfgDt, LocalDate receiptDt) {
+        if (prod.getShelfLifeDays() == null) {
+            return null;
+        }
+        if (mfgDt == null) {
+            throw new IllegalArgumentException("제조일자는 필수입니다: " + prod.getProdCd());
+        }
+        if (mfgDt.isAfter(receiptDt)) {
+            throw new IllegalArgumentException("제조일자가 입고일자보다 미래일 수 없습니다: " + prod.getProdCd());
+        }
+        return mfgDt;
+    }
+
+    /** 상품 로우 락(receive의 lockProds) 안에서만 부를 것 — 채번(nextLotNo)이 그 락에 얹혀 직렬화된다 */
+    private Lot createLot(Prod prod, LocalDate receiptDt, LocalDate mfgDt) {
+        LocalDate expiryDt = mfgDt != null ? mfgDt.plusDays(prod.getShelfLifeDays()) : null;
+        return lotRepository.save(Lot.builder()
+                .prod(prod)
+                .lotNo(nextLotNo(prod, receiptDt))
+                .receiptDt(receiptDt)
+                .mfgDt(mfgDt)
+                .expiryDt(expiryDt)
+                .build());
+    }
+
+    /**
+     * Lot 번호 채번: LOT-{입고일자}-{순번}. 순번은 상품별·입고일자별로 1부터 —
+     * "이 상품이 그날 몇 번째 배치인가"라는 뜻이고, 유일성 단위도 uq_lot(prod_id, lot_no)라 이걸로 충분하다.
+     * <p>
+     * NbrService를 쓰지 않는 이유: 채번 규칙의 리셋 단위는 날짜뿐이라 상품별 리셋을 표현할 수 없고
+     * (순번이 그날 창고 전체 통번이 되어 위 의미가 사라진다), nbr_seq 카운터 행이 상품이 달라도
+     * 부딪히는 전역 직렬화 지점이 된다. 여기 채번은 receive가 잡아 둔 상품 로우 락에 얹혀
+     * 상품 단위로만 직렬화된다. 건수+1이 안전한 것은 Lot이 삭제되지 않아 단조 증가이기 때문이다 —
+     * 삭제가 생기면 번호가 재사용되니 그때는 기존 번호의 최대 순번 파싱으로 바꿀 것(uq_lot이 최후 방어).
+     */
+    private String nextLotNo(Prod prod, LocalDate receiptDt) {
+        long seq = lotRepository.countByProdIdAndReceiptDt(prod.getId(), receiptDt) + 1;
+        return String.format("LOT-%s-%03d", receiptDt.format(LOT_NO_DT_FMT), seq);
     }
 
     /** 입고 마감 — 상태 검증/전이는 엔티티가 한다. 잔량(예정-검수)은 미입고로 확정 */
@@ -215,8 +270,9 @@ public class ReceivingService {
 
         Prod prod = receipt.getProd();
         long qty = receipt.getQty();
-        // 예약(적치지시)과 경합하므로 행 락으로 읽는다 — 검증과 차감 사이에 지시가 끼어들면 예약분을 밑에서 빼가게 된다
-        Inv inv = invRepository.findByKeyForUpdate(prod.getId(), receipt.getLoc().getId(), receipt.getLot().getId())
+        // 스테이징 행 락 — 락 없이 읽고 줄이면 같은 행의 동시 적치·검수와 서로 덮어쓴다.
+        // 예약(적치지시)과도 경합한다 — 검증과 차감 사이에 지시가 끼어들면 예약분을 밑에서 빼가게 된다
+        Inv inv = invStore.lock(new InvKey(prod.getId(), receipt.getLoc().getId(), receipt.getLot().getId()))
                 .orElseThrow(() -> new IllegalStateException("스테이징 재고를 찾을 수 없습니다: " + prod.getProdCd()));
         // 가용재고 기준 — 적치지시가 예약한 몫은 취소로 빼갈 수 없다.
         // 「미완료 적치지시가 있으면 차단」 특례를 따로 두지 않고 이 한 줄로 처리한다 (docs/design.md 「검수 취소」)
@@ -225,21 +281,9 @@ public class ReceivingService {
                     + inv.avalQty() + "): " + prod.getProdCd());
         }
 
-        inv.decreaseOnHand(qty);
         ibLine.cancelReceive(qty);
-        invHistRepository.save(InvHist.builder()
-                .txTyp(TxTyp.ADJUST)
-                .prod(prod).loc(receipt.getLoc()).lot(receipt.getLot())
-                .qty(-qty)
-                .rfnDocTyp(RefDocTyp.INBOUND)
-                .rfnDocNo(order.getIbNo())
-                .ibLineId(ibLine.getId())
-                .cnclInvHistId(receipt.getId())
-                .build());
-        // 스테이징 재고가 0이 되면 스냅샷 행을 삭제한다 (재고 테이블엔 실물이 있는 행만 남긴다)
-        if (inv.getOnHandQty() == 0 && inv.getAlocQty() == 0 && inv.getHldQty() == 0) {
-            invRepository.delete(inv);
-        }
+        invStore.decrease(inv, qty, TxTyp.ADJUST,
+                InvDocRef.ofIbLine(RefDocTyp.INBOUND, order.getIbNo(), ibLine.getId()).cancelling(receipt.getId()));
         order.reopenIfNoLongerFullyReceived(); // 전량검수로 자동 마감됐던 게 이 취소로 깨졌으면 RECEIVING으로 되돌림
     }
 }

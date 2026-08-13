@@ -400,7 +400,7 @@ INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('VHCL_FLTNO'
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('VHCL_FLTNO', '3', '3편', 3);
 
 -- 보류사유·해제사유. ETC(기타)는 「코드가 기타면 자유 텍스트 입력」 규칙이 걸리는 값이라 지우면 안 된다.
--- 동일 사유 미해제 중복 차단(uq_inv_hld_open_rsn)이 사유코드 단위로 걸리므로, 코드는 곧 병존 단위다.
+-- 코드는 분류 축일 뿐 병존 단위가 아니다 — 같은 재고 행에 같은 사유의 미해제 보류가 여러 건 있을 수 있다.
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('HLD_RSN', 'QLTY', '품질이상', 1);
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('HLD_RSN', 'DAMG', '파손', 2);
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('HLD_RSN', 'EXPIRY', '유통기한', 3);
@@ -809,9 +809,10 @@ COMMENT ON COLUMN inv_hld.rsn_dscr IS '기타 사유 텍스트. rsn_cd = ETC일 
 COMMENT ON COLUMN inv_hld.status   IS 'HELD 보류중(부분 해제 포함) / RELEASED 전량 해제. 취소 상태 없음 — 오등록도 해제(사유: 오등록)로 흡수한다(등록 즉시 발효라 실행 전 취소 구간이 없다)';
 COMMENT ON COLUMN inv_hld.rlz_dt   IS '전량 해제 시각 (RELEASED 전이 시점)';
 
--- 동일 사유 미해제 중복 차단: 같은 재고 행에는 사유코드가 다를 때만 보류가 병존한다
-CREATE UNIQUE INDEX uq_inv_hld_open_rsn ON inv_hld (prod_id, loc_id, lot_id, rsn_cd) WHERE status = 'HELD';
--- 항등식 대사: 재고 키별 HELD 잔량 SUM vs inv.hld_qty 비교용 (위 부분 유니크가 겸한다)
+-- 항등식 대사(재고 키별 HELD 잔량 SUM vs inv.hld_qty) + 재고 행의 미해제 보류 조회.
+-- 유니크가 아니다 — 같은 재고 행에는 사유가 같든 다르든 미해제 보류가 여러 건 병존한다.
+CREATE INDEX ix_inv_hld_open ON inv_hld (prod_id, loc_id, lot_id) WHERE status = 'HELD';
+-- 상태를 가리지 않는 상품별 조회 (위 부분 인덱스는 HELD만 담아 대신하지 못한다)
 CREATE INDEX ix_inv_hld_prod ON inv_hld (prod_id);
 
 -- 보류 실적 (등록의 append-only 로그). 보류 건과 1:1이지만 자기완결로 둔다 —

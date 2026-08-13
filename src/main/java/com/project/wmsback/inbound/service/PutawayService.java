@@ -8,11 +8,10 @@ import com.project.wmsback.inbound.entity.PutawayTaskStatus;
 import com.project.wmsback.inbound.repository.IbLineRepository;
 import com.project.wmsback.inbound.repository.PutawayTaskRepository;
 import com.project.wmsback.inventory.entity.Inv;
-import com.project.wmsback.inventory.entity.InvHist;
 import com.project.wmsback.inventory.entity.RefDocTyp;
-import com.project.wmsback.inventory.entity.TxTyp;
-import com.project.wmsback.inventory.repository.InvHistRepository;
-import com.project.wmsback.inventory.repository.InvRepository;
+import com.project.wmsback.inventory.service.InvDocRef;
+import com.project.wmsback.inventory.service.InvKey;
+import com.project.wmsback.inventory.service.InvStore;
 import com.project.wmsback.inventory.service.LocCapacityService;
 import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.LocTyp;
@@ -24,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 적치 실행 — 발행된 적치지시를 실물 MOVE로 소진한다 (스테이징 → 지시받은 보관 로케이션).
@@ -44,8 +44,7 @@ public class PutawayService {
     private final PutawayTaskRepository putawayTaskRepository;
     private final IbLineRepository ibLineRepository;
     private final LocRepository locRepository;
-    private final InvRepository invRepository;
-    private final InvHistRepository invHistRepository;
+    private final InvStore invStore;
     private final LocCapacityService locCapacityService;
 
     /**
@@ -108,46 +107,26 @@ public class PutawayService {
             throw new IllegalStateException("지시받은 로케이션이 적치 조건과 어긋납니다 (취소 후 재지시 필요): " + target.getLocCd());
         }
 
-        Inv stagingInv = invRepository.findByKeyForUpdate(prod.getId(), staging.getId(), lot.getId())
-                .orElseThrow(() -> new IllegalStateException("적치지시가 예약한 재고가 없습니다 (정합성 오류): " + taskId));
+        // 스테이징·대상 행을 함께 선락한다 (InvStore가 키 오름차순으로 잠근다). 락 없이 읽고 옮기면
+        // 같은 스테이징 행의 동시 적치·검수취소가 각자 읽은 수량 기준으로 서로 덮어쓴다.
+        // 대상 행이 아직 없으면 빠지고 move가 만든다 (동시 생성은 uq_inv가 방어)
+        InvKey stagingKey = new InvKey(prod.getId(), staging.getId(), lot.getId());
+        Map<InvKey, Inv> locked = invStore.lockAll(List.of(
+                stagingKey, new InvKey(prod.getId(), target.getId(), lot.getId())));
+        Inv stagingInv = locked.get(stagingKey);
+        if (stagingInv == null) {
+            throw new IllegalStateException("적치지시가 예약한 재고가 없습니다 (정합성 오류): " + taskId);
+        }
         if (stagingInv.getOnHandQty() < qty || stagingInv.getAlocQty() < qty) {
             throw new IllegalStateException("예약 수량보다 실재고가 적습니다 (정합성 오류 — 보유 " + stagingInv.getOnHandQty()
                     + " / 예약 " + stagingInv.getAlocQty() + "): " + taskId);
         }
 
-        // 실물 이동 + 예약 소진 (이동확정과 같은 패턴)
-        stagingInv.decreaseOnHand(qty);
-        stagingInv.release(qty);
-        Inv targetInv = invRepository.findByProdIdAndLocIdAndLotId(prod.getId(), target.getId(), lot.getId())
-                .orElseGet(() -> invRepository.save(Inv.builder().prod(prod).loc(target).lot(lot).build()));
-        targetInv.increaseOnHand(qty);
-
-        // MOVE는 이력 2행 — 두 행 모두 같은 from/to를 가져 한 행만 봐도 이동 전체를 알 수 있다
-        String ibNo = ibLine.getIbOrder().getIbNo();
-        invHistRepository.save(InvHist.builder()
-                .txTyp(TxTyp.MOVE)
-                .prod(prod).loc(staging).lot(lot)
-                .qty(-qty)
-                .rfnDocTyp(RefDocTyp.INBOUND)
-                .rfnDocNo(ibNo)
-                .ibLineId(ibLine.getId())
-                .fromLocId(staging.getId()).toLocId(target.getId())
-                .build());
-        invHistRepository.save(InvHist.builder()
-                .txTyp(TxTyp.MOVE)
-                .prod(prod).loc(target).lot(lot)
-                .qty(qty)
-                .rfnDocTyp(RefDocTyp.INBOUND)
-                .rfnDocNo(ibNo)
-                .ibLineId(ibLine.getId())
-                .fromLocId(staging.getId()).toLocId(target.getId())
-                .build());
-
-        // 재고수량이 0(보유·예약·보류 모두 0)이 된 스냅샷 행은 삭제한다 — 실물이 있는 행만 남긴다.
-        // 이력 합계=스냅샷 불변식은 유지된다: 이력 SUM=0 ↔ 행 없음
-        if (stagingInv.getOnHandQty() == 0 && stagingInv.getAlocQty() == 0 && stagingInv.getHldQty() == 0) {
-            invRepository.delete(stagingInv);
-        }
+        // 예약 소진 + 실물 이동 (이동확정과 같은 패턴). 예약을 먼저 푸는 이유는 순서가 뒤집히면
+        // 스테이징 행이 「예약은 남았는데 실물은 0」인 중간 상태를 지나기 때문
+        invStore.release(stagingInv, qty);
+        invStore.move(stagingInv, target, qty,
+                InvDocRef.ofIbLine(RefDocTyp.INBOUND, ibLine.getIbOrder().getIbNo(), ibLine.getId()));
 
         task.execute(qty);
         ibLine.putaway(qty);

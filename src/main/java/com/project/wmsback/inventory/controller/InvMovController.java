@@ -34,10 +34,10 @@ public class InvMovController {
         return invMovService.list(cond);
     }
 
-    /** 이동확정 (부분확정 허용) */
-    @PostMapping("/{id}/confirm")
-    public void confirm(@PathVariable Long id, @RequestBody InvMovConfirmRequest request) {
-        invMovService.confirm(id, request.getQty());
+    /** 이동확정 (지시를 지목해 다건, 건마다 부분확정 허용) */
+    @PostMapping("/confirm")
+    public void confirm(@RequestBody InvMovConfirmRequest request) {
+        invMovService.confirm(request);
     }
 
     /** 이동취소 (잔량 취소 — 예약 해제) */

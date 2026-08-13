@@ -6,18 +6,17 @@ import com.project.mdm.nbr.service.NbrService;
 import com.project.mdm.prod.entity.Prod;
 import com.project.mdm.prod.repository.ProdRepository;
 import com.project.wmsback.inventory.dto.InvStktkCreateRequest;
+import com.project.wmsback.inventory.dto.InvStktkCreateResponse;
 import com.project.wmsback.inventory.dto.InvStktkDetailResponse;
 import com.project.wmsback.inventory.dto.InvStktkLnAddRequest;
 import com.project.wmsback.inventory.dto.InvStktkLnSaveRequest;
 import com.project.wmsback.inventory.dto.InvStktkResponse;
 import com.project.wmsback.inventory.dto.InvStktkSearchCond;
 import com.project.wmsback.inventory.entity.Inv;
-import com.project.wmsback.inventory.entity.InvHist;
 import com.project.wmsback.inventory.entity.InvStktk;
 import com.project.wmsback.inventory.entity.InvStktkLn;
 import com.project.wmsback.inventory.entity.RefDocTyp;
 import com.project.wmsback.inventory.entity.TxTyp;
-import com.project.wmsback.inventory.repository.InvHistRepository;
 import com.project.wmsback.inventory.repository.InvRepository;
 import com.project.wmsback.inventory.repository.InvStktkLnRepository;
 import com.project.wmsback.inventory.repository.InvStktkRepository;
@@ -33,6 +32,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 재고조사(실사). 조사 범위를 지정해 라인을 만들고(전산수량 스냅샷), 실사수량을 입력한 뒤
@@ -59,7 +59,7 @@ public class InvStktkService {
     private static final String ETC_RSN_CD = "ETC";
 
     private final InvRepository invRepository;
-    private final InvHistRepository invHistRepository;
+    private final InvStore invStore;
     private final InvStktkRepository invStktkRepository;
     private final InvStktkLnRepository invStktkLnRepository;
     private final LocRepository locRepository;
@@ -80,10 +80,10 @@ public class InvStktkService {
     /**
      * 조사 생성. 범위(존/로케이션/상품 — 모두 선택)에 걸리는 보관 재고를 훑어 라인을 만들고
      * 각 라인에 전산수량을 스냅샷한다. 재고를 선점하지 않으므로 이력·예약 어느 쪽도 건드리지 않는다.
-     * @return 발급된 조사번호
+     * @return 생성된 조사의 PK와 발급된 조사번호
      */
     @Transactional
-    public String create(InvStktkCreateRequest request) {
+    public InvStktkCreateResponse create(InvStktkCreateRequest request) {
         Loc scopeLoc = request.getLocId() == null ? null
                 : locRepository.findById(request.getLocId())
                         .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 로케이션입니다: " + request.getLocId()));
@@ -116,7 +116,7 @@ public class InvStktkService {
                     .build());
         }
         invStktkRepository.save(stktk);
-        return stktk.getStktkNo();
+        return new InvStktkCreateResponse(stktk.getId(), stktk.getStktkNo());
     }
 
     /**
@@ -225,12 +225,17 @@ public class InvStktkService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 재고조사입니다: " + stktkId));
         stktk.requireEditable();
 
-        // 재고 키 오름차순 — 여러 조사가 동시에 확정돼도 재고 행 락을 같은 순서로 잡게 해 교착을 피한다
         List<InvStktkLn> lines = invStktkLnRepository.findByStktkIdOrderByInvKey(stktkId);
         List<InvStktkLn> counted = lines.stream().filter(InvStktkLn::counted).toList();
         if (counted.isEmpty()) {
             throw new IllegalArgumentException("실사수량이 입력된 라인이 없습니다: " + stktk.getStktkNo());
         }
+
+        // 실사 라인의 재고 행 전부 선락 — 여러 조사가 동시에 확정돼도 InvStore가 키 오름차순으로
+        // 잠가 교착이 없다. 없는 행(전량 소진·수동 추가 라인)은 빠지고 아래에서 0으로 본다
+        Map<InvKey, Inv> locked = invStore.lockAll(counted.stream()
+                .map(ln -> new InvKey(ln.getProd().getId(), ln.getLoc().getId(), ln.getLot().getId()))
+                .toList());
 
         for (InvStktkLn ln : counted) {
             Prod prod = ln.getProd();
@@ -238,8 +243,7 @@ public class InvStktkService {
             Lot lot = ln.getLot();
 
             // 확정 기준은 지금 이 순간의 전산수량이다 — 조사 생성 시점 스냅샷(sysQty)이 아니다.
-            // 재고 행이 없으면(전량 소진·수동 추가 라인) 0으로 본다.
-            Inv inv = invRepository.findByKeyForUpdate(prod.getId(), loc.getId(), lot.getId()).orElse(null);
+            Inv inv = locked.get(new InvKey(prod.getId(), loc.getId(), lot.getId()));
             long cfmSysQty = inv == null ? 0L : inv.getOnHandQty();
             ln.confirm(cfmSysQty);
 
@@ -249,6 +253,7 @@ public class InvStktkService {
             }
             requireRsn(ln);
 
+            InvDocRef ref = InvDocRef.of(RefDocTyp.INV_STKTK, stktk.getStktkNo());
             if (adjQty < 0) {
                 // 예약·보류분은 실사로 지울 수 없다 — 먼저 풀어야 한다 (ck_inv_qty가 최후 방어)
                 long reserved = inv.getAlocQty() + inv.getHldQty();
@@ -258,27 +263,10 @@ public class InvStktkService {
                             + prod.getProdCd() + " @ " + loc.getLocCd()
                             + " — 할당 해제·이동지시 취소·보류 해제로 먼저 정리한 뒤 확정하세요.");
                 }
-                inv.decreaseOnHand(-adjQty);
+                invStore.decrease(inv, -adjQty, TxTyp.ADJUST, ref);
             } else {
-                if (inv == null) {
-                    // 장부에 없던 재고를 실사에서 발견한 경우 — 재고 행을 새로 만든다 (기초재고 등록도 이 경로)
-                    inv = invRepository.save(Inv.builder().prod(prod).loc(loc).lot(lot).build());
-                }
-                inv.increaseOnHand(adjQty);
-            }
-
-            invHistRepository.save(InvHist.builder()
-                    .txTyp(TxTyp.ADJUST)
-                    .prod(prod).loc(loc).lot(lot)
-                    .qty(adjQty)
-                    .rfnDocTyp(RefDocTyp.INV_STKTK)
-                    .rfnDocNo(stktk.getStktkNo())
-                    .build());
-
-            // 재고수량이 0(보유·예약·보류 모두 0)이 된 스냅샷 행은 삭제한다 (PutawayService·InvMovService와 같은 관례).
-            // 이력 합계=스냅샷 불변식은 유지된다: 이력 SUM=0 ↔ 행 없음.
-            if (inv.getOnHandQty() == 0 && inv.getAlocQty() == 0 && inv.getHldQty() == 0) {
-                invRepository.delete(inv);
+                // 장부에 없던 재고를 실사에서 발견했으면 재고 행이 새로 생긴다 (기초재고 등록도 이 경로)
+                invStore.increase(prod, loc, lot, adjQty, TxTyp.ADJUST, ref);
             }
         }
 

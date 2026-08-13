@@ -24,6 +24,9 @@ import lombok.NoArgsConstructor;
  * 현재고 스냅샷. 키: 상품+Loc+Lot. 재고수량(onHand) = 가용 + 예약(aloc) + 보류(hld).
  * 가용재고 = onHand - aloc - hld (파생값, 컬럼 아님).
  * 할당 시 락을 거는 지점 (비관적/낙관적 락 비교 대상).
+ *
+ * 아래 증감 메서드는 InvStore 전용이다 — 서비스에서 직접 부르지 말 것. 스냅샷 증감은 이력 기록·빈 행 정리와
+ * 항상 함께 일어나야 하고, 그 셋을 묶는 자리가 InvStore다.
  */
 @Entity
 @Table(name = "inv", uniqueConstraints = @UniqueConstraint(name = "uq_inv", columnNames = {"prod_id", "loc_id", "lot_id"}))
@@ -86,6 +89,17 @@ public class Inv extends BaseEntity {
     /** 가용재고 (파생값) */
     public long avalQty() {
         return onHandQty - alocQty - hldQty;
+    }
+
+    /**
+     * 실물도 예약도 보류도 없는 행 — 스냅샷에 남길 이유가 없다 (InvStore가 이 판정으로 행을 지운다).
+     *
+     * ck_inv_qty(aloc+hld<=on_hand)로 커밋 시점엔 onHandQty==0 하나와 동치지만, 그 제약은 flush 때만
+     * 평가된다. 물리 감소와 예약 소진 사이(이동확정)처럼 트랜잭션 중간 상태에서 불리는 자리가 실제로 있어,
+     * 그때 예약이 남은 행을 지우지 않으려면 셋을 다 봐야 한다.
+     */
+    public boolean isEmpty() {
+        return onHandQty == 0 && alocQty == 0 && hldQty == 0;
     }
 
     /** 물리 증가 (입고/이동 입). 반드시 InvHist 기록과 한 트랜잭션에서 호출한다 */

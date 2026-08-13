@@ -12,7 +12,8 @@ import com.project.wmsback.inbound.repository.IbLineRepository;
 import com.project.wmsback.inbound.repository.PutawayTaskQueryRepository;
 import com.project.wmsback.inbound.repository.PutawayTaskRepository;
 import com.project.wmsback.inventory.entity.Inv;
-import com.project.wmsback.inventory.repository.InvRepository;
+import com.project.wmsback.inventory.service.InvKey;
+import com.project.wmsback.inventory.service.InvStore;
 import com.project.wmsback.inventory.service.LocCapacityService;
 import com.project.mdm.prod.entity.Prod;
 import com.project.wmsback.warehouse.entity.Loc;
@@ -49,7 +50,7 @@ public class PutawayTaskService {
     private final IbLineRepository ibLineRepository;
     private final LotRepository lotRepository;
     private final LocRepository locRepository;
-    private final InvRepository invRepository;
+    private final InvStore invStore;
     private final LocCapacityService locCapacityService;
 
     /**
@@ -137,7 +138,7 @@ public class PutawayTaskService {
 
         // ② 스테이징 재고 예약 — 행 락으로 예약 증감을 직렬화한다 (이동지시 등록과 같은 지점).
         //    물리 이동이 아니므로 inv_hist는 남기지 않는다. ck_inv_qty(aloc+hld<=onHand)가 최후 방어선
-        Inv stagingInv = invRepository.findByKeyForUpdate(prod.getId(), staging.getId(), lot.getId())
+        Inv stagingInv = invStore.lock(new InvKey(prod.getId(), staging.getId(), lot.getId()))
                 .orElseThrow(() -> new IllegalArgumentException("스테이징 재고가 없습니다: "
                         + prod.getProdCd() + " / " + lot.getLotNo()));
         if (qty > stagingInv.avalQty()) {
@@ -152,7 +153,7 @@ public class PutawayTaskService {
             throw new IllegalArgumentException("적재가능수량을 초과했습니다 (적재가능 " + capacity + "): " + toLoc.getLocCd());
         }
 
-        stagingInv.reserve(qty);
+        invStore.reserve(stagingInv, qty);
         PutawayTask task = putawayTaskRepository.save(PutawayTask.builder()
                 .ibLine(ibLine)
                 .lot(lot)
@@ -182,14 +183,14 @@ public class PutawayTaskService {
                 .orElseThrow(() -> new IllegalStateException("입고 스테이징 로케이션(RCV-STAGE)이 없습니다."));
 
         Prod prod = task.getIbLine().getProd();
-        Inv stagingInv = invRepository.findByKeyForUpdate(prod.getId(), staging.getId(), task.getLot().getId())
+        Inv stagingInv = invStore.lock(new InvKey(prod.getId(), staging.getId(), task.getLot().getId()))
                 .orElseThrow(() -> new IllegalStateException("적치지시가 예약한 재고가 없습니다 (정합성 오류): " + taskId));
         if (stagingInv.getAlocQty() < task.getDrctQty()) {
             throw new IllegalStateException("예약 잔량보다 재고의 예약 수량이 적습니다 (정합성 오류 — 예약 "
                     + stagingInv.getAlocQty() + " / 지시 " + task.getDrctQty() + "): " + taskId);
         }
 
-        stagingInv.release(task.getDrctQty());
+        invStore.release(stagingInv, task.getDrctQty());
         task.cancel();
     }
 }

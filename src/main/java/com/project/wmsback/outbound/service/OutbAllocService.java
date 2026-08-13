@@ -2,7 +2,7 @@ package com.project.wmsback.outbound.service;
 
 import com.project.mdm.store.entity.Store;
 import com.project.wmsback.inventory.entity.Inv;
-import com.project.wmsback.inventory.repository.InvRepository;
+import com.project.wmsback.inventory.service.InvStore;
 import com.project.wmsback.outbound.dto.AllocCandidateResponse;
 import com.project.wmsback.outbound.dto.AllocExecuteRequest;
 import com.project.wmsback.outbound.dto.AllocExecuteResponse;
@@ -79,7 +79,7 @@ public class OutbAllocService {
     private final OutbAllocRepository outbAllocRepository;
     private final OutbWaveRepository outbWaveRepository;
     private final OutbLineRepository outbLineRepository;
-    private final InvRepository invRepository;
+    private final InvStore invStore;
     private final AlocStgyService alocStgyService;
     private final AllocQueryRepository allocQueryRepository;
     private final StgyExecLogService stgyExecLogService;
@@ -270,32 +270,26 @@ public class OutbAllocService {
     }
 
     /**
-     * 후보를 <b>id 오름차순으로 한 건씩</b> 잠근다.
+     * 후보 전체를 잠근다 — 순서는 InvStore가 재고 키 오름차순으로 정한다.
      *
      * <p>정렬 순서(전략이 정한다)와 락 순서(고정)를 분리하는 것이 이 메서드의 전부다. 후보가
      * 겹치는 두 실행이 각자 정렬 순으로 잠그면 서로 반대 순서가 되어 데드락이 난다 —
-     * 관리자가 정렬을 바꿔도 락 순서는 언제나 id ASC다.
+     * 관리자가 정렬을 바꿔도 락 순서는 언제나 같다. 그룹 순회가 prod 오름차순이므로
+     * ({@link #allocate} 참고) 실행 전체의 락 순서도 전역 키 오름차순이 된다.
      *
-     * <p>{@code WHERE id IN (…) ORDER BY id} 일괄 락으로 바꾸지 말 것 — {@code ORDER BY}는
-     * 결과 정렬을 보장할 뿐 <b>락 획득 순서를 보장하지 않는다</b>(플랜에 따라 물리 순서로 잠근다).
+     * <p>필요한 만큼이 아니라 <b>후보 전체</b>를 잠그는 이유: 필요분만 잠그면 락 후
+     * 가용이 줄었을 때 안 잠근 후보가 뒤늦게 필요해지고, 그때 순서 밖의 행을 추가로 잡게 된다.
      *
-     * <p>필요한 만큼이 아니라 <b>후보 전체</b>를 잠그는 것도 같은 이유다. 필요분만 잠그면 락 후
-     * 가용이 줄었을 때 안 잠근 후보가 뒤늦게 필요해지고, 그때 더 작은 id를 추가로 잡게 된다.
+     * <p>락을 잡는 사이에 사라진 재고(다른 트랜잭션이 0으로 만들어 행 삭제)는 후보에서 빠진다.
      */
     private List<Inv> lockCandidates(Long prodId) {
-        List<Long> candidateIds = outbAllocRepository.findCandidateIds(prodId);
-        List<Inv> locked = new ArrayList<>();
-        for (Long invId : candidateIds.stream().sorted().toList()) {
-            // 락을 잡는 사이에 사라진 재고(다른 트랜잭션이 0으로 만들어 행 삭제)는 후보에서 빠진다
-            invRepository.findByIdForUpdate(invId).ifPresent(locked::add);
-        }
-        return locked;
+        return List.copyOf(invStore.lockAllByIds(outbAllocRepository.findCandidateIds(prodId)).values());
     }
 
     /** 재고 예약 + 할당 레코드 기록. 물리 이동이 아니므로 inv_hist에는 아무것도 남기지 않는다 */
     private void reserve(OutbLine line, Inv candidate, long qty, Map<String, OutbAlloc> existingAllocs,
                          Long alocStgyId, Long rvsnNo) {
-        candidate.reserve(qty);
+        invStore.reserve(candidate, qty);
         String key = allocKey(line.getId(), candidate.getId());
         OutbAlloc existing = existingAllocs.get(key);
         if (existing != null) {
@@ -367,11 +361,13 @@ public class OutbAllocService {
             lines.put(line.getId(), line);
         }
 
-        // ③ 재고를 id 오름차순으로 잠근다 (자동할당과 같은 순서 — 두 경로가 섞여도 데드락이 없다)
-        Map<Long, Inv> locked = new LinkedHashMap<>();
-        for (Long invId : reqByInv.keySet().stream().sorted().toList()) {
-            locked.put(invId, invRepository.findByIdForUpdate(invId)
-                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 재고입니다: " + invId)));
+        // ③ 재고를 잠근다 — InvStore가 키 오름차순으로 잠가 자동할당·할당해제와 순서가 같다
+        //    (섞여도 데드락이 없다). id 정렬로는 안 된다 — 자동할당은 prod을 먼저 돌아 다상품에서 어긋난다
+        Map<Long, Inv> locked = invStore.lockAllByIds(reqByInv.keySet());
+        for (Long invId : reqByInv.keySet()) {
+            if (!locked.containsKey(invId)) {
+                throw new IllegalArgumentException("존재하지 않는 재고입니다: " + invId);
+            }
         }
 
         // ④ 재고별 합계가 가용재고를 넘지 않는지 + 보관 재고인지 (역시 전 행 기준)
@@ -448,16 +444,19 @@ public class OutbAllocService {
             }
         }
 
-        // 예약 복원도 자동할당과 같은 락 순서를 쓴다 — 해제와 할당이 동시에 돌아도 순서가 하나다
+        // 예약 복원도 할당과 같은 창구로 잠근다 — 해제와 할당이 동시에 돌아도 순서가 하나다
         Map<Long, List<OutbAlloc>> byInv = new LinkedHashMap<>();
         for (OutbAlloc alloc : allocs) {
             byInv.computeIfAbsent(alloc.getInv().getId(), key -> new ArrayList<>()).add(alloc);
         }
-        for (Long invId : byInv.keySet().stream().sorted().toList()) {
-            Inv target = invRepository.findByIdForUpdate(invId)
-                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 재고입니다: " + invId));
-            for (OutbAlloc alloc : byInv.get(invId)) {
-                target.release(alloc.getAlocQty());
+        Map<Long, Inv> locked = invStore.lockAllByIds(byInv.keySet());
+        for (Map.Entry<Long, List<OutbAlloc>> entry : byInv.entrySet()) {
+            Inv target = locked.get(entry.getKey());
+            if (target == null) {
+                throw new IllegalArgumentException("존재하지 않는 재고입니다: " + entry.getKey());
+            }
+            for (OutbAlloc alloc : entry.getValue()) {
+                invStore.release(target, alloc.getAlocQty());
             }
         }
 
