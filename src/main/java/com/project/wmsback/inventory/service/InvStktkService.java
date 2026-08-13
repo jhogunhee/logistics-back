@@ -30,10 +30,8 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 재고조사(실사). 조사 범위를 지정해 라인을 만들고(전산수량 스냅샷), 실사수량을 입력한 뒤
@@ -178,20 +176,19 @@ public class InvStktkService {
         InvStktk stktk = getForUpdate(stktkId);
         stktk.requireEditable();
 
-        Set<Long> lnIds = new LinkedHashSet<>();
-        for (InvStktkLnSaveRequest.Item item : request.getItems()) {
-            if (item.getLnId() == null) {
-                throw new IllegalArgumentException("저장할 라인이 지정되지 않았습니다.");
-            }
-            lnIds.add(item.getLnId());
-        }
         Map<Long, InvStktkLn> lnById = new HashMap<>();
-        for (InvStktkLn ln : invStktkLnRepository.findAllById(lnIds)) {
+        for (InvStktkLn ln : invStktkLnRepository.findByStktkIdOrderByInvKey(stktkId)) {
             lnById.put(ln.getId(), ln);
         }
 
         for (InvStktkLnSaveRequest.Item item : request.getItems()) {
-            InvStktkLn ln = line(lnById, stktkId, item.getLnId());
+            if (item.getLnId() == null) {
+                throw new IllegalArgumentException("저장할 라인이 지정되지 않았습니다.");
+            }
+            InvStktkLn ln = lnById.get(item.getLnId());
+            if (ln == null) {
+                throw new IllegalArgumentException("이 조사의 라인이 아닙니다: " + item.getLnId());
+            }
             if (item.getStktkQty() != null && item.getStktkQty() < 0) {
                 throw new IllegalArgumentException("실사수량은 0 이상이어야 합니다: " + ln.getProd().getProdCd()
                         + " @ " + ln.getLoc().getLocCd());
@@ -301,18 +298,6 @@ public class InvStktkService {
     private InvStktk getForUpdate(Long stktkId) {
         return invStktkRepository.findByIdForUpdate(stktkId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 재고조사입니다: " + stktkId));
-    }
-
-    /** 라인 소속 검증 — 다른 조사의 라인 ID를 넘겨 남의 조사를 고치는 것을 막는다 */
-    private InvStktkLn line(Map<Long, InvStktkLn> lnById, Long stktkId, Long lnId) {
-        InvStktkLn ln = lnById.get(lnId);
-        if (ln == null) {
-            throw new IllegalArgumentException("존재하지 않는 조사 라인입니다: " + lnId);
-        }
-        if (!ln.getInvStktk().getId().equals(stktkId)) {
-            throw new IllegalArgumentException("다른 조사의 라인입니다: " + lnId);
-        }
-        return ln;
     }
 
     /** 차이가 있는 라인은 사유가 필수다 (차이 0 라인은 조정 자체가 없으므로 사유도 없다) */

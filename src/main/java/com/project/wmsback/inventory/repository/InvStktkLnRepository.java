@@ -10,8 +10,8 @@ import java.util.List;
 public interface InvStktkLnRepository extends JpaRepository<InvStktkLn, Long>, InvStktkLnRepositoryCustom {
 
     /**
-     * 확정이 순회할 라인 목록. 재고 키 오름차순으로 고정해 여러 조사가 동시에 확정돼도
-     * 재고 행 락을 같은 순서로 잡게 한다 (교착 방지).
+     * 조사 하나의 라인 전체 — 저장·재스냅샷·확정이 공유하는 로더. 재고 키 오름차순은 처리·표시
+     * 순서를 결정적으로 만들기 위한 것이다 (락 순서는 InvStore.lockAll이 내부에서 다시 정렬한다).
      */
     @Query("select l from InvStktkLn l where l.invStktk.id = :stktkId "
             + "order by l.prod.id asc, l.loc.id asc, l.lot.id asc")
