@@ -160,7 +160,7 @@ public class LotAttrChngService {
                     .orElse(null);
             if (conflictLotId != null && !conflictLotId.equals(lot.getId())) {
                 throw new IllegalArgumentException("같은 배치(상품+입고일자+제조일자)의 Lot이 이미 있습니다"
-                        + " — 두 Lot을 합치는 것은 정정이 아니라 로트 병합이라 지원하지 않습니다"
+                        + " — 그 Lot으로 합치려면 재고 로트변경에서 이 Lot의 각 재고 행을 전량 변경하십시오"
                         + " (제조일자 " + mfgDt + "): " + lot.getLotNo());
             }
         }

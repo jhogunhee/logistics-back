@@ -185,6 +185,12 @@
   <td><code>GET·PUT /inventory/lot-attrs</code></td>
 </tr>
 <tr>
+  <td class="name">재고 로트변경</td>
+  <td><strong>수량을 지정한 Lot 속성정정</strong> — 원 Lot의 재고 행(로케이션 지정)에서 N개를 빼 <strong>(상품+입고일자+새 제조일자) 배치의 Lot</strong>으로 넣는다(그 키의 Lot이 있으면 병합, 없으면 채번=분할 — 배치 키 충돌이 구조적으로 없다). 재고 실체는 <code>inv_hist</code>의 <code>ADJUST</code> 2행(<code>rfn_doc_typ=LOT_CHNG</code>, 참조번호=로트변경 번호), 원장은 <code>inv_lot_chng</code>(자기완결 로그). 대상은 <strong>보관 로케이션 + 유통기한 관리 상품 + 가용수량 이내</strong>(스테이징은 적치 잔량 집계가 깨져 제외 — 검수 취소 후 재검수가 그 경로). 새 Lot 번호가 발생해 현품 라벨 재출력 대상. (전량·번호 유지·재고 무이동 정정은 <strong>재고 속성변경</strong> — 두 화면이 거부 메시지로 서로를 안내한다)</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>GET /inventory/lot-chngs/targets</code> · <code>POST·GET /inventory/lot-chngs</code></td>
+</tr>
+<tr>
   <td class="name">재고 보류</td>
   <td>특정 재고(상품+로케이션+Lot)의 <strong>일부/전량을 수량 단위로 보류해 가용재고에서 제외</strong>(<code>inv.hld_qty</code> — 재고상태 컬럼 아님). 등록/해제 각각 사유(공통코드, 기타 시 텍스트) 기록, 부분 해제 허용, 실적 2테이블 append-only 보존. 유통기한 만료 Lot 자동 보류(배치)는 백로그</td>
   <td class="st"><span class="badge done">구현</span></td>
@@ -366,6 +372,7 @@
 <tr><td class="name" rowspan="6">재고</td><td>현재고 조회</td><td><code>/stock/status</code></td><td><code>pages/stock/StockStatus.jsx</code> — 모니터링 그룹에서 이동</td></tr>
 <tr><td>재고 이력 조회</td><td><code>/stock/history</code></td><td><code>pages/stock/InvHistory.jsx</code></td></tr>
 <tr><td>재고 속성변경</td><td><code>/stock/attribute</code></td><td><code>pages/stock/StockAttr.jsx</code> — 탭 2개(속성 정정 <code>StockAttrChange.jsx</code> / 변경 이력 <code>StockAttrChngHist.jsx</code>)</td></tr>
+<tr><td>재고 로트변경</td><td><code>/stock/lot-change</code></td><td><code>pages/stock/StockLotChng.jsx</code> — 탭 2개(로트변경 <code>StockLotChngExec.jsx</code> / 변경 실적 <code>StockLotChngAcrst.jsx</code>)</td></tr>
 <tr><td>재고 보류</td><td><code>/stock/hold</code></td><td><code>pages/stock/StockHold.jsx</code> — 탭 3개(보류등록 <code>StockHoldRegister.jsx</code> / 보류 관리 <code>StockHoldList.jsx</code> / 실적 조회 <code>StockHoldAcrst.jsx</code>)</td></tr>
 <tr><td>재고 이동</td><td><code>/stock/move</code></td><td><code>pages/stock/StockMove.jsx</code> — 탭 2개(이동지시등록 <code>StockMoveOrder.jsx</code> / 이동지시 관리 <code>StockMoveTaskList.jsx</code>)</td></tr>
 <tr><td>재고조사</td><td><code>/stock/count</code></td><td><code>pages/stock/StockCount.jsx</code> — 탭 2개(조사 목록 <code>StockCountList.jsx</code> / 실사 입력·확정 <code>StockCountDetail.jsx</code>)</td></tr>
