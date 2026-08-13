@@ -75,9 +75,13 @@ public class IbOrder extends BaseEntity {
     @Column(name = "odr_dvsn", nullable = false, length = 10, updatable = false)
     private String odrDvsn;
 
-    /** 입고 마감(close) 시각. 마감은 미입고 잔량을 확정하는 명시적 액션 */
-    @Column(name = "clos_dt")
-    private LocalDateTime closDt;
+    /**
+     * 입고확정 시각 — 미입고 잔량이 확정되어 「얼마나 왔나」가 더는 바뀌지 않는 시점.
+     * 지금은 명시적 close()와 전량 검수 자동 전이 양쪽이 채운다(RECEIVED 진입 시각과 같다).
+     * {@code oms_ib_order.cfm_dt}(발주 확정 = ASN 생성 시각)와는 다른 사건이다.
+     */
+    @Column(name = "cfm_dt")
+    private LocalDateTime cfmDt;
 
     @OneToMany(mappedBy = "ibOrder", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<IbLine> lines = new ArrayList<>();
@@ -143,7 +147,7 @@ public class IbOrder extends BaseEntity {
 
     private void transitionToReceived() {
         this.status = IbStatus.RECEIVED;
-        this.closDt = LocalDateTime.now();
+        this.cfmDt = LocalDateTime.now();
         checkAndComplete(); // 이미 전량 적치돼 있었다면(적치는 마감과 무관하게 가능) 바로 COMPLETED
     }
 
@@ -171,7 +175,7 @@ public class IbOrder extends BaseEntity {
     public void reopenIfNoLongerFullyReceived() {
         if (status == IbStatus.RECEIVED && !allLinesFullyReceived()) {
             this.status = IbStatus.RECEIVING;
-            this.closDt = null;
+            this.cfmDt = null;
         }
     }
 }

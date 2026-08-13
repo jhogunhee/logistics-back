@@ -571,7 +571,7 @@ CREATE TABLE ib_order (
     vendor_id   BIGINT          NOT NULL,
     expct_de    DATE            NOT NULL,
     odr_dvsn    VARCHAR(10)     DEFAULT 'NRML' NOT NULL,
-    clos_dt   TIMESTAMP,
+    cfm_dt      TIMESTAMP,
     created_at  TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
     created_by  VARCHAR(30)     DEFAULT 'admin' NOT NULL,
     updated_at  TIMESTAMP,
@@ -587,7 +587,7 @@ COMMENT ON COLUMN ib_order.status    IS 'SCHEDULED 예정 / RECEIVING 입고중 
 COMMENT ON COLUMN ib_order.vendor_id IS '납품 벤더 (vendor 참조). 주문에서 그대로 이어받는다 — 확정 시점의 스냅샷이 아니라 같은 마스터를 가리킨다';
 COMMENT ON COLUMN ib_order.expct_de  IS '입고 예정일';
 COMMENT ON COLUMN ib_order.odr_dvsn  IS '발주구분 (공통코드 ODR_DVSN: NRML/URGT/RTNGS). 확정 시 oms_ib_order.odr_dvsn에서 복사 — wmsback이 omsback을 import할 수 없어 조회 대신 복사. 적치 전략 선택의 기준';
-COMMENT ON COLUMN ib_order.clos_dt IS '입고 마감(close) 시각. 마감은 미입고 잔량을 확정하는 명시적 액션';
+COMMENT ON COLUMN ib_order.cfm_dt   IS '입고확정 시각 — 미입고 잔량이 확정되어 「얼마나 왔나」가 더는 바뀌지 않는 시점. 지금은 명시적 마감과 전량 검수 자동 전이 양쪽이 채운다(RECEIVED 진입 시각과 같다). oms_ib_order.cfm_dt(발주 확정 = ASN 생성)와는 다른 사건이다';
 
 -- 입고 라인. 부분입고/검수/적치 진행률을 수량으로만 표현한다.
 CREATE TABLE ib_line (
