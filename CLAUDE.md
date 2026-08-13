@@ -93,7 +93,7 @@ date→de(일자)  datetime→dt(일시)  cancel→cncl  close→clos  complete�
 unit of measure→uom(계량단위)  each→ea(낱개)  weight→wgt(중량)
 ```
 
-**사전의 주인은 `docs/naming-dictionary.md`(236단어) 하나이고, `schema.sql` 머리말의 것은 그 발췌다.** 예전에 두 벌이 충돌하던 항목(`ptwy` vs `PTAWY`, `alloc` vs `ALOC` 등)은 `docs/migration-catchup-to-schema.sql`의 컬럼 개명 루프가 사전 쪽으로 통일했다. 새 이름은 반드시 `docs/naming-dictionary.md`에서 단어를 찾아 조합하고, **사전에 없는 단어는 사전에 먼저 추가한 뒤 쓴다.**
+**사전의 주인은 `docs/naming-dictionary.md`(237단어) 하나이고, `schema.sql` 머리말의 것은 그 발췌다.** 예전에 두 벌이 충돌하던 항목(`ptwy` vs `PTAWY`, `alloc` vs `ALOC` 등)은 `docs/migration-catchup-to-schema.sql`의 컬럼 개명 루프가 사전 쪽으로 통일했다. 새 이름은 반드시 `docs/naming-dictionary.md`에서 단어를 찾아 조합하고, **사전에 없는 단어는 사전에 먼저 추가한 뒤 쓴다.**
 
 의도적으로 사전을 따르지 않는 예외가 셋 있다. 바꾸지 말 것:
 
@@ -122,6 +122,6 @@ unit of measure→uom(계량단위)  each→ea(낱개)  weight→wgt(중량)
 
 ## 명명규칙
 
-`docs/naming-dictionary.md`의 표준 단어 사전(236개)을 기준으로 변수명·필드명을 생성한다. 이름의 재료는 **약어**이고(`예정 EXPCT` + `수량 QTY` → `expctQty` / `expct_qty`), 사전에 없는 단어는 사전에 먼저 추가한 뒤 쓴다.
+`docs/naming-dictionary.md`의 표준 단어 사전(237개)을 기준으로 변수명·필드명을 생성한다. 이름의 재료는 **약어**이고(`예정 EXPCT` + `수량 QTY` → `expctQty` / `expct_qty`), 사전에 없는 단어는 사전에 먼저 추가한 뒤 쓴다.
 
 **두 벌이던 약어 사전은 통일됐다.** 예전에 `적치`(`ptwy` vs `PTAWY`)·`할당`(`alloc` vs `ALOC`) 등에서 충돌하던 것을 `docs/migration-catchup-to-schema.sql`의 컬럼 개명 루프가 사전 쪽으로 개명했다. 남은 예외 셋(`status` · `code_cd`/`code_nm` · 감사 컬럼)은 위 「네이밍」에 이유와 함께 적어뒀고, **이 셋은 사전을 따르지 않는 것이 결정된 사항이다.**

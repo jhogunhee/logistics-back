@@ -131,6 +131,30 @@ public class InvStore {
         return toInv;
     }
 
+    /**
+     * 재고 로트변경 — 같은 로케이션에서 Lot만 바뀌는 장부 이동. 출발 Lot 감소 + 도착 Lot 증가(없으면 생성)
+     * + 이력 2행(ADJUST: 원 Lot −qty / 새 Lot +qty) + 출발 빈 행 정리. 실물은 움직이지 않으므로
+     * MOVE가 아니고 from/to loc도 비운다 — 유형 구분은 이력의 rfn_doc_typ(LOT_CHNG)이 담당한다.
+     *
+     * @return 도착 Lot 스냅샷
+     */
+    public Inv changeLot(Inv fromInv, Lot toLot, long qty, InvDocRef ref) {
+        Prod prod = fromInv.getProd();
+        Loc loc = fromInv.getLoc();
+        Lot fromLot = fromInv.getLot();
+
+        // 도착 조회를 출발 감소보다 먼저 한다 — move()와 같은 함정 (조회의 auto-flush가
+        // ck_inv_qty를 만족하지 못하는 중간 상태를 DB에 닿게 할 수 있다)
+        Inv toInv = findOrCreate(prod, loc, toLot);
+        fromInv.decreaseOnHand(qty);
+        toInv.increaseOnHand(qty);
+
+        saveHist(TxTyp.ADJUST, prod, loc, fromLot, -qty, ref, null, null);
+        saveHist(TxTyp.ADJUST, prod, loc, toLot, qty, ref, null, null);
+        purgeIfEmpty(fromInv);
+        return toInv;
+    }
+
     /** 예약 (출고 할당·이동지시 등록). 물리 이동이 아니므로 이력에 남기지 않는다 */
     public void reserve(Inv inv, long qty) {
         inv.reserve(qty);

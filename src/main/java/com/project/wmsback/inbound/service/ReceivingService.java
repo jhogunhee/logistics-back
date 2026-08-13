@@ -19,7 +19,7 @@ import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.Lot;
 import com.project.mdm.prod.entity.Prod;
 import com.project.wmsback.warehouse.repository.LocRepository;
-import com.project.wmsback.warehouse.repository.LotRepository;
+import com.project.wmsback.warehouse.service.LotIssuer;
 import com.project.mdm.prod.repository.ProdRepository;
 import com.project.wmsback.strategy.inspection.service.InspectionService;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +27,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -45,12 +44,9 @@ public class ReceivingService {
     /** 검수 합격분이 들어가는 입고 스테이징. 온도대 검증은 여기선 하지 않는다 (적치 때 수행) */
     private static final String STAGING_LOC_CD = "RCV-STAGE";
 
-    /** Lot 번호의 입고일자 조각 형식 — 채번 근거는 nextLotNo 참고 */
-    private static final DateTimeFormatter LOT_NO_DT_FMT = DateTimeFormatter.ofPattern("yyMMdd");
-
     private final IbOrderRepository ibOrderRepository;
     private final IbLineRepository ibLineRepository;
-    private final LotRepository lotRepository;
+    private final LotIssuer lotIssuer;
     private final LocRepository locRepository;
     private final InvHistRepository invHistRepository;
     private final InvStore invStore;
@@ -150,22 +146,11 @@ public class ReceivingService {
         // 입고일자: 소급 등록 대비 라인별 입력 (비우면 오늘 = 실시간 등록)
         LocalDate receiptDt = line.getReceiptDt() != null ? line.getReceiptDt() : LocalDate.now();
 
-        // 검수분: Lot 확보 → 스테이징 스냅샷 증가 → 재고 이력. 셋이 항상 한 트랜잭션
-        Lot lot = findOrCreateLot(prod, line.getMfgDt(), receiptDt);
+        // 검수분: Lot 확보 → 스테이징 스냅샷 증가 → 재고 이력. 셋이 항상 한 트랜잭션.
+        // 배치 재사용·채번은 LotIssuer가 한다 — receive()가 미리 잡아 둔 상품 로우 락 안이다
+        Lot lot = lotIssuer.findOrCreate(prod, receiptDt, validateMfgDt(prod, line.getMfgDt(), receiptDt));
         invStore.increase(prod, staging, lot, inspect, TxTyp.RECEIVE,
                 InvDocRef.ofIbLine(RefDocTyp.INBOUND, order.getIbNo(), ibLine.getId()));
-    }
-
-    /**
-     * 같은 배치(상품+입고일자+제조일자)는 같은 Lot을 재사용한다
-     * (증분 검수로 같은 라인을 여러 번 나눠 검수해도 Lot이 쪼개지지 않도록).
-     * 유통기한 미관리 상품은 제조일자가 항상 null이라 사실상 상품+입고일자로만 구분된다.
-     * 동시 검수의 "재사용 조회 → 채번 → 저장"이 겹치지 않는 것은 receive()가 미리 잡아 둔 상품 로우 락 덕이다.
-     */
-    private Lot findOrCreateLot(Prod prod, LocalDate mfgDt, LocalDate receiptDt) {
-        LocalDate effectiveMfgDt = validateMfgDt(prod, mfgDt, receiptDt);
-        return lotRepository.findByProdIdAndReceiptDtAndMfgDt(prod.getId(), receiptDt, effectiveMfgDt)
-                .orElseGet(() -> createLot(prod, receiptDt, effectiveMfgDt));
     }
 
     /**
@@ -183,33 +168,6 @@ public class ReceivingService {
             throw new IllegalArgumentException("제조일자가 입고일자보다 미래일 수 없습니다: " + prod.getProdCd());
         }
         return mfgDt;
-    }
-
-    /** 상품 로우 락(receive의 lockProds) 안에서만 부를 것 — 채번(nextLotNo)이 그 락에 얹혀 직렬화된다 */
-    private Lot createLot(Prod prod, LocalDate receiptDt, LocalDate mfgDt) {
-        LocalDate expiryDt = mfgDt != null ? mfgDt.plusDays(prod.getShelfLifeDays()) : null;
-        return lotRepository.save(Lot.builder()
-                .prod(prod)
-                .lotNo(nextLotNo(prod, receiptDt))
-                .receiptDt(receiptDt)
-                .mfgDt(mfgDt)
-                .expiryDt(expiryDt)
-                .build());
-    }
-
-    /**
-     * Lot 번호 채번: LOT-{입고일자}-{순번}. 순번은 상품별·입고일자별로 1부터 —
-     * "이 상품이 그날 몇 번째 배치인가"라는 뜻이고, 유일성 단위도 uq_lot(prod_id, lot_no)라 이걸로 충분하다.
-     * <p>
-     * NbrService를 쓰지 않는 이유: 채번 규칙의 리셋 단위는 날짜뿐이라 상품별 리셋을 표현할 수 없고
-     * (순번이 그날 창고 전체 통번이 되어 위 의미가 사라진다), nbr_seq 카운터 행이 상품이 달라도
-     * 부딪히는 전역 직렬화 지점이 된다. 여기 채번은 receive가 잡아 둔 상품 로우 락에 얹혀
-     * 상품 단위로만 직렬화된다. 건수+1이 안전한 것은 Lot이 삭제되지 않아 단조 증가이기 때문이다 —
-     * 삭제가 생기면 번호가 재사용되니 그때는 기존 번호의 최대 순번 파싱으로 바꿀 것(uq_lot이 최후 방어).
-     */
-    private String nextLotNo(Prod prod, LocalDate receiptDt) {
-        long seq = lotRepository.countByProdIdAndReceiptDt(prod.getId(), receiptDt) + 1;
-        return String.format("LOT-%s-%03d", receiptDt.format(LOT_NO_DT_FMT), seq);
     }
 
     /** 입고 마감 — 상태 검증/전이는 엔티티가 한다. 잔량(예정-검수)은 미입고로 확정 */
