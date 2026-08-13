@@ -1,6 +1,5 @@
 package com.project.wmsback.inventory.repository;
 
-import com.project.wmsback.inventory.entity.InvMovStatus;
 import com.project.wmsback.inventory.entity.InvMovTask;
 import com.project.wmsback.inventory.service.InvMovLockKey;
 import jakarta.persistence.LockModeType;
@@ -20,8 +19,9 @@ public interface InvMovTaskRepository extends JpaRepository<InvMovTask, Long>, I
      * 적재가능수량 = max_qty − 현재고 − 이 값. 지시가 TO 용량을 컬럼 선점 없이 파생식으로 잡아두는 지점이다.
      */
     @Query("select coalesce(sum(t.drctQty - t.cmplQty), 0) from InvMovTask t "
-            + "where t.toLoc.id = :locId and t.status = :status")
-    long sumOpenInboundQty(@Param("locId") Long locId, @Param("status") InvMovStatus status);
+            + "where t.toLoc.id = :locId "
+            + "and t.status = com.project.wmsback.inventory.entity.InvMovStatus.DIRECTED")
+    long sumOpenInboundQty(@Param("locId") Long locId);
 
     /**
      * 확정이 잔여수량을 검증·누적하기 전에 거는 비관적 락 — 같은 지시의 동시 확정 직렬화 지점.

@@ -105,9 +105,9 @@ class InvMovServiceTest {
         when(invRepository.findLockKeysByIdIn(any()))
                 .thenReturn(List.of(new InvLockKey(100L, 1L, 10L, 5L)));
         when(invRepository.findByKeyForUpdate(1L, 10L, 5L)).thenReturn(Optional.of(fromInv));
-        when(locRepository.findById(20L)).thenReturn(Optional.of(toLoc));
+        when(locRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(toLoc));
         when(invRepository.sumOnHandQtyByLocId(20L)).thenReturn(0L);
-        when(invMovTaskRepository.sumOpenInboundQty(20L, InvMovStatus.DIRECTED)).thenReturn(0L);
+        when(invMovTaskRepository.sumOpenInboundQty(20L)).thenReturn(0L);
         when(nbrService.issue(anyString(), any(LocalDate.class))).thenReturn("MV-20260803-001");
 
         // 확정의 선락 경로: 지시 id → FROM·TO 키 선조회 → 키 락 (InvStore.lockAll)
@@ -201,7 +201,7 @@ class InvMovServiceTest {
     @DisplayName("등록: 도착지 적재가능수량(max_qty - 현재고 - 미완료 유입 잔량) 초과 거부")
     void register_rejectsOverCapacity() {
         when(invRepository.sumOnHandQtyByLocId(20L)).thenReturn(60L);
-        when(invMovTaskRepository.sumOpenInboundQty(20L, InvMovStatus.DIRECTED)).thenReturn(35L); // 적재가능 5
+        when(invMovTaskRepository.sumOpenInboundQty(20L)).thenReturn(35L); // 적재가능 5
         assertThrows(IllegalArgumentException.class, () -> invMovService.register(request(100L, 20L, 6L)));
     }
 

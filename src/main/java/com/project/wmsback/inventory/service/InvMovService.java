@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * 재고 이동지시 (보관 ↔ 보관 2단계: 지시=예약 → 확정=실물 MOVE).
@@ -60,9 +61,9 @@ public class InvMovService {
     /**
      * 이동지시 등록 (예약). 전체가 한 트랜잭션 — 한 건이라도 검증에 걸리면 전량 롤백.
      *
-     * FROM 재고 행을 전부 선락(InvStore가 키 오름차순으로 잠근다)한 뒤 건별 처리로 들어간다 —
-     * 건별로 「재고 락 → 채번」을 반복하면 채번 카운터 행 락이 재고 행 락 사이에 끼어
-     * 재고가 겹치는 두 요청이 카운터와 재고를 나눠 쥐고 맞물린다 (보류 등록과 같은 2단계).
+     * 「도착 loc 선락 → FROM 재고 전량 선락 → 건별 검증·채번」의 3단계다. 재고 선락은 보류 등록과
+     * 같은 이유 — 건별로 「재고 락 → 채번」을 반복하면 채번 카운터 행 락이 재고 행 락 사이에 끼어
+     * 재고가 겹치는 두 요청이 카운터와 재고를 나눠 쥐고 맞물린다. 도착 loc 선락의 이유는 아래 주석 참고.
      *
      * @return 발급된 이동지시 번호 목록 (요청 순서)
      */
@@ -72,11 +73,25 @@ public class InvMovService {
             throw new IllegalArgumentException("이동지시 대상이 없습니다.");
         }
         Set<Long> invIds = new LinkedHashSet<>();
+        Set<Long> toLocIds = new TreeSet<>();
         for (InvMovRegisterRequest.Item item : request.getItems()) {
             if (item.getInvId() == null) {
                 throw new IllegalArgumentException("이동할 재고가 지정되지 않았습니다.");
             }
+            if (item.getToLocId() == null) {
+                throw new IllegalArgumentException("이동할 도착 로케이션이 지정되지 않았습니다.");
+            }
             invIds.add(item.getInvId());
+            toLocIds.add(item.getToLocId());
+        }
+
+        // 도착 로케이션 선락 (id 오름차순, 재고 행보다 먼저 — docs/design.md 「락 순서」) —
+        // 적재가능수량 검증의 직렬화 지점. 검증이 락 없는 집계 읽기라, 잠그지 않으면 같은 도착지로
+        // 향하는 두 등록이 서로의 유입을 못 본 채 둘 다 통과해 합산 유입이 max_qty를 넘긴다
+        Map<Long, Loc> lockedToLocs = new HashMap<>();
+        for (Long toLocId : toLocIds) {
+            lockedToLocs.put(toLocId, locRepository.findByIdForUpdate(toLocId)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 로케이션입니다: " + toLocId)));
         }
 
         // FROM 재고 행 선락 — 예약(aloc) 증감의 직렬화 지점 (출고 할당이 같은 행을 잡는 지점과 동일)
@@ -88,12 +103,12 @@ public class InvMovService {
             if (fromInv == null) {
                 throw new IllegalArgumentException("존재하지 않는 재고입니다: " + item.getInvId());
             }
-            movNos.add(registerOne(item, fromInv));
+            movNos.add(registerOne(item, fromInv, lockedToLocs.get(item.getToLocId())));
         }
         return movNos;
     }
 
-    private String registerOne(InvMovRegisterRequest.Item item, Inv fromInv) {
+    private String registerOne(InvMovRegisterRequest.Item item, Inv fromInv, Loc to) {
         if (item.getQty() == null || item.getQty() < 1) {
             throw new IllegalArgumentException("이동수량은 1 이상이어야 합니다.");
         }
@@ -104,8 +119,6 @@ public class InvMovService {
         if (from.getLocTyp() != LocTyp.STORAGE) {
             throw new IllegalArgumentException("보관 로케이션의 재고만 이동할 수 있습니다 (스테이징 재고는 적치·출고확정의 소관): " + from.getLocCd());
         }
-        Loc to = locRepository.findById(item.getToLocId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 로케이션입니다: " + item.getToLocId()));
         if (to.getId().equals(from.getId())) {
             throw new IllegalArgumentException("출발지와 도착지가 같습니다: " + from.getLocCd());
         }
@@ -126,7 +139,7 @@ public class InvMovService {
         if (to.getMaxQty() != null) {
             long capacity = to.getMaxQty()
                     - invRepository.sumOnHandQtyByLocId(to.getId())
-                    - invMovTaskRepository.sumOpenInboundQty(to.getId(), InvMovStatus.DIRECTED);
+                    - invMovTaskRepository.sumOpenInboundQty(to.getId());
             if (item.getQty() > capacity) {
                 throw new IllegalArgumentException("도착 로케이션의 적재가능수량을 초과했습니다 (적재가능 " + Math.max(capacity, 0)
                         + "): " + to.getLocCd());
