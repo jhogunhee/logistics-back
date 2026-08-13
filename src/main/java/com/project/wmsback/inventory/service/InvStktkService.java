@@ -1,7 +1,5 @@
 package com.project.wmsback.inventory.service;
 
-import com.project.mdm.code.entity.CodeDetailId;
-import com.project.mdm.code.repository.CodeDetailRepository;
 import com.project.mdm.nbr.service.NbrService;
 import com.project.mdm.prod.entity.Prod;
 import com.project.mdm.prod.repository.ProdRepository;
@@ -56,7 +54,7 @@ public class InvStktkService {
 
     private static final String STKTK_NO_RULE_CD = "STKTK_NO";
     private static final String ADJ_RSN_GRP_CD = "ADJ_RSN";
-    private static final String ETC_RSN_CD = "ETC";
+    private static final String ADJ_RSN_LABEL = "조정사유";
 
     private final InvRepository invRepository;
     private final InvStore invStore;
@@ -65,7 +63,7 @@ public class InvStktkService {
     private final LocRepository locRepository;
     private final LotRepository lotRepository;
     private final ProdRepository prodRepository;
-    private final CodeDetailRepository codeDetailRepository;
+    private final RsnValidator rsnValidator;
     private final NbrService nbrService;
 
     public List<InvStktkResponse> list(InvStktkSearchCond cond) {
@@ -181,7 +179,8 @@ public class InvStktkService {
                         + " @ " + ln.getLoc().getLocCd());
             }
             String rsnCd = StringUtils.hasText(item.getRsnCd()) ? item.getRsnCd() : null;
-            String rsnDscr = rsnCd == null ? null : validateRsn(rsnCd, item.getRsnDscr());
+            String rsnDscr = rsnCd == null ? null
+                    : rsnValidator.validate(ADJ_RSN_GRP_CD, ADJ_RSN_LABEL, rsnCd, item.getRsnDscr());
             ln.count(item.getStktkQty(), rsnCd, rsnDscr);
         }
     }
@@ -294,23 +293,6 @@ public class InvStktkService {
             throw new IllegalArgumentException("차이가 있는 라인은 조정사유가 필요합니다 (전산 " + ln.getCfmSysQty()
                     + " / 실사 " + ln.getStktkQty() + "): " + ln.getProd().getProdCd() + " @ " + ln.getLoc().getLocCd());
         }
-        validateRsn(ln.getRsnCd(), ln.getRsnDscr());
-    }
-
-    /**
-     * 조정사유 검증 — ADJ_RSN 그룹에 존재해야 하고, ETC(기타)일 때만 텍스트 필수·그 외에는 무시(null 저장).
-     * @return 저장할 사유 텍스트
-     */
-    private String validateRsn(String rsnCd, String rsnDscr) {
-        if (!codeDetailRepository.existsById(new CodeDetailId(ADJ_RSN_GRP_CD, rsnCd))) {
-            throw new IllegalArgumentException("존재하지 않는 조정사유 코드입니다: " + rsnCd);
-        }
-        if (ETC_RSN_CD.equals(rsnCd)) {
-            if (!StringUtils.hasText(rsnDscr)) {
-                throw new IllegalArgumentException("조정사유가 기타일 때는 사유 내용을 입력해야 합니다.");
-            }
-            return rsnDscr.trim();
-        }
-        return null;
+        rsnValidator.validate(ADJ_RSN_GRP_CD, ADJ_RSN_LABEL, ln.getRsnCd(), ln.getRsnDscr());
     }
 }

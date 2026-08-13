@@ -1,7 +1,5 @@
 package com.project.wmsback.inventory.service;
 
-import com.project.mdm.code.entity.CodeDetailId;
-import com.project.mdm.code.repository.CodeDetailRepository;
 import com.project.mdm.prod.entity.Prod;
 import com.project.mdm.prod.repository.ProdRepository;
 import com.project.wmsback.inventory.dto.LotAttrChngRequest;
@@ -17,7 +15,6 @@ import com.project.wmsback.warehouse.repository.LotRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.util.Comparator;
@@ -45,13 +42,12 @@ import java.util.Objects;
 public class LotAttrChngService {
 
     private static final String LOT_ATTR_RSN_GRP_CD = "LOT_ATTR_RSN";
-    private static final String ETC_RSN_CD = "ETC";
 
     private final LotRepository lotRepository;
     private final ProdRepository prodRepository;
     private final LotAttrChngRepository lotAttrChngRepository;
     private final LotAttrQueryRepository lotAttrQueryRepository;
-    private final CodeDetailRepository codeDetailRepository;
+    private final RsnValidator rsnValidator;
 
     /** 정정 대상 Lot 목록 (영향 범위 = 재고 행 수·보유 합계 포함) */
     public List<LotAttrTargetResponse> listTargets(LotAttrTargetSearchCond cond) {
@@ -109,7 +105,7 @@ public class LotAttrChngService {
      */
     private void changeOne(Long prodId, LotAttrChngRequest.Item item) {
         Long lotId = item.getLotId();
-        String rsnDscr = validateRsn(item.getRsnCd(), item.getRsnDscr());
+        String rsnDscr = rsnValidator.validate(LOT_ATTR_RSN_GRP_CD, "정정사유", item.getRsnCd(), item.getRsnDscr());
 
         // 상품 로우 락 → Lot 로우 락. 검수(findOrCreateLot)와 같은 순서라 교착이 없고,
         // 「정정이 배치 키를 X로 바꾸는 사이 검수가 X 배치를 새로 만드는」 경합이 직렬화된다.
@@ -166,26 +162,5 @@ public class LotAttrChngService {
                 .bfrExpiryDt(bfrExpiryDt).aftExpiryDt(expiryDt)
                 .rsnCd(item.getRsnCd()).rsnDscr(rsnDscr)
                 .build());
-    }
-
-    /**
-     * 사유코드 검증 — 그룹에 존재해야 하고, ETC(기타)일 때만 텍스트 필수·그 외에는 무시(null 저장).
-     * 보류·재고조사와 같은 규칙이다.
-     * @return 저장할 사유 텍스트
-     */
-    private String validateRsn(String rsnCd, String rsnDscr) {
-        if (!StringUtils.hasText(rsnCd)) {
-            throw new IllegalArgumentException("정정사유를 선택해야 합니다.");
-        }
-        if (!codeDetailRepository.existsById(new CodeDetailId(LOT_ATTR_RSN_GRP_CD, rsnCd))) {
-            throw new IllegalArgumentException("존재하지 않는 정정사유 코드입니다: " + rsnCd);
-        }
-        if (ETC_RSN_CD.equals(rsnCd)) {
-            if (!StringUtils.hasText(rsnDscr)) {
-                throw new IllegalArgumentException("정정사유가 기타일 때는 사유 내용을 입력해야 합니다.");
-            }
-            return rsnDscr.trim();
-        }
-        return null;
     }
 }

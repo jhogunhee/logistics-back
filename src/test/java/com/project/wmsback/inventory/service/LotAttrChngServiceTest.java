@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -60,13 +59,16 @@ class LotAttrChngServiceTest {
     @Mock LotAttrQueryRepository lotAttrQueryRepository;
     @Mock CodeDetailRepository codeDetailRepository;
 
-    @InjectMocks LotAttrChngService lotAttrChngService;
+    private LotAttrChngService lotAttrChngService;
 
     private Prod prod;
     private Lot lot;
 
     @BeforeEach
     void setUp() {
+        lotAttrChngService = new LotAttrChngService(lotRepository, prodRepository, lotAttrChngRepository,
+                lotAttrQueryRepository, new RsnValidator(codeDetailRepository));
+
         prod = newProd(PROD_ID, "PROD-0001");
         // 제조 2026-07-20 / 입고 2026-07-22 / 유통기한 2026-08-19 인 Lot
         lot = newLot(LOT_ID, prod, "LOT-260722-001");
