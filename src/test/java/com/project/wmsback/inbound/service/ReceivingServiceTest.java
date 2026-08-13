@@ -16,6 +16,7 @@ import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.Lot;
 import com.project.wmsback.warehouse.repository.LocRepository;
 import com.project.wmsback.warehouse.repository.LotRepository;
+import com.project.wmsback.warehouse.service.LotIssuer;
 import com.project.mdm.prod.entity.Prod;
 import com.project.mdm.prod.repository.ProdRepository;
 import com.project.wmsback.strategy.inspection.service.InspectionService;
@@ -44,6 +45,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -79,8 +81,9 @@ class ReceivingServiceTest {
 
     @BeforeEach
     void setUp() {
-        receivingService = new ReceivingService(ibOrderRepository, ibLineRepository, lotRepository, locRepository,
-                invHistRepository, new InvStore(invRepository, invHistRepository),
+        // Lot 채번·재사용 포트도 실물을 쓴다 — 배치 재사용이 빗나갔을 때의 채번·저장이 검증 대상이기 때문
+        receivingService = new ReceivingService(ibOrderRepository, ibLineRepository, new LotIssuer(lotRepository),
+                locRepository, invHistRepository, new InvStore(invRepository, invHistRepository),
                 prodRepository, inspectionService);
 
         prod = mock(Prod.class);
@@ -111,8 +114,8 @@ class ReceivingServiceTest {
 
         lot = mock(Lot.class);
         when(lot.getId()).thenReturn(7L);
-        when(lotRepository.findByProdIdAndReceiptDtAndMfgDt(anyLong(), any(), any()))
-                .thenReturn(Optional.of(lot));
+        when(lotRepository.findAllByBatchKey(anyLong(), any(), any()))
+                .thenReturn(List.of(lot));
 
         inv = mock(Inv.class);
         when(invRepository.findByKeyForUpdate(1L, 5L, 7L)).thenReturn(Optional.of(inv));
@@ -215,7 +218,7 @@ class ReceivingServiceTest {
     @Test
     @DisplayName("재사용할 배치가 없으면 Lot을 만든다 — 번호는 상품별·입고일자별 건수+1 (미관리 상품은 두 날짜 null)")
     void receive_createsLotWithSequentialNo() {
-        when(lotRepository.findByProdIdAndReceiptDtAndMfgDt(anyLong(), any(), any())).thenReturn(Optional.empty());
+        when(lotRepository.findAllByBatchKey(anyLong(), any(), any())).thenReturn(List.of());
         when(lotRepository.countByProdIdAndReceiptDt(1L, LocalDate.of(2026, 8, 4))).thenReturn(2L);
         when(lotRepository.save(any(Lot.class))).thenAnswer(a -> a.getArgument(0));
         when(invRepository.findByKeyForUpdate(any(), any(), any())).thenReturn(Optional.of(inv));
@@ -231,10 +234,31 @@ class ReceivingServiceTest {
         assertNull(created.getExpiryDt());
     }
 
+    /**
+     * §6-1 파생 쿼리 null 버그의 회귀 방어 — 옛 findByProdIdAndReceiptDtAndMfgDt는 mfgDt에 null을
+     * 넘기면 mfg_dt = NULL 바인딩으로 어떤 행도 매치되지 않아 미관리 상품은 증분 검수마다 새 Lot이 생겼다.
+     * null 분기를 갖춘 findAllByBatchKey(LotIssuer.find)로 바꾼 뒤에는 2회차가 1회차의 Lot을 재사용한다.
+     */
+    @Test
+    @DisplayName("미관리 상품 증분 검수 2회 — null 배치 키도 재사용 조회에 매치되어 Lot이 1개만 생긴다")
+    void receive_reusesNullMfgDtBatchAcrossIncrementalReceipts() {
+        when(lotRepository.findAllByBatchKey(1L, LocalDate.of(2026, 8, 4), null))
+                .thenReturn(List.of())     // 1회차: 배치 없음 → 채번·생성
+                .thenReturn(List.of(lot)); // 2회차: 같은 null 배치 키 매치 → 재사용
+        when(lotRepository.countByProdIdAndReceiptDt(1L, LocalDate.of(2026, 8, 4))).thenReturn(0L);
+        when(lotRepository.save(any(Lot.class))).thenAnswer(a -> a.getArgument(0));
+        when(invRepository.findByKeyForUpdate(any(), any(), any())).thenReturn(Optional.of(inv));
+
+        receivingService.receive(10L, request(5));
+        receivingService.receive(10L, request(5));
+
+        verify(lotRepository, times(1)).save(any(Lot.class));
+    }
+
     @Test
     @DisplayName("유통기한 미관리 상품은 제조일자를 보내와도 버린다 — 배치 재사용 조회도 Lot도 null이다")
     void receive_discardsMfgDtForNonShelfLifeProd() {
-        when(lotRepository.findByProdIdAndReceiptDtAndMfgDt(anyLong(), any(), any())).thenReturn(Optional.empty());
+        when(lotRepository.findAllByBatchKey(anyLong(), any(), any())).thenReturn(List.of());
         when(lotRepository.countByProdIdAndReceiptDt(anyLong(), any())).thenReturn(0L);
         when(lotRepository.save(any(Lot.class))).thenAnswer(a -> a.getArgument(0));
         when(invRepository.findByKeyForUpdate(any(), any(), any())).thenReturn(Optional.of(inv));
@@ -244,7 +268,7 @@ class ReceivingServiceTest {
 
         receivingService.receive(10L, request(line));
 
-        verify(lotRepository).findByProdIdAndReceiptDtAndMfgDt(1L, LocalDate.of(2026, 8, 4), null);
+        verify(lotRepository).findAllByBatchKey(1L, LocalDate.of(2026, 8, 4), null);
         ArgumentCaptor<Lot> captor = ArgumentCaptor.forClass(Lot.class);
         verify(lotRepository).save(captor.capture());
         assertNull(captor.getValue().getMfgDt());
@@ -255,7 +279,7 @@ class ReceivingServiceTest {
     @DisplayName("유통기한 관리 상품의 Lot은 제조일자 + shelfLifeDays를 유통기한으로 계산해 저장한다")
     void receive_computesExpiryDtFromMfgDt() {
         when(prod.getShelfLifeDays()).thenReturn(10);
-        when(lotRepository.findByProdIdAndReceiptDtAndMfgDt(anyLong(), any(), any())).thenReturn(Optional.empty());
+        when(lotRepository.findAllByBatchKey(anyLong(), any(), any())).thenReturn(List.of());
         when(lotRepository.countByProdIdAndReceiptDt(anyLong(), any())).thenReturn(0L);
         when(lotRepository.save(any(Lot.class))).thenAnswer(a -> a.getArgument(0));
         when(invRepository.findByKeyForUpdate(any(), any(), any())).thenReturn(Optional.of(inv));
