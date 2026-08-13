@@ -1,7 +1,5 @@
 package com.project.wmsback.inventory.service;
 
-import com.project.mdm.code.entity.CodeDetailId;
-import com.project.mdm.code.repository.CodeDetailRepository;
 import com.project.mdm.nbr.service.NbrService;
 import com.project.mdm.prod.entity.Prod;
 import com.project.mdm.prod.repository.ProdRepository;
@@ -31,8 +29,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 재고조사(실사). 조사 범위를 지정해 라인을 만들고(전산수량 스냅샷), 실사수량을 입력한 뒤
@@ -56,7 +57,7 @@ public class InvStktkService {
 
     private static final String STKTK_NO_RULE_CD = "STKTK_NO";
     private static final String ADJ_RSN_GRP_CD = "ADJ_RSN";
-    private static final String ETC_RSN_CD = "ETC";
+    private static final String ADJ_RSN_LABEL = "조정사유";
 
     private final InvRepository invRepository;
     private final InvStore invStore;
@@ -65,7 +66,7 @@ public class InvStktkService {
     private final LocRepository locRepository;
     private final LotRepository lotRepository;
     private final ProdRepository prodRepository;
-    private final CodeDetailRepository codeDetailRepository;
+    private final RsnValidator rsnValidator;
     private final NbrService nbrService;
 
     public List<InvStktkResponse> list(InvStktkSearchCond cond) {
@@ -125,9 +126,12 @@ public class InvStktkService {
      */
     @Transactional
     public void addLine(Long stktkId, InvStktkLnAddRequest request) {
-        InvStktk stktk = get(stktkId);
+        InvStktk stktk = getForUpdate(stktkId);
         stktk.requireEditable();
 
+        if (request.getProdId() == null || request.getLocId() == null || request.getLotId() == null) {
+            throw new IllegalArgumentException("추가할 재고의 상품·로케이션·Lot을 모두 지정해야 합니다.");
+        }
         Prod prod = prodRepository.findById(request.getProdId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다: " + request.getProdId()));
         Loc loc = locRepository.findById(request.getLocId())
@@ -155,7 +159,7 @@ public class InvStktkService {
     /** 라인 삭제 (조사 대상에서 제외). 작성 중인 조사만 — 소속 검증은 컬렉션에서 찾는 것으로 겸한다 */
     @Transactional
     public void deleteLine(Long stktkId, Long lnId) {
-        InvStktk stktk = get(stktkId);
+        InvStktk stktk = getForUpdate(stktkId);
         stktk.requireEditable();
         if (!stktk.removeLine(lnId)) {
             throw new IllegalArgumentException("이 조사의 라인이 아닙니다: " + lnId);
@@ -171,17 +175,30 @@ public class InvStktkService {
         if (request.getItems() == null || request.getItems().isEmpty()) {
             throw new IllegalArgumentException("저장할 라인이 없습니다.");
         }
-        InvStktk stktk = get(stktkId);
+        InvStktk stktk = getForUpdate(stktkId);
         stktk.requireEditable();
 
+        Set<Long> lnIds = new LinkedHashSet<>();
         for (InvStktkLnSaveRequest.Item item : request.getItems()) {
-            InvStktkLn ln = line(stktkId, item.getLnId());
+            if (item.getLnId() == null) {
+                throw new IllegalArgumentException("저장할 라인이 지정되지 않았습니다.");
+            }
+            lnIds.add(item.getLnId());
+        }
+        Map<Long, InvStktkLn> lnById = new HashMap<>();
+        for (InvStktkLn ln : invStktkLnRepository.findAllById(lnIds)) {
+            lnById.put(ln.getId(), ln);
+        }
+
+        for (InvStktkLnSaveRequest.Item item : request.getItems()) {
+            InvStktkLn ln = line(lnById, stktkId, item.getLnId());
             if (item.getStktkQty() != null && item.getStktkQty() < 0) {
                 throw new IllegalArgumentException("실사수량은 0 이상이어야 합니다: " + ln.getProd().getProdCd()
                         + " @ " + ln.getLoc().getLocCd());
             }
             String rsnCd = StringUtils.hasText(item.getRsnCd()) ? item.getRsnCd() : null;
-            String rsnDscr = rsnCd == null ? null : validateRsn(rsnCd, item.getRsnDscr());
+            String rsnDscr = rsnCd == null ? null
+                    : rsnValidator.validate(ADJ_RSN_GRP_CD, ADJ_RSN_LABEL, rsnCd, item.getRsnDscr());
             ln.count(item.getStktkQty(), rsnCd, rsnDscr);
         }
     }
@@ -193,7 +210,7 @@ public class InvStktkService {
      */
     @Transactional
     public void resync(Long stktkId) {
-        InvStktk stktk = get(stktkId);
+        InvStktk stktk = getForUpdate(stktkId);
         stktk.requireEditable();
         for (InvStktkLn ln : invStktkLnRepository.findByStktkIdOrderByInvKey(stktkId)) {
             long nowQty = invRepository
@@ -207,8 +224,7 @@ public class InvStktkService {
     /** 조사 취소 (확정 전 폐기). 재고를 선점한 적이 없으므로 되돌릴 것이 없다 — 라인은 보존한다 */
     @Transactional
     public void cancel(Long stktkId) {
-        InvStktk stktk = invStktkRepository.findByIdForUpdate(stktkId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 재고조사입니다: " + stktkId));
+        InvStktk stktk = getForUpdate(stktkId);
         stktk.cancel();
     }
 
@@ -221,8 +237,7 @@ public class InvStktkService {
      */
     @Transactional
     public void confirm(Long stktkId) {
-        InvStktk stktk = invStktkRepository.findByIdForUpdate(stktkId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 재고조사입니다: " + stktkId));
+        InvStktk stktk = getForUpdate(stktkId);
         stktk.requireEditable();
 
         List<InvStktkLn> lines = invStktkLnRepository.findByStktkIdOrderByInvKey(stktkId);
@@ -278,10 +293,22 @@ public class InvStktkService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 재고조사입니다: " + stktkId));
     }
 
-    /** 라인 조회 + 소속 검증 — 다른 조사의 라인 ID를 넘겨 남의 조사를 고치는 것을 막는다 */
-    private InvStktkLn line(Long stktkId, Long lnId) {
-        InvStktkLn ln = invStktkLnRepository.findById(lnId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 조사 라인입니다: " + lnId));
+    /**
+     * 편집·확정·취소가 상태를 검증하기 전에 거는 헤더 락. 락 없이 검증하면 확정과 동시에 돈 편집이
+     * 낡은 「작성 중」 상태로 통과해, 확정된 조사의 라인이 뒤늦게 고쳐진다 (ADJUST는 이미 이전 값으로
+     * 반영된 뒤라 기록과 실제 조정이 어긋난다).
+     */
+    private InvStktk getForUpdate(Long stktkId) {
+        return invStktkRepository.findByIdForUpdate(stktkId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 재고조사입니다: " + stktkId));
+    }
+
+    /** 라인 소속 검증 — 다른 조사의 라인 ID를 넘겨 남의 조사를 고치는 것을 막는다 */
+    private InvStktkLn line(Map<Long, InvStktkLn> lnById, Long stktkId, Long lnId) {
+        InvStktkLn ln = lnById.get(lnId);
+        if (ln == null) {
+            throw new IllegalArgumentException("존재하지 않는 조사 라인입니다: " + lnId);
+        }
         if (!ln.getInvStktk().getId().equals(stktkId)) {
             throw new IllegalArgumentException("다른 조사의 라인입니다: " + lnId);
         }
@@ -294,23 +321,6 @@ public class InvStktkService {
             throw new IllegalArgumentException("차이가 있는 라인은 조정사유가 필요합니다 (전산 " + ln.getCfmSysQty()
                     + " / 실사 " + ln.getStktkQty() + "): " + ln.getProd().getProdCd() + " @ " + ln.getLoc().getLocCd());
         }
-        validateRsn(ln.getRsnCd(), ln.getRsnDscr());
-    }
-
-    /**
-     * 조정사유 검증 — ADJ_RSN 그룹에 존재해야 하고, ETC(기타)일 때만 텍스트 필수·그 외에는 무시(null 저장).
-     * @return 저장할 사유 텍스트
-     */
-    private String validateRsn(String rsnCd, String rsnDscr) {
-        if (!codeDetailRepository.existsById(new CodeDetailId(ADJ_RSN_GRP_CD, rsnCd))) {
-            throw new IllegalArgumentException("존재하지 않는 조정사유 코드입니다: " + rsnCd);
-        }
-        if (ETC_RSN_CD.equals(rsnCd)) {
-            if (!StringUtils.hasText(rsnDscr)) {
-                throw new IllegalArgumentException("조정사유가 기타일 때는 사유 내용을 입력해야 합니다.");
-            }
-            return rsnDscr.trim();
-        }
-        return null;
+        rsnValidator.validate(ADJ_RSN_GRP_CD, ADJ_RSN_LABEL, ln.getRsnCd(), ln.getRsnDscr());
     }
 }

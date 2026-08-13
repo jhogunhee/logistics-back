@@ -14,17 +14,14 @@ import com.project.wmsback.inventory.entity.InvHldStatus;
 import com.project.wmsback.inventory.repository.InvHldAcrstRepository;
 import com.project.wmsback.inventory.repository.InvHldRepository;
 import com.project.wmsback.inventory.repository.InvHldRlzAcrstRepository;
-import com.project.mdm.code.entity.CodeDetailId;
 import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.LocTyp;
 import com.project.wmsback.warehouse.entity.Lot;
 import com.project.mdm.prod.entity.Prod;
-import com.project.mdm.code.repository.CodeDetailRepository;
 import com.project.mdm.nbr.service.NbrService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -53,13 +50,12 @@ public class InvHldService {
     private static final String HLD_NO_RULE_CD = "HLD_NO";
     private static final String HLD_RSN_GRP_CD = "HLD_RSN";
     private static final String HLD_RLZ_RSN_GRP_CD = "HLD_RLZ_RSN";
-    private static final String ETC_RSN_CD = "ETC";
 
     private final InvStore invStore;
     private final InvHldRepository invHldRepository;
     private final InvHldAcrstRepository invHldAcrstRepository;
     private final InvHldRlzAcrstRepository invHldRlzAcrstRepository;
-    private final CodeDetailRepository codeDetailRepository;
+    private final RsnValidator rsnValidator;
     private final NbrService nbrService;
 
     public List<InvHldResponse> list(InvHldSearchCond cond) {
@@ -115,7 +111,7 @@ public class InvHldService {
         if (item.getQty() == null || item.getQty() < 1) {
             throw new IllegalArgumentException("보류수량은 1 이상이어야 합니다.");
         }
-        String rsnDscr = validateRsn(HLD_RSN_GRP_CD, "보류사유", item.getRsnCd(), item.getRsnDscr());
+        String rsnDscr = rsnValidator.validate(HLD_RSN_GRP_CD, "보류사유", item.getRsnCd(), item.getRsnDscr());
 
         Prod prodEntity = inv.getProd();
         Lot lotEntity = inv.getLot();
@@ -202,7 +198,7 @@ public class InvHldService {
         if (item.getQty() == null || item.getQty() < 1) {
             throw new IllegalArgumentException("해제수량은 1 이상이어야 합니다.");
         }
-        String rsnDscr = validateRsn(HLD_RLZ_RSN_GRP_CD, "해제사유", item.getRsnCd(), item.getRsnDscr());
+        String rsnDscr = rsnValidator.validate(HLD_RLZ_RSN_GRP_CD, "해제사유", item.getRsnCd(), item.getRsnDscr());
 
         InvHld hld = invHldRepository.findByIdForUpdate(item.getHldId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 보류 건입니다: " + item.getHldId()));
@@ -232,25 +228,5 @@ public class InvHldService {
                 .rlzQty(item.getQty())
                 .rsnCd(item.getRsnCd()).rsnDscr(rsnDscr)
                 .build());
-    }
-
-    /**
-     * 사유코드 검증 — 그룹에 존재해야 하고, ETC(기타)일 때만 텍스트 필수·그 외에는 무시(null 저장).
-     * @return 저장할 사유 텍스트
-     */
-    private String validateRsn(String grpCd, String label, String rsnCd, String rsnDscr) {
-        if (!StringUtils.hasText(rsnCd)) {
-            throw new IllegalArgumentException(label + "를 선택해야 합니다.");
-        }
-        if (!codeDetailRepository.existsById(new CodeDetailId(grpCd, rsnCd))) {
-            throw new IllegalArgumentException("존재하지 않는 " + label + " 코드입니다: " + rsnCd);
-        }
-        if (ETC_RSN_CD.equals(rsnCd)) {
-            if (!StringUtils.hasText(rsnDscr)) {
-                throw new IllegalArgumentException(label + "가 기타일 때는 사유 내용을 입력해야 합니다.");
-            }
-            return rsnDscr.trim();
-        }
-        return null;
     }
 }

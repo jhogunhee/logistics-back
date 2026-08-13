@@ -106,7 +106,8 @@ class InvMovServiceTest {
         when(invRepository.findLockKeysByIdIn(any()))
                 .thenReturn(List.of(new InvLockKey(100L, 1L, 10L, 5L)));
         when(invRepository.findByKeyForUpdate(1L, 10L, 5L)).thenReturn(Optional.of(fromInv));
-        when(locRepository.findById(20L)).thenReturn(Optional.of(toLoc));
+        // 도착 로케이션은 선락한다 — 동시 등록이 적재가능수량을 함께 넘는 것을 막는 지점
+        when(locRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(toLoc));
         // 적재가능수량 계산은 LocCapacityService가 단일 정의를 갖는다 (적치지시 유입분도 그쪽에서 합산)
         when(locCapacityService.availCapacity(toLoc)).thenReturn(100L);
         when(nbrService.issue(anyString(), any(LocalDate.class))).thenReturn("MV-20260803-001");

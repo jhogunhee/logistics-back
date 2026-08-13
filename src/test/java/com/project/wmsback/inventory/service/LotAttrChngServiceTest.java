@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -25,7 +24,10 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -60,17 +62,30 @@ class LotAttrChngServiceTest {
     @Mock LotAttrQueryRepository lotAttrQueryRepository;
     @Mock CodeDetailRepository codeDetailRepository;
 
-    @InjectMocks LotAttrChngService lotAttrChngService;
+    private LotAttrChngService lotAttrChngService;
+
+    /** 선조회 스텁의 재료 — newLot이 (Lot id → 상품 id)를 등록한다 */
+    private final Map<Long, Long> lotKeys = new LinkedHashMap<>();
 
     private Prod prod;
     private Lot lot;
 
     @BeforeEach
     void setUp() {
+        lotAttrChngService = new LotAttrChngService(lotRepository, prodRepository, lotAttrChngRepository,
+                lotAttrQueryRepository, new RsnValidator(codeDetailRepository));
+
         prod = newProd(PROD_ID, "PROD-0001");
         // 제조 2026-07-20 / 입고 2026-07-22 / 유통기한 2026-08-19 인 Lot
         lot = newLot(LOT_ID, prod, "LOT-260722-001");
 
+        // 잠글 (상품, Lot) 쌍의 스칼라 선조회 — 등록된 Lot만 돌려주므로 없는 id는 결과에서 빠진다
+        when(lotAttrChngRepository.findLotLockKeysByIdIn(any())).thenAnswer(inv -> {
+            Collection<Long> ids = inv.getArgument(0);
+            return ids.stream().filter(lotKeys::containsKey)
+                    .map(id -> new LotLockKey(id, lotKeys.get(id)))
+                    .toList();
+        });
         when(lotRepository.findByProdIdAndReceiptDtAndMfgDt(any(), any(), any())).thenReturn(Optional.empty());
         when(codeDetailRepository.existsById(any(CodeDetailId.class))).thenReturn(true);
         when(lotAttrChngRepository.save(any(LotAttrChng.class))).thenAnswer(i -> i.getArgument(0));
@@ -81,10 +96,11 @@ class LotAttrChngServiceTest {
         when(p.getId()).thenReturn(prodId);
         when(p.getProdCd()).thenReturn(prodCd);
         when(p.getShelfLifeDays()).thenReturn(30);
+        when(prodRepository.findByIdForUpdate(prodId)).thenReturn(Optional.of(p));
         return p;
     }
 
-    /** Lot 하나를 만들고 조회·락 스텁까지 걸어둔다 (다건 테스트에서 Lot을 더 붙이려고 뺐다) */
+    /** Lot 하나를 만들고 선조회 재료·락 스텁까지 걸어둔다 (다건 테스트에서 Lot을 더 붙이려고 뺐다) */
     private Lot newLot(long lotId, Prod ownerProd, String lotNo) {
         Lot l = Lot.builder()
                 .prod(ownerProd)
@@ -94,7 +110,7 @@ class LotAttrChngServiceTest {
                 .expiryDt(LocalDate.of(2026, 8, 19))
                 .build();
         ReflectionTestUtils.setField(l, "id", lotId);
-        when(lotRepository.findById(lotId)).thenReturn(Optional.of(l));
+        lotKeys.put(lotId, ownerProd.getId());
         when(lotRepository.findByIdForUpdate(lotId)).thenReturn(Optional.of(l));
         return l;
     }
@@ -336,7 +352,7 @@ class LotAttrChngServiceTest {
         assertThrows(IllegalArgumentException.class, () -> lotAttrChngService.change(new LotAttrChngRequest()));
         assertThrows(IllegalArgumentException.class, () -> lotAttrChngService.change(request()));
 
-        when(lotRepository.findById(99L)).thenReturn(Optional.empty());
+        // 99L은 선조회(lotKeys)에 등록돼 있지 않아 결과에서 빠진다
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> lotAttrChngService.change(request(
                         item(LOT_ID, LocalDate.of(2026, 7, 18), LocalDate.of(2026, 8, 17)),
