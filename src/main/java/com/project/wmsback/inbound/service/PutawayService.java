@@ -55,7 +55,7 @@ public class PutawayService {
         IbLine ibLine = ibLineRepository.findById(ibLineId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고 라인입니다: " + ibLineId));
         return locRepository
-                .findAllByTmpZonAndLocTypOrderByPikngPrtyAsc(ibLine.getProd().getTmpZon(), LocTyp.STORAGE)
+                .findAllByTmpZonAndLocTypOrderByPtawyPrtyAsc(ibLine.getProd().getTmpZon(), LocTyp.STORAGE)
                 .stream()
                 .map(loc -> PutawayLocCandidateResponse.of(loc, locCapacityService.availCapacity(loc)))
                 .toList();
