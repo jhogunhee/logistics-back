@@ -7,9 +7,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * 상품 포장 응답 행. 단위 관리 화면의 그리드 한 줄이자, 상품 응답 안의 배열 원소다
- * ({@link ProdResponse#getUoms()}) — 상품 안에 들어갈 때는 상품 3필드가 중복이지만
- * 응답 DTO를 두 벌로 나눌 만큼의 차이는 아니다.
+ * 상품 포장 응답 행 — 단위 관리 화면의 그리드 한 줄. 상품 3필드(prodId·prodCd·prodNm)를
+ * 함께 실어 이 행만으로 어느 상품의 포장인지 알 수 있다 (화면이 prodId로 묶어 쓴다).
  */
 @Getter
 public class ProdUomResponse {

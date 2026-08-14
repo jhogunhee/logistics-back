@@ -1,11 +1,11 @@
 package com.project.mdm.prod.dto;
 
 import com.project.mdm.prod.entity.Prod;
+import com.project.mdm.prod.entity.ProdUom;
 import com.project.mdm.prod.entity.TmpZon;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Getter
 public class ProdResponse {
@@ -17,7 +17,13 @@ public class ProdResponse {
     private final String inbUomCd;
     private final String outbUomCd;
     private final Integer shelfLifeDays;
-    private final List<ProdUomResponse> uoms;
+    /**
+     * 입고단위/출고단위 1개 = 낱개(EA) 몇 개 (환산계수). 상품 선택 팝업·검수 화면이 쓴다 —
+     * 소비자가 필요로 하는 건 이 두 스칼라뿐이라 포장 배열(uoms)을 통째로 싣지 않는다.
+     * 포장 목록 자체는 단위 관리 API(GET /master/prod-uoms)가 준다.
+     */
+    private final Long inbEaQty;
+    private final Long outbEaQty;
     private final String createdBy;
     private final LocalDateTime createdAt;
     private final String updatedBy;
@@ -31,11 +37,21 @@ public class ProdResponse {
         this.inbUomCd = prod.getInbUomCd();
         this.outbUomCd = prod.getOutbUomCd();
         this.shelfLifeDays = prod.getShelfLifeDays();
-        this.uoms = prod.getUoms().stream().map(ProdUomResponse::from).toList();
+        this.inbEaQty = eaQtyOf(prod, prod.getInbUomCd());
+        this.outbEaQty = eaQtyOf(prod, prod.getOutbUomCd());
         this.createdBy = prod.getCreatedBy();
         this.createdAt = prod.getCreatedAt();
         this.updatedBy = prod.getUpdatedBy();
         this.updatedAt = prod.getUpdatedAt();
+    }
+
+    /** 해당 단위 포장이 아직 없으면 1 — 환산 없음으로 그리는 편이 화면에서 안전하다 (실제 저장은 서버가 검증) */
+    private static Long eaQtyOf(Prod prod, String uomCd) {
+        return prod.getUoms().stream()
+                .filter(u -> u.getUomCd().equals(uomCd))
+                .map(ProdUom::getEaQty)
+                .findFirst()
+                .orElse(1L);
     }
 
     public static ProdResponse from(Prod prod) {

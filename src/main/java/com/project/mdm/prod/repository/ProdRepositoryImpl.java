@@ -31,8 +31,8 @@ public class ProdRepositoryImpl implements ProdRepositoryCustom {
     }
 
     /**
-     * 목록 조회. 포장을 fetch join으로 함께 읽는다 — ProdResponse가 uoms를 항상 훑으므로
-     * 없으면 상품 수만큼 추가 쿼리가 나간다. 조인으로 행이 부풀므로 distinct가 필요하다.
+     * 목록 조회. 포장을 fetch join으로 함께 읽는다 — ProdResponse가 환산계수(inbEaQty·outbEaQty)를
+     * 뽑으려고 uoms를 훑으므로 없으면 상품 수만큼 추가 쿼리가 나간다. 조인으로 행이 부풀므로 distinct가 필요하다.
      */
     @Override
     public List<Prod> search(ProdSearchCond cond) {
