@@ -33,10 +33,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * 적치 추천 산정. 전략은 <b>지시 생성 후보</b>를 만든다 — 이 결과를 사람이 확인해 적치지시로 저장하고,
@@ -59,27 +61,27 @@ public class PutawayRecommendService {
     /**
      * 적치지시 일괄 추천 — 배치 여러 건을 받은 순서대로 산정한다.
      * <p>
-     * 배치마다 따로 추천하면 같은 로케이션의 남은 용량을 여러 배치가 각자 다 쓸 수 있다고 보고
-     * 이중 배정한다. 그래서 이번 호출에서 이미 배정한 양(crossAssigned)을 누적해 다음 배치의
-     * 적재가능수량에서 뺀다 — 화면이 순차 호출하던 시절의 결함을 서버가 흡수한 지점이다.
+     * 배치마다 따로 추천하면 같은 로케이션의 남은 자리를 여러 배치가 각자 다 쓸 수 있다고 보고
+     * 이중 배정한다. 그래서 이번 호출의 배정을 {@link CrossBatch}에 누적해 다음 배치의 후보
+     * 현황에 미리 반영한다 — 화면이 순차 호출하던 시절의 결함을 서버가 흡수한 지점이다.
      */
     public PutawayBulkRecommendResponse recommendBulk(PutawayBulkRecommendRequest request) {
         if (request.items() == null || request.items().isEmpty()) {
             throw new IllegalArgumentException("추천할 배치가 없습니다.");
         }
         Map<Long, Long> inflowByLoc = locCapacityService.openInflowQtyByLoc();
-        Map<Long, Long> crossAssigned = new LinkedHashMap<>();
+        CrossBatch crossBatch = new CrossBatch();
 
         List<PutawayBulkRecommendResponse.Item> items = new ArrayList<>();
         for (PutawayBulkRecommendRequest.Item item : request.items()) {
-            items.add(recommendOne(item, inflowByLoc, crossAssigned));
+            items.add(recommendOne(item, inflowByLoc, crossBatch));
         }
         return new PutawayBulkRecommendResponse(items);
     }
 
     private PutawayBulkRecommendResponse.Item recommendOne(PutawayBulkRecommendRequest.Item item,
                                                            Map<Long, Long> inflowByLoc,
-                                                           Map<Long, Long> crossAssigned) {
+                                                           CrossBatch crossBatch) {
         if (item.qty() == null || item.qty() < 1) {
             throw new IllegalArgumentException("추천할 수량은 1 이상이어야 합니다.");
         }
@@ -98,17 +100,19 @@ public class PutawayRecommendService {
         PtawyStgy stgy = selected.get();
         PutawayRecommendResponse result = compute(PtawyStgyResponse.from(stgy).toDefinition(),
                 stgy.getId(), stgy.getStgyNm(), stgy.getLastRvsnNo(), prod, target, item.qty(),
-                inflowByLoc, crossAssigned);
+                inflowByLoc, crossBatch);
 
-        // 다음 배치가 같은 로케이션을 다시 채우지 않도록 이번 배정분을 누적
+        // 다음 배치가 같은 자리를 다시 쓰지 않도록 이번 배정분을 누적
         List<PutawayBulkRecommendResponse.Assignment> assignments = new ArrayList<>();
         for (PutawayRecommendResponse.Assignment assignment : result.assignments()) {
-            crossAssigned.merge(assignment.locId(), assignment.qty(), Long::sum);
+            crossBatch.add(assignment.locId(), prod.getId(), assignment.qty());
             assignments.add(new PutawayBulkRecommendResponse.Assignment(
                     assignment.locId(), assignment.locCd(), assignment.qty()));
         }
 
-        stgyExecLogService.log(StgyTyp.PTAWY, stgy.getId(), stgy.getLastRvsnNo(), TrgrTyp.MANUAL,
+        // 추천은 지시가 아니다 — 눌러본 횟수만큼 실행 이력에 섞이지 않게 PREVIEW로 남긴다.
+        // 그래도 남기는 이유는 지시 생성 경로가 산정을 다시 돌리지 않아 근거가 여기밖에 없어서다 (P5)
+        stgyExecLogService.log(StgyTyp.PTAWY, stgy.getId(), stgy.getLastRvsnNo(), TrgrTyp.PREVIEW,
                 ibLine.getIbOrder().getIbNo(),
                 "요청 " + result.reqQty() + " 중 배정 " + result.asgnQty()
                         + " (" + result.assignments().size() + "개 로케이션)",
@@ -140,9 +144,9 @@ public class PutawayRecommendService {
         PutawayTarget target = new PutawayTarget(prod, vndrCd);
 
         // 편집 중 정의 그대로 산정 — 유형 매칭 선택이라 "실제 선택될 전략" 경고가 필요 없다.
-        // 미리보기는 한 건이라 배치 간 공유(crossAssigned)가 없다
+        // 미리보기는 한 건이라 배치 간 공유가 없다
         return compute(definition, null, definition.stgyNm(), null, prod, target, request.qty(),
-                locCapacityService.openInflowQtyByLoc(), Map.of());
+                locCapacityService.openInflowQtyByLoc(), new CrossBatch());
     }
 
     /** 전략 선택: 발주구분 일치 전략 → 전체(odr_dvsn IS NULL) 전략 → 없으면 수동 폴백. 유형당 1개라 결정적 */
@@ -154,14 +158,19 @@ public class PutawayRecommendService {
     /**
      * 추천 산정 본체 — 단계 순회 → 방식 후보 → 조건 필터 → 정렬 → 적재가능 계산·배정.
      *
-     * @param inflowByLoc   로케이션별 미완료 지시 유입 잔량 (적치지시 + 이동지시). 적재가능에서 뺀다
-     * @param crossAssigned 같은 일괄 추천에서 앞선 배치가 이미 배정한 양. 단건이면 빈 맵
+     * @param inflowByLoc 로케이션별 미완료 지시 유입 잔량 (적치지시 + 이동지시). 적재가능에서 뺀다
+     * @param crossBatch  같은 일괄 추천에서 앞선 배치가 이미 배정한 내역. 단건이면 비어 있다
      */
     private PutawayRecommendResponse compute(PtawyStgyDefinition def, Long stgyId, String stgyNm,
                                              Long rvsnNo, Prod prod, PutawayTarget target, long reqQty,
-                                             Map<Long, Long> inflowByLoc, Map<Long, Long> crossAssigned) {
+                                             Map<Long, Long> inflowByLoc, CrossBatch crossBatch) {
+        // 후보 현황에 배치 간 배정을 먼저 얹는다 — 수량만 빼면 방식 판정이 앞 배치를 보지 못해
+        // 빈로케이션이 이미 채우기로 한 곳을 빈 곳으로, 적재로케이션이 같은 상품을 넣기로 한 곳을
+        // 남의 자리로 취급한다. 현황을 고쳐두면 방식·조건·적재가능이 같은 사실을 본다
         List<PutawayMethodContext.LocStock> stocks =
-                putawayQueryRepository.storageStocks(prod.getTmpZon(), prod.getId());
+                putawayQueryRepository.storageStocks(prod.getTmpZon(), prod.getId()).stream()
+                        .map(stock -> crossBatch.applyTo(stock, prod.getId()))
+                        .toList();
         long unit = Boolean.TRUE.equals(def.untSpltYn()) ? unitOf(prod) : 1;
 
         long remaining = reqQty;
@@ -198,9 +207,9 @@ public class PutawayRecommendService {
                 long assignedHere = assignments.containsKey(candidateLoc.getId())
                         ? assignments.get(candidateLoc.getId()).qty() : 0;
                 long inflow = inflowByLoc.getOrDefault(candidateLoc.getId(), 0L);
-                long crossHere = crossAssigned.getOrDefault(candidateLoc.getId(), 0L);
-                // 적재가능 = max_qty − 점유. 점유는 현재고 + 미완료 지시 유입 잔량(LocCapacityService와 같은 식)
-                // + 같은 일괄 추천의 앞선 배치 배정분 + 이번 배치에서 이미 배정한 분.
+                long crossHere = crossBatch.qtyOf(candidateLoc.getId());
+                // 적재가능 = max_qty − 점유. 점유는 현재고 + 미완료 지시 유입 잔량(LocCapacityService와
+                // 같은 식) + 이번 배치에서 이미 배정한 분. 앞선 배치 배정분은 occupiedQty에 이미 들어 있다.
                 // max_qty NULL은 스키마상 STORAGE에 없어야 하지만(ck_loc_storage_capacity),
                 // 라이브 불일치를 대비해 무제한으로 다루되 trace에 경고를 남긴다.
                 long avail;
@@ -208,7 +217,7 @@ public class PutawayRecommendService {
                     avail = remaining;
                 } else {
                     avail = Math.max(0, candidateLoc.getMaxQty()
-                            - candidate.occupiedQty() - inflow - crossHere - assignedHere);
+                            - candidate.occupiedQty() - inflow - assignedHere);
                 }
                 long assign = Math.min(avail, remaining);
                 if (unit > 1) {
@@ -218,6 +227,7 @@ public class PutawayRecommendService {
                 locTraces.add(new PutawayDecisionTrace.LocTrace(
                         candidateLoc.getLocCd(), avail, assign,
                         inflow > 0 ? inflow : null, // 미완료 지시가 이미 잡아둔 자리
+                        crossHere > 0 ? crossHere : null, // 앞선 배치가 잡아둔 자리
                         candidateLoc.getMaxQty() == null ? "최대 적재 수량 미설정 — 무제한으로 계산" : null,
                         assign == 0
                                 ? (avail == 0 ? "적재 가능 수량 없음" : "입수 단위(" + unit + ") 미만")
@@ -243,6 +253,41 @@ public class PutawayRecommendService {
                                                               String gate,
                                                               List<PutawayDecisionTrace.LocTrace> locs) {
         return new PutawayDecisionTrace.StageTrace(stage.srtSeq(), stage.mthdCd(), gate, locs);
+    }
+
+    /**
+     * 같은 일괄 추천에서 앞선 배치가 이미 배정한 내역 — 로케이션별 수량과 상품 집합.
+     * <p>
+     * 추천은 재고를 예약하지 않으므로 DB 현황은 배치를 넘겨도 그대로다. 그 상태로 배치마다
+     * 산정하면 같은 자리를 여러 배치가 각자 다 쓸 수 있다고 본다. 그래서 배정할 때마다 여기
+     * 누적하고 다음 배치의 후보 현황(LocStock)에 <b>보유수량과 같은 자격으로</b> 얹는다 —
+     * 수량만 빼면 방식 판정(빈로케이션·적재로케이션)이 앞 배치를 보지 못하기 때문이다.
+     */
+    private static final class CrossBatch {
+
+        private final Map<Long, Long> qtyByLoc = new LinkedHashMap<>();
+        private final Map<Long, Set<Long>> prodIdsByLoc = new LinkedHashMap<>();
+
+        void add(Long locId, Long prodId, long qty) {
+            qtyByLoc.merge(locId, qty, Long::sum);
+            prodIdsByLoc.computeIfAbsent(locId, key -> new HashSet<>()).add(prodId);
+        }
+
+        long qtyOf(Long locId) {
+            return qtyByLoc.getOrDefault(locId, 0L);
+        }
+
+        /** 후보 현황 1건에 이번 호출의 배정을 얹은 사본. 배정이 없으면 원본 그대로 */
+        PutawayMethodContext.LocStock applyTo(PutawayMethodContext.LocStock stock, Long prodId) {
+            long qty = qtyOf(stock.loc().getId());
+            if (qty == 0) {
+                return stock;
+            }
+            boolean hasProd = stock.hasProd()
+                    || prodIdsByLoc.getOrDefault(stock.loc().getId(), Set.of()).contains(prodId);
+            return new PutawayMethodContext.LocStock(
+                    stock.loc(), stock.occupiedQty() + qty, hasProd, stock.bizDvsn());
+        }
     }
 
     /** 입수 = ea_qty(입고단위). 재고 수량이 낱개(EA)라 입고단위 낱개수량이 곧 배수다 */

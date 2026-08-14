@@ -15,6 +15,8 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
 
 /**
@@ -58,10 +60,20 @@ public class StgyExecLogService {
         }
     }
 
-    public List<ExecLogResponse> list(StgyTyp stgyTyp, Long stgyId) {
+    /**
+     * 최근 실행 로그. trgrTyps가 비면 실행 기록만 본다 — 미리보기는 결과를 반영하지 않은
+     * 산정이라 「무엇이 실제로 일어났나」를 묻는 기본 화면에 섞이면 안 되고, 100건 상한을
+     * 나눠 쓰면 실행 이력이 밀려나기 때문이다. 미리보기까지 보려면 호출부가 명시한다.
+     */
+    public List<ExecLogResponse> list(StgyTyp stgyTyp, Long stgyId, Collection<TrgrTyp> trgrTyps) {
+        Collection<TrgrTyp> effective = trgrTyps == null || trgrTyps.isEmpty()
+                ? EnumSet.of(TrgrTyp.MANUAL, TrgrTyp.AUTO)
+                : trgrTyps;
         List<StgyExecLog> rows = stgyId != null
-                ? stgyExecLogRepository.findTop100ByStgyTypAndStgyIdOrderByCreatedAtDesc(stgyTyp, stgyId)
-                : stgyExecLogRepository.findTop100ByStgyTypOrderByCreatedAtDesc(stgyTyp);
+                ? stgyExecLogRepository.findTop100ByStgyTypAndStgyIdAndTrgrTypInOrderByCreatedAtDesc(
+                        stgyTyp, stgyId, effective)
+                : stgyExecLogRepository.findTop100ByStgyTypAndTrgrTypInOrderByCreatedAtDesc(
+                        stgyTyp, effective);
         return rows.stream().map(row -> ExecLogResponse.from(row, objectMapper)).toList();
     }
 }

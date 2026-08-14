@@ -2,6 +2,7 @@ package com.project.wmsback.strategy.core.controller;
 
 import com.project.wmsback.strategy.core.dto.ExecLogResponse;
 import com.project.wmsback.strategy.core.entity.StgyTyp;
+import com.project.wmsback.strategy.core.entity.TrgrTyp;
 import com.project.wmsback.strategy.core.service.StgyExecLogService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,9 +20,11 @@ public class StrategyExecLogController {
 
     private final StgyExecLogService stgyExecLogService;
 
+    /** trgrTyp를 주지 않으면 실행 기록만(MANUAL·AUTO) — 미리보기까지 보려면 명시한다 */
     @GetMapping
     public List<ExecLogResponse> list(@RequestParam StgyTyp stgyTyp,
-                                      @RequestParam(required = false) Long stgyId) {
-        return stgyExecLogService.list(stgyTyp, stgyId);
+                                      @RequestParam(required = false) Long stgyId,
+                                      @RequestParam(required = false) List<TrgrTyp> trgrTyp) {
+        return stgyExecLogService.list(stgyTyp, stgyId, trgrTyp);
     }
 }

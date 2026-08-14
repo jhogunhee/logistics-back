@@ -34,6 +34,8 @@ public record PutawayDecisionTrace(
             long asgnQty,
             /** 미완료 지시가 이미 잡아둔 자리. 0이면 생략 */
             Long inflowQty,
+            /** 같은 일괄 추천의 앞선 배치가 잡아둔 자리. 0이면 생략 */
+            Long crossQty,
             /** max_qty 미설정 경고. 해당 없으면 생략 */
             String warn,
             /** 배정 0일 때의 사유. 배정됐으면 생략 */
