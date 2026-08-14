@@ -68,14 +68,14 @@ BEGIN
     -- 채번은 전용 시퀀스가 아니라 nbr_seq 테이블이 센다 (규칙은 nbr_rule). 상품·문서를
     -- 비웠으므로 그 규칙들의 카운터 행을 지운다 — 다음 발급이 다시 1번부터 나온다.
     --
-    -- VNDR_CD 는 지우지 않는다. 벤더를 남겼기 때문에 되감으면 VD-0001 이 다시 발급돼
-    -- 화면에서 벤더를 등록할 때 uq_vndr_cd 위반이 난다.
+    -- VNDR_CD·STORE_CD 는 지우지 않는다. 벤더·점포를 남겼기 때문에 되감으면 VD-0001/ST-0001 이
+    -- 다시 발급돼 화면에서 등록할 때 uq_vndr_cd/uq_store_cd 위반이 난다.
     DELETE FROM nbr_seq
      WHERE rule_cd IN ('PROD_CD', 'OMS_IB_NO', 'IB_NO', 'OMS_OUTB_NO', 'OUTB_NO', 'OUTB_WAV_NO',
                        'INV_MOV_NO', 'HLD_NO', 'STKTK_NO');
 
     GET DIAGNOSTICS n = ROW_COUNT;
-    RAISE NOTICE '채번 카운터 % 행 삭제 (VNDR_CD 는 벤더를 남겨 두므로 유지)', n;
+    RAISE NOTICE '채번 카운터 % 행 삭제 (VNDR_CD·STORE_CD 는 벤더·점포를 남겨 두므로 유지)', n;
 
     -- 3. 남은 마스터 확인 -------------------------------------------------
     SELECT count(*) INTO n FROM code_detail WHERE grp_cd = 'UOM';

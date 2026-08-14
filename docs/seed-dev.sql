@@ -189,10 +189,11 @@ INSERT INTO vendor (vndr_cd, vndr_nm, pic_nm, tel_no)
 VALUES ('VD-0006', '옛거래처식자재', '한지훈', '02-1111-2222') ON CONFLICT (vndr_cd) DO NOTHING;
 
 -- 채번 카운터를 시드 건수만큼 미리 채운다. 안 하면 화면에서 처음 등록할 때
--- PROD-0001/VD-0001부터 다시 채번돼 uq_prod_cd/uq_vndr_cd 유니크 위반이 난다.
+-- PROD-0001/VD-0001/ST-0001부터 다시 채번돼 uq_prod_cd/uq_vndr_cd/uq_store_cd 유니크 위반이 난다.
 INSERT INTO nbr_seq (rule_cd, dync_ky, seq) VALUES
     ('PROD_CD', '-', 21),
-    ('VNDR_CD', '-', 6)
+    ('VNDR_CD', '-', 6),
+    ('STORE_CD', '-', 5)
 ON CONFLICT (rule_cd, dync_ky) DO UPDATE SET seq = GREATEST(nbr_seq.seq, EXCLUDED.seq);
 
 -- 점포 (납품 허용 잔여수명 비율: 편의점 > 마트 > 급식 — FEFO 앞단 필터 시나리오용)

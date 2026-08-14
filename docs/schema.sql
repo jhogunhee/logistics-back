@@ -424,10 +424,13 @@ INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('LOT_ATTR_RS
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('LOT_ATTR_RSN', 'VNDR', '거래처 정정 통보', 3);
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('LOT_ATTR_RSN', 'ETC', '기타', 4);
 
--- 채번 규칙. 상품·벤더 코드와 주문/입고/출고 번호를 여기서 발급한다 (전용 시퀀스 폐기).
+-- 채번 규칙. 상품·벤더·점포 코드와 주문/입고/출고 번호를 여기서 발급한다 (전용 시퀀스 폐기).
+-- STORE_CD의 접두어 ST는 STKTK_NO와 같지만 형식이 다르다(ST-0001 vs ST-20260814-001) —
+-- prfx는 UNIQUE가 아니고, 시드가 이미 ST-0001 형식을 쓰고 있어 접두어를 바꿀 수 없다.
 INSERT INTO nbr_rule (rule_cd, rule_nm, prfx, prfx_dlmt, de_dlmt, seq_dgt, dync_ky_typ) VALUES
     ('PROD_CD',     '상품 코드',        'PROD', '-', '-', 4, 'NONE'),
     ('VNDR_CD',     '벤더 코드',        'VD',   '-', '-', 4, 'NONE'),
+    ('STORE_CD',    '점포 코드',        'ST',   '-', '-', 4, 'NONE'),
     ('OMS_IB_NO',   '입고주문 번호',    'PO',   '-', '-', 3, 'DAY'),
     ('OMS_OUTB_NO', '출고주문 번호',    'SO',   '-', '-', 3, 'DAY'),
     ('IB_NO',       '입고 번호',        'IB',   '-', '-', 3, 'DAY'),
