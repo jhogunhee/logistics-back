@@ -160,7 +160,8 @@ public class InvLotChngService {
 
         // 3) 검증 + 목적지 Lot 확보 — 상품 락 안이라 안전하고, 재고 락보다 앞이라 채번 규칙(락 계층)과 무관하다
         for (ItemCtx ctx : ctxs) {
-            resolveTarget(ctx, prodById.get(ctx.key.prodId()), lotById.get(ctx.key.lotId()));
+            ctx.fromLot = lotById.get(ctx.key.lotId());
+            resolveTarget(ctx, prodById.get(ctx.key.prodId()));
         }
 
         // 4) inv 행 락 — 원·목적지 키를 합쳐 InvStore 표준 순서(재고 키 오름차순)로 한 번에.
@@ -194,9 +195,9 @@ public class InvLotChngService {
      * LotIssuer.findOrCreate를 쓰지 않는 이유: 재사용 경로에서 넘긴 유통기한이 무시되는 것이
      * 여기서는 「작업자 입력과 다른 값의 조용한 저장」이라, find로 조회해 검사한 뒤 create를 부른다.
      */
-    private void resolveTarget(ItemCtx ctx, Prod prod, Lot fromLot) {
+    private void resolveTarget(ItemCtx ctx, Prod prod) {
         InvLotChngRequest.Item item = ctx.item;
-        ctx.fromLot = fromLot;
+        Lot fromLot = ctx.fromLot;
 
         if (prod.getShelfLifeDays() == null) {
             throw new IllegalArgumentException("유통기한 미관리 상품의 재고는 로트변경 대상이 아닙니다: "
