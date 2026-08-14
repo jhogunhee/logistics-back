@@ -117,7 +117,8 @@ public class InspPlcyService {
 
     /**
      * 저장 검증 (P2): 정책명 필수, rule_cd 실존(InspectionRule enum) + deprecated 금지 + 중복 금지,
-     * 파라미터는 규칙별 validatePara로 검증·정규화.
+     * 파라미터는 규칙별 validatePara로 검증·정규화, srt_seq는 받은 순서대로 1..n 재부여
+     * (할당 슬롯과 같은 규칙 — 클라이언트가 보낸 값을 그대로 믿으면 중복·구멍이 저장된다).
      */
     private InspPlcyDefinition validate(InspPlcyDefinition definition) {
         if (definition.stgyNm() == null || definition.stgyNm().isBlank()) {
@@ -126,7 +127,7 @@ public class InspPlcyService {
         List<InspPlcyDefinition.RuleDef> rules = definition.rules() != null ? definition.rules() : List.of();
         Set<String> seen = new HashSet<>();
         List<InspPlcyDefinition.RuleDef> normalized = new ArrayList<>();
-        int seq = 0;
+        int seq = 1;
         for (InspPlcyDefinition.RuleDef def : rules) {
             InspectionRule rule = InspectionRule.find(def.ruleCd())
                     .orElseThrow(() -> new IllegalArgumentException("없는 검수 규칙입니다: " + def.ruleCd()));
@@ -137,9 +138,7 @@ public class InspPlcyService {
                 throw new IllegalArgumentException("같은 규칙을 두 번 등록할 수 없습니다: " + rule.label());
             }
             Map<String, Object> para = rule.validatePara(def.para());
-            normalized.add(new InspPlcyDefinition.RuleDef(
-                    def.srtSeq() != null ? def.srtSeq() : seq, def.ruleCd(), para));
-            seq++;
+            normalized.add(new InspPlcyDefinition.RuleDef(seq++, def.ruleCd(), para));
         }
         return new InspPlcyDefinition(definition.stgyNm(), normalized);
     }

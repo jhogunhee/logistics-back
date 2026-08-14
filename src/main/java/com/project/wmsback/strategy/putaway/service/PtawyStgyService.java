@@ -112,7 +112,9 @@ public class PtawyStgyService {
     /**
      * 저장 검증 (P2): 전략명·단계 1개 이상 필수, 적용대상은 전체(null)/정상/긴급만,
      * mthd_cd 실존(PutawayMethod enum) + deprecated 금지, 단계 조건 검증,
-     * 적치위치는 "업무유형 IN 최대 1건" 지정 형태만, 정렬 기준 검증.
+     * 적치위치는 "업무유형 IN 최대 1건" 지정 형태만, 정렬 기준 검증,
+     * srt_seq는 받은 순서대로 1..n 재부여 (할당 슬롯과 같은 규칙 —
+     * 클라이언트가 보낸 값을 그대로 믿으면 중복·구멍이 실행 순서가 된다).
      */
     public PtawyStgyDefinition validate(PtawyStgyDefinition definition) {
         if (definition.stgyNm() == null || definition.stgyNm().isBlank()) {
@@ -135,7 +137,7 @@ public class PtawyStgyService {
         }
 
         List<PtawyStgyDefinition.StageDef> stages = new ArrayList<>();
-        int seq = 0;
+        int seq = 1;
         for (PtawyStgyDefinition.StageDef stage : definition.stages()) {
             PutawayMethod method = PutawayMethod.find(stage.mthdCd())
                     .orElseThrow(() -> new IllegalArgumentException("없는 적치 방식입니다: " + stage.mthdCd()));
@@ -149,10 +151,9 @@ public class PtawyStgyService {
             ConditionEvaluator.validate(method.label() + " 조건", stage.lineCond(), PutawayTargetField.BY_CODE);
             validateLocAssign(method.label(), stage.locCond());
             stages.add(new PtawyStgyDefinition.StageDef(
-                    stage.srtSeq() != null ? stage.srtSeq() : seq, stage.mthdCd(), Map.of(),
+                    seq++, stage.mthdCd(), Map.of(),
                     stage.lineCond() != null ? stage.lineCond() : List.of(),
                     stage.locCond() != null ? stage.locCond() : List.of()));
-            seq++;
         }
         return new PtawyStgyDefinition(definition.stgyNm(), definition.odrDvsn(),
                 definition.untSpltYn() != null && definition.untSpltYn(),
