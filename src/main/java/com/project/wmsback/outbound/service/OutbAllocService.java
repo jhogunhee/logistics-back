@@ -19,14 +19,15 @@ import com.project.wmsback.outbound.repository.OutbAllocRepository;
 import com.project.wmsback.outbound.repository.OutbLineRepository;
 import com.project.wmsback.outbound.repository.OutbWaveRepository;
 import com.project.wmsback.strategy.allocation.component.AlocRstrct;
+import com.project.wmsback.strategy.allocation.dto.AlocDecisionTrace;
 import com.project.wmsback.strategy.allocation.dto.AlocStgyResponse;
 import com.project.wmsback.strategy.allocation.dto.AlocStgyDefinition;
-import com.project.wmsback.strategy.allocation.dto.AllocGroupPlan;
+import com.project.wmsback.strategy.allocation.dto.AlocGroupPlan;
 import com.project.wmsback.strategy.allocation.entity.AlocStgy;
-import com.project.wmsback.strategy.allocation.field.AllocInvnCandidate;
-import com.project.wmsback.strategy.allocation.field.AllocLineTarget;
-import com.project.wmsback.strategy.allocation.repository.AllocQueryRepository;
-import com.project.wmsback.strategy.allocation.service.AllocationPlanner;
+import com.project.wmsback.strategy.allocation.field.AlocInvnCandidate;
+import com.project.wmsback.strategy.allocation.field.AlocLineTarget;
+import com.project.wmsback.strategy.allocation.repository.AlocQueryRepository;
+import com.project.wmsback.strategy.allocation.service.AlocPlanner;
 import com.project.wmsback.strategy.allocation.service.AlocStgyService;
 import com.project.wmsback.strategy.core.entity.StgyTyp;
 import com.project.wmsback.strategy.core.entity.TrgrTyp;
@@ -67,7 +68,7 @@ import java.util.Set;
  * 결품 테이블도 사유코드도 두지 않는다(docs/design.md 「재고 할당」).
  *
  * <p><b>「무엇을 얼마나」는 전략이, 「어떻게 안전하게 쓰는가」는 이 서비스가 정한다.</b>
- * 후보 선정·정렬·배분은 {@link AllocationPlanner}에 있는 순수 산정으로 빠졌고, 여기 남은 것은
+ * 후보 선정·정렬·배분은 {@link AlocPlanner}에 있는 순수 산정으로 빠졌고, 여기 남은 것은
  * 락 순서 · 예약 반영 · 트랜잭션 경계다. 전략이 하나도 없으면 산정기가 기본 동작(FEFO ·
  * 점포 잔여수명 · 순차 소진)으로 돌아 <b>전략 도입 전과 결과가 같다.</b>
  */
@@ -81,7 +82,7 @@ public class OutbAllocService {
     private final OutbLineRepository outbLineRepository;
     private final InvStore invStore;
     private final AlocStgyService alocStgyService;
-    private final AllocQueryRepository allocQueryRepository;
+    private final AlocQueryRepository allocQueryRepository;
     private final StgyExecLogService stgyExecLogService;
 
     // ── 조회 ─────────────────────────────────────────────────────────────────
@@ -107,14 +108,14 @@ public class OutbAllocService {
     public List<AllocCandidateResponse> candidates(Long outbLineId) {
         OutbLine line = findLine(outbLineId);
         Store store = line.getOutbOrder().getStore();
-        AllocLineTarget target = AllocLineTarget.of(line, 0L);
+        AlocLineTarget target = AlocLineTarget.of(line, 0L);
 
         List<AllocCandidateResponse> result = new ArrayList<>();
         for (Inv candidate : outbAllocRepository.findCandidates(line.getProd().getId())) {
             if (expired(candidate.getLot(), target.expctDe())) {
                 continue;
             }
-            BigDecimal rate = AlocRstrct.lifeRate(AllocInvnCandidate.of(candidate, null), target);
+            BigDecimal rate = AlocRstrct.lifeRate(AlocInvnCandidate.of(candidate, null), target);
             result.add(new AllocCandidateResponse(
                     candidate.getId(),
                     candidate.getLoc().getId(), candidate.getLoc().getLocCd(),
@@ -140,8 +141,12 @@ public class OutbAllocService {
         }
         List<String> wavNos = new ArrayList<>();
         for (Long wavId : wavIds) {
+            // 웨이브 행 락 — 같은 웨이브의 동시 실행을 직렬화한다. 라인별 기할당 합(alreadyByLine)을
+            // 재고 락보다 먼저 읽으므로, 이 락이 없으면 동시 실행 둘이 같은 잔여요청을 보고 각자
+            // 예약해 라인 과할당(SUM(aloc_qty) > odr_qty)이 난다. distinct()가 wavId를 오름차순으로
+            // 정렬해 주므로 다건 실행끼리도 교착이 없다.
+            OutbWave wave = lockWave(wavId);
             // 피킹지시가 발행된(ISSUED) 웨이브에 더 할당하면 지시 없는 할당이 남는다
-            OutbWave wave = findWave(wavId);
             wave.assertPlanned();
             wavNos.add(wave.getWavNo());
         }
@@ -183,7 +188,7 @@ public class OutbAllocService {
         Map<String, String> bizDvsnByZon = allocQueryRepository.bizDvsnByZon();
 
         List<AllocExecuteResponse.LineResult> results = new ArrayList<>();
-        List<Map<String, Object>> groupTraces = new ArrayList<>();
+        List<AlocDecisionTrace> groupTraces = new ArrayList<>();
         Set<Long> touchedWaves = new HashSet<>();
         long totalReq = 0;
         long totalAloc = 0;
@@ -193,22 +198,22 @@ public class OutbAllocService {
             Map<Long, Inv> lockedById = new LinkedHashMap<>();
             locked.forEach(inv -> lockedById.put(inv.getId(), inv));
 
-            List<AllocInvnCandidate> candidates = locked.stream()
-                    .map(inv -> AllocInvnCandidate.of(inv, bizDvsnOf(bizDvsnByZon, inv)))
+            List<AlocInvnCandidate> candidates = locked.stream()
+                    .map(inv -> AlocInvnCandidate.of(inv, bizDvsnOf(bizDvsnByZon, inv)))
                     .toList();
 
             Map<Long, OutbLine> lineById = new LinkedHashMap<>();
             group.getValue().forEach(line -> lineById.put(line.getId(), line));
-            List<AllocLineTarget> targets = group.getValue().stream()
+            List<AlocLineTarget> targets = group.getValue().stream()
                     .map(line -> target(line, alreadyByLine)).toList();
 
-            AllocGroupPlan plan = AllocationPlanner.plan(def, group.getKey(),
+            AlocGroupPlan plan = AlocPlanner.plan(def, group.getKey(),
                     group.getValue().get(0).getProd().getProdCd(), targets, candidates);
             groupTraces.add(plan.trace());
 
-            for (AllocGroupPlan.LinePlan linePlan : plan.lines()) {
+            for (AlocGroupPlan.LinePlan linePlan : plan.lines()) {
                 OutbLine line = lineById.get(linePlan.outbLineId());
-                for (AllocGroupPlan.Assignment assignment : linePlan.assignments()) {
+                for (AlocGroupPlan.Assignment assignment : linePlan.assignments()) {
                     reserve(line, lockedById.get(assignment.invId()), assignment.qty(),
                             existingAllocs, stgyId, rvsnNo);
                 }
@@ -254,11 +259,11 @@ public class OutbAllocService {
         return zonCd != null ? bizDvsnByZon.get(zonCd) : null;
     }
 
-    private AllocLineTarget target(OutbLine line, Map<Long, Long> alreadyByLine) {
-        return AllocLineTarget.of(line, alreadyByLine.getOrDefault(line.getId(), 0L));
+    private AlocLineTarget target(OutbLine line, Map<Long, Long> alreadyByLine) {
+        return AlocLineTarget.of(line, alreadyByLine.getOrDefault(line.getId(), 0L));
     }
 
-    private static AllocExecuteResponse.LineResult toLineResult(AllocGroupPlan.LinePlan plan) {
+    private static AllocExecuteResponse.LineResult toLineResult(AlocGroupPlan.LinePlan plan) {
         List<AllocExecuteResponse.Assignment> assignments = plan.assignments().stream()
                 .map(a -> new AllocExecuteResponse.Assignment(a.invId(), a.locCd(), a.lotNo(), a.qty()))
                 .toList();
@@ -327,7 +332,8 @@ public class OutbAllocService {
         if (items == null || items.isEmpty()) {
             throw new IllegalArgumentException("할당할 대상이 없습니다.");
         }
-        findWave(wavId).assertPlanned();
+        // 웨이브 행 락 — 라인 잔여 검증(②)이 재고 락보다 먼저라, 자동할당과 같은 이유로 잠근다
+        lockWave(wavId).assertPlanned();
 
         // ① 라인·재고를 모으고 요청 자체의 형식을 본다
         Map<Long, Long> reqByLine = new LinkedHashMap<>();
@@ -503,6 +509,12 @@ public class OutbAllocService {
 
     private OutbWave findWave(Long wavId) {
         return outbWaveRepository.findById(wavId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 웨이브입니다: " + wavId));
+    }
+
+    /** 실행 단위 직렬화용 웨이브 행 락. 락 순서는 웨이브(오름차순) → 재고(재고 키 오름차순) 한 방향이다 */
+    private OutbWave lockWave(Long wavId) {
+        return outbWaveRepository.findByIdForUpdate(wavId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 웨이브입니다: " + wavId));
     }
 

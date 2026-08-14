@@ -9,11 +9,11 @@ import com.project.wmsback.strategy.allocation.dto.AlocStgyResponse;
 import com.project.wmsback.strategy.allocation.dto.AlocStgySummaryResponse;
 import com.project.wmsback.strategy.allocation.entity.AlocStgy;
 import com.project.wmsback.strategy.allocation.entity.AlocStgySlot;
-import com.project.wmsback.strategy.allocation.entity.AllocSlotTyp;
+import com.project.wmsback.strategy.allocation.entity.AlocSlotTyp;
 import com.project.wmsback.strategy.allocation.field.AlocInvnField;
 import com.project.wmsback.strategy.allocation.field.AlocLineField;
 import com.project.wmsback.strategy.allocation.field.AlocTgtField;
-import com.project.wmsback.strategy.allocation.field.AllocLineTarget;
+import com.project.wmsback.strategy.allocation.field.AlocLineTarget;
 import com.project.wmsback.strategy.allocation.field.InvnSortField;
 import com.project.wmsback.strategy.allocation.field.OdrSortField;
 import com.project.wmsback.strategy.allocation.repository.AlocStgyRepository;
@@ -112,7 +112,7 @@ public class AlocStgyService {
      * <p>「전부 만족」인 이유: 전략이 실행 1회당 1건이라 「일부만 만족」에 줄 의미가 없다.
      * 조건이 빈 전략은 무조건 만족이므로 자연히 폴백이 된다 — 별도 분기가 필요 없다.
      */
-    public Optional<AlocStgy> select(List<AllocLineTarget> targets) {
+    public Optional<AlocStgy> select(List<AlocLineTarget> targets) {
         if (targets.isEmpty()) {
             return Optional.empty();
         }
@@ -152,7 +152,7 @@ public class AlocStgyService {
         }
 
         List<AlocStgyDefinition.SlotDef> slots = new ArrayList<>();
-        for (AllocSlotTyp slotTyp : AllocSlotTyp.values()) {
+        for (AlocSlotTyp slotTyp : AlocSlotTyp.values()) {
             slots.addAll(validateSlots(slotTyp, definition.slotsOf(slotTyp)));
         }
         return new AlocStgyDefinition(definition.stgyNm(),
@@ -160,7 +160,7 @@ public class AlocStgyService {
     }
 
     /** 슬롯 타입 하나의 목록 검증 + srt_seq 정규화(1..n). 화면 순서와 저장 순서를 일치시킨다 */
-    private List<AlocStgyDefinition.SlotDef> validateSlots(AllocSlotTyp slotTyp,
+    private List<AlocStgyDefinition.SlotDef> validateSlots(AlocSlotTyp slotTyp,
                                                            List<AlocStgyDefinition.SlotDef> slots) {
         if (slots.isEmpty()) {
             return List.of();
@@ -181,16 +181,16 @@ public class AlocStgyService {
             normalized.add(new AlocStgyDefinition.SlotDef(slotTyp, seq++, cmpntCd,
                     slot.paraOrEmpty(), cond));
         }
-        if (slotTyp == AllocSlotTyp.DSTRB) {
+        if (slotTyp == AlocSlotTyp.DSTRB) {
             validateLastDstrbOpen(normalized);
         }
-        if (slotTyp == AllocSlotTyp.INVN_FLTR) {
+        if (slotTyp == AlocSlotTyp.INVN_FLTR) {
             validateOpenTierIsLast(normalized);
         }
         return normalized;
     }
 
-    private String validateCmpnt(AllocSlotTyp slotTyp, AlocStgyDefinition.SlotDef slot,
+    private String validateCmpnt(AlocSlotTyp slotTyp, AlocStgyDefinition.SlotDef slot,
                                  String label, Set<String> seenCmpnt) {
         if (!slotTyp.isHasCmpnt()) {
             // 필터 슬롯은 구현체 축이 없다 — 값이 오면 화면/클라이언트가 잘못 보낸 것이다
@@ -215,14 +215,14 @@ public class AlocStgyService {
         // 제약은 조건 없이 전 후보에 AND로 걸리므로 같은 구현체를 두 번 등록하면 뒤엣것이
         // 아무 일도 하지 않는다. 분배는 다르다 — 같은 방식이라도 cond가 다르면 대상이 다르므로
         // 「중요 점포 먼저 순차, 나머지 순차」가 정상적인 정의다.
-        if (slotTyp == AllocSlotTyp.RSTRCT && !seenCmpnt.add(cmpntCd)) {
+        if (slotTyp == AlocSlotTyp.RSTRCT && !seenCmpnt.add(cmpntCd)) {
             throw new IllegalArgumentException(
                     slotTyp.getLabel() + ": 같은 제약을 두 번 등록했습니다 — " + cmpntCd);
         }
         return cmpntCd;
     }
 
-    private void validatePara(AllocSlotTyp slotTyp, AlocStgyDefinition.SlotDef slot, String label) {
+    private void validatePara(AlocSlotTyp slotTyp, AlocStgyDefinition.SlotDef slot, String label) {
         switch (slotTyp) {
             case RSTRCT -> AlocRstrct.of(slot.cmpntCd()).validatePara(slot.paraOrEmpty());
             case INVN_SRT -> validateCriteria(label, slot, code -> InvnSortField.find(code).isPresent());
@@ -259,7 +259,7 @@ public class AlocStgyService {
         }
     }
 
-    private List<FieldCondition> validateCond(AllocSlotTyp slotTyp, AlocStgyDefinition.SlotDef slot,
+    private List<FieldCondition> validateCond(AlocSlotTyp slotTyp, AlocStgyDefinition.SlotDef slot,
                                               String label) {
         List<FieldCondition> cond = slot.condOrEmpty();
         switch (slotTyp) {

@@ -1,7 +1,7 @@
 package com.project.wmsback.strategy.allocation.dto;
 
 import com.project.wmsback.strategy.allocation.entity.AlocStgy;
-import com.project.wmsback.strategy.allocation.entity.AllocSlotTyp;
+import com.project.wmsback.strategy.allocation.entity.AlocSlotTyp;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -21,7 +21,7 @@ public record AlocStgySummaryResponse(
 
     public static AlocStgySummaryResponse from(AlocStgy stgy) {
         Map<String, Integer> counts = new LinkedHashMap<>();
-        for (AllocSlotTyp slotTyp : AllocSlotTyp.values()) {
+        for (AlocSlotTyp slotTyp : AlocSlotTyp.values()) {
             counts.put(slotTyp.name(), stgy.slotsOf(slotTyp).size());
         }
         List<?> tgtCond = stgy.getTgtCond() != null ? stgy.getTgtCond() : List.of();

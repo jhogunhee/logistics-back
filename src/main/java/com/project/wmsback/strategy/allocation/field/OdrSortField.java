@@ -15,16 +15,16 @@ import java.util.function.Function;
  */
 public enum OdrSortField {
 
-    EXPCT_DE("출고예정일", AllocLineTarget::expctDe),
-    OUTB_NO("출고번호", AllocLineTarget::outbNo),
-    STORE_CD("점포코드", AllocLineTarget::storeCd),
+    EXPCT_DE("출고예정일", AlocLineTarget::expctDe),
+    OUTB_NO("출고번호", AlocLineTarget::outbNo),
+    STORE_CD("점포코드", AlocLineTarget::storeCd),
     /** 주문수량. 내림차순이면 큰 주문부터 채워 「완전 출고 주문 수」 대신 대형 주문을 우선한다 */
-    ODR_QTY("주문수량", AllocLineTarget::odrQty);
+    ODR_QTY("주문수량", AlocLineTarget::odrQty);
 
     private final String label;
-    private final Function<AllocLineTarget, Comparable<?>> extractor;
+    private final Function<AlocLineTarget, Comparable<?>> extractor;
 
-    <U extends Comparable<U>> OdrSortField(String label, Function<AllocLineTarget, U> extractor) {
+    <U extends Comparable<U>> OdrSortField(String label, Function<AlocLineTarget, U> extractor) {
         this.label = label;
         this.extractor = extractor::apply;
     }
@@ -34,7 +34,7 @@ public enum OdrSortField {
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public Comparator<AllocLineTarget> comparator(boolean asc) {
+    public Comparator<AlocLineTarget> comparator(boolean asc) {
         Comparator base = asc ? Comparator.naturalOrder() : Comparator.reverseOrder();
         return Comparator.comparing(extractor, Comparator.nullsLast(base));
     }

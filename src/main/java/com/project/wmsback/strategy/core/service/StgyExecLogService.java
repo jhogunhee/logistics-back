@@ -1,6 +1,5 @@
 package com.project.wmsback.strategy.core.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.wmsback.strategy.core.dto.ExecLogResponse;
 import com.project.wmsback.strategy.core.entity.StgyExecLog;
@@ -11,8 +10,10 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
 
@@ -29,12 +30,18 @@ public class StgyExecLogService {
 
     private final StgyExecLogRepository stgyExecLogRepository;
     private final ObjectMapper objectMapper;
+    private final PlatformTransactionManager transactionManager;
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    /**
+     * 로그 실패가 업무 실행을 막으면 안 된다 — 직렬화·저장·커밋 어느 단계가 실패해도
+     * 기록만 포기하고 경고를 남긴다. 애노테이션 대신 TransactionTemplate으로 REQUIRES_NEW를
+     * 여는 이유가 이것이다 — 커밋은 프록시가 메서드 밖에서 수행하므로 메서드 안의 catch가
+     * 커밋 실패를 잡을 수 없다.
+     */
     public void log(StgyTyp stgyTyp, Long stgyId, Long rvsnNo, TrgrTyp trgrTyp,
                     String tgtRef, String rsltSmry, Object trace) {
         try {
-            stgyExecLogRepository.save(StgyExecLog.builder()
+            StgyExecLog row = StgyExecLog.builder()
                     .stgyTyp(stgyTyp)
                     .stgyId(stgyId)
                     .rvsnNo(rvsnNo)
@@ -42,10 +49,12 @@ public class StgyExecLogService {
                     .tgtRef(tgtRef)
                     .rsltSmry(rsltSmry)
                     .dcsnTrc(trace != null ? objectMapper.writeValueAsString(trace) : null)
-                    .build());
-        } catch (JsonProcessingException e) {
-            // 로그 실패가 업무 실행을 막으면 안 된다 — 기록만 포기하고 경고
-            log.warn("전략 실행 로그 직렬화 실패 (기록 생략): {} {}", stgyTyp, tgtRef, e);
+                    .build();
+            TransactionTemplate requiresNew = new TransactionTemplate(transactionManager);
+            requiresNew.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+            requiresNew.executeWithoutResult(status -> stgyExecLogRepository.save(row));
+        } catch (Exception e) {
+            log.warn("전략 실행 로그 기록 실패 (기록 생략): {} {}", stgyTyp, tgtRef, e);
         }
     }
 

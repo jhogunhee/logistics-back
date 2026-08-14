@@ -12,7 +12,7 @@ import com.project.wmsback.strategy.inspection.dto.InspPreviewResponse;
 import com.project.wmsback.strategy.inspection.entity.InspPlcy;
 import com.project.wmsback.strategy.inspection.entity.InspPlcyRule;
 import com.project.wmsback.strategy.inspection.repository.InspPlcyRepository;
-import com.project.wmsback.strategy.inspection.rule.InspectionRule;
+import com.project.wmsback.strategy.inspection.component.InspectionRule;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -64,6 +64,10 @@ public class InspPlcyService {
     public InspPlcyResponse update(InspPlcyDefinition definition) {
         InspPlcy plcy = loadPolicy();
         InspPlcyDefinition normalized = validate(definition);
+        // 기존 규칙의 DELETE를 먼저 flush한다 — 같은 rule_cd를 유지한 수정이
+        // uq_insp_plcy_rule에 걸리지 않게 (Hibernate는 INSERT를 DELETE보다 먼저 내보낸다)
+        plcy.clearRules();
+        inspPlcyRepository.flush();
         long rvsnNo = plcy.applyDefinition(normalized.stgyNm(), toRules(normalized));
         stgyRvsnService.snapshot(StgyTyp.INSP, plcy.getId(), rvsnNo, normalized);
         return InspPlcyResponse.from(plcy);

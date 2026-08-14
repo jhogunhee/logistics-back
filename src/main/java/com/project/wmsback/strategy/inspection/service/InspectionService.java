@@ -8,24 +8,23 @@ import com.project.mdm.prod.entity.Prod;
 import com.project.wmsback.strategy.core.entity.StgyTyp;
 import com.project.wmsback.strategy.core.entity.TrgrTyp;
 import com.project.wmsback.strategy.core.service.StgyExecLogService;
+import com.project.wmsback.strategy.inspection.dto.InspLineTrace;
 import com.project.wmsback.strategy.inspection.dto.InspPlcyDefinition;
 import com.project.wmsback.strategy.inspection.dto.InspRuleResult;
 import com.project.wmsback.strategy.inspection.entity.InspPlcy;
 import com.project.wmsback.strategy.inspection.exception.InspectionViolationException;
 import com.project.wmsback.strategy.inspection.repository.InspPlcyRepository;
 import com.project.wmsback.strategy.inspection.repository.InspectionQueryRepository;
-import com.project.wmsback.strategy.inspection.rule.InspectionContext;
-import com.project.wmsback.strategy.inspection.rule.InspectionRule;
-import com.project.wmsback.strategy.inspection.rule.Violation;
+import com.project.wmsback.strategy.inspection.component.InspectionContext;
+import com.project.wmsback.strategy.inspection.component.InspectionRule;
+import com.project.wmsback.strategy.inspection.component.Violation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -58,7 +57,7 @@ public class InspectionService {
                 .toList();
 
         List<InspectionViolationException.LineViolation> violations = new ArrayList<>();
-        List<Map<String, Object>> trace = new ArrayList<>();
+        List<InspLineTrace> trace = new ArrayList<>();
 
         for (ReceiveRequest.Line line : lines) {
             IbLine ibLine = ibLineRepository.findById(line.getIbLineId())
@@ -73,11 +72,7 @@ public class InspectionService {
                             ibLine.getId(), prod.getProdCd(), r.ruleCd(), r.ruleName(),
                             r.message(), r.actual(), r.expected())));
 
-            Map<String, Object> lineTrace = new LinkedHashMap<>();
-            lineTrace.put("ibLineId", ibLine.getId());
-            lineTrace.put("prodCd", prod.getProdCd());
-            lineTrace.put("rules", results);
-            trace.add(lineTrace);
+            trace.add(new InspLineTrace(ibLine.getId(), prod.getProdCd(), results));
         }
 
         stgyExecLogService.log(StgyTyp.INSP, plcy.getId(), plcy.getLastRvsnNo(), TrgrTyp.MANUAL,

@@ -3,7 +3,7 @@ package com.project.wmsback.strategy.core.controller;
 import com.project.wmsback.strategy.allocation.component.AlocDstrb;
 import com.project.wmsback.strategy.allocation.component.AlocRstrct;
 import com.project.wmsback.strategy.allocation.component.AlocSrt;
-import com.project.wmsback.strategy.allocation.entity.AllocSlotTyp;
+import com.project.wmsback.strategy.allocation.entity.AlocSlotTyp;
 import com.project.wmsback.strategy.allocation.field.AlocInvnField;
 import com.project.wmsback.strategy.allocation.field.AlocLineField;
 import com.project.wmsback.strategy.allocation.field.AlocTgtField;
@@ -13,10 +13,11 @@ import com.project.wmsback.strategy.core.dto.ComponentResponse;
 import com.project.wmsback.strategy.core.dto.FieldDescriptorResponse;
 import com.project.wmsback.strategy.core.dto.OptionResponse;
 import com.project.wmsback.strategy.core.service.StrategyOptionService;
-import com.project.wmsback.strategy.inspection.rule.InspectionRule;
+import com.project.wmsback.strategy.inspection.component.InspectionRule;
 import com.project.wmsback.strategy.putaway.field.PutawayLocField;
+import com.project.wmsback.strategy.putaway.field.PutawaySortField;
 import com.project.wmsback.strategy.putaway.field.PutawayTargetField;
-import com.project.wmsback.strategy.putaway.method.PutawayMethod;
+import com.project.wmsback.strategy.putaway.component.PutawayMethod;
 import com.project.wmsback.strategy.wave.field.WaveOrderField;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -59,9 +60,9 @@ public class StrategyMetaController {
      */
     @GetMapping("/allocation-components/{slotTyp}")
     public List<ComponentResponse> allocationComponents(@PathVariable String slotTyp) {
-        AllocSlotTyp typ;
+        AlocSlotTyp typ;
         try {
-            typ = AllocSlotTyp.valueOf(slotTyp);
+            typ = AlocSlotTyp.valueOf(slotTyp);
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("없는 할당 슬롯 타입입니다: " + slotTyp);
         }
@@ -76,13 +77,15 @@ public class StrategyMetaController {
         };
     }
 
-    /** 정렬 기준 목록 (MULTI_SORT의 para.criteria가 고를 수 있는 field) */
+    /** 정렬 기준 목록 (MULTI_SORT의 para.criteria와 적치 loc_srt가 고를 수 있는 field) */
     @GetMapping("/sort-fields/{domain}")
     public List<OptionResponse> sortFields(@PathVariable String domain) {
         return switch (domain) {
             case "allocation-invn" -> Arrays.stream(InvnSortField.values())
                     .map(f -> new OptionResponse(f.name(), f.label())).toList();
             case "allocation-order" -> Arrays.stream(OdrSortField.values())
+                    .map(f -> new OptionResponse(f.name(), f.label())).toList();
+            case "putaway-loc" -> Arrays.stream(PutawaySortField.values())
                     .map(f -> new OptionResponse(f.name(), f.label())).toList();
             default -> throw new IllegalArgumentException("없는 정렬 기준 도메인입니다: " + domain);
         };

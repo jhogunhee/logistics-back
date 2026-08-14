@@ -29,21 +29,21 @@ import static com.project.wmsback.strategy.core.condition.ConditionOperator.NOT_
  * <p>출고예정일에만 대소·범위 연산자를 연다. 값이 ISO 일자(yyyy-MM-dd)라 문자열 사전순 비교가
  * 곧 날짜순 비교이기 때문이고, 나머지 코드값 필드는 등가 비교만 의미가 있다.
  */
-public enum AlocLineField implements ConditionField<AllocLineTarget> {
+public enum AlocLineField implements ConditionField<AlocLineTarget> {
 
-    STORE_CD("점포", Set.of(EQ, NE, IN, NOT_IN), "stores", AllocLineTarget::storeCd),
-    OUTB_TYP("출고유형", Set.of(EQ, NE, IN, NOT_IN), "outbTyps", AllocLineTarget::outbTyp),
-    VHCL_FLTNO("차량편수", Set.of(EQ, NE, IN, NOT_IN), "vhclFltnos", AllocLineTarget::vhclFltno),
+    STORE_CD("점포", Set.of(EQ, NE, IN, NOT_IN), "stores", AlocLineTarget::storeCd),
+    OUTB_TYP("출고유형", Set.of(EQ, NE, IN, NOT_IN), "outbTyps", AlocLineTarget::outbTyp),
+    VHCL_FLTNO("차량편수", Set.of(EQ, NE, IN, NOT_IN), "vhclFltnos", AlocLineTarget::vhclFltno),
     EXPCT_DE("출고예정일", Set.of(EQ, NE, GE, LE, BETWEEN), null,
             target -> Objects.toString(target.expctDe(), null));
 
     private final String label;
     private final Set<ConditionOperator> allowedOps;
     private final String optionSource;
-    private final Function<AllocLineTarget, String> extractor;
+    private final Function<AlocLineTarget, String> extractor;
 
     AlocLineField(String label, Set<ConditionOperator> allowedOps, String optionSource,
-                  Function<AllocLineTarget, String> extractor) {
+                  Function<AlocLineTarget, String> extractor) {
         this.label = label;
         this.allowedOps = allowedOps;
         this.optionSource = optionSource;
@@ -74,7 +74,7 @@ public enum AlocLineField implements ConditionField<AllocLineTarget> {
     }
 
     @Override
-    public String extract(AllocLineTarget target) {
+    public String extract(AlocLineTarget target) {
         return extractor.apply(target);
     }
 }

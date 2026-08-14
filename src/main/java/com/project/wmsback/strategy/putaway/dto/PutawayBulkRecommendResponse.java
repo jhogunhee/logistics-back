@@ -1,7 +1,5 @@
 package com.project.wmsback.strategy.putaway.dto;
 
-import lombok.Getter;
-
 import java.util.List;
 
 /**
@@ -11,61 +9,26 @@ import java.util.List;
  * 응답이 급격히 커지는데 화면이 쓰는 것은 배정 결과뿐이고, 근거는 전략 관리 화면의 미리보기가 맡는다
  * (실행 로그에는 배치별로 그대로 남는다).
  */
-@Getter
-public class PutawayBulkRecommendResponse {
+public record PutawayBulkRecommendResponse(List<Item> items) {
 
-    private final List<Item> items;
-
-    public PutawayBulkRecommendResponse(List<Item> items) {
-        this.items = items;
-    }
-
-    @Getter
-    public static class Item {
-
-        private final Long ibLineId;
-        private final Long lotId;
-        private final String prodCd;
-        private final String prodNm;
-        /** 전략 미설정이면 false — 화면은 그 배치를 수동 지시로 안내한다 */
-        private final boolean strategySelected;
-        private final String stgyNm;
-        private final Long rvsnNo;
-        private final long reqQty;
-        private final long asgnQty;
-        /** 배정하지 못한 잔량 (로케이션 용량 부족). 0보다 크면 화면이 경고한다 */
-        private final long remainQty;
-        private final List<Assignment> assignments;
-
-        public Item(Long ibLineId, Long lotId, String prodCd, String prodNm,
-                    boolean strategySelected, String stgyNm, Long rvsnNo,
-                    long reqQty, long asgnQty, long remainQty, List<Assignment> assignments) {
-            this.ibLineId = ibLineId;
-            this.lotId = lotId;
-            this.prodCd = prodCd;
-            this.prodNm = prodNm;
-            this.strategySelected = strategySelected;
-            this.stgyNm = stgyNm;
-            this.rvsnNo = rvsnNo;
-            this.reqQty = reqQty;
-            this.asgnQty = asgnQty;
-            this.remainQty = remainQty;
-            this.assignments = assignments;
-        }
+    public record Item(
+            Long ibLineId,
+            Long lotId,
+            String prodCd,
+            String prodNm,
+            /** 전략 미설정이면 false — 화면은 그 배치를 수동 지시로 안내한다 */
+            boolean strategySelected,
+            String stgyNm,
+            Long rvsnNo,
+            long reqQty,
+            long asgnQty,
+            /** 배정하지 못한 잔량 (로케이션 용량 부족). 0보다 크면 화면이 경고한다 */
+            long remainQty,
+            List<Assignment> assignments
+    ) {
     }
 
     /** 배정 1행 — 이 로케이션에 이만큼. 그대로 적치지시 한 건이 된다 */
-    @Getter
-    public static class Assignment {
-
-        private final Long locId;
-        private final String locCd;
-        private final long qty;
-
-        public Assignment(Long locId, String locCd, long qty) {
-            this.locId = locId;
-            this.locCd = locCd;
-            this.qty = qty;
-        }
+    public record Assignment(Long locId, String locCd, long qty) {
     }
 }

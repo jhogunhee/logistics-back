@@ -28,18 +28,18 @@ import static com.project.wmsback.strategy.core.condition.ConditionOperator.NOT_
  * <p>두 필드 모두 대소·범위 연산자를 허용하지 않는다 — 조건 비교가 문자열 사전순이라
  * 차량편수에 GE/LE를 열면 "10"이 "2"보다 앞선다. 코드값 필드에는 등가 비교만 의미가 있다.
  */
-public enum AlocTgtField implements ConditionField<AllocLineTarget> {
+public enum AlocTgtField implements ConditionField<AlocLineTarget> {
 
-    OUTB_TYP("출고유형", Set.of(EQ, NE, IN, NOT_IN), "outbTyps", AllocLineTarget::outbTyp),
-    VHCL_FLTNO("차량편수", Set.of(EQ, NE, IN, NOT_IN), "vhclFltnos", AllocLineTarget::vhclFltno);
+    OUTB_TYP("출고유형", Set.of(EQ, NE, IN, NOT_IN), "outbTyps", AlocLineTarget::outbTyp),
+    VHCL_FLTNO("차량편수", Set.of(EQ, NE, IN, NOT_IN), "vhclFltnos", AlocLineTarget::vhclFltno);
 
     private final String label;
     private final Set<ConditionOperator> allowedOps;
     private final String optionSource;
-    private final Function<AllocLineTarget, String> extractor;
+    private final Function<AlocLineTarget, String> extractor;
 
     AlocTgtField(String label, Set<ConditionOperator> allowedOps, String optionSource,
-                 Function<AllocLineTarget, String> extractor) {
+                 Function<AlocLineTarget, String> extractor) {
         this.label = label;
         this.allowedOps = allowedOps;
         this.optionSource = optionSource;
@@ -71,7 +71,7 @@ public enum AlocTgtField implements ConditionField<AllocLineTarget> {
 
     /** 차량편수는 배차 미정이면 null — 부정 연산자(NE/NOT_IN)만 참이 된다 (ConditionOperator 규약) */
     @Override
-    public String extract(AllocLineTarget target) {
+    public String extract(AlocLineTarget target) {
         return extractor.apply(target);
     }
 }

@@ -1,7 +1,6 @@
 package com.project.wmsback.strategy.allocation.dto;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * 상품 그룹 1건의 산정 결과. <b>상태 변경이 아니라 계획</b>이다 —
@@ -10,13 +9,13 @@ import java.util.Map;
  * <p>{@code trace}가 「이 라인이 왜 이만큼만 받았는지」를 담는다. 결품 테이블이 없는
  * 이 프로젝트에서 미충족의 근거는 여기와 실행 로그의 {@code dcsn_trc} 뿐이다.
  */
-public record AllocGroupPlan(
+public record AlocGroupPlan(
         Long prodId,
         String prodCd,
         long reqQty,
         long asgnQty,
         List<LinePlan> lines,
-        Map<String, Object> trace
+        AlocDecisionTrace trace
 ) {
 
     public long shortQty() {

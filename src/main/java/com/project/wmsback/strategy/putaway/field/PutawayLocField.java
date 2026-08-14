@@ -2,7 +2,7 @@ package com.project.wmsback.strategy.putaway.field;
 
 import com.project.wmsback.strategy.core.condition.ConditionField;
 import com.project.wmsback.strategy.core.condition.ConditionOperator;
-import com.project.wmsback.strategy.putaway.method.PutawayMethodContext;
+import com.project.wmsback.strategy.putaway.component.PutawayMethodContext;
 
 import java.util.Map;
 import java.util.Set;

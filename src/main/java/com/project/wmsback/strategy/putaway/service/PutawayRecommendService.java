@@ -16,13 +16,15 @@ import com.project.wmsback.strategy.putaway.dto.PtawyStgyDefinition;
 import com.project.wmsback.strategy.putaway.dto.PtawyStgyResponse;
 import com.project.wmsback.strategy.putaway.dto.PutawayBulkRecommendRequest;
 import com.project.wmsback.strategy.putaway.dto.PutawayBulkRecommendResponse;
+import com.project.wmsback.strategy.putaway.dto.PutawayDecisionTrace;
 import com.project.wmsback.strategy.putaway.dto.PutawayRecommendResponse;
 import com.project.wmsback.strategy.putaway.entity.PtawyStgy;
 import com.project.wmsback.strategy.putaway.field.PutawayLocField;
+import com.project.wmsback.strategy.putaway.field.PutawaySortField;
 import com.project.wmsback.strategy.putaway.field.PutawayTarget;
 import com.project.wmsback.strategy.putaway.field.PutawayTargetField;
-import com.project.wmsback.strategy.putaway.method.PutawayMethod;
-import com.project.wmsback.strategy.putaway.method.PutawayMethodContext;
+import com.project.wmsback.strategy.putaway.component.PutawayMethod;
+import com.project.wmsback.strategy.putaway.component.PutawayMethodContext;
 import com.project.wmsback.strategy.putaway.repository.PtawyStgyRepository;
 import com.project.wmsback.strategy.putaway.repository.PutawayQueryRepository;
 import lombok.RequiredArgsConstructor;
@@ -62,14 +64,14 @@ public class PutawayRecommendService {
      * 적재가능수량에서 뺀다 — 화면이 순차 호출하던 시절의 결함을 서버가 흡수한 지점이다.
      */
     public PutawayBulkRecommendResponse recommendBulk(PutawayBulkRecommendRequest request) {
-        if (request.getItems() == null || request.getItems().isEmpty()) {
+        if (request.items() == null || request.items().isEmpty()) {
             throw new IllegalArgumentException("추천할 배치가 없습니다.");
         }
         Map<Long, Long> inflowByLoc = locCapacityService.openInflowQtyByLoc();
         Map<Long, Long> crossAssigned = new LinkedHashMap<>();
 
         List<PutawayBulkRecommendResponse.Item> items = new ArrayList<>();
-        for (PutawayBulkRecommendRequest.Item item : request.getItems()) {
+        for (PutawayBulkRecommendRequest.Item item : request.items()) {
             items.add(recommendOne(item, inflowByLoc, crossAssigned));
         }
         return new PutawayBulkRecommendResponse(items);
@@ -78,24 +80,24 @@ public class PutawayRecommendService {
     private PutawayBulkRecommendResponse.Item recommendOne(PutawayBulkRecommendRequest.Item item,
                                                            Map<Long, Long> inflowByLoc,
                                                            Map<Long, Long> crossAssigned) {
-        if (item.getQty() == null || item.getQty() < 1) {
+        if (item.qty() == null || item.qty() < 1) {
             throw new IllegalArgumentException("추천할 수량은 1 이상이어야 합니다.");
         }
-        IbLine ibLine = ibLineRepository.findById(item.getIbLineId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고 라인입니다: " + item.getIbLineId()));
+        IbLine ibLine = ibLineRepository.findById(item.ibLineId())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고 라인입니다: " + item.ibLineId()));
         Prod prod = ibLine.getProd();
         PutawayTarget target = new PutawayTarget(prod, ibLine.getIbOrder().getVendor().getVndrCd());
 
         Optional<PtawyStgy> selected = selectStrategy(ibLine.getIbOrder().getOdrDvsn());
         if (selected.isEmpty()) {
             // 전략 미설정 — 화면이 이 배치를 수동 지시로 안내한다
-            return new PutawayBulkRecommendResponse.Item(item.getIbLineId(), item.getLotId(),
+            return new PutawayBulkRecommendResponse.Item(item.ibLineId(), item.lotId(),
                     prod.getProdCd(), prod.getProdNm(), false, null, null,
-                    item.getQty(), 0, item.getQty(), List.of());
+                    item.qty(), 0, item.qty(), List.of());
         }
         PtawyStgy stgy = selected.get();
         PutawayRecommendResponse result = compute(PtawyStgyResponse.from(stgy).toDefinition(),
-                stgy.getId(), stgy.getStgyNm(), stgy.getLastRvsnNo(), prod, target, item.getQty(),
+                stgy.getId(), stgy.getStgyNm(), stgy.getLastRvsnNo(), prod, target, item.qty(),
                 inflowByLoc, crossAssigned);
 
         // 다음 배치가 같은 로케이션을 다시 채우지 않도록 이번 배정분을 누적
@@ -112,7 +114,7 @@ public class PutawayRecommendService {
                         + " (" + result.assignments().size() + "개 로케이션)",
                 result.trace());
 
-        return new PutawayBulkRecommendResponse.Item(item.getIbLineId(), item.getLotId(),
+        return new PutawayBulkRecommendResponse.Item(item.ibLineId(), item.lotId(),
                 prod.getProdCd(), prod.getProdNm(), true, stgy.getStgyNm(), stgy.getLastRvsnNo(),
                 result.reqQty(), result.asgnQty(), result.remainQty(), assignments);
     }
@@ -164,27 +166,21 @@ public class PutawayRecommendService {
 
         long remaining = reqQty;
         Map<Long, PutawayRecommendResponse.Assignment> assignments = new LinkedHashMap<>();
-        List<Map<String, Object>> stageTraces = new ArrayList<>();
+        List<PutawayDecisionTrace.StageTrace> stageTraces = new ArrayList<>();
 
         List<PtawyStgyDefinition.StageDef> stages = def.stages().stream()
                 .sorted(Comparator.comparing(s -> s.srtSeq() != null ? s.srtSeq() : 0))
                 .toList();
 
         for (PtawyStgyDefinition.StageDef stage : stages) {
-            Map<String, Object> stageTrace = new LinkedHashMap<>();
-            stageTrace.put("srtSeq", stage.srtSeq());
-            stageTrace.put("mthdCd", stage.mthdCd());
-            stageTraces.add(stageTrace);
-
             if (remaining == 0) {
-                stageTrace.put("gate", "SKIP — 잔여수량 없음");
+                stageTraces.add(stageTrace(stage, "SKIP — 잔여수량 없음", null));
                 continue;
             }
             if (!ConditionEvaluator.matchesAll(stage.lineCond(), PutawayTargetField.BY_CODE, target)) {
-                stageTrace.put("gate", "SKIP — 라인 조건 불일치");
+                stageTraces.add(stageTrace(stage, "SKIP — 라인 조건 불일치", null));
                 continue;
             }
-            stageTrace.put("gate", "PASS");
 
             List<PutawayMethodContext.LocStock> candidates = PutawayMethod.of(stage.mthdCd())
                     .candidates(new PutawayMethodContext(prod, stocks))
@@ -193,9 +189,7 @@ public class PutawayRecommendService {
                     .sorted(locComparator(def.locSrt()))
                     .toList();
 
-            List<Map<String, Object>> locTraces = new ArrayList<>();
-            stageTrace.put("locs", locTraces);
-
+            List<PutawayDecisionTrace.LocTrace> locTraces = new ArrayList<>();
             for (PutawayMethodContext.LocStock candidate : candidates) {
                 if (remaining == 0) {
                     break;
@@ -221,20 +215,13 @@ public class PutawayRecommendService {
                     assign = assign / unit * unit;
                 }
 
-                Map<String, Object> locTrace = new LinkedHashMap<>();
-                locTrace.put("locCd", candidateLoc.getLocCd());
-                locTrace.put("avalQty", avail);
-                locTrace.put("asgnQty", assign);
-                if (inflow > 0) {
-                    locTrace.put("inflowQty", inflow); // 미완료 지시가 이미 잡아둔 자리
-                }
-                if (candidateLoc.getMaxQty() == null) {
-                    locTrace.put("warn", "최대 적재 수량 미설정 — 무제한으로 계산");
-                }
-                if (assign == 0) {
-                    locTrace.put("skip", avail == 0 ? "적재 가능 수량 없음" : "입수 단위(" + unit + ") 미만");
-                }
-                locTraces.add(locTrace);
+                locTraces.add(new PutawayDecisionTrace.LocTrace(
+                        candidateLoc.getLocCd(), avail, assign,
+                        inflow > 0 ? inflow : null, // 미완료 지시가 이미 잡아둔 자리
+                        candidateLoc.getMaxQty() == null ? "최대 적재 수량 미설정 — 무제한으로 계산" : null,
+                        assign == 0
+                                ? (avail == 0 ? "적재 가능 수량 없음" : "입수 단위(" + unit + ") 미만")
+                                : null));
 
                 if (assign > 0) {
                     long total = assignedHere + assign;
@@ -243,16 +230,19 @@ public class PutawayRecommendService {
                     remaining -= assign;
                 }
             }
+            stageTraces.add(stageTrace(stage, "PASS", locTraces));
         }
 
         long assigned = reqQty - remaining;
-        Map<String, Object> trace = new LinkedHashMap<>();
-        trace.put("reqQty", reqQty);
-        trace.put("asgnQty", assigned);
-        trace.put("stages", stageTraces);
-
         return new PutawayRecommendResponse(true, stgyId, stgyNm, rvsnNo, reqQty, assigned, remaining,
-                List.copyOf(assignments.values()), trace);
+                List.copyOf(assignments.values()),
+                new PutawayDecisionTrace(reqQty, assigned, stageTraces));
+    }
+
+    private static PutawayDecisionTrace.StageTrace stageTrace(PtawyStgyDefinition.StageDef stage,
+                                                              String gate,
+                                                              List<PutawayDecisionTrace.LocTrace> locs) {
+        return new PutawayDecisionTrace.StageTrace(stage.srtSeq(), stage.mthdCd(), gate, locs);
     }
 
     /** 입수 = ea_qty(입고단위). 재고 수량이 낱개(EA)라 입고단위 낱개수량이 곧 배수다 */
@@ -263,19 +253,13 @@ public class PutawayRecommendService {
     /** 후보 정렬. 빈 목록 = 기본(피킹순위 ASC → 로케이션코드 ASC). 끝에 id를 붙여 항상 결정적 */
     private Comparator<PutawayMethodContext.LocStock> locComparator(List<SortCriterion> criteria) {
         List<SortCriterion> effective = criteria == null || criteria.isEmpty()
-                ? List.of(new SortCriterion("PIKNG_PRTY", "ASC"), new SortCriterion("LOC_CD", "ASC"))
+                ? List.of(new SortCriterion(PutawaySortField.PIKNG_PRTY.name(), "ASC"),
+                        new SortCriterion(PutawaySortField.LOC_CD.name(), "ASC"))
                 : criteria;
         Comparator<PutawayMethodContext.LocStock> comparator = null;
         for (SortCriterion criterion : effective) {
-            Comparator<PutawayMethodContext.LocStock> one = switch (criterion.field()) {
-                case "PIKNG_PRTY" -> Comparator.comparing(ls -> ls.loc().getPikngPrty());
-                case "PTAWY_PRTY" -> Comparator.comparing(ls -> ls.loc().getPtawyPrty());
-                case "LOC_CD" -> Comparator.comparing(ls -> ls.loc().getLocCd());
-                default -> throw new IllegalStateException("저장된 정렬 기준이 배포본과 어긋납니다: " + criterion.field());
-            };
-            if (!criterion.asc()) {
-                one = one.reversed();
-            }
+            Comparator<PutawayMethodContext.LocStock> one =
+                    PutawaySortField.of(criterion.field()).comparator(criterion.asc());
             comparator = comparator == null ? one : comparator.thenComparing(one);
         }
         return comparator.thenComparing(ls -> ls.loc().getId());

@@ -14,18 +14,18 @@ import java.util.function.Function;
  */
 public enum InvnSortField {
 
-    EXPIRY_DT("유통기한", AllocInvnCandidate::expiryDt),
-    MFG_DT("제조일자", AllocInvnCandidate::mfgDt),
-    RECEIPT_DT("입고일자", AllocInvnCandidate::receiptDt),
-    LOC_PIKNG_PRTY("로케이션 피킹순위", AllocInvnCandidate::pikngPrty),
-    LOC_CD("로케이션코드", AllocInvnCandidate::locCd),
+    EXPIRY_DT("유통기한", AlocInvnCandidate::expiryDt),
+    MFG_DT("제조일자", AlocInvnCandidate::mfgDt),
+    RECEIPT_DT("입고일자", AlocInvnCandidate::receiptDt),
+    LOC_PIKNG_PRTY("로케이션 피킹순위", AlocInvnCandidate::pikngPrty),
+    LOC_CD("로케이션코드", AlocInvnCandidate::locCd),
     /** 가용수량. 내림차순으로 두면 큰 재고부터 소진해 로케이션 파편화를 줄인다 */
-    AVAL_QTY("가용수량", AllocInvnCandidate::avalQty);
+    AVAL_QTY("가용수량", AlocInvnCandidate::avalQty);
 
     private final String label;
-    private final Function<AllocInvnCandidate, Comparable<?>> extractor;
+    private final Function<AlocInvnCandidate, Comparable<?>> extractor;
 
-    <U extends Comparable<U>> InvnSortField(String label, Function<AllocInvnCandidate, U> extractor) {
+    <U extends Comparable<U>> InvnSortField(String label, Function<AlocInvnCandidate, U> extractor) {
         this.label = label;
         this.extractor = extractor::apply;
     }
@@ -35,7 +35,7 @@ public enum InvnSortField {
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public Comparator<AllocInvnCandidate> comparator(boolean asc) {
+    public Comparator<AlocInvnCandidate> comparator(boolean asc) {
         Comparator base = asc ? Comparator.naturalOrder() : Comparator.reverseOrder();
         return Comparator.comparing(extractor, Comparator.nullsLast(base));
     }

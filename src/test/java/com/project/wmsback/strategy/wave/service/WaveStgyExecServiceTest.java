@@ -27,7 +27,9 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -69,8 +71,15 @@ class WaveStgyExecServiceTest {
         return new FieldCondition(fld, op, List.of(vals));
     }
 
+    /** 실행 경로는 id 조회 → 행 락 순으로 읽는다 — 두 단계를 함께 스텁한다 */
     private void givenTargets(OutbOrder... orders) {
-        when(outbOrderRepository.search(any(OutbOrderSearchCond.class))).thenReturn(List.of(orders));
+        List<Long> ids = new ArrayList<>();
+        for (int i = 0; i < orders.length; i++) {
+            long id = i + 1;
+            ids.add(id);
+            when(outbOrderRepository.findByIdForUpdate(id)).thenReturn(Optional.of(orders[i]));
+        }
+        when(outbOrderRepository.searchIds(any(OutbOrderSearchCond.class))).thenReturn(ids);
         when(nbrService.issue(anyString(), any(LocalDate.class))).thenReturn("WV-20260803-001", "WV-20260803-002");
         when(outbWaveRepository.save(any(OutbWave.class))).thenAnswer(inv -> inv.getArgument(0));
     }

@@ -1,4 +1,4 @@
-package com.project.wmsback.strategy.inspection.rule;
+package com.project.wmsback.strategy.inspection.component;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -35,7 +35,8 @@ public enum InspectionRule {
 
         @Override
         public Optional<String> skipReason(InspectionContext ctx) {
-            if (ctx.prod().getShelfLifeDays() == null) {
+            // 0 이하는 잔여비율의 분모가 성립하지 않는다 — 미관리와 같게 제외
+            if (ctx.prod().getShelfLifeDays() == null || ctx.prod().getShelfLifeDays() <= 0) {
                 return Optional.of("유통기한 미관리 상품");
             }
             if (ctx.mfgDt() == null) {
@@ -89,7 +90,8 @@ public enum InspectionRule {
 
         @Override
         public Optional<String> skipReason(InspectionContext ctx) {
-            if (ctx.prod().getShelfLifeDays() == null) {
+            // 0 이하는 잔여비율의 분모가 성립하지 않는다 — 미관리와 같게 제외
+            if (ctx.prod().getShelfLifeDays() == null || ctx.prod().getShelfLifeDays() <= 0) {
                 return Optional.of("유통기한 미관리 상품");
             }
             if (ctx.mfgDt() == null) {

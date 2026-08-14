@@ -1,6 +1,6 @@
 package com.project.wmsback.strategy.allocation.dto;
 
-import com.project.wmsback.strategy.allocation.entity.AllocSlotTyp;
+import com.project.wmsback.strategy.allocation.entity.AlocSlotTyp;
 import com.project.wmsback.strategy.core.condition.FieldCondition;
 
 import java.util.Comparator;
@@ -26,7 +26,7 @@ public record AlocStgyDefinition(
      * {@code cond}는 INVN_FLTR(계층 지정)·DSTRB(대상 선별)만 쓴다.
      */
     public record SlotDef(
-            AllocSlotTyp slotTyp,
+            AlocSlotTyp slotTyp,
             Integer srtSeq,
             String cmpntCd,
             Map<String, Object> para,
@@ -47,7 +47,7 @@ public record AlocStgyDefinition(
     }
 
     /** 슬롯 타입별 목록 (srt_seq 순). 없으면 빈 목록 = 그 역할은 기본 동작 */
-    public List<SlotDef> slotsOf(AllocSlotTyp slotTyp) {
+    public List<SlotDef> slotsOf(AlocSlotTyp slotTyp) {
         if (slots == null) {
             return List.of();
         }
@@ -58,7 +58,7 @@ public record AlocStgyDefinition(
     }
 
     /** 단일 슬롯 조회 — 저장 검증이 2건 이상을 거부하므로 실행 시점엔 0 또는 1건이다 */
-    public SlotDef singleSlot(AllocSlotTyp slotTyp) {
+    public SlotDef singleSlot(AlocSlotTyp slotTyp) {
         List<SlotDef> found = slotsOf(slotTyp);
         return found.isEmpty() ? null : found.get(0);
     }

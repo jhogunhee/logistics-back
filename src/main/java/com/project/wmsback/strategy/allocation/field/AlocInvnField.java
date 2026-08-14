@@ -22,18 +22,18 @@ import java.util.stream.Collectors;
  * 현재 시드는 보관존이 온도대로만 갈리고 셋 다 STRG라, 피킹존을 등록하기 전까지는
  * 계층을 나눠도 1계층으로만 동작한다.
  */
-public enum AlocInvnField implements ConditionField<AllocInvnCandidate> {
+public enum AlocInvnField implements ConditionField<AlocInvnCandidate> {
 
     /** 존 업무유형 (zon.biz_dvsn — 피킹 PIKNG / 보관 STRG …) */
-    BIZ_DVSN("존 업무유형", Set.of(ConditionOperator.IN), "bizDvsns", AllocInvnCandidate::bizDvsn);
+    BIZ_DVSN("존 업무유형", Set.of(ConditionOperator.IN), "bizDvsns", AlocInvnCandidate::bizDvsn);
 
     private final String label;
     private final Set<ConditionOperator> allowedOps;
     private final String optionSource;
-    private final Function<AllocInvnCandidate, String> extractor;
+    private final Function<AlocInvnCandidate, String> extractor;
 
     AlocInvnField(String label, Set<ConditionOperator> allowedOps, String optionSource,
-                  Function<AllocInvnCandidate, String> extractor) {
+                  Function<AlocInvnCandidate, String> extractor) {
         this.label = label;
         this.allowedOps = allowedOps;
         this.optionSource = optionSource;
@@ -64,7 +64,7 @@ public enum AlocInvnField implements ConditionField<AllocInvnCandidate> {
     }
 
     @Override
-    public String extract(AllocInvnCandidate candidate) {
+    public String extract(AlocInvnCandidate candidate) {
         return extractor.apply(candidate);
     }
 }

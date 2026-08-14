@@ -2,7 +2,7 @@ package com.project.wmsback.strategy.putaway.repository;
 
 import com.project.wmsback.warehouse.entity.LocTyp;
 import com.project.mdm.prod.entity.TmpZon;
-import com.project.wmsback.strategy.putaway.method.PutawayMethodContext;
+import com.project.wmsback.strategy.putaway.component.PutawayMethodContext;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.NumberExpression;

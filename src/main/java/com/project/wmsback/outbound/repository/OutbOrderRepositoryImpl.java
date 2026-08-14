@@ -42,6 +42,26 @@ public class OutbOrderRepositoryImpl implements OutbOrderRepositoryCustom {
                 .fetch();
     }
 
+    @Override
+    public List<Long> searchIds(OutbOrderSearchCond cond) {
+        return queryFactory
+                .select(outbOrder.id)
+                .from(outbOrder)
+                .where(
+                        outbNoContains(cond.getOutbNo()),
+                        statusEq(cond.getStatus()),
+                        storeIdEq(cond.getStoreId()),
+                        outbTypEq(cond.getOutbTyp()),
+                        vhclFltnoEq(cond.getVhclFltno()),
+                        waveIdEq(cond.getWavId()),
+                        unassigned(cond.getUnassigned()),
+                        expctDeGoe(cond.getDateFrom()),
+                        expctDeLoe(cond.getDateTo())
+                )
+                .orderBy(outbOrder.id.asc())
+                .fetch();
+    }
+
     // 조건 메서드가 null을 반환하면 where()가 그 조건을 무시한다 — QueryDSL 동적 쿼리 관례
 
     private BooleanExpression outbNoContains(String outbNo) {

@@ -1,4 +1,4 @@
-package com.project.wmsback.strategy.putaway.method;
+package com.project.wmsback.strategy.putaway.component;
 
 import java.util.List;
 import java.util.Optional;

@@ -1,6 +1,6 @@
 package com.project.wmsback.strategy.allocation.repository;
 
-import com.project.wmsback.strategy.allocation.field.AllocInvnCandidate;
+import com.project.wmsback.strategy.allocation.field.AlocInvnCandidate;
 import com.project.wmsback.warehouse.entity.LocTyp;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.dsl.NumberExpression;
@@ -28,7 +28,7 @@ import static com.project.wmsback.warehouse.entity.QZon.zon;
  */
 @Repository
 @RequiredArgsConstructor
-public class AllocQueryRepository {
+public class AlocQueryRepository {
 
     private final JPAQueryFactory queryFactory;
 
@@ -39,8 +39,8 @@ public class AllocQueryRepository {
      * <p>실전 경로는 이 메서드를 쓰지 않는다. 후보를 잠그며 읽어야 하는데(낡은 가용수량 방지)
      * 그 락 순서가 할당 서비스의 책임이기 때문이다.
      */
-    public Map<Long, List<AllocInvnCandidate>> candidatesByProd(List<Long> prodIds) {
-        Map<Long, List<AllocInvnCandidate>> result = new LinkedHashMap<>();
+    public Map<Long, List<AlocInvnCandidate>> candidatesByProd(List<Long> prodIds) {
+        Map<Long, List<AlocInvnCandidate>> result = new LinkedHashMap<>();
         if (prodIds == null || prodIds.isEmpty()) {
             return result;
         }
@@ -67,7 +67,7 @@ public class AllocQueryRepository {
                 .fetch();
 
         for (Tuple row : rows) {
-            AllocInvnCandidate candidate = new AllocInvnCandidate(
+            AlocInvnCandidate candidate = new AlocInvnCandidate(
                     row.get(inv.id),
                     row.get(loc.id), row.get(loc.locCd),
                     row.get(loc.pikngPrty) != null ? row.get(loc.pikngPrty) : 0,

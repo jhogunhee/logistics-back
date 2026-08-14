@@ -6,7 +6,7 @@ import com.project.wmsback.strategy.allocation.dto.AlocPreviewResponse;
 import com.project.wmsback.strategy.allocation.dto.AlocStgyDefinition;
 import com.project.wmsback.strategy.allocation.dto.AlocStgyResponse;
 import com.project.wmsback.strategy.allocation.dto.AlocStgySummaryResponse;
-import com.project.wmsback.strategy.allocation.service.AllocPreviewService;
+import com.project.wmsback.strategy.allocation.service.AlocPreviewService;
 import com.project.wmsback.strategy.allocation.service.AlocStgyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -34,7 +34,7 @@ import java.util.List;
 public class AlocStgyController {
 
     private final AlocStgyService alocStgyService;
-    private final AllocPreviewService allocPreviewService;
+    private final AlocPreviewService allocPreviewService;
 
     @GetMapping
     public List<AlocStgySummaryResponse> list() {

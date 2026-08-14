@@ -65,11 +65,11 @@ public class WaveStgyExecService {
             throw new IllegalArgumentException("실행할 웨이브 전략이 없습니다 — 먼저 전략을 등록하세요.");
         }
 
-        List<OutbOrder> candidates = new ArrayList<>(
-                targetOrders(request.expctDeFrom(), request.expctDeTo()));
+        List<OutbOrder> candidates = lockTargetOrders(request.expctDeFrom(), request.expctDeTo());
         int tgtCount = candidates.size();
 
         List<WaveStgyExecResponse.StgyResult> results = new ArrayList<>();
+        List<PendingLog> pendingLogs = new ArrayList<>();
         int assignedTotal = 0;
 
         for (WavStgy stgy : strategies) {
@@ -87,7 +87,7 @@ public class WaveStgyExecService {
             if (matched.isEmpty()) {
                 results.add(new WaveStgyExecResponse.StgyResult(stgy.getId(), stgy.getStgyNm(),
                         stgy.getLastRvsnNo(), null, null, 0, "조건에 맞는 미편성 주문이 없어 웨이브를 만들지 않았습니다."));
-                logExec(stgy, null, traces, candidates.size(), 0);
+                pendingLogs.add(new PendingLog(stgy, null, traces, candidates.size(), 0));
                 continue;
             }
 
@@ -101,10 +101,20 @@ public class WaveStgyExecService {
 
             results.add(new WaveStgyExecResponse.StgyResult(stgy.getId(), stgy.getStgyNm(),
                     stgy.getLastRvsnNo(), wave.getId(), wave.getWavNo(), matched.size(), null));
-            logExec(stgy, wave.getWavNo(), traces, traces.size(), matched.size());
+            pendingLogs.add(new PendingLog(stgy, wave.getWavNo(), traces, traces.size(), matched.size()));
             assignedTotal += matched.size();
         }
+
+        // 로그는 편성이 전부 끝난 뒤에 기록한다 — 로그가 REQUIRES_NEW로 즉시 커밋되므로, 루프 안에서
+        // 남기면 뒤 전략의 실패 롤백 후에도 앞 전략의 로그가 존재하지 않는 웨이브를 가리키게 된다
+        pendingLogs.forEach(pending -> logExec(pending.stgy(), pending.wavNo(),
+                pending.traces(), pending.tgtCount(), pending.matchedCount()));
         return new WaveStgyExecResponse(tgtCount, assignedTotal, results);
+    }
+
+    /** 루프가 끝난 뒤 한꺼번에 기록할 실행 로그 1건의 재료 */
+    private record PendingLog(WavStgy stgy, String wavNo, List<WaveMatchResult> traces,
+                              int tgtCount, int matchedCount) {
     }
 
     /** 미저장 정의로 미리보기 — DB 변경 없음, 실행 로그도 남기지 않는다 */
@@ -130,12 +140,34 @@ public class WaveStgyExecService {
      * 별도 제외 조건이 없다 (보류는 재고 쪽 inv.hld_qty의 개념이다).
      */
     private List<OutbOrder> targetOrders(LocalDate from, LocalDate to) {
+        return outbOrderRepository.search(targetCond(from, to));
+    }
+
+    /**
+     * 실행용 편성 대상 — id 오름차순으로 <b>잠그며 처음 읽는다</b>. assignWave의 「이미 편성됨」
+     * 가드는 같은 트랜잭션 안에서만 유효해서, 락 없이는 동시 실행(전략끼리·수동 편성)이 각자
+     * wave = NULL을 보고 같은 주문을 이중 편입한다 (마지막 커밋이 조용히 이긴다 — @Version 없음).
+     * 엔티티가 아니라 id를 먼저 뽑는 이유는 「검수 동시성」과 같다 — 먼저 읽어두면 영속성
+     * 컨텍스트에 올라가 락을 걸어도 값이 갱신되지 않는다. 잠근 뒤 조건을 다시 확인해
+     * id 조회와 락 사이에 편성·진행된 주문을 대상에서 뺀다.
+     */
+    private List<OutbOrder> lockTargetOrders(LocalDate from, LocalDate to) {
+        List<OutbOrder> orders = new ArrayList<>();
+        for (Long id : outbOrderRepository.searchIds(targetCond(from, to))) {
+            outbOrderRepository.findByIdForUpdate(id)
+                    .filter(order -> order.getStatus() == OutbStatus.CREATED && order.getWave() == null)
+                    .ifPresent(orders::add);
+        }
+        return orders;
+    }
+
+    private OutbOrderSearchCond targetCond(LocalDate from, LocalDate to) {
         OutbOrderSearchCond cond = new OutbOrderSearchCond();
         cond.setStatus(OutbStatus.CREATED);
         cond.setUnassigned(true);
         cond.setDateFrom(from);
         cond.setDateTo(to);
-        return outbOrderRepository.search(cond);
+        return cond;
     }
 
     /** 실행 로그. 웨이브를 안 만든 경우(편입 0건)도 남긴다 — "왜 안 만들어졌나"의 근거 */

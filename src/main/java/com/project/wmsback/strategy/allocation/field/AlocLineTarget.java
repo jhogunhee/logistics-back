@@ -14,7 +14,7 @@ import java.time.LocalDate;
  * <p>적용대상 판정(AlocTgtField) · 분배 대상 선별(AlocLineField) · 주문 정렬(OdrSortField)이
  * 전부 이 레코드를 본다 — 셋 다 「라인 하나의 성질」을 묻기 때문에 대상 타입을 나눌 이유가 없다.
  */
-public record AllocLineTarget(
+public record AlocLineTarget(
         Long outbLineId,
         Long outbOrderId,
         String outbNo,
@@ -38,10 +38,10 @@ public record AllocLineTarget(
         return Math.max(odrQty - alocQty, 0);
     }
 
-    public static AllocLineTarget of(OutbLine line, long alocQty) {
+    public static AlocLineTarget of(OutbLine line, long alocQty) {
         OutbOrder order = line.getOutbOrder();
         Short lifeRate = order.getStore().getOutbLifeRate();
-        return new AllocLineTarget(
+        return new AlocLineTarget(
                 line.getId(), order.getId(), order.getOutbNo(),
                 line.getProd().getId(), line.getProd().getProdCd(),
                 order.getStore().getStoreCd(), order.getStore().getStoreNm(),

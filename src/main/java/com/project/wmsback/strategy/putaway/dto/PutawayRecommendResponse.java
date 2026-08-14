@@ -15,14 +15,9 @@ public record PutawayRecommendResponse(
         long asgnQty,
         long remainQty,
         List<Assignment> assignments,
-        Object trace
+        PutawayDecisionTrace trace
 ) {
 
     public record Assignment(Long locId, String locCd, long qty) {
-    }
-
-    public static PutawayRecommendResponse noStrategy(long reqQty) {
-        return new PutawayRecommendResponse(false, null, null, null, reqQty, 0, reqQty,
-                List.of(), null);
     }
 }

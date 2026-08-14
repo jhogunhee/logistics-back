@@ -1,6 +1,6 @@
 package com.project.wmsback.strategy.allocation.component;
 
-import com.project.wmsback.strategy.allocation.field.AllocLineTarget;
+import com.project.wmsback.strategy.allocation.field.AlocLineTarget;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -27,11 +27,11 @@ public enum AlocDstrb {
             "정렬 순서대로 채울 수 있는 만큼 배분합니다. 앞선 라인이 먼저 다 가져가므로 "
                     + "「완전 출고 주문 수」가 최대가 되고, 뒤 순번은 못 받을 수 있습니다.") {
         @Override
-        Map<Long, Long> shares(long avalQty, List<AllocLineTarget> targets,
-                               ToLongFunction<AllocLineTarget> room) {
+        Map<Long, Long> shares(long avalQty, List<AlocLineTarget> targets,
+                               ToLongFunction<AlocLineTarget> room) {
             Map<Long, Long> shares = new LinkedHashMap<>();
             long left = avalQty;
-            for (AllocLineTarget target : targets) {
+            for (AlocLineTarget target : targets) {
                 long take = Math.min(room.applyAsLong(target), left);
                 shares.put(target.outbLineId(), take);
                 left -= take;
@@ -45,10 +45,10 @@ public enum AlocDstrb {
             "주문수량 비율대로 나눕니다. 많이 주문한 라인이 많이 받고, 모두가 같은 비율로 "
                     + "부분출고됩니다.") {
         @Override
-        Map<Long, Long> shares(long avalQty, List<AllocLineTarget> targets,
-                               ToLongFunction<AllocLineTarget> room) {
+        Map<Long, Long> shares(long avalQty, List<AlocLineTarget> targets,
+                               ToLongFunction<AlocLineTarget> room) {
             long total = 0;
-            for (AllocLineTarget target : targets) {
+            for (AlocLineTarget target : targets) {
                 total += room.applyAsLong(target);
             }
             Map<Long, Long> shares = new LinkedHashMap<>();
@@ -56,7 +56,7 @@ public enum AlocDstrb {
                 return shares;
             }
             long assigned = 0;
-            for (AllocLineTarget target : targets) {
+            for (AlocLineTarget target : targets) {
                 long share = avalQty * room.applyAsLong(target) / total;
                 shares.put(target.outbLineId(), share);
                 assigned += share;
@@ -71,14 +71,14 @@ public enum AlocDstrb {
             "대상 라인에 같은 수량씩 나눕니다. 주문수량과 무관하게 똑같이 받으므로 "
                     + "소량 주문에 상대적으로 유리합니다.") {
         @Override
-        Map<Long, Long> shares(long avalQty, List<AllocLineTarget> targets,
-                               ToLongFunction<AllocLineTarget> room) {
+        Map<Long, Long> shares(long avalQty, List<AlocLineTarget> targets,
+                               ToLongFunction<AlocLineTarget> room) {
             Map<Long, Long> shares = new LinkedHashMap<>();
             if (targets.isEmpty()) {
                 return shares;
             }
             long base = avalQty / targets.size();
-            for (AllocLineTarget target : targets) {
+            for (AlocLineTarget target : targets) {
                 shares.put(target.outbLineId(), base);
             }
             spreadRemainder(shares, targets, avalQty - base * targets.size());
@@ -115,13 +115,13 @@ public enum AlocDstrb {
      * @param room    라인의 남은 요청량 — 이미 배정된 분을 뺀 값
      * @return 라인 id → 배분 상한. 합계는 avalQty를 넘지 않는다
      */
-    public Map<Long, Long> distribute(long avalQty, List<AllocLineTarget> targets,
-                                      ToLongFunction<AllocLineTarget> room) {
+    public Map<Long, Long> distribute(long avalQty, List<AlocLineTarget> targets,
+                                      ToLongFunction<AlocLineTarget> room) {
         Map<Long, Long> caps = new LinkedHashMap<>();
         targets.forEach(target -> caps.put(target.outbLineId(), 0L));
 
         long left = avalQty;
-        List<AllocLineTarget> active = new ArrayList<>(targets);
+        List<AlocLineTarget> active = new ArrayList<>(targets);
         // 잔여 재배분 루프. 산정치가 라인 잔여요청보다 크면 클램프되는데, 그 남은 몫을
         // 아직 여유 있는 대상 라인에 다시 나눈다 — 안 하면 "가용이 남았는데 배분이 끝나는"
         // 상태가 된다. 매 회차마다 누군가는 상한까지 차거나 left가 0이 되므로 반드시 끝난다.
@@ -131,7 +131,7 @@ public enum AlocDstrb {
                     target -> room.applyAsLong(target) - caps.get(target.outbLineId()));
 
             boolean progressed = false;
-            for (AllocLineTarget target : active) {
+            for (AlocLineTarget target : active) {
                 long room4 = room.applyAsLong(target) - caps.get(target.outbLineId());
                 long grant = Math.min(Math.min(shares.getOrDefault(target.outbLineId(), 0L), room4), left);
                 if (grant > 0) {
@@ -149,13 +149,13 @@ public enum AlocDstrb {
     }
 
     /** 방식별 1회차 배분. 클램프·재배분은 {@link #distribute}가 공통으로 처리한다 */
-    abstract Map<Long, Long> shares(long avalQty, List<AllocLineTarget> targets,
-                                    ToLongFunction<AllocLineTarget> room);
+    abstract Map<Long, Long> shares(long avalQty, List<AlocLineTarget> targets,
+                                    ToLongFunction<AlocLineTarget> room);
 
     /** 내림 배분의 나머지를 앞에서부터 1씩. 정렬 순서가 여기서도 우선권이 된다 */
-    private static void spreadRemainder(Map<Long, Long> shares, List<AllocLineTarget> targets, long remainder) {
+    private static void spreadRemainder(Map<Long, Long> shares, List<AlocLineTarget> targets, long remainder) {
         long left = remainder;
-        for (AllocLineTarget target : targets) {
+        for (AlocLineTarget target : targets) {
             if (left <= 0) {
                 return;
             }

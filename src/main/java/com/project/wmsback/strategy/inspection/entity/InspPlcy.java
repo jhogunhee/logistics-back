@@ -52,6 +52,15 @@ public class InspPlcy extends BaseEntity {
         this.lastRvsnNo = 1L;
     }
 
+    /**
+     * 수정 저장 전단 — 기존 규칙 제거. Hibernate flush는 INSERT를 DELETE보다 먼저 내보내므로,
+     * 같은 rule_cd를 유지한 수정이 uq_insp_plcy_rule에 걸리지 않게 호출부(서비스)가
+     * 이걸 부르고 flush로 DELETE를 먼저 내보낸 뒤 applyDefinition을 불러야 한다.
+     */
+    public void clearRules() {
+        this.rules.clear();
+    }
+
     /** 수정 저장 — 규칙 목록 통째 교체 + 리비전 증가. orphanRemoval이 빠진 행을 지운다 (D4: 규칙 끄기 = 행 삭제) */
     public long applyDefinition(String stgyNm, List<InspPlcyRule> newRules) {
         this.stgyNm = stgyNm;

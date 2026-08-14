@@ -1,4 +1,4 @@
-package com.project.wmsback.strategy.inspection.rule;
+package com.project.wmsback.strategy.inspection.component;
 
 import com.project.mdm.prod.entity.Prod;
 import com.project.wmsback.strategy.inspection.repository.InspectionQueryRepository;
