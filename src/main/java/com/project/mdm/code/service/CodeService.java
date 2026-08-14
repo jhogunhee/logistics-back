@@ -132,6 +132,10 @@ public class CodeService {
     /** 신규(C)/수정(U)/삭제(D) 행 일괄 저장. 한 건이라도 실패하면 전체 롤백. */
     @Transactional
     public void saveAll(String grpCd, List<CodeSaveRequest> rows) {
+        // 없는 그룹에 코드를 만들면 어느 그룹에도 보이지 않는 고아 코드가 된다 (FK가 없어 DB가 막지 않는다)
+        if (!codeGroupRepository.existsById(grpCd)) {
+            throw new IllegalArgumentException("존재하지 않는 그룹입니다: " + grpCd);
+        }
         for (CodeSaveRequest row : rows) {
             switch (row.getStatus()) {
                 case "C" -> { validate(row); create(grpCd, row); }
