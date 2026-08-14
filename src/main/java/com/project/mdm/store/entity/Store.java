@@ -52,7 +52,7 @@ public class Store extends BaseEntity {
         this.storeNm = storeNm;
         this.storeGrp = storeGrp;
         this.storeTyp = storeTyp;
-        this.outbLifeRate = outbLifeRate != null ? outbLifeRate : 40;
+        this.outbLifeRate = outbLifeRate;
     }
 
     public void update(String storeNm, String storeGrp, String storeTyp, Short outbLifeRate) {

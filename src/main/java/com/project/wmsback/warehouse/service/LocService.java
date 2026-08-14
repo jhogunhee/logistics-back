@@ -94,10 +94,9 @@ public class LocService {
                         "최대 적재 수량은 현재 사용량(%d) 이상이어야 합니다: %s".formatted(used, loc.getLocCd()));
             }
         }
+        // null→0 기본값 처리는 빌더와 함께 엔티티(update)가 맡는다 — 두 경로가 갈라지지 않게
         loc.update(row.getZonCd(), row.getTmpZon(), row.getLocTyp(),
-                row.getPikngPrty() != null ? row.getPikngPrty() : 0,
-                row.getPtawyPrty() != null ? row.getPtawyPrty() : 0,
-                row.getMaxQty());
+                row.getPikngPrty(), row.getPtawyPrty(), row.getMaxQty());
     }
 
     /**

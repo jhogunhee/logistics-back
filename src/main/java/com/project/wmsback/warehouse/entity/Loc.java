@@ -79,8 +79,8 @@ public class Loc extends BaseEntity {
         this.zonCd = zonCd;
         this.tmpZon = tmpZon;
         this.locTyp = locTyp;
-        this.pikngPrty = pikngPrty;
-        this.ptawyPrty = ptawyPrty;
+        this.pikngPrty = pikngPrty != null ? pikngPrty : 0;
+        this.ptawyPrty = ptawyPrty != null ? ptawyPrty : 0;
         this.maxQty = maxQty;
     }
 }
