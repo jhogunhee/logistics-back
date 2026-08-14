@@ -26,7 +26,9 @@ public class GlobalExceptionHandler {
 
     // 검수 제약 위반(InspectionViolationException)은 여기서 다루지 않는다 — common이 wmsback을
     // import하지 않도록 wmsback.strategy.inspection.exception.InspectionExceptionHandler로 분리했다.
-    // @RestControllerAdvice는 여러 개 둘 수 있고, 더 구체적인 예외 타입이 먼저 매칭된다.
+    // 주의: advice가 여럿이면 타입 구체성이 아니라 advice 순서가 먼저 매칭된다. 이 클래스는
+    // Exception 최후 보루를 들고 있으므로, 전용 advice는 반드시 @Order로 이 클래스보다 앞서야 한다
+    // (무순서 advice는 LOWEST 취급이라 스캔 순서상 common이 앞 — InspectionExceptionHandler 참고).
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalArgumentException(IllegalArgumentException e) {
