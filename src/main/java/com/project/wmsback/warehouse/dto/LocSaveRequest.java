@@ -27,4 +27,5 @@ public class LocSaveRequest {
     private LocTyp locTyp;
     private Integer pikngPrty;
     private Integer ptawyPrty;
+    private Long maxQty;
 }

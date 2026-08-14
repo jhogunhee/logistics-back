@@ -17,6 +17,7 @@ public class LocResponse {
     private final LocTyp locTyp;
     private final Integer pikngPrty;
     private final Integer ptawyPrty;
+    private final Long maxQty;
     private final String createdBy;
     private final LocalDateTime createdAt;
     private final String updatedBy;
@@ -30,6 +31,7 @@ public class LocResponse {
         this.locTyp = loc.getLocTyp();
         this.pikngPrty = loc.getPikngPrty();
         this.ptawyPrty = loc.getPtawyPrty();
+        this.maxQty = loc.getMaxQty();
         this.createdBy = loc.getCreatedBy();
         this.createdAt = loc.getCreatedAt();
         this.updatedBy = loc.getUpdatedBy();

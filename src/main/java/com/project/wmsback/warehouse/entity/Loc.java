@@ -57,28 +57,30 @@ public class Loc extends BaseEntity {
 
     /**
      * 최대 적재 수량 (schema: STORAGE는 NOT NULL 강제 — ck_loc_storage_capacity).
-     * 읽기 전용 매핑이다 — 기존 저장 경로(LocService)가 이 컬럼을 다루지 않아 왔으므로
-     * insert/update 동작을 바꾸지 않는다. 적치 전략의 적재가능수량 계산에만 쓴다.
-     * 저장 화면에서 관리하게 되면 그때 쓰기 매핑으로 전환한다.
+     * NULL = 무제한(스테이징 전용). 적치 추천·이동지시의 적재가능수량 계산 기준값.
      */
-    @Column(name = "max_qty", insertable = false, updatable = false)
+    @Column(name = "max_qty")
     private Long maxQty;
 
     @Builder
-    private Loc(String locCd, String zonCd, TmpZon tmpZon, LocTyp locTyp, Integer pikngPrty, Integer ptawyPrty) {
+    private Loc(String locCd, String zonCd, TmpZon tmpZon, LocTyp locTyp, Integer pikngPrty, Integer ptawyPrty,
+                Long maxQty) {
         this.locCd = locCd;
         this.zonCd = zonCd;
         this.tmpZon = tmpZon;
         this.locTyp = locTyp;
         this.pikngPrty = pikngPrty != null ? pikngPrty : 0;
         this.ptawyPrty = ptawyPrty != null ? ptawyPrty : 0;
+        this.maxQty = maxQty;
     }
 
-    public void update(String zonCd, TmpZon tmpZon, LocTyp locTyp, Integer pikngPrty, Integer ptawyPrty) {
+    public void update(String zonCd, TmpZon tmpZon, LocTyp locTyp, Integer pikngPrty, Integer ptawyPrty,
+                       Long maxQty) {
         this.zonCd = zonCd;
         this.tmpZon = tmpZon;
         this.locTyp = locTyp;
         this.pikngPrty = pikngPrty;
         this.ptawyPrty = ptawyPrty;
+        this.maxQty = maxQty;
     }
 }

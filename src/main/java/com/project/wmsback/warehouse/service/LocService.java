@@ -61,6 +61,7 @@ public class LocService {
                 .locTyp(row.getLocTyp())
                 .pikngPrty(row.getPikngPrty())
                 .ptawyPrty(row.getPtawyPrty())
+                .maxQty(row.getMaxQty())
                 .build());
     }
 
@@ -69,7 +70,8 @@ public class LocService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 로케이션입니다: " + row.getLocId()));
         loc.update(row.getZonCd(), row.getTmpZon(), row.getLocTyp(),
                 row.getPikngPrty() != null ? row.getPikngPrty() : 0,
-                row.getPtawyPrty() != null ? row.getPtawyPrty() : 0);
+                row.getPtawyPrty() != null ? row.getPtawyPrty() : 0,
+                row.getMaxQty());
     }
 
     private void delete(LocSaveRequest row) {
@@ -100,6 +102,13 @@ public class LocService {
         // (스테이징은 전 온도대 재고가 거쳐 가는 지점이라 예외)
         if (row.getLocTyp() == LocTyp.STORAGE && zon.getTmpZon() != row.getTmpZon()) {
             throw new IllegalArgumentException("보관 로케이션의 온도대는 존의 온도대와 같아야 합니다: " + row.getLocCd());
+        }
+        // DB 제약(ck_loc_storage_capacity · ck_loc_max_qty)을 커밋 전에 사용자 메시지로 돌려준다
+        if (row.getLocTyp() == LocTyp.STORAGE && row.getMaxQty() == null) {
+            throw new IllegalArgumentException("보관 로케이션은 최대 적재 수량이 필수입니다: " + row.getLocCd());
+        }
+        if (row.getMaxQty() != null && row.getMaxQty() < 1) {
+            throw new IllegalArgumentException("최대 적재 수량은 1 이상이어야 합니다: " + row.getLocCd());
         }
         if (row.getPikngPrty() != null && row.getPikngPrty() < 0) {
             throw new IllegalArgumentException("피킹 우선순위는 0 이상이어야 합니다: " + row.getLocCd());
