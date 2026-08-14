@@ -11,6 +11,7 @@ import com.project.mdm.code.entity.CodeDetailId;
 import com.project.mdm.code.repository.CodeDetailRepository;
 import com.project.mdm.code.repository.CodeGroupRepository;
 import com.project.mdm.prod.repository.ProdRepository;
+import com.project.mdm.store.repository.StoreRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,8 +24,12 @@ import java.util.Map;
 @Transactional(readOnly = true)
 public class CodeService {
 
-    /** 계량단위 그룹. 이 그룹만 하위 참조(상품·포장)가 있어 삭제 가드가 붙는다 */
+    /** 계량단위 그룹. 하위 참조(상품·포장)가 있어 삭제 가드가 붙는다 */
     private static final String UOM_GRP_CD = "UOM";
+
+    /** 점포그룹·점포유형 그룹. store.store_grp·store_typ가 참조하고 웨이브 편성·할당 분배 조건의 기준값이다 */
+    private static final String STORE_GRP_GRP_CD = "STORE_GRP";
+    private static final String STORE_TYP_GRP_CD = "STORE_TYP";
 
     /**
      * 컬럼 DEFAULT가 가리키는 코드. <b>참조가 하나도 없어도 지울 수 없다.</b>
@@ -41,6 +46,7 @@ public class CodeService {
     private final CodeDetailRepository codeDetailRepository;
     private final CodeGroupRepository codeGroupRepository;
     private final ProdRepository prodRepository;
+    private final StoreRepository storeRepository;
 
     /** 그룹 목록. 공통코드 관리 화면이 어느 그룹을 편집할지 고르는 데 쓴다 */
     public List<CodeGroupResponse> groups() {
@@ -161,8 +167,8 @@ public class CodeService {
     /**
      * 물리삭제. 코드성 테이블이라 FK가 없어 DB가 막아주지 않으므로 하위 참조를 직접 확인한다.
      * <p>
-     * 참조 여부를 아는 방법은 그룹마다 다르다 — 지금 하위 데이터를 갖는 그룹은 UOM 하나뿐이라
-     * 여기서 분기한다. 다른 그룹(TEMP_ZONE 등)은 값이 enum으로 코드에 박혀 있어서,
+     * 참조 여부를 아는 방법은 그룹마다 다르다 — 하위 데이터를 갖는 그룹(UOM · STORE_GRP ·
+     * STORE_TYP)만 여기서 분기한다. 다른 그룹(TEMP_ZONE 등)은 값이 enum으로 코드에 박혀 있어서,
      * 지우면 조회는 되지만 저장이 막히는 형태로 드러난다.
      * <p>
      * 사용여부 컬럼을 두지 않으므로 "목록에서만 빼기"라는 중간 상태가 없다 — 참조가 있으면
@@ -176,6 +182,14 @@ public class CodeService {
         }
         if (UOM_GRP_CD.equals(grpCd)) {
             requireUnusedUom(code.getCodeCd());
+        }
+        if (STORE_GRP_GRP_CD.equals(grpCd) && storeRepository.existsByStoreGrp(code.getCodeCd())) {
+            throw new IllegalArgumentException(
+                    "점포그룹으로 쓰는 점포가 있어 삭제할 수 없습니다: " + code.getCodeCd());
+        }
+        if (STORE_TYP_GRP_CD.equals(grpCd) && storeRepository.existsByStoreTyp(code.getCodeCd())) {
+            throw new IllegalArgumentException(
+                    "점포유형으로 쓰는 점포가 있어 삭제할 수 없습니다: " + code.getCodeCd());
         }
         codeDetailRepository.delete(code);
     }
