@@ -42,7 +42,7 @@ public class PtawyStgyService {
     private final StgyRvsnService stgyRvsnService;
 
     public List<PtawyStgySummaryResponse> list() {
-        // 전체(null) 먼저, 그 다음 유형 코드순 — 선택 규칙(유형 → 전체)과 무관한 표시 순서일 뿐
+        // 유형 코드순, 전체(null)는 마지막 (PostgreSQL ASC = NULLS LAST) — 선택 규칙(유형 → 전체)과 무관한 표시 순서일 뿐
         return ptawyStgyRepository.findAll(Sort.by("odrDvsn", "id")).stream()
                 .map(PtawyStgySummaryResponse::from)
                 .toList();

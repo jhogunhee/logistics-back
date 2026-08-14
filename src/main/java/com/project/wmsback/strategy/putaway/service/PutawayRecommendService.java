@@ -64,14 +64,14 @@ public class PutawayRecommendService {
      * 적재가능수량에서 뺀다 — 화면이 순차 호출하던 시절의 결함을 서버가 흡수한 지점이다.
      */
     public PutawayBulkRecommendResponse recommendBulk(PutawayBulkRecommendRequest request) {
-        if (request.getItems() == null || request.getItems().isEmpty()) {
+        if (request.items() == null || request.items().isEmpty()) {
             throw new IllegalArgumentException("추천할 배치가 없습니다.");
         }
         Map<Long, Long> inflowByLoc = locCapacityService.openInflowQtyByLoc();
         Map<Long, Long> crossAssigned = new LinkedHashMap<>();
 
         List<PutawayBulkRecommendResponse.Item> items = new ArrayList<>();
-        for (PutawayBulkRecommendRequest.Item item : request.getItems()) {
+        for (PutawayBulkRecommendRequest.Item item : request.items()) {
             items.add(recommendOne(item, inflowByLoc, crossAssigned));
         }
         return new PutawayBulkRecommendResponse(items);
@@ -80,24 +80,24 @@ public class PutawayRecommendService {
     private PutawayBulkRecommendResponse.Item recommendOne(PutawayBulkRecommendRequest.Item item,
                                                            Map<Long, Long> inflowByLoc,
                                                            Map<Long, Long> crossAssigned) {
-        if (item.getQty() == null || item.getQty() < 1) {
+        if (item.qty() == null || item.qty() < 1) {
             throw new IllegalArgumentException("추천할 수량은 1 이상이어야 합니다.");
         }
-        IbLine ibLine = ibLineRepository.findById(item.getIbLineId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고 라인입니다: " + item.getIbLineId()));
+        IbLine ibLine = ibLineRepository.findById(item.ibLineId())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고 라인입니다: " + item.ibLineId()));
         Prod prod = ibLine.getProd();
         PutawayTarget target = new PutawayTarget(prod, ibLine.getIbOrder().getVendor().getVndrCd());
 
         Optional<PtawyStgy> selected = selectStrategy(ibLine.getIbOrder().getOdrDvsn());
         if (selected.isEmpty()) {
             // 전략 미설정 — 화면이 이 배치를 수동 지시로 안내한다
-            return new PutawayBulkRecommendResponse.Item(item.getIbLineId(), item.getLotId(),
+            return new PutawayBulkRecommendResponse.Item(item.ibLineId(), item.lotId(),
                     prod.getProdCd(), prod.getProdNm(), false, null, null,
-                    item.getQty(), 0, item.getQty(), List.of());
+                    item.qty(), 0, item.qty(), List.of());
         }
         PtawyStgy stgy = selected.get();
         PutawayRecommendResponse result = compute(PtawyStgyResponse.from(stgy).toDefinition(),
-                stgy.getId(), stgy.getStgyNm(), stgy.getLastRvsnNo(), prod, target, item.getQty(),
+                stgy.getId(), stgy.getStgyNm(), stgy.getLastRvsnNo(), prod, target, item.qty(),
                 inflowByLoc, crossAssigned);
 
         // 다음 배치가 같은 로케이션을 다시 채우지 않도록 이번 배정분을 누적
@@ -114,7 +114,7 @@ public class PutawayRecommendService {
                         + " (" + result.assignments().size() + "개 로케이션)",
                 result.trace());
 
-        return new PutawayBulkRecommendResponse.Item(item.getIbLineId(), item.getLotId(),
+        return new PutawayBulkRecommendResponse.Item(item.ibLineId(), item.lotId(),
                 prod.getProdCd(), prod.getProdNm(), true, stgy.getStgyNm(), stgy.getLastRvsnNo(),
                 result.reqQty(), result.asgnQty(), result.remainQty(), assignments);
     }

@@ -101,7 +101,7 @@ class PutawayRecommendServiceTest {
     }
 
     private PutawayRecommendResponse preview(PtawyStgyDefinition definition, long qty) {
-        return service.preview(definition, new PtawyPreviewRequest(null, null, null, 10L, qty));
+        return service.preview(definition, new PtawyPreviewRequest(null, null, 10L, qty));
     }
 
     @Test
@@ -199,18 +199,14 @@ class PutawayRecommendServiceTest {
         when(ptawyStgyRepository.findByOdrDvsn("NRML")).thenReturn(Optional.empty());
         when(ptawyStgyRepository.findByOdrDvsnIsNull()).thenReturn(Optional.empty());
 
-        PutawayBulkRecommendRequest request = new PutawayBulkRecommendRequest();
-        PutawayBulkRecommendRequest.Item item = new PutawayBulkRecommendRequest.Item();
-        item.setIbLineId(5L);
-        item.setLotId(7L);
-        item.setQty(30L);
-        request.setItems(List.of(item));
+        PutawayBulkRecommendRequest request = new PutawayBulkRecommendRequest(
+                List.of(new PutawayBulkRecommendRequest.Item(5L, 7L, 30L)));
 
-        PutawayBulkRecommendResponse.Item result = service.recommendBulk(request).getItems().get(0);
+        PutawayBulkRecommendResponse.Item result = service.recommendBulk(request).items().get(0);
 
-        assertFalse(result.isStrategySelected());
-        assertEquals(30, result.getRemainQty());
-        assertTrue(result.getAssignments().isEmpty());
+        assertFalse(result.strategySelected());
+        assertEquals(30, result.remainQty());
+        assertTrue(result.assignments().isEmpty());
         verify(stgyExecLogService, never()).log(any(), any(), any(), any(), any(), any(), any());
     }
 }
