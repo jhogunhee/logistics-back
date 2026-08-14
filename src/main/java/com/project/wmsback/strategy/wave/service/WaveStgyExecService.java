@@ -12,8 +12,8 @@ import com.project.wmsback.strategy.core.entity.StgyTyp;
 import com.project.wmsback.strategy.core.entity.TrgrTyp;
 import com.project.wmsback.strategy.core.service.StgyExecLogService;
 import com.project.wmsback.strategy.wave.dto.WavPreviewRequest;
-import com.project.wmsback.strategy.wave.dto.WavPreviewResponse;
 import com.project.wmsback.strategy.wave.dto.WavStgyDefinition;
+import com.project.wmsback.strategy.wave.dto.WaveDecisionTrace;
 import com.project.wmsback.strategy.wave.dto.WaveMatchResult;
 import com.project.wmsback.strategy.wave.dto.WaveStgyExecRequest;
 import com.project.wmsback.strategy.wave.dto.WaveStgyExecResponse;
@@ -26,9 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 웨이브 전략 실행·미리보기.
@@ -118,11 +116,11 @@ public class WaveStgyExecService {
     }
 
     /** 미저장 정의로 미리보기 — DB 변경 없음, 실행 로그도 남기지 않는다 */
-    public WavPreviewResponse preview(WavStgyDefinition definition, WavPreviewRequest request) {
+    public WaveDecisionTrace preview(WavStgyDefinition definition, WavPreviewRequest request) {
         List<WaveMatchResult> orders = targetOrders(request.expctDeFrom(), request.expctDeTo()).stream()
                 .map(order -> WaveMatcher.evaluate(definition.condGrp(), WaveOrderTarget.from(order)))
                 .toList();
-        return new WavPreviewResponse(orders.size(),
+        return new WaveDecisionTrace(orders.size(),
                 (int) orders.stream().filter(WaveMatchResult::matched).count(), orders);
     }
 
@@ -172,11 +170,8 @@ public class WaveStgyExecService {
 
     /** 실행 로그. 웨이브를 안 만든 경우(편입 0건)도 남긴다 — "왜 안 만들어졌나"의 근거 */
     private void logExec(WavStgy stgy, String wavNo, List<WaveMatchResult> traces, int tgtCount, int matchedCount) {
-        Map<String, Object> trace = new LinkedHashMap<>();
-        trace.put("tgtCount", tgtCount);
-        trace.put("matchedCount", matchedCount);
-        trace.put("orders", traces);
         stgyExecLogService.log(StgyTyp.WAV, stgy.getId(), stgy.getLastRvsnNo(), TrgrTyp.MANUAL,
-                wavNo, "대상 " + tgtCount + "건 중 편입 " + matchedCount + "건", trace);
+                wavNo, "대상 " + tgtCount + "건 중 편입 " + matchedCount + "건",
+                new WaveDecisionTrace(tgtCount, matchedCount, traces));
     }
 }

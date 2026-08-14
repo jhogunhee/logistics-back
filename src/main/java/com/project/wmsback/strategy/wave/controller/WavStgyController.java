@@ -1,10 +1,10 @@
 package com.project.wmsback.strategy.wave.controller;
 
 import com.project.wmsback.strategy.wave.dto.WavPreviewRequest;
-import com.project.wmsback.strategy.wave.dto.WavPreviewResponse;
 import com.project.wmsback.strategy.wave.dto.WavStgyDefinition;
 import com.project.wmsback.strategy.wave.dto.WavStgyResponse;
 import com.project.wmsback.strategy.wave.dto.WavStgySummaryResponse;
+import com.project.wmsback.strategy.wave.dto.WaveDecisionTrace;
 import com.project.wmsback.strategy.wave.service.WavStgyService;
 import com.project.wmsback.strategy.wave.service.WaveStgyExecService;
 import lombok.RequiredArgsConstructor;
@@ -59,7 +59,7 @@ public class WavStgyController {
 
     /** 미저장 정의 미리보기 — 편집 중 실시간 확인용 (P4). 검증 후 판정하므로 잘못된 정의는 400 */
     @PostMapping("/preview")
-    public WavPreviewResponse preview(@RequestBody WavPreviewRequest request) {
+    public WaveDecisionTrace preview(@RequestBody WavPreviewRequest request) {
         if (request.definition() == null) {
             throw new IllegalArgumentException("미리보기할 정의가 없습니다.");
         }
@@ -69,7 +69,7 @@ public class WavStgyController {
 
     /** 저장본 미리보기 */
     @PostMapping("/{id}/preview")
-    public WavPreviewResponse previewSaved(@PathVariable Long id, @RequestBody WavPreviewRequest request) {
+    public WaveDecisionTrace previewSaved(@PathVariable Long id, @RequestBody WavPreviewRequest request) {
         WavStgyDefinition definition = wavStgyService.get(id).toDefinition();
         return waveStgyExecService.preview(definition, request);
     }
