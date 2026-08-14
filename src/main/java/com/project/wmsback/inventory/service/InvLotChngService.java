@@ -149,16 +149,18 @@ public class InvLotChngService {
         // 1) 상품 로우 락 — id 오름차순. 목적지 Lot의 재사용 조회·채번이 검수와 같은 경합을 가져
         //    같은 락으로 직렬화한다. FK가 없어 상품 행 부재를 DB가 못 잡는다 (기존 정정과 같은 방어)
         Map<Long, Prod> prodById = new HashMap<>();
-        ctxs.stream().map(c -> c.key.prodId()).distinct().sorted().forEach(prodId ->
-                prodById.put(prodId, prodRepository.findByIdForUpdate(prodId)
-                        .orElseThrow(() -> new IllegalStateException("재고가 참조하는 상품이 없습니다 (정합성 오류): " + prodId))));
+        for (Long prodId : ctxs.stream().map(c -> c.key.prodId()).distinct().sorted().toList()) {
+            prodById.put(prodId, prodRepository.findByIdForUpdate(prodId)
+                    .orElseThrow(() -> new IllegalStateException("재고가 참조하는 상품이 없습니다 (정합성 오류): " + prodId)));
+        }
 
         // 2) 원 Lot 로우 락 — id 오름차순. 전량 정정(기존 화면)이 동시에 원 Lot의 제조일자를
         //    바꾸는 중이면 목적지 배치 키 계산이 어긋난다
         Map<Long, Lot> lotById = new HashMap<>();
-        ctxs.stream().map(c -> c.key.lotId()).distinct().sorted().forEach(lotId ->
-                lotById.put(lotId, lotRepository.findByIdForUpdate(lotId)
-                        .orElseThrow(() -> new IllegalStateException("재고가 참조하는 Lot이 없습니다 (정합성 오류): " + lotId))));
+        for (Long lotId : ctxs.stream().map(c -> c.key.lotId()).distinct().sorted().toList()) {
+            lotById.put(lotId, lotRepository.findByIdForUpdate(lotId)
+                    .orElseThrow(() -> new IllegalStateException("재고가 참조하는 Lot이 없습니다 (정합성 오류): " + lotId)));
+        }
 
         // 3) 검증 + 목적지 Lot 확보 — 상품 락 안이라 안전하고, 재고 락보다 앞이라 채번 규칙(락 계층)과 무관하다
         for (ItemCtx ctx : ctxs) {
