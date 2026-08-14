@@ -94,7 +94,7 @@ public class StoreService {
             throw new IllegalArgumentException("점포명은 필수입니다.");
         }
         // 그리드 숫자 셀을 비우면 null로 넘어온다 — DB NOT NULL·CHECK(0~100)에 맡기면
-        // 409 "다른 데이터가 참조하고 있어…" 라는 엉뚱한 메시지가 나가므로 여기서 먼저 막는다
+        // 어느 필드가 문제인지 없는 일반 메시지(409)가 나가므로 여기서 필드를 짚어 먼저 막는다
         if (row.getOutbLifeRate() == null) {
             throw new IllegalArgumentException("잔여수명 허용률은 필수입니다: " + row.getStoreNm());
         }

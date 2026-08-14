@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.sql.SQLException;
 import java.util.Map;
 
 @RestControllerAdvice
@@ -44,12 +45,34 @@ public class GlobalExceptionHandler {
                 .body(Map.of("message", e.getMessage()));
     }
 
-    /** DB 제약 위반 (다른 데이터가 참조 중인 상품 삭제, 중복 코드 등) */
+    /**
+     * DB 제약 위반. SQLState로 원인을 구분한다 — 전부 "참조 중"으로 말하면 동시 중복 저장이
+     * 실패했을 때 사용자에게 오답이 나간다 (이 DB는 FK가 0건이라 실제로 참조 위반은 없다).
+     */
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, Object>> handleDataIntegrityViolationException(DataIntegrityViolationException e) {
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
-                .body(Map.of("message", "다른 데이터가 참조하고 있어 처리할 수 없습니다."));
+                .body(Map.of("message", integrityMessage(e)));
+    }
+
+    private String integrityMessage(DataIntegrityViolationException e) {
+        String state = null;
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof SQLException sql) {
+                state = sql.getSQLState();
+                break;
+            }
+        }
+        if (state == null) {
+            return "데이터 제약 조건을 위반해 처리할 수 없습니다.";
+        }
+        return switch (state) {
+            case "23505" -> "이미 존재하는 값입니다. 중복 여부를 확인하세요.";
+            case "23502" -> "필수 값이 비어 있습니다.";
+            case "23514" -> "허용 범위를 벗어난 값입니다.";
+            default -> "데이터 제약 조건을 위반해 처리할 수 없습니다.";
+        };
     }
 
     /** 없는 경로 호출. Exception 핸들러가 삼켜 500으로 응답하지 않도록 분리 */
