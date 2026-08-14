@@ -22,6 +22,7 @@ public class ProdService {
     private final NbrService nbrService;
     /** 상품을 참조하는 앱들의 신고 창구. @Order 순으로 주입된다 (WMS → OMS) */
     private final List<ProdRefChecker> prodRefCheckers;
+    private final ProdUomChangeGuard prodUomChangeGuard;
 
     public List<ProdResponse> list(ProdSearchCond cond) {
         return prodRepository.search(cond).stream()
@@ -64,6 +65,14 @@ public class ProdService {
     private void update(ProdSaveRequest row) {
         Prod prod = prodRepository.findById(row.getProdId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다: " + row.getProdId()));
+        // 입고/출고단위 교체는 환산이 남은 주문이 없을 때만 — 주문 수량은 그 단위 기준이라
+        // 단위가 바뀌면 확정/검수 때 다른 낱개 수가 된다 (ProdUomChangeGuard 참고)
+        if (!prod.getInbUomCd().equals(row.getInbUomCd())) {
+            prodUomChangeGuard.requireInbChangeable(prod);
+        }
+        if (!prod.getOutbUomCd().equals(row.getOutbUomCd())) {
+            prodUomChangeGuard.requireOutbChangeable(prod);
+        }
         prod.update(row.getProdNm(), row.getTmpZon(),
                 row.getInbUomCd(), row.getOutbUomCd(), row.getShelfLifeDays());
         ensureUoms(prod);

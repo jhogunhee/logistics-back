@@ -1,6 +1,7 @@
 package com.project.wmsback.warehouse.service;
 
 import com.project.mdm.prod.service.ProdRefChecker;
+import com.project.wmsback.inbound.entity.IbStatus;
 import com.querydsl.core.types.EntityPath;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -38,6 +39,17 @@ public class WmsProdRefChecker implements ProdRefChecker {
         if (exists(outbLine.prod.id.eq(prodId), outbLine)) return "출고주문";
         if (exists(lot.prod.id.eq(prodId), lot)) return "Lot";
         return null;
+    }
+
+    /**
+     * 입고확정 전 ASN. 예정 수량(expct_qty)은 확정 시점의 환산으로 이미 EA지만, 검수는
+     * 작업자가 입고단위로 센 수를 그때의 마스터로 환산해 받는다(ReceivingService) — 그 사이에
+     * 낱개수량이 바뀌면 같은 실물이 예정과 다른 EA로 잡혀 결품/과입고로 오판된다.
+     */
+    @Override
+    public String findOpenInbRef(Long prodId) {
+        return exists(ibLine.prod.id.eq(prodId).and(ibLine.ibOrder.status.ne(IbStatus.CONFIRMED)), ibLine)
+                ? "입고확정 전 입고예정(ASN)" : null;
     }
 
     private boolean exists(BooleanExpression where, EntityPath<?> from) {

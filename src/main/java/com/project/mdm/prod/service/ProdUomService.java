@@ -26,6 +26,7 @@ public class ProdUomService {
 
     private final ProdUomRepository prodUomRepository;
     private final ProdRepository prodRepository;
+    private final ProdUomChangeGuard prodUomChangeGuard;
 
     public List<ProdUomResponse> list(ProdUomSearchCond cond) {
         return prodUomRepository.search(cond).stream()
@@ -62,12 +63,22 @@ public class ProdUomService {
         prodUomRepository.flush();
     }
 
-    /** 행이 지정한 역할(입고단위/출고단위)을 상품에 반영한다. true인 행만 본다 */
+    /**
+     * 행이 지정한 역할(입고단위/출고단위)을 상품에 반영한다. true인 행만 본다.
+     * 다른 단위로 옮기는 이동이면 환산이 남은 주문이 없는지 먼저 확인한다({@link ProdUomChangeGuard}) —
+     * 역할이 옮겨지는 순간 그 주문 수량의 낱개 환산이 새 단위 것으로 바뀐다.
+     */
     private void applyRoles(ProdUomSaveRequest row, Prod prod, String uomCd) {
         if (Boolean.TRUE.equals(row.getInbUom())) {
+            if (!uomCd.equals(prod.getInbUomCd())) {
+                prodUomChangeGuard.requireInbChangeable(prod);
+            }
             prod.assignInbUomCd(uomCd);
         }
         if (Boolean.TRUE.equals(row.getOutbUom())) {
+            if (!uomCd.equals(prod.getOutbUomCd())) {
+                prodUomChangeGuard.requireOutbChangeable(prod);
+            }
             prod.assignOutbUomCd(uomCd);
         }
     }
@@ -101,6 +112,16 @@ public class ProdUomService {
         ProdUom uom = find(row.getProdUomId());
         Prod prod = uom.getProd();
         validateQty(row, prod.getProdNm() + " / " + uom.getUomCd());
+        // 입고/출고단위로 쓰이는 포장의 낱개수량 변경은 환산이 남은 주문이 없을 때만 —
+        // 주문 수량은 그 단위 기준이라 계수가 바뀌면 확정/검수 때 다른 낱개 수가 된다
+        if (!row.getEaQty().equals(uom.getEaQty())) {
+            if (uom.getUomCd().equals(prod.getInbUomCd())) {
+                prodUomChangeGuard.requireInbChangeable(prod);
+            }
+            if (uom.getUomCd().equals(prod.getOutbUomCd())) {
+                prodUomChangeGuard.requireOutbChangeable(prod);
+            }
+        }
         uom.update(row.getEaQty(), row.getWgt());
         applyRoles(row, prod, uom.getUomCd());
         return prod;

@@ -1,6 +1,7 @@
 package com.project.omsback.inbound.service;
 
 import com.project.mdm.prod.service.ProdRefChecker;
+import com.project.omsback.inbound.entity.OmsIbStatus;
 import com.project.omsback.inbound.repository.OmsIbLineRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.annotation.Order;
@@ -19,5 +20,12 @@ public class OmsIbProdRefChecker implements ProdRefChecker {
     @Override
     public String findReference(Long prodId) {
         return omsIbLineRepository.existsByProdId(prodId) ? "입고주문" : null;
+    }
+
+    /** 발주 수량은 입고단위 기준으로 저장돼 있고 확정 시점에 낱개(EA)로 환산된다 */
+    @Override
+    public String findOpenInbRef(Long prodId) {
+        return omsIbLineRepository.existsByProdIdAndOmsIbOrderStatus(prodId, OmsIbStatus.CREATED)
+                ? "미확정 입고주문" : null;
     }
 }
