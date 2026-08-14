@@ -40,7 +40,7 @@ public class ProdService {
                 default -> throw new IllegalArgumentException("알 수 없는 행 상태입니다: " + row.getStatus());
             }
         }
-        // FK 위반(참조 중인 상품 삭제 등)을 커밋 시점이 아니라 여기서 터뜨려 예외 변환이 되게 한다
+        // 제약 위반(코드 중복 등)을 커밋 시점이 아니라 여기서 터뜨려 예외 변환이 되게 한다
         prodRepository.flush();
     }
 
