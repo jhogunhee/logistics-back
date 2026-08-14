@@ -1,6 +1,5 @@
 package com.project.wmsback.strategy.allocation.controller;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.project.wmsback.strategy.allocation.dto.AlocPreviewRequest;
 import com.project.wmsback.strategy.allocation.dto.AlocPreviewResponse;
 import com.project.wmsback.strategy.allocation.dto.AlocStgyDefinition;
@@ -76,15 +75,5 @@ public class AlocStgyController {
     public AlocPreviewResponse previewSaved(@PathVariable Long id, @RequestBody AlocPreviewRequest request) {
         AlocStgyResponse saved = alocStgyService.get(id);
         return allocPreviewService.preview(saved.toDefinition(), id, saved.lastRvsnNo(), request);
-    }
-
-    @GetMapping("/{id}/revisions")
-    public List<com.project.wmsback.strategy.core.dto.RvsnResponse> revisions(@PathVariable Long id) {
-        return alocStgyService.revisions(id);
-    }
-
-    @GetMapping("/{id}/revisions/{rvsnNo}")
-    public JsonNode revision(@PathVariable Long id, @PathVariable Long rvsnNo) {
-        return alocStgyService.revision(id, rvsnNo);
     }
 }

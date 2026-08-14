@@ -1,7 +1,5 @@
 package com.project.wmsback.strategy.wave.controller;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.project.wmsback.strategy.core.dto.RvsnResponse;
 import com.project.wmsback.strategy.wave.dto.WavPreviewRequest;
 import com.project.wmsback.strategy.wave.dto.WavPreviewResponse;
 import com.project.wmsback.strategy.wave.dto.WavStgyDefinition;
@@ -74,15 +72,5 @@ public class WavStgyController {
     public WavPreviewResponse previewSaved(@PathVariable Long id, @RequestBody WavPreviewRequest request) {
         WavStgyDefinition definition = wavStgyService.get(id).toDefinition();
         return waveStgyExecService.preview(definition, request);
-    }
-
-    @GetMapping("/{id}/revisions")
-    public List<RvsnResponse> revisions(@PathVariable Long id) {
-        return wavStgyService.revisions(id);
-    }
-
-    @GetMapping("/{id}/revisions/{rvsnNo}")
-    public JsonNode revision(@PathVariable Long id, @PathVariable Long rvsnNo) {
-        return wavStgyService.revision(id, rvsnNo);
     }
 }

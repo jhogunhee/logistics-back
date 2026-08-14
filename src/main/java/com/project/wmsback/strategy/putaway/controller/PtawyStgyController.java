@@ -1,7 +1,5 @@
 package com.project.wmsback.strategy.putaway.controller;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.project.wmsback.strategy.core.dto.RvsnResponse;
 import com.project.wmsback.strategy.putaway.dto.PtawyPreviewRequest;
 import com.project.wmsback.strategy.putaway.dto.PtawyStgyDefinition;
 import com.project.wmsback.strategy.putaway.dto.PtawyStgyResponse;
@@ -70,15 +68,5 @@ public class PtawyStgyController {
     public PutawayRecommendResponse previewSaved(@PathVariable Long id, @RequestBody PtawyPreviewRequest request) {
         PtawyStgyDefinition definition = ptawyStgyService.get(id).toDefinition();
         return putawayRecommendService.preview(definition, request);
-    }
-
-    @GetMapping("/{id}/revisions")
-    public List<RvsnResponse> revisions(@PathVariable Long id) {
-        return ptawyStgyService.revisions(id);
-    }
-
-    @GetMapping("/{id}/revisions/{rvsnNo}")
-    public JsonNode revision(@PathVariable Long id, @PathVariable Long rvsnNo) {
-        return ptawyStgyService.revision(id, rvsnNo);
     }
 }

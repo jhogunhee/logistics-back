@@ -1,6 +1,5 @@
 package com.project.wmsback.strategy.allocation.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.project.wmsback.strategy.allocation.component.AlocDstrb;
 import com.project.wmsback.strategy.allocation.component.AlocRstrct;
 import com.project.wmsback.strategy.allocation.component.AlocSrt;
@@ -20,7 +19,6 @@ import com.project.wmsback.strategy.allocation.repository.AlocStgyRepository;
 import com.project.wmsback.strategy.core.condition.ConditionEvaluator;
 import com.project.wmsback.strategy.core.condition.FieldCondition;
 import com.project.wmsback.strategy.core.condition.SortCriterion;
-import com.project.wmsback.strategy.core.dto.RvsnResponse;
 import com.project.wmsback.strategy.core.entity.StgyTyp;
 import com.project.wmsback.strategy.core.service.StgyRvsnService;
 import lombok.RequiredArgsConstructor;
@@ -88,14 +86,6 @@ public class AlocStgyService {
     @Transactional
     public void delete(Long id) {
         alocStgyRepository.delete(load(id));
-    }
-
-    public List<RvsnResponse> revisions(Long id) {
-        return stgyRvsnService.list(StgyTyp.ALOC, id);
-    }
-
-    public JsonNode revision(Long id, Long rvsnNo) {
-        return stgyRvsnService.snapshotTree(StgyTyp.ALOC, id, rvsnNo);
     }
 
     public AlocStgy load(Long id) {

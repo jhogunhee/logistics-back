@@ -1,9 +1,7 @@
 package com.project.wmsback.strategy.wave.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.project.wmsback.strategy.core.condition.ConditionEvaluator;
 import com.project.wmsback.strategy.core.condition.FieldCondition;
-import com.project.wmsback.strategy.core.dto.RvsnResponse;
 import com.project.wmsback.strategy.core.entity.StgyTyp;
 import com.project.wmsback.strategy.core.service.StgyRvsnService;
 import com.project.wmsback.strategy.wave.dto.WavStgyDefinition;
@@ -69,14 +67,6 @@ public class WavStgyService {
     @Transactional
     public void delete(Long id) {
         wavStgyRepository.delete(load(id));
-    }
-
-    public List<RvsnResponse> revisions(Long id) {
-        return stgyRvsnService.list(StgyTyp.WAV, id);
-    }
-
-    public JsonNode revision(Long id, Long rvsnNo) {
-        return stgyRvsnService.snapshotTree(StgyTyp.WAV, id, rvsnNo);
     }
 
     public WavStgy load(Long id) {

@@ -2,7 +2,6 @@ package com.project.wmsback.strategy.inspection.service;
 
 import com.project.mdm.prod.entity.Prod;
 import com.project.mdm.prod.repository.ProdRepository;
-import com.project.wmsback.strategy.core.dto.RvsnResponse;
 import com.project.wmsback.strategy.core.entity.StgyTyp;
 import com.project.wmsback.strategy.core.service.StgyRvsnService;
 import com.project.wmsback.strategy.inspection.dto.InspPlcyDefinition;
@@ -13,7 +12,6 @@ import com.project.wmsback.strategy.inspection.entity.InspPlcy;
 import com.project.wmsback.strategy.inspection.entity.InspPlcyRule;
 import com.project.wmsback.strategy.inspection.repository.InspPlcyRepository;
 import com.project.wmsback.strategy.inspection.component.InspectionRule;
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -97,17 +95,6 @@ public class InspPlcyService {
                     inspectionService.evaluateOne(normalized.rules(), prod, receiptDt, lot.mfgDt())));
         }
         return new InspPreviewResponse(results);
-    }
-
-    /** 현재 정책의 리비전 이력 — 정책이 없으면(삭제 포함) 빈 목록 */
-    public List<RvsnResponse> revisions() {
-        return inspPlcyRepository.findFirstByOrderByIdAsc()
-                .map(plcy -> stgyRvsnService.list(StgyTyp.INSP, plcy.getId()))
-                .orElseGet(List::of);
-    }
-
-    public JsonNode revision(Long rvsnNo) {
-        return stgyRvsnService.snapshotTree(StgyTyp.INSP, loadPolicy().getId(), rvsnNo);
     }
 
     private InspPlcy loadPolicy() {

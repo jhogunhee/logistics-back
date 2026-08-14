@@ -1,11 +1,9 @@
 package com.project.wmsback.strategy.putaway.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.project.wmsback.strategy.core.condition.ConditionEvaluator;
 import com.project.wmsback.strategy.core.condition.ConditionOperator;
 import com.project.wmsback.strategy.core.condition.FieldCondition;
 import com.project.wmsback.strategy.core.condition.SortCriterion;
-import com.project.wmsback.strategy.core.dto.RvsnResponse;
 import com.project.wmsback.strategy.core.entity.StgyTyp;
 import com.project.wmsback.strategy.core.service.StgyRvsnService;
 import com.project.wmsback.strategy.putaway.dto.PtawyStgyDefinition;
@@ -83,14 +81,6 @@ public class PtawyStgyService {
     @Transactional
     public void delete(Long id) {
         ptawyStgyRepository.delete(load(id));
-    }
-
-    public List<RvsnResponse> revisions(Long id) {
-        return stgyRvsnService.list(StgyTyp.PTAWY, id);
-    }
-
-    public JsonNode revision(Long id, Long rvsnNo) {
-        return stgyRvsnService.snapshotTree(StgyTyp.PTAWY, id, rvsnNo);
     }
 
     public PtawyStgy load(Long id) {
