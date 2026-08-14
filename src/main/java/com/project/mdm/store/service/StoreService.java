@@ -51,6 +51,8 @@ public class StoreService {
         storeRepository.save(Store.builder()
                 .storeCd(storeCd)
                 .storeNm(row.getStoreNm())
+                .storeGrp(row.getStoreGrp())
+                .storeTyp(row.getStoreTyp())
                 .outbLifeRate(row.getOutbLifeRate())
                 .build());
     }
@@ -58,7 +60,7 @@ public class StoreService {
     private void update(StoreSaveRequest row) {
         Store store = storeRepository.findById(row.getStoreId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 점포입니다: " + row.getStoreId()));
-        store.update(row.getStoreNm(), row.getOutbLifeRate());
+        store.update(row.getStoreNm(), row.getStoreGrp(), row.getStoreTyp(), row.getOutbLifeRate());
     }
 
     /**

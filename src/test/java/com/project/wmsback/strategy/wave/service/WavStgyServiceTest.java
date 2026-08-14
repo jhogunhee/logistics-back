@@ -53,9 +53,10 @@ class WavStgyServiceTest {
     @Test
     @DisplayName("없는 필드·허용되지 않는 연산자는 저장 거부")
     void rejectsUnknownFieldAndOperator() {
-        // 납품처그룹·납품처유형은 보류라 필드 레지스트리에 없다 — 저장 단계에서 걸린다
+        // 레지스트리에 없는 필드 코드 — 저장 단계에서 걸린다
+        // (원래 예시였던 STORE_GRP는 2026-08-14 점포그룹 컬럼 신설로 실재 필드가 됐다)
         assertThrows(IllegalArgumentException.class, () -> service.validate(def(
-                List.of(List.of(new FieldCondition("STORE_GRP", ConditionOperator.EQ, List.of("G1")))))));
+                List.of(List.of(new FieldCondition("NO_SUCH_FIELD", ConditionOperator.EQ, List.of("G1")))))));
         // 코드값 필드에 대소 비교는 열지 않는다 (사전순이라 "10"이 "2"보다 앞선다)
         assertThrows(IllegalArgumentException.class, () -> service.validate(def(
                 List.of(List.of(new FieldCondition("VHCL_FLTNO", ConditionOperator.GE, List.of("1")))))));

@@ -32,6 +32,9 @@ import static com.project.wmsback.strategy.core.condition.ConditionOperator.NOT_
 public enum AlocLineField implements ConditionField<AlocLineTarget> {
 
     STORE_CD("점포", Set.of(EQ, NE, IN, NOT_IN), "stores", AlocLineTarget::storeCd),
+    /** 점포그룹·점포유형 — 점포 하나하나가 아니라 묶음으로 「누구부터 채울지」를 표현한다. 미지정(NULL) 점포는 부정 연산자만 참 */
+    STORE_GRP("납품처그룹", Set.of(EQ, NE, IN, NOT_IN), "storeGrps", AlocLineTarget::storeGrp),
+    STORE_TYP("납품처유형", Set.of(EQ, NE, IN, NOT_IN), "storeTyps", AlocLineTarget::storeTyp),
     OUTB_TYP("출고유형", Set.of(EQ, NE, IN, NOT_IN), "outbTyps", AlocLineTarget::outbTyp),
     VHCL_FLTNO("차량편수", Set.of(EQ, NE, IN, NOT_IN), "vhclFltnos", AlocLineTarget::vhclFltno),
     EXPCT_DE("출고예정일", Set.of(EQ, NE, GE, LE, BETWEEN), null,

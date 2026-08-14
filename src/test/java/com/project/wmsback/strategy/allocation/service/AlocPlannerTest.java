@@ -215,7 +215,7 @@ class AlocPlannerTest {
     @DisplayName("기할당분을 뺀 잔여요청이 상한이다 — 전략이 과할당을 열 수 없다")
     void alreadyAllocatedCapsRequest() {
         AlocLineTarget partial = new AlocLineTarget(1L, 1L, "OB-001", 1L, "PROD-0001",
-                "ST-0001", "점포", (short) 0, "NRML", null, EXPCT_DE, 30, 25);
+                "ST-0001", "점포", null, null, (short) 0, "NRML", null, EXPCT_DE, 30, 25);
 
         AlocGroupPlan plan = plan(null, List.of(partial), List.of(candidate(1L, 100)));
 
@@ -265,6 +265,6 @@ class AlocPlannerTest {
 
     private AlocLineTarget line(long lineId, long odrQty, String outbNo, String storeCd) {
         return new AlocLineTarget(lineId, lineId, outbNo, 1L, "PROD-0001",
-                storeCd, "점포", (short) 50, "NRML", null, EXPCT_DE, odrQty, 0);
+                storeCd, "점포", null, null, (short) 50, "NRML", null, EXPCT_DE, odrQty, 0);
     }
 }

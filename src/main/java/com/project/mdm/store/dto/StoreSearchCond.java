@@ -12,4 +12,6 @@ public class StoreSearchCond {
 
     private String storeCd;
     private String storeNm;
+    private String storeGrp;
+    private String storeTyp;
 }

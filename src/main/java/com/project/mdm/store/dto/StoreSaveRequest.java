@@ -20,5 +20,7 @@ public class StoreSaveRequest {
 
     private Long storeId;
     private String storeNm;
+    private String storeGrp;
+    private String storeTyp;
     private Short outbLifeRate;
 }

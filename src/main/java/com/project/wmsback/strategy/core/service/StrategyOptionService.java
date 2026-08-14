@@ -50,6 +50,11 @@ public class StrategyOptionService {
             // 할당 분배의 대상 선별 기준. 「이 점포부터 채운다」가 이 선택지로 표현된다
             case "stores" -> storeRepository.findAll().stream()
                     .map(s -> new OptionResponse(s.getStoreCd(), s.getStoreNm())).toList();
+            // 웨이브 편성·할당 분배 조건의 기준값 (store.store_grp · store_typ)
+            case "storeGrps" -> codeDetailRepository.findByGrpCdOrderBySrtSeq("STORE_GRP").stream()
+                    .map(c -> new OptionResponse(c.getCodeCd(), c.getCodeNm())).toList();
+            case "storeTyps" -> codeDetailRepository.findByGrpCdOrderBySrtSeq("STORE_TYP").stream()
+                    .map(c -> new OptionResponse(c.getCodeCd(), c.getCodeNm())).toList();
             case "uoms" -> codeDetailRepository.findByGrpCdOrderBySrtSeq("UOM").stream()
                     .map(c -> new OptionResponse(c.getCodeCd(), c.getCodeNm())).toList();
             default -> throw new IllegalArgumentException("없는 선택지 소스입니다: " + source);

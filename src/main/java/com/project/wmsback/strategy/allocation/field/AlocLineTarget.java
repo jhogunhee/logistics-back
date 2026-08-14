@@ -22,6 +22,9 @@ public record AlocLineTarget(
         String prodCd,
         String storeCd,
         String storeNm,
+        /** 점포그룹·점포유형 — 분배 대상 선별(AlocLineField)의 조건값. null = 미지정 (부정 연산자만 참) */
+        String storeGrp,
+        String storeTyp,
         /** 점포의 납품 허용 잔여수명 비율(%) — SHELF_LIFE_PCT의 basis=STORE가 쓰는 기준 */
         short outbLifeRate,
         String outbTyp,
@@ -45,6 +48,7 @@ public record AlocLineTarget(
                 line.getId(), order.getId(), order.getOutbNo(),
                 line.getProd().getId(), line.getProd().getProdCd(),
                 order.getStore().getStoreCd(), order.getStore().getStoreNm(),
+                order.getStore().getStoreGrp(), order.getStore().getStoreTyp(),
                 // 기준 미설정은 「요구 없음」이다 — 0%면 기한만 안 지났으면 전부 통과한다
                 lifeRate != null ? lifeRate : 0,
                 order.getOutbTyp(), order.getVhclFltno(), order.getExpctDe(),

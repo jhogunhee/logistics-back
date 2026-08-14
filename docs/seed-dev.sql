@@ -196,17 +196,18 @@ INSERT INTO nbr_seq (rule_cd, dync_ky, seq) VALUES
     ('STORE_CD', '-', 5)
 ON CONFLICT (rule_cd, dync_ky) DO UPDATE SET seq = GREATEST(nbr_seq.seq, EXCLUDED.seq);
 
--- 점포 (납품 허용 잔여수명 비율: 편의점 > 마트 > 급식 — FEFO 앞단 필터 시나리오용)
-INSERT INTO store (store_cd, store_nm, outb_life_rate)
-VALUES ('ST-0001', '씨앤유 편의점 강남점', 70) ON CONFLICT (store_cd) DO NOTHING;
-INSERT INTO store (store_cd, store_nm, outb_life_rate)
-VALUES ('ST-0002', '씨앤유 편의점 판교점', 70) ON CONFLICT (store_cd) DO NOTHING;
-INSERT INTO store (store_cd, store_nm, outb_life_rate)
-VALUES ('ST-0003', '한마음마트 수원점', 50) ON CONFLICT (store_cd) DO NOTHING;
-INSERT INTO store (store_cd, store_nm, outb_life_rate)
-VALUES ('ST-0004', '한마음마트 일산점', 40) ON CONFLICT (store_cd) DO NOTHING;
-INSERT INTO store (store_cd, store_nm, outb_life_rate)
-VALUES ('ST-0005', '행복급식센터', 30) ON CONFLICT (store_cd) DO NOTHING;
+-- 점포 (납품 허용 잔여수명 비율: 편의점 > 마트 > 급식 — FEFO 앞단 필터 시나리오용.
+--       그룹은 체인 계열, 유형은 업태 — 웨이브 편성·할당 분배 조건 시나리오용)
+INSERT INTO store (store_cd, store_nm, store_grp, store_typ, outb_life_rate)
+VALUES ('ST-0001', '씨앤유 편의점 강남점', 'CNU', 'CVS', 70) ON CONFLICT (store_cd) DO NOTHING;
+INSERT INTO store (store_cd, store_nm, store_grp, store_typ, outb_life_rate)
+VALUES ('ST-0002', '씨앤유 편의점 판교점', 'CNU', 'CVS', 70) ON CONFLICT (store_cd) DO NOTHING;
+INSERT INTO store (store_cd, store_nm, store_grp, store_typ, outb_life_rate)
+VALUES ('ST-0003', '한마음마트 수원점', 'HANMAUM', 'MART', 50) ON CONFLICT (store_cd) DO NOTHING;
+INSERT INTO store (store_cd, store_nm, store_grp, store_typ, outb_life_rate)
+VALUES ('ST-0004', '한마음마트 일산점', 'HANMAUM', 'MART', 40) ON CONFLICT (store_cd) DO NOTHING;
+INSERT INTO store (store_cd, store_nm, store_grp, store_typ, outb_life_rate)
+VALUES ('ST-0005', '행복급식센터', 'HAENGBOK', 'FDSVC', 30) ON CONFLICT (store_cd) DO NOTHING;
 
 COMMIT;
 

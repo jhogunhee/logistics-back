@@ -22,7 +22,9 @@ public class StoreRepositoryImpl implements StoreRepositoryCustom {
                 .selectFrom(store)
                 .where(
                         storeCdContains(cond.getStoreCd()),
-                        storeNmContains(cond.getStoreNm())
+                        storeNmContains(cond.getStoreNm()),
+                        storeGrpEq(cond.getStoreGrp()),
+                        storeTypEq(cond.getStoreTyp())
                 )
                 // id순이 아니라 점포코드순 — 납품처 선택 팝업이 빈 조건으로 이 쿼리를 타는데,
                 // 그 목록은 처음부터 점포코드순을 전제로 만들어졌다
@@ -38,6 +40,16 @@ public class StoreRepositoryImpl implements StoreRepositoryCustom {
 
     private BooleanExpression storeNmContains(String storeNm) {
         return StringUtils.hasText(storeNm) ? store.storeNm.containsIgnoreCase(storeNm) : null;
+    }
+
+    // 그룹·유형은 코드값이라 부분일치가 아니라 등가 비교다 (화면이 콤보로 보낸다)
+
+    private BooleanExpression storeGrpEq(String storeGrp) {
+        return StringUtils.hasText(storeGrp) ? store.storeGrp.eq(storeGrp) : null;
+    }
+
+    private BooleanExpression storeTypEq(String storeTyp) {
+        return StringUtils.hasText(storeTyp) ? store.storeTyp.eq(storeTyp) : null;
     }
 
 }

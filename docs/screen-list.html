@@ -303,7 +303,7 @@
 </tr>
 <tr>
   <td class="name">점포 관리</td>
-  <td>점포코드/명 + <code>outb_life_rate</code>(잔여수명 허용률, FEFO 앞단 필터) 편집. 점포코드는 서버 채번(<code>ST-0001</code>)</td>
+  <td>점포코드/명 + 그룹·유형(공통코드 <code>STORE_GRP</code>·<code>STORE_TYP</code> — 웨이브·할당 조건의 기준값) + <code>outb_life_rate</code>(잔여수명 허용률, FEFO 앞단 필터) 편집. 점포코드는 서버 채번(<code>ST-0001</code>)</td>
   <td class="st"><span class="badge done">구현</span></td>
   <td><code>/master/stores</code>, <code>/bulk</code> · <code>pages/master/StoreMaster.jsx</code>. 사용여부 컬럼 없이 물리삭제로 운용 — 출고주문(WMS·OMS)이 참조 중이면 서버가 거부한다(<code>StoreRefChecker</code>)</td>
 </tr>

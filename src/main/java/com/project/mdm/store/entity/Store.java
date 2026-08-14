@@ -34,19 +34,31 @@ public class Store extends BaseEntity {
     @Column(name = "store_nm", nullable = false, length = 100)
     private String storeNm;
 
+    /** 점포그룹 (공통코드 STORE_GRP — 체인·계열 묶음). NULL = 미지정. 웨이브 편성·할당 분배 조건의 기준값 */
+    @Column(name = "store_grp", length = 10)
+    private String storeGrp;
+
+    /** 점포유형 (공통코드 STORE_TYP — 편의점·마트·급식). NULL = 미지정. 웨이브 편성·할당 분배 조건의 기준값 */
+    @Column(name = "store_typ", length = 10)
+    private String storeTyp;
+
     /** 납품 허용 잔여수명 비율(%). 이 점포 출고 시 잔여 유통기한이 이 비율 미만인 Lot은 할당 제외 (FEFO 앞단 필터) */
     @Column(name = "outb_life_rate", nullable = false)
     private Short outbLifeRate;
 
     @Builder
-    private Store(String storeCd, String storeNm, Short outbLifeRate) {
+    private Store(String storeCd, String storeNm, String storeGrp, String storeTyp, Short outbLifeRate) {
         this.storeCd = storeCd;
         this.storeNm = storeNm;
+        this.storeGrp = storeGrp;
+        this.storeTyp = storeTyp;
         this.outbLifeRate = outbLifeRate != null ? outbLifeRate : 40;
     }
 
-    public void update(String storeNm, Short outbLifeRate) {
+    public void update(String storeNm, String storeGrp, String storeTyp, Short outbLifeRate) {
         this.storeNm = storeNm;
+        this.storeGrp = storeGrp;
+        this.storeTyp = storeTyp;
         this.outbLifeRate = outbLifeRate;
     }
 }
