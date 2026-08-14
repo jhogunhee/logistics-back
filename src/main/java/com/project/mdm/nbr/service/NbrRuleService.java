@@ -91,9 +91,19 @@ public class NbrRuleService {
         rule.update(row.getRuleNm(), row.getPrfx(), row.getPrfxDlmt(), row.getDeDlmt(), row.getSeqDgt());
     }
 
+    /**
+     * 물리삭제. 발급 이력(nbr_seq 카운터)이 있는 규칙은 거부한다 — 이미 발급된 번호가 문서·마스터에
+     * 박혀 있는데 규칙을 지우면 그 코드의 발급이 전면 중단되고, 지웠다 재등록하면 카운터가 고아로
+     * 남거나(이어받음) 같이 지우면 번호가 재사용돼 기존 데이터와 충돌한다. 한 번이라도 발급한
+     * 규칙은 지울 수 없다는 것이 가장 안전한 정책이다.
+     */
     private void delete(NbrRuleSaveRequest row) {
         NbrRule rule = nbrRuleRepository.findById(row.getRuleCd())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 채번 규칙입니다: " + row.getRuleCd()));
+        if (nbrSeqRepository.existsByRuleCd(rule.getRuleCd())) {
+            throw new IllegalArgumentException(
+                    "발급 이력이 있는 채번 규칙은 삭제할 수 없습니다: " + rule.getRuleCd());
+        }
         nbrRuleRepository.delete(rule);
     }
 }

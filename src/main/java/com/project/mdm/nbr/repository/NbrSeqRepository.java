@@ -14,6 +14,9 @@ public interface NbrSeqRepository extends JpaRepository<NbrSeq, NbrSeqId>, NbrSe
     /** 규칙 관리 화면의 "현재 카운터 조회" 읽기전용 목록 */
     List<NbrSeq> findByRuleCdOrderByDyncKy(String ruleCd);
 
+    /** 규칙 삭제 가드 — 발급 이력(카운터)이 있는 규칙은 지울 수 없다 */
+    boolean existsByRuleCd(String ruleCd);
+
     /**
      * 최초 발급 시 카운터 행이 없으면 만든다. ON CONFLICT DO NOTHING을 쓰는 이유:
      * 동시에 첫 발급이 몰려 PK 충돌이 나면 PostgreSQL은 그 순간 트랜잭션을 abort 상태로
