@@ -15,6 +15,9 @@ public class PutawaySearchCond {
 
     private String ibNo;
 
+    /** 벤더명 (contains). 화면은 벤더 선택 팝업에서 고른 이름을 그대로 보낸다 — 입고예정 목록과 같은 방식 */
+    private String vndrNm;
+
     /** 입고(검수)일자 범위 (from ~ to). Lot.receiptDt 기준 */
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate dateFrom;

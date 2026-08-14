@@ -60,6 +60,7 @@ public class IbLineRepositoryImpl implements IbLineRepositoryCustom {
                         invHist.loc.locCd.eq(STAGING_LOC_CD),
                         invHist.ibLineId.isNotNull(),
                         ibNoContains(cond.getIbNo()),
+                        vndrNmContains(cond.getVndrNm()),
                         prodCdContains(cond.getProdCd()),
                         prodNmContains(cond.getProdNm()),
                         receiptDtGoe(cond.getDateFrom()),
@@ -77,6 +78,10 @@ public class IbLineRepositoryImpl implements IbLineRepositoryCustom {
 
     private BooleanExpression ibNoContains(String ibNo) {
         return StringUtils.hasText(ibNo) ? ibOrder.ibNo.containsIgnoreCase(ibNo) : null;
+    }
+
+    private BooleanExpression vndrNmContains(String vndrNm) {
+        return StringUtils.hasText(vndrNm) ? vendor.vndrNm.containsIgnoreCase(vndrNm) : null;
     }
 
     private BooleanExpression prodCdContains(String prodCd) {
