@@ -19,6 +19,8 @@ public class VendorService {
 
     private final VendorRepository vendorRepository;
     private final NbrService nbrService;
+    /** 벤더를 참조하는 앱들의 신고 창구. @Order 순으로 주입된다 (WMS → OMS) */
+    private final List<VendorRefChecker> vendorRefCheckers;
 
     public List<VendorResponse> list(VendorSearchCond cond) {
         return vendorRepository.search(cond).stream()
@@ -37,7 +39,7 @@ public class VendorService {
                 default -> throw new IllegalArgumentException("알 수 없는 행 상태입니다: " + row.getStatus());
             }
         }
-        // FK 위반(주문이 참조 중인 벤더 삭제 등)을 커밋 시점이 아니라 여기서 터뜨려 예외 변환이 되게 한다
+        // 제약 위반(코드 중복 등)을 커밋 시점이 아니라 여기서 터뜨려 예외 변환이 되게 한다
         vendorRepository.flush();
     }
 
@@ -58,10 +60,30 @@ public class VendorService {
         vendor.update(row.getVndrNm(), row.getPicNm(), row.getTelNo());
     }
 
+    /**
+     * 물리삭제. 입고 문서가 참조 중이면 거부한다 — FK가 0건이라 DB가 막아주지 않아서
+     * 그냥 지우면 주문이 없는 벤더를 가리키게 된다.
+     * <p>
+     * 참조 검사는 {@link VendorRefChecker} 구현체가 한다 — mdm은 자기 데이터를 누가 쓰는지 모른다.
+     */
     private void delete(VendorSaveRequest row) {
         Vendor vendor = vendorRepository.findById(row.getVendorId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 벤더입니다: " + row.getVendorId()));
+        String usedBy = findAnyReference(vendor.getId());
+        if (usedBy != null) {
+            throw new IllegalArgumentException(
+                    "%s에서 사용 중이라 삭제할 수 없습니다: %s".formatted(usedBy, vendor.getVndrNm()));
+        }
         vendorRepository.delete(vendor);
+    }
+
+    /** 첫 참조에서 멈춘다 — 어느 앱이 먼저 걸리든 삭제가 막히는 결과는 같다 */
+    private String findAnyReference(Long vendorId) {
+        for (VendorRefChecker checker : vendorRefCheckers) {
+            String usedBy = checker.findReference(vendorId);
+            if (usedBy != null) return usedBy;
+        }
+        return null;
     }
 
     private void validate(VendorSaveRequest row) {
