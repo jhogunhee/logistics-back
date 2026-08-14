@@ -69,6 +69,7 @@ public class WaveStgyExecService {
         int tgtCount = candidates.size();
 
         List<WaveStgyExecResponse.StgyResult> results = new ArrayList<>();
+        List<PendingLog> pendingLogs = new ArrayList<>();
         int assignedTotal = 0;
 
         for (WavStgy stgy : strategies) {
@@ -86,7 +87,7 @@ public class WaveStgyExecService {
             if (matched.isEmpty()) {
                 results.add(new WaveStgyExecResponse.StgyResult(stgy.getId(), stgy.getStgyNm(),
                         stgy.getLastRvsnNo(), null, null, 0, "조건에 맞는 미편성 주문이 없어 웨이브를 만들지 않았습니다."));
-                logExec(stgy, null, traces, candidates.size(), 0);
+                pendingLogs.add(new PendingLog(stgy, null, traces, candidates.size(), 0));
                 continue;
             }
 
@@ -100,10 +101,20 @@ public class WaveStgyExecService {
 
             results.add(new WaveStgyExecResponse.StgyResult(stgy.getId(), stgy.getStgyNm(),
                     stgy.getLastRvsnNo(), wave.getId(), wave.getWavNo(), matched.size(), null));
-            logExec(stgy, wave.getWavNo(), traces, traces.size(), matched.size());
+            pendingLogs.add(new PendingLog(stgy, wave.getWavNo(), traces, traces.size(), matched.size()));
             assignedTotal += matched.size();
         }
+
+        // 로그는 편성이 전부 끝난 뒤에 기록한다 — 로그가 REQUIRES_NEW로 즉시 커밋되므로, 루프 안에서
+        // 남기면 뒤 전략의 실패 롤백 후에도 앞 전략의 로그가 존재하지 않는 웨이브를 가리키게 된다
+        pendingLogs.forEach(pending -> logExec(pending.stgy(), pending.wavNo(),
+                pending.traces(), pending.tgtCount(), pending.matchedCount()));
         return new WaveStgyExecResponse(tgtCount, assignedTotal, results);
+    }
+
+    /** 루프가 끝난 뒤 한꺼번에 기록할 실행 로그 1건의 재료 */
+    private record PendingLog(WavStgy stgy, String wavNo, List<WaveMatchResult> traces,
+                              int tgtCount, int matchedCount) {
     }
 
     /** 미저장 정의로 미리보기 — DB 변경 없음, 실행 로그도 남기지 않는다 */
