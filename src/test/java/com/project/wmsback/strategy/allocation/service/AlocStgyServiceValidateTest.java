@@ -2,7 +2,6 @@ package com.project.wmsback.strategy.allocation.service;
 
 import com.project.wmsback.strategy.allocation.component.AlocDstrb;
 import com.project.wmsback.strategy.allocation.component.AlocRstrct;
-import com.project.wmsback.strategy.allocation.component.AlocSrt;
 import com.project.wmsback.strategy.allocation.dto.AlocStgyDefinition;
 import com.project.wmsback.strategy.allocation.entity.AlocSlotTyp;
 import com.project.wmsback.strategy.allocation.field.InvnSortField;
@@ -16,6 +15,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
@@ -80,7 +80,7 @@ class AlocStgyServiceValidateTest {
     @DisplayName("단일 슬롯을 2건 등록하면 거부")
     void singleSlotRejectsSecond() {
         assertThrows(IllegalArgumentException.class, () -> service.validate(def(List.of(
-                multiSort(InvnSortField.EXPIRY_DT), multiSort(InvnSortField.MFG_DT)))));
+                invnSort(InvnSortField.EXPIRY_DT), invnSort(InvnSortField.MFG_DT)))));
     }
 
     @Test
@@ -88,7 +88,19 @@ class AlocStgyServiceValidateTest {
     void sortNeedsCriteria() {
         assertThrows(IllegalArgumentException.class, () -> service.validate(def(List.of(
                 new AlocStgyDefinition.SlotDef(AlocSlotTyp.INVN_SRT, 1,
-                        AlocSrt.MULTI_SORT.name(), Map.of(), List.of())))));
+                        null, Map.of(), List.of())))));
+    }
+
+    @Test
+    @DisplayName("정렬 슬롯에 남은 옛 구현체 코드는 버리고 저장한다 — 마이그레이션 전 값으로 저장이 막히지 않는다")
+    void legacySortComponentIsDropped() {
+        AlocStgyDefinition result = service.validate(def(List.of(
+                new AlocStgyDefinition.SlotDef(AlocSlotTyp.INVN_SRT, 1, "MULTI_SORT",
+                        Map.of(AlocStgyDefinition.SlotDef.PARA_CRITERIA,
+                                List.of(Map.of("field", InvnSortField.EXPIRY_DT.name(), "dir", "ASC"))),
+                        List.of()))));
+
+        assertNull(result.slots().get(0).cmpntCd());
     }
 
     @Test
@@ -139,9 +151,10 @@ class AlocStgyServiceValidateTest {
         return new AlocStgyDefinition.SlotDef(AlocSlotTyp.INVN_FLTR, 1, null, Map.of(), cond);
     }
 
-    private AlocStgyDefinition.SlotDef multiSort(InvnSortField field) {
-        return new AlocStgyDefinition.SlotDef(AlocSlotTyp.INVN_SRT, 1, AlocSrt.MULTI_SORT.name(),
-                Map.of(AlocSrt.PARA_CRITERIA, List.of(Map.of("field", field.name(), "dir", "ASC"))),
+    private AlocStgyDefinition.SlotDef invnSort(InvnSortField field) {
+        return new AlocStgyDefinition.SlotDef(AlocSlotTyp.INVN_SRT, 1, null,
+                Map.of(AlocStgyDefinition.SlotDef.PARA_CRITERIA,
+                        List.of(Map.of("field", field.name(), "dir", "ASC"))),
                 List.of());
     }
 }

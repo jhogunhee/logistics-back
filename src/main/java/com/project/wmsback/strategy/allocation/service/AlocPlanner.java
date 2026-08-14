@@ -2,7 +2,6 @@ package com.project.wmsback.strategy.allocation.service;
 
 import com.project.wmsback.strategy.allocation.component.AlocDstrb;
 import com.project.wmsback.strategy.allocation.component.AlocRstrct;
-import com.project.wmsback.strategy.allocation.component.AlocSrt;
 import com.project.wmsback.strategy.allocation.dto.AlocDecisionTrace;
 import com.project.wmsback.strategy.allocation.dto.AlocStgyDefinition;
 import com.project.wmsback.strategy.allocation.dto.AlocGroupPlan;
@@ -394,7 +393,7 @@ public final class AlocPlanner {
             return List.of();
         }
         AlocStgyDefinition.SlotDef slot = def.singleSlot(slotTyp);
-        return slot == null ? List.of() : AlocSrt.criteriaOf(slot.paraOrEmpty());
+        return slot == null ? List.of() : slot.criteria();
     }
 
     // ── 근거(trace) 보조 ─────────────────────────────────────────────────────

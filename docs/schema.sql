@@ -1393,11 +1393,12 @@ CREATE TABLE aloc_stgy_slot (
     CONSTRAINT ck_aloc_slot_typ CHECK (
         slot_typ IN ('INVN_FLTR','RSTRCT','INVN_SRT','ODR_SRT','DSTRB')
     ),
-    -- 필터 슬롯은 "무엇을 실행할지"가 아니라 "어느 후보만"을 정하므로 구현체 축이 없다 —
-    -- 정의 전체가 cond다. 나머지 슬롯은 구현체가 곧 실행 로직이라 비면 실행할 것이 없다.
+    -- 구현체 축이 있는 슬롯은 RSTRCT·DSTRB뿐이다. 필터 슬롯은 "무엇을 실행할지"가 아니라
+    -- "어느 후보만"을 정하므로 정의 전체가 cond이고, 정렬 슬롯은 "기준을 순서대로 나열"
+    -- 하나뿐이라 para.criteria가 정의 전부다 — 둘 다 고를 구현체가 없다.
     CONSTRAINT ck_aloc_slot_cmpnt CHECK (
-        (slot_typ =  'INVN_FLTR' AND cmpnt_cd IS NULL)
-     OR (slot_typ <> 'INVN_FLTR' AND cmpnt_cd IS NOT NULL)
+        (slot_typ IN ('INVN_FLTR','INVN_SRT','ODR_SRT') AND cmpnt_cd IS NULL)
+     OR (slot_typ IN ('RSTRCT','DSTRB')                 AND cmpnt_cd IS NOT NULL)
     ),
     CONSTRAINT ck_aloc_slot_srt_seq CHECK (srt_seq >= 0),
     CONSTRAINT ck_aloc_slot_para    CHECK (jsonb_typeof(para) = 'object'),
@@ -1414,6 +1415,6 @@ COMMENT ON TABLE  aloc_stgy_slot IS '할당 슬롯. 할당이 하는 일을 역�
 COMMENT ON COLUMN aloc_stgy_slot.aloc_stgy_id IS '할당 전략 헤더 (느슨한 참조, FK 없음)';
 COMMENT ON COLUMN aloc_stgy_slot.slot_typ     IS '슬롯 타입. 값 목록이 코드 구조 그 자체(AlocSlotTyp enum)라 공통코드가 아니라 CHECK로 고정한다 — status류와 같은 취급';
 COMMENT ON COLUMN aloc_stgy_slot.srt_seq      IS '다중 슬롯 안의 순서. INVN_FLTR은 후보 계층 순서(앞 계층부터 소진), DSTRB는 분배 실행 순서. 단일 슬롯에서는 무의미';
-COMMENT ON COLUMN aloc_stgy_slot.cmpnt_cd     IS '구현체 code (enum name — SHELF_LIFE_PCT · MULTI_SORT · SEQUENTIAL · RATIO · EQUAL). CHECK 없음: 구현체 추가로 DDL을 고치지 않기 위함이고 존재 검증은 저장 서비스가 한다. INVN_FLTR만 NULL';
-COMMENT ON COLUMN aloc_stgy_slot.para         IS '구현체 파라미터. MULTI_SORT는 {"criteria":[{"field","dir"},…]}, SHELF_LIFE_PCT는 {"basis":"STORE"} 또는 {"basis":"FIXED","minPct":40}';
+COMMENT ON COLUMN aloc_stgy_slot.cmpnt_cd     IS '구현체 code (enum name — SHELF_LIFE_PCT · SEQUENTIAL · RATIO · EQUAL). CHECK 없음: 구현체 추가로 DDL을 고치지 않기 위함이고 존재 검증은 저장 서비스가 한다. 구현체 축이 없는 INVN_FLTR·INVN_SRT·ODR_SRT는 NULL';
+COMMENT ON COLUMN aloc_stgy_slot.para         IS '슬롯 파라미터. 정렬 슬롯(INVN_SRT·ODR_SRT)은 {"criteria":[{"field","dir"},…]}, SHELF_LIFE_PCT는 {"basis":"STORE"} 또는 {"basis":"FIXED","minPct":40}';
 COMMENT ON COLUMN aloc_stgy_slot.cond         IS '조건 [{fld,op,vals},…] — 원소끼리 AND. INVN_FLTR은 계층 지정(존 업무유형 IN), DSTRB는 배분 대상 선별. 정렬·제약 슬롯은 쓰지 않는다. 마지막 DSTRB 슬롯의 조건이 비어 있어야 하는 검증은 저장 서비스 몫 — 조건 있는 슬롯으로 끝나면 어느 조건에도 안 걸린 라인이 재고를 두고도 0을 받는다';

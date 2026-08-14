@@ -2,7 +2,6 @@ package com.project.wmsback.strategy.allocation.service;
 
 import com.project.wmsback.strategy.allocation.component.AlocDstrb;
 import com.project.wmsback.strategy.allocation.component.AlocRstrct;
-import com.project.wmsback.strategy.allocation.component.AlocSrt;
 import com.project.wmsback.strategy.allocation.dto.AlocStgyDefinition;
 import com.project.wmsback.strategy.allocation.dto.AlocGroupPlan;
 import com.project.wmsback.strategy.allocation.entity.AlocSlotTyp;
@@ -178,8 +177,8 @@ class AlocPlannerTest {
     @DisplayName("재고 정렬 — 정의한 기준이 FEFO 기본값을 덮어쓴다")
     void invnSortOverridesFefo() {
         AlocStgyDefinition definition = new AlocStgyDefinition("정렬", 0, List.of(), List.of(
-                slot(AlocSlotTyp.INVN_SRT, 1, AlocSrt.MULTI_SORT.name(),
-                        Map.of(AlocSrt.PARA_CRITERIA, List.of(
+                slot(AlocSlotTyp.INVN_SRT, 1, null,
+                        Map.of(AlocStgyDefinition.SlotDef.PARA_CRITERIA, List.of(
                                 Map.of("field", InvnSortField.AVAL_QTY.name(), "dir", "DESC"))),
                         List.of())));
 
@@ -197,8 +196,8 @@ class AlocPlannerTest {
     @DisplayName("주문 정렬 — 주문수량 내림차순이면 큰 주문이 먼저 가져간다")
     void odrSortChangesPriority() {
         AlocStgyDefinition definition = new AlocStgyDefinition("주문정렬", 0, List.of(), List.of(
-                slot(AlocSlotTyp.ODR_SRT, 1, AlocSrt.MULTI_SORT.name(),
-                        Map.of(AlocSrt.PARA_CRITERIA, List.of(
+                slot(AlocSlotTyp.ODR_SRT, 1, null,
+                        Map.of(AlocStgyDefinition.SlotDef.PARA_CRITERIA, List.of(
                                 Map.of("field", OdrSortField.ODR_QTY.name(), "dir", "DESC"))),
                         List.of())));
 

@@ -2,7 +2,6 @@ package com.project.wmsback.strategy.allocation.service;
 
 import com.project.wmsback.strategy.allocation.component.AlocDstrb;
 import com.project.wmsback.strategy.allocation.component.AlocRstrct;
-import com.project.wmsback.strategy.allocation.component.AlocSrt;
 import com.project.wmsback.strategy.allocation.dto.AlocStgyDefinition;
 import com.project.wmsback.strategy.allocation.dto.AlocStgyResponse;
 import com.project.wmsback.strategy.allocation.dto.AlocStgySummaryResponse;
@@ -183,10 +182,12 @@ public class AlocStgyService {
     private String validateCmpnt(AlocSlotTyp slotTyp, AlocStgyDefinition.SlotDef slot,
                                  String label, Set<String> seenCmpnt) {
         if (!slotTyp.isHasCmpnt()) {
-            // 필터 슬롯은 구현체 축이 없다 — 값이 오면 화면/클라이언트가 잘못 보낸 것이다
-            if (slot.cmpntCd() != null) {
+            // 재고위치 슬롯에 구현체가 오면 화면/클라이언트가 잘못 보낸 것이다.
+            if (slotTyp == AlocSlotTyp.INVN_FLTR && slot.cmpntCd() != null) {
                 throw new IllegalArgumentException(label + ": 재고위치 슬롯은 구현체를 갖지 않습니다.");
             }
+            // 정렬 슬롯에 남아 있는 옛 구현체 코드는 거부하지 않고 버린다 — 정렬은 기준 목록이
+            // 정의 전부라 그 값이 뜻하는 것이 없고, 옛 화면이 보낸 값 하나로 저장이 막히면 안 된다.
             return null;
         }
         String cmpntCd = slot.cmpntCd();
@@ -195,9 +196,8 @@ public class AlocStgyService {
         }
         boolean exists = switch (slotTyp) {
             case RSTRCT -> AlocRstrct.find(cmpntCd).isPresent();
-            case INVN_SRT, ODR_SRT -> AlocSrt.find(cmpntCd).isPresent();
             case DSTRB -> AlocDstrb.find(cmpntCd).isPresent();
-            case INVN_FLTR -> false;
+            case INVN_FLTR, INVN_SRT, ODR_SRT -> false;
         };
         if (!exists) {
             throw new IllegalArgumentException(label + ": 없는 구현체입니다 — " + cmpntCd);
@@ -225,10 +225,10 @@ public class AlocStgyService {
         }
     }
 
-    /** 정렬 기준 검증 — 실행이 쓰는 파싱({@link AlocSrt#criteriaOf})을 그대로 쓴다 */
+    /** 정렬 기준 검증 — 실행이 쓰는 파싱({@link AlocStgyDefinition.SlotDef#criteria})을 그대로 쓴다 */
     private void validateCriteria(String label, AlocStgyDefinition.SlotDef slot,
                                   java.util.function.Predicate<String> fieldExists) {
-        List<SortCriterion> criteria = AlocSrt.criteriaOf(slot.paraOrEmpty());
+        List<SortCriterion> criteria = slot.criteria();
         if (criteria.isEmpty()) {
             throw new IllegalArgumentException(label + ": 정렬 기준이 1개 이상 필요합니다.");
         }

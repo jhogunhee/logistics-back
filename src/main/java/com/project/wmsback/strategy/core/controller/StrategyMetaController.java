@@ -2,7 +2,6 @@ package com.project.wmsback.strategy.core.controller;
 
 import com.project.wmsback.strategy.allocation.component.AlocDstrb;
 import com.project.wmsback.strategy.allocation.component.AlocRstrct;
-import com.project.wmsback.strategy.allocation.component.AlocSrt;
 import com.project.wmsback.strategy.allocation.entity.AlocSlotTyp;
 import com.project.wmsback.strategy.allocation.field.AlocInvnField;
 import com.project.wmsback.strategy.allocation.field.AlocLineField;
@@ -56,7 +55,7 @@ public class StrategyMetaController {
 
     /**
      * 할당 슬롯의 구현체 목록. 슬롯 타입마다 구현체 집합이 다르므로 경로에 타입을 받는다 —
-     * 재고위치(INVN_FLTR)는 구현체 축이 없어 빈 목록이고, 화면은 그 섹션에서 피커를 감춘다.
+     * 구현체 축이 없는 슬롯(재고위치·정렬 2종)은 빈 목록이고, 화면은 그 섹션에서 피커를 감춘다.
      */
     @GetMapping("/allocation-components/{slotTyp}")
     public List<ComponentResponse> allocationComponents(@PathVariable String slotTyp) {
@@ -67,17 +66,15 @@ public class StrategyMetaController {
             throw new IllegalArgumentException("없는 할당 슬롯 타입입니다: " + slotTyp);
         }
         return switch (typ) {
-            case INVN_FLTR -> List.of();
+            case INVN_FLTR, INVN_SRT, ODR_SRT -> List.of();
             case RSTRCT -> Arrays.stream(AlocRstrct.values())
                     .map(r -> new ComponentResponse(r.name(), r.label(), r.dscr(), r.deprecated())).toList();
-            case INVN_SRT, ODR_SRT -> Arrays.stream(AlocSrt.values())
-                    .map(s -> new ComponentResponse(s.name(), s.label(), s.dscr(), s.deprecated())).toList();
             case DSTRB -> Arrays.stream(AlocDstrb.values())
                     .map(d -> new ComponentResponse(d.name(), d.label(), d.dscr(), d.deprecated())).toList();
         };
     }
 
-    /** 정렬 기준 목록 (MULTI_SORT의 para.criteria와 적치 loc_srt가 고를 수 있는 field) */
+    /** 정렬 기준 목록 (할당 정렬 슬롯의 para.criteria와 적치 loc_srt가 고를 수 있는 field) */
     @GetMapping("/sort-fields/{domain}")
     public List<OptionResponse> sortFields(@PathVariable String domain) {
         return switch (domain) {

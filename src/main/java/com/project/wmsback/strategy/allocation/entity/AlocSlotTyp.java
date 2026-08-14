@@ -21,11 +21,11 @@ public enum AlocSlotTyp {
     /** 출고제약 — 후보 재고를 건별로 걸러낸다 */
     RSTRCT("출고제약", true, true),
 
-    /** 재고 정렬 — 재고 소진 순서 */
-    INVN_SRT("재고 정렬", false, true),
+    /** 재고 정렬 — 재고 소진 순서. 구현체 없이 정렬 기준 목록(para.criteria)이 곧 정의다 */
+    INVN_SRT("재고 정렬", false, false),
 
     /** 주문 순서 — 라인 처리 순서 (= 누가 먼저 가져가는가) */
-    ODR_SRT("주문 순서", false, true),
+    ODR_SRT("주문 순서", false, false),
 
     /** 분배 — 재고가 그룹 총요청보다 적을 때의 배분 */
     DSTRB("분배", true, true);
@@ -36,8 +36,10 @@ public enum AlocSlotTyp {
     private final boolean multi;
 
     /**
-     * 구현체(cmpnt_cd)를 갖는지. INVN_FLTR만 false —
-     * 「무엇을 실행할지」가 아니라 「어느 후보만」을 정하므로 정의 전체가 조건이기 때문이다.
+     * 구현체(cmpnt_cd)를 갖는지. 실행 로직을 고를 여지가 있는 슬롯만 true다 —
+     * INVN_FLTR은 「어느 후보만」을 정하므로 정의 전체가 조건이고, 정렬 슬롯은
+     * 「기준을 순서대로 나열」 하나뿐이라 기준 목록 자체가 정의다. 둘 다 고를 것이 없어
+     * 구현체 축을 두면 선택지 1개짜리 피커만 남는다.
      */
     private final boolean hasCmpnt;
 }
