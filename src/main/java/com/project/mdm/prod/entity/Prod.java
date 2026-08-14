@@ -115,12 +115,6 @@ public class Prod extends BaseEntity {
         this.outbUomCd = uomCd;
     }
 
-    /** 포장 목록 통째 교체. orphanRemoval이 빠진 행을 지운다 — 그리드 저장이 이 형태다 */
-    public void replaceUoms(List<ProdUom> newUoms) {
-        uoms.clear();
-        newUoms.forEach(this::addUom);
-    }
-
     /** 지정 단위 1개가 낱개 몇 개인지. 없는 단위면 예외 — 저장 시점 검증을 통과했다면 나올 수 없다 */
     public long eaQtyOf(String uomCd) {
         return uoms.stream()
