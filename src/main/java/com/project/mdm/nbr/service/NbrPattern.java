@@ -23,6 +23,14 @@ final class NbrPattern {
         if (prfx == null || prfx.isBlank()) {
             throw new IllegalArgumentException("접두어는 필수입니다.");
         }
+        // 구분자는 DB NOT NULL이다 — null을 흘려보내면 미리보기가 "PRODnull1"이 되고
+        // 저장은 제약 위반의 엉뚱한 메시지로 실패한다. 구분자 없음은 null이 아니라 빈 값이다.
+        if (prfxDlmt == null) {
+            throw new IllegalArgumentException("접두어 구분자는 필수입니다. 구분자가 없으면 빈 값을 쓰세요.");
+        }
+        if (deDlmt == null) {
+            throw new IllegalArgumentException("날짜 구분자는 필수입니다. 구분자가 없으면 빈 값을 쓰세요.");
+        }
         if (seqDgt == null || seqDgt < MIN_SEQ_DGT || seqDgt > MAX_SEQ_DGT) {
             throw new IllegalArgumentException("SEQ 자릿수는 1~9 사이여야 합니다: " + seqDgt);
         }
