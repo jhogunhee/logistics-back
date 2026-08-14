@@ -1,6 +1,7 @@
 package com.project.wmsback.warehouse.service;
 
 import com.project.mdm.prod.entity.TmpZon;
+import com.project.wmsback.inventory.repository.LocCapacityQueryRepository;
 import com.project.wmsback.warehouse.dto.LocResponse;
 import com.project.wmsback.warehouse.dto.LocSaveRequest;
 import com.project.wmsback.warehouse.entity.Loc;
@@ -8,6 +9,7 @@ import com.project.wmsback.warehouse.entity.LocTyp;
 import com.project.wmsback.warehouse.entity.Zon;
 import com.project.wmsback.warehouse.repository.LocRepository;
 import com.project.wmsback.warehouse.repository.ZonRepository;
+import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -39,12 +41,14 @@ class LocServiceTest {
 
     @Mock LocRepository locRepository;
     @Mock ZonRepository zonRepository;
+    @Mock LocCapacityQueryRepository locCapacityQueryRepository;
+    @Mock JPAQueryFactory queryFactory;
 
     private LocService locService;
 
     @BeforeEach
     void setUp() {
-        locService = new LocService(locRepository, zonRepository);
+        locService = new LocService(locRepository, zonRepository, locCapacityQueryRepository, queryFactory);
         Zon dry = mock(Zon.class);
         when(dry.getZonCd()).thenReturn("DRY");
         when(dry.getTmpZon()).thenReturn(TmpZon.DRY);

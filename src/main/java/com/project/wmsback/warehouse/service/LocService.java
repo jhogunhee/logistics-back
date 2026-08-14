@@ -6,8 +6,12 @@ import com.project.wmsback.warehouse.dto.LocSearchCond;
 import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.LocTyp;
 import com.project.wmsback.warehouse.entity.Zon;
+import com.project.wmsback.inventory.repository.LocCapacityQueryRepository;
 import com.project.wmsback.warehouse.repository.LocRepository;
 import com.project.wmsback.warehouse.repository.ZonRepository;
+import com.querydsl.core.types.EntityPath;
+import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +21,12 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static com.project.wmsback.inbound.entity.QPutawayTask.putawayTask;
+import static com.project.wmsback.inventory.entity.QInv.inv;
+import static com.project.wmsback.inventory.entity.QInvHist.invHist;
+import static com.project.wmsback.inventory.entity.QInvMovTask.invMovTask;
+import static com.project.wmsback.inventory.entity.QInvStktkLn.invStktkLn;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -24,6 +34,8 @@ public class LocService {
 
     private final LocRepository locRepository;
     private final ZonRepository zonRepository;
+    private final LocCapacityQueryRepository locCapacityQueryRepository;
+    private final JPAQueryFactory queryFactory;
 
     public List<LocResponse> list(LocSearchCond cond) {
         return locRepository.search(cond).stream()
@@ -46,7 +58,7 @@ public class LocService {
                 default -> throw new IllegalArgumentException("알 수 없는 행 상태입니다: " + row.getStatus());
             }
         }
-        // FK 위반(재고가 놓인 로케이션 삭제 등)을 커밋 시점이 아니라 여기서 터뜨려 예외 변환이 되게 한다
+        // 제약 위반(코드 중복 등)을 커밋 시점이 아니라 여기서 터뜨려 예외 변환이 되게 한다
         locRepository.flush();
     }
 
@@ -68,16 +80,53 @@ public class LocService {
     private void update(LocSaveRequest row) {
         Loc loc = locRepository.findById(row.getLocId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 로케이션입니다: " + row.getLocId()));
+        // 재고가 놓인 로케이션의 온도대·유형을 바꾸면 이미 놓인 재고가 온도대 일치·할당 후보 판정의 전제를 깬다
+        if ((loc.getTmpZon() != row.getTmpZon() || loc.getLocTyp() != row.getLocTyp())
+                && exists(inv.loc.id.eq(loc.getId()), inv)) {
+            throw new IllegalArgumentException("재고가 있는 로케이션은 온도대·유형을 변경할 수 없습니다: " + loc.getLocCd());
+        }
+        // 사용량(현재고 + 미완료 지시 유입) 아래로 줄이면 적재가능수량이 음수가 되어 이동·적치 검증이 왜곡된다
+        if (row.getMaxQty() != null) {
+            long used = locCapacityQueryRepository.onHandQty(loc.getId())
+                    + locCapacityQueryRepository.openInflowQty(loc.getId());
+            if (row.getMaxQty() < used) {
+                throw new IllegalArgumentException(
+                        "최대 적재 수량은 현재 사용량(%d) 이상이어야 합니다: %s".formatted(used, loc.getLocCd()));
+            }
+        }
         loc.update(row.getZonCd(), row.getTmpZon(), row.getLocTyp(),
                 row.getPikngPrty() != null ? row.getPikngPrty() : 0,
                 row.getPtawyPrty() != null ? row.getPtawyPrty() : 0,
                 row.getMaxQty());
     }
 
+    /**
+     * 물리삭제. 재고·이력·작업지시가 참조 중이면 거부한다 — FK가 0건이라 DB가 막아주지 않아서
+     * 그냥 지우면 재고가 없는 로케이션을 가리키게 되고 재고 조회·원장 검증이 로케이션 축을 잃는다.
+     */
     private void delete(LocSaveRequest row) {
         Loc loc = locRepository.findById(row.getLocId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 로케이션입니다: " + row.getLocId()));
+        String usedBy = findAnyReference(loc.getId());
+        if (usedBy != null) {
+            throw new IllegalArgumentException(
+                    "%s에서 사용 중이라 삭제할 수 없습니다: %s".formatted(usedBy, loc.getLocCd()));
+        }
         locRepository.delete(loc);
+    }
+
+    /** 첫 참조에서 멈춘다. 순서는 사용자가 납득하기 쉬운 쪽부터다 (재고 → 이력 → 지시 → 실사) */
+    private String findAnyReference(Long locId) {
+        if (exists(inv.loc.id.eq(locId), inv)) return "재고";
+        if (exists(invHist.loc.id.eq(locId), invHist)) return "재고 이력";
+        if (exists(invMovTask.fromLoc.id.eq(locId).or(invMovTask.toLoc.id.eq(locId)), invMovTask)) return "이동지시";
+        if (exists(putawayTask.toLoc.id.eq(locId), putawayTask)) return "적치지시";
+        if (exists(invStktkLn.loc.id.eq(locId), invStktkLn)) return "재고실사";
+        return null;
+    }
+
+    private boolean exists(BooleanExpression where, EntityPath<?> from) {
+        return queryFactory.selectOne().from(from).where(where).fetchFirst() != null;
     }
 
     private void validate(LocSaveRequest row, Map<String, Zon> zonMap) {
