@@ -10,8 +10,6 @@ import com.project.mdm.code.entity.CodeGroup;
 import com.project.mdm.code.entity.CodeDetailId;
 import com.project.mdm.code.repository.CodeDetailRepository;
 import com.project.mdm.code.repository.CodeGroupRepository;
-import com.project.mdm.prod.repository.ProdRepository;
-import com.project.mdm.store.repository.StoreRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,17 +21,8 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class CodeService {
 
-    /** 계량단위 그룹. 하위 참조(상품·포장)가 있어 삭제 가드가 붙는다 */
-    private static final String UOM_GRP_CD = "UOM";
-
-    /** 점포그룹·점포유형 그룹. store.store_grp·store_typ가 참조하고 웨이브 편성·할당 분배 조건의 기준값이다 */
-    private static final String STORE_GRP_GRP_CD = "STORE_GRP";
-    private static final String STORE_TYP_GRP_CD = "STORE_TYP";
-
     private final CodeDetailRepository codeDetailRepository;
     private final CodeGroupRepository codeGroupRepository;
-    private final ProdRepository prodRepository;
-    private final StoreRepository storeRepository;
 
     /** 그룹 목록. 공통코드 관리 화면이 어느 그룹을 편집할지 고르는 데 쓴다 */
     public List<CodeGroupResponse> groups() {
@@ -156,43 +145,11 @@ public class CodeService {
     }
 
     /**
-     * 물리삭제. 코드성 테이블이라 FK가 없어 DB가 막아주지 않으므로 하위 참조를 직접 확인한다.
-     * <p>
-     * 가드는 참조 테이블이 mdm 안에 있어 여기서 조회할 수 있는 그룹(UOM → 상품·포장,
-     * STORE_GRP · STORE_TYP → 점포)에만 있다. 나머지 그룹은 가드 없이 운용한다(2026-08-14 결정) —
-     * enum이 값을 미러하는 그룹(TEMP_ZONE 등)은 지워도 저장이 막히는 형태로 드러나고,
-     * 다른 앱 데이터가 값을 갖는 그룹(ODR_DVSN · OUTB_TYP · 사유 그룹 등)과 컬럼 DEFAULT가
-     * 가리키는 코드(EA · NRML)는 지우면 기존·신규 행이 이름 없는 값을 갖게 되지만, 같은 코드를
-     * 재등록하면 복구되므로 감수한다.
-     * <p>
-     * 사용여부 컬럼을 두지 않으므로 "목록에서만 빼기"라는 중간 상태가 없다 — 참조가 있으면
-     * 삭제를 거부하고, 없으면 실제로 지운다.
+     * 물리삭제(사용여부 같은 중간 상태 없음). 참조 검사는 하지 않는다 — 공통코드는 값(문자열)으로
+     * 참조되므로 지워져도 데이터는 남고, 같은 코드를 재등록하면 완전히 복구된다
      */
     private void delete(String grpCd, CodeSaveRequest row) {
-        CodeDetail code = find(grpCd, row.getCodeCd());
-        if (UOM_GRP_CD.equals(grpCd)) {
-            requireUnusedUom(code.getCodeCd());
-        }
-        if (STORE_GRP_GRP_CD.equals(grpCd) && storeRepository.existsByStoreGrp(code.getCodeCd())) {
-            throw new IllegalArgumentException(
-                    "점포그룹으로 쓰는 점포가 있어 삭제할 수 없습니다: " + code.getCodeCd());
-        }
-        if (STORE_TYP_GRP_CD.equals(grpCd) && storeRepository.existsByStoreTyp(code.getCodeCd())) {
-            throw new IllegalArgumentException(
-                    "점포유형으로 쓰는 점포가 있어 삭제할 수 없습니다: " + code.getCodeCd());
-        }
-        codeDetailRepository.delete(code);
-    }
-
-    private void requireUnusedUom(String uomCd) {
-        if (prodRepository.existsByInbUomCdOrOutbUomCd(uomCd, uomCd)) {
-            throw new IllegalArgumentException(
-                    "입고단위 또는 출고단위로 쓰이는 상품이 있어 삭제할 수 없습니다: " + uomCd);
-        }
-        if (prodRepository.existsByUomsUomCd(uomCd)) {
-            throw new IllegalArgumentException(
-                    "포장으로 쓰이는 상품이 있어 삭제할 수 없습니다: " + uomCd);
-        }
+        codeDetailRepository.delete(find(grpCd, row.getCodeCd()));
     }
 
     private CodeDetail find(String grpCd, String codeCd) {
