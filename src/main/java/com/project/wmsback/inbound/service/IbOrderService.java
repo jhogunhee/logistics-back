@@ -7,6 +7,7 @@ import com.project.wmsback.inbound.entity.IbLine;
 import com.project.wmsback.inbound.entity.IbOrder;
 import com.project.wmsback.inbound.repository.IbLineRepository;
 import com.project.wmsback.inbound.repository.IbOrderRepository;
+import com.project.wmsback.inbound.repository.PutawayTaskQueryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +16,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +25,7 @@ public class IbOrderService {
 
     private final IbOrderRepository ibOrderRepository;
     private final IbLineRepository ibLineRepository;
+    private final PutawayTaskQueryRepository putawayTaskQueryRepository;
 
     public List<IbOrderResponse> list(IbOrderSearchCond cond) {
         List<IbOrder> orders = ibOrderRepository.search(cond);
@@ -35,8 +38,13 @@ public class IbOrderService {
                 .toList();
         Map<Long, LocalDateTime> lastReceiveDtByLine = ibOrderRepository.lastReceiveDtByLine(ibLineIds);
 
+        // 5단계 진행 파생 중 「적치지시」만 라인 수량 밖의 사실(미완료 지시 존재)이 필요하다 — 같은 배치 패턴
+        Set<Long> orderIdsWithOpenTask = putawayTaskQueryRepository
+                .orderIdsWithOpenTask(orders.stream().map(IbOrder::getId).toList());
+
         return orders.stream()
-                .map(o -> IbOrderResponse.of(o, lastReceiveDt(o, lastReceiveDtByLine)))
+                .map(o -> IbOrderResponse.of(o, lastReceiveDt(o, lastReceiveDtByLine),
+                        orderIdsWithOpenTask.contains(o.getId())))
                 .toList();
     }
 

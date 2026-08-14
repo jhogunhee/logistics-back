@@ -33,7 +33,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 입고 검수/마감. 검수 저장은 라인 수량 누계 + Lot 생성 + 스테이징 재고 증가 + 재고 이력이
+ * 입고 검수/확정. 검수 저장은 라인 수량 누계 + Lot 생성 + 스테이징 재고 증가 + 재고 이력이
  * 한 트랜잭션으로 묶인다 (불변식: 이력 합계 = 스냅샷).
  */
 @Service
@@ -77,8 +77,7 @@ public class ReceivingService {
         for (ReceiveRequest.Line line : req.getLines()) {
             receiveLine(order, staging, line);
         }
-
-        order.checkAndAutoReceive(); // 전 라인 전량 검수됐으면 마감 없이 바로 RECEIVED(→ 적치까지 끝났다면 COMPLETED)로 전이
+        // 전량 검수돼도 자동 전이는 없다 — 종결은 입고확정 버튼(confirm)만이 한다
     }
 
     /**
@@ -131,7 +130,7 @@ public class ReceivingService {
         }
 
         // 검수는 입고단위(발주단위) 개수로 세고, 저장은 재고 저장 단위인 낱개(EA)로 환산한다.
-        // 입고단위 정수만 받으므로 부분 박스는 표현할 수 없다 — 딱 안 떨어지는 잔량은 마감으로 미입고 확정
+        // 입고단위 정수만 받으므로 부분 박스는 표현할 수 없다 — 딱 안 떨어지는 잔량은 입고확정으로 미입고 확정
         long inspect = prod.toEaQty(inspectUomQty, prod.getInbUomCd());
 
         // 과입고 차단: 예정 잔량을 넘는 검수는 거부 (프론트도 같은 검증을 하지만 서버가 최종 방어선)
@@ -170,12 +169,12 @@ public class ReceivingService {
         return mfgDt;
     }
 
-    /** 입고 마감 — 상태 검증/전이는 엔티티가 한다. 잔량(예정-검수)은 미입고로 확정 */
+    /** 입고확정 — 전제조건 검증/전이는 엔티티가 한다. 잔량(예정-검수)은 결품으로 확정 */
     @Transactional
-    public void close(Long ibOrderId) {
+    public void confirm(Long ibOrderId) {
         IbOrder order = ibOrderRepository.findById(ibOrderId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고예정입니다: " + ibOrderId));
-        order.close();
+        order.confirm();
     }
 
     /**
@@ -243,11 +242,10 @@ public class ReceivingService {
         if (!order.getId().equals(ibOrderId)) {
             throw new IllegalArgumentException("다른 입고의 검수 이력입니다: " + invHistId);
         }
-        // 전량 검수 시 자동으로 RECEIVED로 전이하므로, 적치 전이면 RECEIVED까지도 취소를 허용한다.
-        // COMPLETED는 막아야 함 — 같은 Lot을 공유하는 다른 주문이 있으면 이 주문이 끝났어도
-        // 스테이징 잔량이 남아있을 수 있어, 잔량 체크만으로는 완료된 주문의 수량이 되돌아갈 수 있다.
-        if (order.getStatus() != IbStatus.RECEIVING && order.getStatus() != IbStatus.RECEIVED) {
-            throw new IllegalStateException("적치가 완료되지 않은 입고만 검수를 취소할 수 있습니다 (" + order.getStatus().getLabel() + "): " + order.getIbNo());
+        // 확정된 입고는 결품까지 못박힌 뒤라 검수 취소로 수량이 움직이면 안 된다. 상태 가드가 첫 방어선이고,
+        // 같은 Lot을 공유하는 다른 주문의 스테이징 잔량 오인은 아래 가용재고 검증이 마저 막는다.
+        if (order.getStatus() != IbStatus.RECEIVING) {
+            throw new IllegalStateException("확정되지 않은 입고만 검수를 취소할 수 있습니다 (" + order.getStatus().getLabel() + "): " + order.getIbNo());
         }
 
         Prod prod = receipt.getProd();
@@ -266,6 +264,5 @@ public class ReceivingService {
         ibLine.cancelReceive(qty);
         invStore.decrease(inv, qty, TxTyp.ADJUST,
                 InvDocRef.ofIbLine(RefDocTyp.INBOUND, order.getIbNo(), ibLine.getId()).cancelling(receipt.getId()));
-        order.reopenIfNoLongerFullyReceived(); // 전량검수로 자동 마감됐던 게 이 취소로 깨졌으면 RECEIVING으로 되돌림
     }
 }

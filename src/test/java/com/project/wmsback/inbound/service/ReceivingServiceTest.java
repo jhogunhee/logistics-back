@@ -216,6 +216,24 @@ class ReceivingServiceTest {
     }
 
     @Test
+    @DisplayName("검수 취소 거부: 확정된 입고는 결품까지 못박힌 뒤라 검수를 취소할 수 없다")
+    void cancelReceipt_rejectsConfirmedOrder() {
+        InvHist receipt = mock(InvHist.class);
+        when(receipt.getId()).thenReturn(500L);
+        when(receipt.getTxTyp()).thenReturn(TxTyp.RECEIVE);
+        when(receipt.getIbLineId()).thenReturn(100L);
+        when(invHistRepository.findById(500L)).thenReturn(Optional.of(receipt));
+        when(invHistRepository.findAllByIbLineIdAndTxTypeOrderByCreatedAtDesc(100L, TxTyp.ADJUST))
+                .thenReturn(List.of());
+        when(order.getStatus()).thenReturn(IbStatus.CONFIRMED);
+
+        assertThrows(IllegalStateException.class, () -> receivingService.cancelReceipt(10L, 500L));
+
+        verify(ibLine, never()).cancelReceive(anyLong());
+        verify(invHistRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("재사용할 배치가 없으면 Lot을 만든다 — 번호는 상품별·입고일자별 건수+1 (미관리 상품은 두 날짜 null)")
     void receive_createsLotWithSequentialNo() {
         when(lotRepository.findAllByBatchKey(anyLong(), any(), any())).thenReturn(List.of());

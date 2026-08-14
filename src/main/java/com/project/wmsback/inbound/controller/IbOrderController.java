@@ -35,7 +35,7 @@ public class IbOrderController {
     //   생성: POST /oms/inbound-orders/{id}/confirm
     //   취소: POST /oms/inbound-orders/{id}/confirm-cancel
     // 창고가 예정을 스스로 만들거나 없앨 수 있으면 주문 상태와 어긋나기 때문이다.
-    // 여기 남은 것은 조회와 실제 창고 작업(검수/마감)뿐이다.
+    // 여기 남은 것은 조회와 실제 창고 작업(검수/확정)뿐이다.
 
     @GetMapping("/{ibOrderId}/lines")
     public List<IbLineResponse> lines(@PathVariable Long ibOrderId) {
@@ -47,9 +47,10 @@ public class IbOrderController {
         receivingService.receive(ibOrderId, req);
     }
 
-    @PostMapping("/{ibOrderId}/close")
-    public void close(@PathVariable Long ibOrderId) {
-        receivingService.close(ibOrderId);
+    /** 입고확정 — 온 것은 전부 적치된 뒤에만, 잔량(예정-검수)을 결품으로 못박으며 입고건을 닫는다 */
+    @PostMapping("/{ibOrderId}/confirm")
+    public void confirm(@PathVariable Long ibOrderId) {
+        receivingService.confirm(ibOrderId);
     }
 
     /** 입고건 전체의 검수 이력 — 검수 화면의 「검수 이력」 탭 */

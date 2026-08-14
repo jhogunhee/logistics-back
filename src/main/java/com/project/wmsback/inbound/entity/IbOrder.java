@@ -76,8 +76,7 @@ public class IbOrder extends BaseEntity {
     private String odrDvsn;
 
     /**
-     * 입고확정 시각 — 미입고 잔량이 확정되어 「얼마나 왔나」가 더는 바뀌지 않는 시점.
-     * 지금은 명시적 close()와 전량 검수 자동 전이 양쪽이 채운다(RECEIVED 진입 시각과 같다).
+     * 입고확정 시각 — 사람이 입고확정 버튼을 누른 시각. {@link #confirm()}만 채운다.
      * {@code oms_ib_order.cfm_dt}(발주 확정 = ASN 생성 시각)와는 다른 사건이다.
      */
     @Column(name = "cfm_dt")
@@ -119,63 +118,54 @@ public class IbOrder extends BaseEntity {
         }
     }
 
-    /** 입고 마감. 검수가 시작된(RECEIVING) 입고만 가능 — 잔량(예정-검수)은 미입고로 확정된다 */
-    public void close() {
-        if (status != IbStatus.RECEIVING) {
-            throw new IllegalStateException("검수가 시작된 입고만 마감할 수 있습니다 (" + status.getLabel() + "): " + ibNo);
-        }
-        transitionToReceived();
-    }
-
     /**
-     * 검수 저장 시점마다 호출. 전 라인이 전량 검수(rcvdQty >= expctQty)됐으면
-     * 명시적 마감(close) 없이 바로 RECEIVING → RECEIVED로 전이한다.
-     * close()는 그 반대(더 안 오는 잔량을 미입고로 확정)로 끝내는 경우에만 쓰는 명시적 액션.
+     * 입고확정 — 유일한 종결 액션. 온 것은 전부 적치 완료된 뒤 사람이 눌러
+     * 결품(예정-검수)을 못박으며 입고건을 닫는다. 자동 전이는 없다.
+     * <p>
+     * 전량 검수취소로 {@code rcvdQty}가 전부 0이 된 입고도 확정할 수 있다(전량 결품 확정) —
+     * 이 입고의 유일한 종결 경로가 confirm이라(OMS 확정취소는 SCHEDULED만 통과) 막으면 영구 고착된다.
+     * <p>
+     * 미완료 적치지시 존재는 따로 검사하지 않는다 — DIRECTED 잔량 r&gt;0이면 그 배치의
+     * 스테이징 예약 r이 남아 있고 예약분은 검수취소가 못 빼가므로, 그 라인은 반드시
+     * {@code ptawyQty < rcvdQty}다. 아래 전제조건이 잔량 있는 미완료 지시를 논리적으로 배제한다.
      */
-    public void checkAndAutoReceive() {
+    public void confirm() {
         if (status != IbStatus.RECEIVING) {
-            return;
+            throw new IllegalStateException("검수가 시작된 입고만 확정할 수 있습니다 (" + status.getLabel() + "): " + ibNo);
         }
-        if (allLinesFullyReceived()) {
-            transitionToReceived();
+        if (!allLinesFullyPutaway()) {
+            throw new IllegalStateException("검수된 수량이 전부 적치되어야 확정할 수 있습니다: " + ibNo);
         }
-    }
-
-    private boolean allLinesFullyReceived() {
-        return lines.stream().allMatch(l -> l.getRcvdQty() >= l.getExpctQty());
-    }
-
-    private void transitionToReceived() {
-        this.status = IbStatus.RECEIVED;
+        this.status = IbStatus.CONFIRMED;
         this.cfmDt = LocalDateTime.now();
-        checkAndComplete(); // 이미 전량 적치돼 있었다면(적치는 마감과 무관하게 가능) 바로 COMPLETED
+    }
+
+    private boolean allLinesFullyPutaway() {
+        return lines.stream().allMatch(l -> l.getPtawyQty().equals(l.getRcvdQty()));
     }
 
     /**
-     * RECEIVED 상태이고 전 라인이 전량 적치(putawayQty == rcvdQty)됐으면 COMPLETED로 전이한다.
-     * 적치는 마감 여부와 무관하게 즉시 가능하므로, 마감(close)과 적치(putaway) 양쪽에서
-     * 각자 끝나는 시점에 이 메서드를 호출해 조건 충족 여부를 확인한다.
+     * 화면 표시용 5단계 진행({@link IbPrgr}) — 저장하지 않고 그때그때 계산한다.
+     * 적치지시 존재 여부는 엔티티가 모르므로 인자로 받는다(주문 단위 배치 집계는 서비스가 한다).
+     * <p>
+     * SCHEDULED 판정(Σrcvd == 0)이 적치완료 판정보다 먼저다 — 검수가 하나도 없으면
+     * 전 라인이 0 == 0으로 「전량 적치」를 헛통과하기 때문.
      */
-    public void checkAndComplete() {
-        if (status != IbStatus.RECEIVED) {
-            return;
+    public IbPrgr progress(boolean hasOpenPtawyDrct) {
+        if (status == IbStatus.CONFIRMED) {
+            return IbPrgr.CONFIRMED;
         }
-        boolean allPutaway = lines.stream().allMatch(l -> l.getPtawyQty().equals(l.getRcvdQty()));
-        if (allPutaway) {
-            this.status = IbStatus.COMPLETED;
+        long totalRcvd = lines.stream().mapToLong(IbLine::getRcvdQty).sum();
+        if (totalRcvd == 0) {
+            return IbPrgr.SCHEDULED;
         }
-    }
-
-    /**
-     * 검수 취소로 전량검수 상태가 깨졌으면 자동 마감(RECEIVED)을 되돌린다.
-     * 이게 없으면 RECEIVED로 자동 전이된 뒤 그 전이를 만든 검수 건을 취소했을 때,
-     * 상태는 계속 RECEIVED인데 rcvdQty < expctQty가 되어 startReceiving()이 막혀
-     * 남은 수량을 다시는 검수할 수 없는 상태로 고착된다.
-     */
-    public void reopenIfNoLongerFullyReceived() {
-        if (status == IbStatus.RECEIVED && !allLinesFullyReceived()) {
-            this.status = IbStatus.RECEIVING;
-            this.cfmDt = null;
+        if (allLinesFullyPutaway()) {
+            return IbPrgr.PTAWY_CMPL; // 확정 대기
         }
+        long totalPtawy = lines.stream().mapToLong(IbLine::getPtawyQty).sum();
+        if (hasOpenPtawyDrct || totalPtawy > 0) {
+            return IbPrgr.PTAWY_DRCT;
+        }
+        return IbPrgr.RECEIVING;
     }
 }

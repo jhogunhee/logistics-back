@@ -130,6 +130,6 @@ public class PutawayService {
 
         task.execute(qty);
         ibLine.putaway(qty);
-        ibLine.getIbOrder().checkAndComplete();
+        // 전량 적치돼도 헤더 상태는 안 바뀐다 — 종결은 입고확정 버튼(confirm)만이 한다
     }
 }

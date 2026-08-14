@@ -183,8 +183,8 @@ public class OutbOrder extends BaseEntity {
      *
      * <p><b>할당 잔존 여부는 서비스가 판단해 호출한다</b> — {@code outb_line} 에 할당 수량 컬럼이
      * 없어서(할당은 {@code outb_alloc} 집계로 파생시킨다) 엔티티 안에서는 셀 수 없다.
-     * 입고의 {@code reopenIfNoLongerFullyReceived()} 가 라인 수량으로 스스로 판정하는 것과
-     * 갈리는 지점이고, 이유는 그쪽 {@code ib_line} 에는 검수 수량 컬럼이 있기 때문이다.
+     * 입고의 {@code IbOrder#confirm()} 이 라인 수량({@code ib_line.ptawy_qty})으로 스스로
+     * 전제조건을 판정하는 것과 갈리는 지점이고, 이유는 그쪽엔 수량 컬럼이 라인에 있기 때문이다.
      */
     public void revertToCreated() {
         if (status == OutbStatus.CREATED) {

@@ -6,6 +6,7 @@ import com.project.wmsback.inbound.dto.PutawayTaskCreateRequest;
 import com.project.wmsback.inbound.dto.PutawayTaskResponse;
 import com.project.wmsback.inbound.dto.PutawayTaskSearchCond;
 import com.project.wmsback.inbound.entity.IbLine;
+import com.project.wmsback.inbound.entity.IbStatus;
 import com.project.wmsback.inbound.entity.PutawayTask;
 import com.project.wmsback.inbound.entity.PutawayTaskStatus;
 import com.project.wmsback.inbound.repository.IbLineRepository;
@@ -99,6 +100,11 @@ public class PutawayTaskService {
         }
         IbLine ibLine = ibLineRepository.findById(item.getIbLineId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고 라인입니다: " + item.getIbLineId()));
+        // 확정된 입고는 닫힌 문서다. 수량 상한(미지시 잔량 0)으로도 어차피 거부되지만,
+        // 그때 메시지(「미지시 잔량 초과」)가 원인을 오도해서 여기서 먼저 막는다
+        if (ibLine.getIbOrder().getStatus() == IbStatus.CONFIRMED) {
+            throw new IllegalStateException("확정된 입고에는 적치지시를 만들 수 없습니다: " + ibLine.getIbOrder().getIbNo());
+        }
         Lot lot = lotRepository.findById(item.getLotId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 Lot입니다: " + item.getLotId()));
         Prod prod = ibLine.getProd();

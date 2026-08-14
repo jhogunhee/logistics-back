@@ -1,7 +1,7 @@
 package com.project.wmsback.inbound.dto;
 
 import com.project.wmsback.inbound.entity.IbLine;
-import com.project.wmsback.inbound.entity.IbStatus;
+import com.project.wmsback.inbound.entity.IbPrgr;
 import com.project.mdm.prod.entity.TmpZon;
 import lombok.Getter;
 
@@ -15,9 +15,9 @@ public class IbLineResponse {
     private final TmpZon tmpZon;
     /**
      * 이 라인이 어디까지 왔는지 (IbLine#progressStatus). 저장된 값이 아니라 수량 셋에서 파생한다 —
-     * 라인에는 상태 컬럼이 없다. 헤더와 같은 IbStatus라 화면이 같은 뱃지를 그대로 쓴다.
+     * 라인에는 상태 컬럼이 없다. 헤더의 5단계 진행과 같은 IbPrgr라 화면이 같은 뱃지를 그대로 쓴다.
      */
-    private final IbStatus status;
+    private final IbPrgr status;
     /** 유통기한(일). 검수 화면이 유통기한 기본값(검수일+일수)을 제안할 때 사용. NULL = 미관리 */
     private final Integer shelfLifeDays;
     private final Long expctQty;

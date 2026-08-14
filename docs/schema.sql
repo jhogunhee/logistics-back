@@ -558,7 +558,9 @@ CREATE INDEX ix_oms_outb_order_store ON oms_outb_order (store_id);
 
 
 -- =====================================================================
--- 3. 입고 IB_* (SCHEDULED → RECEIVING → RECEIVED → COMPLETED)
+-- 3. 입고 IB_* (SCHEDULED → RECEIVING → CONFIRMED)
+--    자동 전이 없음 — 종결은 입고확정 버튼뿐 (전제: 검수분 전량 적치).
+--    검수·적치의 진행 단계(적치지시/적치완료)는 저장하지 않고 수량·지시에서 파생한다.
 --    취소 상태 없음 — 확정취소는 행을 삭제한다 (검수 시작 전만 가능)
 -- =====================================================================
 
@@ -578,17 +580,17 @@ CREATE TABLE ib_order (
     updated_at  TIMESTAMP,
     updated_by  VARCHAR(30),
     CONSTRAINT uq_ib_no UNIQUE (ib_no),
-    CONSTRAINT ck_ib_order_status CHECK (status IN ('SCHEDULED', 'RECEIVING', 'RECEIVED', 'COMPLETED'))
+    CONSTRAINT ck_ib_order_status CHECK (status IN ('SCHEDULED', 'RECEIVING', 'CONFIRMED'))
 );
 
 COMMENT ON TABLE  ib_order IS '입고예정(ASN) 헤더. 부분입고 여부는 상태가 아니라 라인 수량(expct vs rcvd)에서 파생';
 COMMENT ON COLUMN ib_order.ib_no     IS '입고 번호 (업무 식별자, 예: IB-20260714-001)';
 COMMENT ON COLUMN ib_order.oms_ib_order_id IS '이 ASN을 발생시킨 입고주문. NOT NULL — 주문 없는 입고예정은 존재할 수 없다(무결성은 애플리케이션이 보증, FK 없음). JPA는 연관관계가 아닌 스칼라로 매핑한다(패키지 의존을 omsback → wmsback 한 방향으로 유지)';
-COMMENT ON COLUMN ib_order.status    IS 'SCHEDULED 예정 / RECEIVING 입고중 / RECEIVED 마감 / COMPLETED 적치완료. 취소 상태 없음 — 확정취소는 행을 삭제한다(검수 시작 전만)';
+COMMENT ON COLUMN ib_order.status    IS 'SCHEDULED 예정 / RECEIVING 입고중 / CONFIRMED 입고확정. 자동 전이 없음 — CONFIRMED는 입고확정 버튼만이 만든다(전제: 검수분 전량 적치). 적치지시/적치완료 등 진행 단계는 저장하지 않고 파생(IbPrgr). 취소 상태 없음 — 확정취소는 행을 삭제한다(검수 시작 전만)';
 COMMENT ON COLUMN ib_order.vendor_id IS '납품 벤더 (vendor 참조). 주문에서 그대로 이어받는다 — 확정 시점의 스냅샷이 아니라 같은 마스터를 가리킨다';
 COMMENT ON COLUMN ib_order.expct_de  IS '입고 예정일';
 COMMENT ON COLUMN ib_order.odr_dvsn  IS '발주구분 (공통코드 ODR_DVSN: NRML/URGT/RTNGS). 확정 시 oms_ib_order.odr_dvsn에서 복사 — wmsback이 omsback을 import할 수 없어 조회 대신 복사. 적치 전략 선택의 기준';
-COMMENT ON COLUMN ib_order.cfm_dt   IS '입고확정 시각 — 미입고 잔량이 확정되어 「얼마나 왔나」가 더는 바뀌지 않는 시점. 지금은 명시적 마감과 전량 검수 자동 전이 양쪽이 채운다(RECEIVED 진입 시각과 같다). oms_ib_order.cfm_dt(발주 확정 = ASN 생성)와는 다른 사건이다';
+COMMENT ON COLUMN ib_order.cfm_dt   IS '입고확정 시각 — 사람이 입고확정 버튼을 누른 시각(IbOrder.confirm만 채운다). 이 시점에 결품(예정-검수)이 못박힌다. oms_ib_order.cfm_dt(발주 확정 = ASN 생성)와는 다른 사건이다';
 
 -- 입고 라인. 부분입고/검수/적치 진행률을 수량으로만 표현한다.
 CREATE TABLE ib_line (
