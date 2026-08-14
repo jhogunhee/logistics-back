@@ -302,10 +302,10 @@
   <td><code>/master/vendors</code>, <code>/bulk</code> · <code>pages/master/VendorMaster.jsx</code>. 사용여부 컬럼 없이 물리삭제로 운용 — 주문이 참조 중이면 서버가 거부한다</td>
 </tr>
 <tr>
-  <td class="name">점포(Store) 관리</td>
-  <td>점포코드/명 + <code>outb_life_rate</code>(잔여수명 허용률, FEFO 앞단 필터)</td>
-  <td class="st"><span class="badge wip">진행중</span></td>
-  <td><code>docs/todo-store.md</code> 따라 직접 구현 예정. 현재 <code>StoreRepository.java</code>만 생성</td>
+  <td class="name">점포 관리</td>
+  <td>점포코드/명 + <code>outb_life_rate</code>(잔여수명 허용률, FEFO 앞단 필터) 편집. 점포코드는 서버 채번(<code>ST-0001</code>)</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>/master/stores</code>, <code>/bulk</code> · <code>pages/master/StoreMaster.jsx</code>. 사용여부 컬럼 없이 물리삭제로 운용 — 출고주문(WMS·OMS)이 참조 중이면 서버가 거부한다(<code>StoreRefChecker</code>)</td>
 </tr>
 <tr>
   <td class="name">적치 전략관리</td>
@@ -387,7 +387,7 @@
 <tr><td class="name" rowspan="4">마스터</td><td>상품 관리</td><td><code>/master/prod</code></td><td><code>pages/master/ProdMaster.jsx</code></td></tr>
 <tr><td>존 관리</td><td><code>/master/zone</code></td><td><code>pages/master/ZonMaster.jsx</code></td></tr>
 <tr><td>로케이션 관리</td><td><code>/master/location</code></td><td><code>pages/master/LocMaster.jsx</code></td></tr>
-<tr><td>점포 관리</td><td><code>/master/store</code></td><td>Placeholder — 직접 구현 예정</td></tr>
+<tr><td>점포 관리</td><td><code>/master/store</code></td><td><code>pages/master/StoreMaster.jsx</code></td></tr>
 
 <tr><td class="name" rowspan="4">전략</td><td>검수 정책관리</td><td><code>/strategy/inspection</code></td><td><code>pages/strategy/InspectionPolicy.jsx</code> — 규칙 목록·미리보기·리비전</td></tr>
 <tr><td>적치 전략관리</td><td><code>/strategy/putaway</code></td><td><code>pages/strategy/PutawayStrategy.jsx</code> — 목록·단계 편집·미리보기·리비전 (SC-02)</td></tr>
@@ -407,7 +407,7 @@
   <li><s><strong>할당</strong></s> — <strong>완료 2026-08-03.</strong> 진입 단위는 <strong>웨이브</strong>이고 계산·결과는 라인 단위다(재번복 — 위 표 참조). v1의 유일한 할당 경로</li>
   <li><strong>피킹지시</strong>(웨이브 단위) → <strong>피킹</strong> → <strong>출고확정</strong> — 출고 흐름 완성</li>
   <li><s>재고 속성변경</s> — 완료 2026-08-03 (<s>재고조사</s> — 완료 2026-08-03)</li>
-  <li>점포(Store) 관리 — 직접 구현</li>
+  <li><s>점포 관리</s> — 완료(2026-08-14). 벤더와 같은 일괄 저장 + 서버 채번(<code>STORE_CD</code>), 삭제는 출고주문 참조 가드</li>
   <li>대시보드</li>
 </ol>
 
