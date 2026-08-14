@@ -44,7 +44,7 @@ public class ProdRepositoryImpl implements ProdRepositoryCustom {
                         prodNmContains(cond.getProdNm()),
                         tmpZonEq(cond.getTmpZon())
                 )
-                .orderBy(prod.id.asc())
+                .orderBy(prod.prodCd.asc())
                 .fetch();
     }
 

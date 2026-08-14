@@ -24,7 +24,7 @@ public class VendorRepositoryImpl implements VendorRepositoryCustom {
                         vndrCdContains(cond.getVndrCd()),
                         vndrNmContains(cond.getVndrNm())
                 )
-                .orderBy(vendor.id.asc())
+                .orderBy(vendor.vndrCd.asc())
                 .fetch();
     }
 

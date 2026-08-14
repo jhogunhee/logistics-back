@@ -31,7 +31,7 @@ public class ProdUomRepositoryImpl implements ProdUomRepositoryCustom {
                         prodNmContains(cond.getProdNm()),
                         uomCdEq(cond.getUomCd())
                 )
-                .orderBy(prod.id.asc(), prodUom.eaQty.asc())
+                .orderBy(prod.prodCd.asc(), prodUom.eaQty.asc())
                 .fetch();
     }
 
