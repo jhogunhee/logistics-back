@@ -28,6 +28,8 @@ public class NbrRuleRepositoryImpl implements NbrRuleRepositoryCustom {
                 .fetch();
     }
 
+    // 조건 메서드가 null을 반환하면 where()가 그 조건을 무시한다 — QueryDSL 동적 쿼리 관례
+
     private BooleanExpression ruleCdContains(String ruleCd) {
         return StringUtils.hasText(ruleCd) ? nbrRule.ruleCd.containsIgnoreCase(ruleCd) : null;
     }

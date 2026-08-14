@@ -36,13 +36,13 @@ public class CodeController {
         codeService.saveAllGroups(rows);
     }
 
-    /** 화면 콤보박스용 — 사용중(Y) 코드만 */
+    /** 화면 콤보박스용 — 그룹의 전체 코드 (srt_seq 순). 사용여부 컬럼은 두지 않는다 (CodeService.delete 참고) */
     @GetMapping("/{grpCd}")
     public List<CodeResponse> list(@PathVariable String grpCd) {
         return codeService.list(grpCd);
     }
 
-    /** 공통코드 관리 화면용 — 폐기(N) 포함 전체 */
+    /** 공통코드 관리 화면용 — 코드/코드명 부분일치 검색 */
     @GetMapping("/{grpCd}/search")
     public List<CodeResponse> search(@PathVariable String grpCd, @ModelAttribute CodeSearchCond cond) {
         return codeService.search(grpCd, cond);
