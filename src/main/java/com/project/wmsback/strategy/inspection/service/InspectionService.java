@@ -25,7 +25,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * 검수 제약 실행. 검수 저장(ReceivingService.receive) 직전에 정책의 규칙 전부를
@@ -56,12 +60,12 @@ public class InspectionService {
                 .map(r -> new InspPlcyDefinition.RuleDef(r.getSrtSeq(), r.getRuleCd(), r.getPara()))
                 .toList();
 
+        Map<Long, IbLine> ibLines = loadLines(order, lines);
         List<InspectionViolationException.LineViolation> violations = new ArrayList<>();
         List<InspLineTrace> trace = new ArrayList<>();
 
         for (ReceiveRequest.Line line : lines) {
-            IbLine ibLine = ibLineRepository.findById(line.getIbLineId())
-                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고 라인입니다: " + line.getIbLineId()));
+            IbLine ibLine = ibLines.get(line.getIbLineId());
             Prod prod = ibLine.getProd();
             LocalDate receiptDt = line.getReceiptDt() != null ? line.getReceiptDt() : LocalDate.now();
 
@@ -83,6 +87,32 @@ public class InspectionService {
         if (!violations.isEmpty()) {
             throw new InspectionViolationException(violations);
         }
+    }
+
+    /**
+     * 요청 라인을 한 번에 읽고 <b>이 입고의 라인인지</b>까지 확인한다. 남의 라인을 그대로 판정하면
+     * 저장 단계(ReceivingService#findLine)가 거부하기 전에 그 라인의 판정이 실행 로그에 남는다 —
+     * 로그는 REQUIRES_NEW라 거부 롤백에도 살아남기 때문이다.
+     */
+    private Map<Long, IbLine> loadLines(IbOrder order, List<ReceiveRequest.Line> lines) {
+        List<Long> ids = lines.stream()
+                .map(ReceiveRequest.Line::getIbLineId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<Long, IbLine> byId = ids.isEmpty() ? Map.of()
+                : ibLineRepository.findAllWithProdAndOrderByIdIn(ids).stream()
+                        .collect(Collectors.toMap(IbLine::getId, Function.identity()));
+        for (ReceiveRequest.Line line : lines) {
+            IbLine ibLine = byId.get(line.getIbLineId());
+            if (ibLine == null) {
+                throw new IllegalArgumentException("존재하지 않는 입고 라인입니다: " + line.getIbLineId());
+            }
+            if (!ibLine.getIbOrder().getId().equals(order.getId())) {
+                throw new IllegalArgumentException("다른 입고의 라인입니다: " + line.getIbLineId());
+            }
+        }
+        return byId;
     }
 
     /**
