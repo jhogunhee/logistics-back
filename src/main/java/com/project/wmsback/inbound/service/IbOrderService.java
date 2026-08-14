@@ -45,6 +45,8 @@ public class IbOrderService {
         return orders.stream()
                 .map(o -> IbOrderResponse.of(o, lastReceiveDt(o, lastReceiveDtByLine),
                         orderIdsWithOpenTask.contains(o.getId())))
+                // 진행단계는 저장 컬럼이 아니라 SQL로 못 거른다 — 파생을 끝낸 응답에서 거른다
+                .filter(r -> cond.getPrgr() == null || r.getPrgr() == cond.getPrgr())
                 .toList();
     }
 

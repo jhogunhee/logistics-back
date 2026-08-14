@@ -2,7 +2,6 @@ package com.project.wmsback.inbound.repository;
 
 import com.project.wmsback.inbound.dto.IbOrderSearchCond;
 import com.project.wmsback.inbound.entity.IbOrder;
-import com.project.wmsback.inbound.entity.IbStatus;
 import com.project.wmsback.inventory.entity.TxTyp;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.dsl.BooleanExpression;
@@ -36,7 +35,6 @@ public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {
                 .innerJoin(ibOrder.vendor, vendor).fetchJoin()
                 .where(
                         ibNoContains(cond.getIbNo()),
-                        statusEq(cond.getStatus()),
                         vndrNmContains(cond.getVndrNm()),
                         expctDeGoe(cond.getDateFrom()),
                         expctDeLoe(cond.getDateTo())
@@ -74,10 +72,6 @@ public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {
 
     private BooleanExpression ibNoContains(String ibNo) {
         return StringUtils.hasText(ibNo) ? ibOrder.ibNo.containsIgnoreCase(ibNo) : null;
-    }
-
-    private BooleanExpression statusEq(IbStatus status) {
-        return status != null ? ibOrder.status.eq(status) : null;
     }
 
     private BooleanExpression vndrNmContains(String vndrNm) {
