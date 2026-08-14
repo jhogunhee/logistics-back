@@ -31,7 +31,7 @@ import java.util.Map;
 public class AlocPreviewService {
 
     private final OutbAllocRepository outbAllocRepository;
-    private final AlocQueryRepository allocQueryRepository;
+    private final AlocQueryRepository alocQueryRepository;
 
     public AlocPreviewResponse preview(AlocStgyDefinition definition, Long alocStgyId, Long rvsnNo,
                                        AlocPreviewRequest request) {
@@ -62,7 +62,7 @@ public class AlocPreviewService {
         }
 
         Map<Long, List<AlocInvnCandidate>> candidates =
-                allocQueryRepository.candidatesByProd(List.copyOf(byProd.keySet()));
+                alocQueryRepository.candidatesByProd(List.copyOf(byProd.keySet()));
 
         List<AlocGroupPlan> groups = new ArrayList<>();
         for (Map.Entry<Long, List<AlocLineTarget>> group : byProd.entrySet()) {

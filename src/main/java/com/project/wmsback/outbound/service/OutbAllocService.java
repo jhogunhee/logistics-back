@@ -82,7 +82,7 @@ public class OutbAllocService {
     private final OutbLineRepository outbLineRepository;
     private final InvStore invStore;
     private final AlocStgyService alocStgyService;
-    private final AlocQueryRepository allocQueryRepository;
+    private final AlocQueryRepository alocQueryRepository;
     private final StgyExecLogService stgyExecLogService;
 
     // ── 조회 ─────────────────────────────────────────────────────────────────
@@ -185,7 +185,7 @@ public class OutbAllocService {
 
         // 존 업무유형은 계층 지정 판정에만 쓰인다. 후보를 락을 걸며 한 건씩 읽는 구조라
         // 재고 조회에 존을 조인할 수 없어, 마스터를 통째로 읽어 메모리에서 붙인다.
-        Map<String, String> bizDvsnByZon = allocQueryRepository.bizDvsnByZon();
+        Map<String, String> bizDvsnByZon = alocQueryRepository.bizDvsnByZon();
 
         List<AllocExecuteResponse.LineResult> results = new ArrayList<>();
         List<AlocDecisionTrace> groupTraces = new ArrayList<>();

@@ -33,7 +33,7 @@ import java.util.List;
 public class AlocStgyController {
 
     private final AlocStgyService alocStgyService;
-    private final AlocPreviewService allocPreviewService;
+    private final AlocPreviewService alocPreviewService;
 
     @GetMapping
     public List<AlocStgySummaryResponse> list() {
@@ -67,13 +67,13 @@ public class AlocStgyController {
             throw new IllegalArgumentException("미리보기할 정의가 없습니다.");
         }
         AlocStgyDefinition normalized = alocStgyService.validate(request.definition());
-        return allocPreviewService.preview(normalized, null, null, request);
+        return alocPreviewService.preview(normalized, null, null, request);
     }
 
     /** 저장본 미리보기 */
     @PostMapping("/{id}/preview")
     public AlocPreviewResponse previewSaved(@PathVariable Long id, @RequestBody AlocPreviewRequest request) {
         AlocStgyResponse saved = alocStgyService.get(id);
-        return allocPreviewService.preview(saved.toDefinition(), id, saved.lastRvsnNo(), request);
+        return alocPreviewService.preview(saved.toDefinition(), id, saved.lastRvsnNo(), request);
     }
 }
