@@ -1,8 +1,7 @@
 package com.project.mdm.nbr.controller;
 
-import com.project.mdm.nbr.dto.NbrIssueResponse;
+import com.project.mdm.nbr.dto.NbrNumberResponse;
 import com.project.mdm.nbr.dto.NbrPreviewRequest;
-import com.project.mdm.nbr.dto.NbrPreviewResponse;
 import com.project.mdm.nbr.dto.NbrRuleResponse;
 import com.project.mdm.nbr.dto.NbrRuleSaveRequest;
 import com.project.mdm.nbr.dto.NbrRuleSearchCond;
@@ -45,13 +44,13 @@ public class NbrRuleController {
 
     /** 테스트/외부 호출용. 항상 오늘 날짜 기준 — 내부 Java 호출과 달리 클라이언트가 날짜를 넘길 수 없다 */
     @PostMapping("/{ruleCd}/issue")
-    public NbrIssueResponse issue(@PathVariable String ruleCd) {
-        return new NbrIssueResponse(nbrService.issue(ruleCd));
+    public NbrNumberResponse issue(@PathVariable String ruleCd) {
+        return new NbrNumberResponse(nbrService.issue(ruleCd));
     }
 
     @PostMapping("/preview")
-    public NbrPreviewResponse preview(@RequestBody NbrPreviewRequest req) {
-        return new NbrPreviewResponse(nbrService.preview(
+    public NbrNumberResponse preview(@RequestBody NbrPreviewRequest req) {
+        return new NbrNumberResponse(nbrService.preview(
                 req.getPrfx(), req.getPrfxDlmt(), req.getDeDlmt(), req.getSeqDgt(), req.getDyncKyTyp()));
     }
 }
