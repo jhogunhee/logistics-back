@@ -3,6 +3,7 @@ package com.project.wmsback.warehouse.service;
 import com.project.wmsback.warehouse.dto.ZonResponse;
 import com.project.wmsback.warehouse.dto.ZonSaveRequest;
 import com.project.wmsback.warehouse.dto.ZonSearchCond;
+import com.project.wmsback.warehouse.entity.LocTyp;
 import com.project.wmsback.warehouse.entity.Zon;
 import com.project.wmsback.warehouse.repository.LocRepository;
 import com.project.wmsback.warehouse.repository.ZonRepository;
@@ -57,6 +58,13 @@ public class ZonService {
     private void update(ZonSaveRequest row) {
         Zon zon = zonRepository.findById(row.getZonId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 존입니다: " + row.getZonId()));
+        // 보관 로케이션은 존과 온도대가 같아야 한다 — 하위 보관 로케이션을 둔 채 존 온도대만 바꾸면
+        // 그 로케이션들이 전부 불일치가 되어 이후 수정 저장이 막힌다 (LocService의 온도대 일치 검증)
+        if (zon.getTmpZon() != row.getTmpZon()
+                && locRepository.existsByZonCdAndLocTyp(zon.getZonCd(), LocTyp.STORAGE)) {
+            throw new IllegalArgumentException(
+                    "하위 보관 로케이션이 있는 존은 온도구분을 변경할 수 없습니다: " + zon.getZonCd());
+        }
         zon.update(row.getZonNm(), row.getTmpZon(), row.getStrgTyp(), row.getBizDvsn());
     }
 

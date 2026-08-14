@@ -29,6 +29,9 @@ public interface LocRepository extends JpaRepository<Loc, Long>, LocRepositoryCu
     /** 존 삭제 가드 — 하위 로케이션이 하나라도 있으면 그 존은 지울 수 없다 (FK가 없어 DB가 막지 않는다) */
     boolean existsByZonCd(String zonCd);
 
+    /** 존 온도대 수정 가드 — 하위 보관 로케이션이 있으면 온도대 일치 불변식이 깨지므로 바꿀 수 없다 */
+    boolean existsByZonCdAndLocTyp(String zonCd, LocTyp locTyp);
+
     Optional<Loc> findByLocCd(String locCd);
 
     /** 적치 대상 로케이션 후보 (상품 온도대와 일치하는 STORAGE, 적치 우선순위 오름차순 추천) */
