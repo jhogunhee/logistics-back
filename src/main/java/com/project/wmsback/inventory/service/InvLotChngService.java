@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -33,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * 재고 로트변경 — 수량을 지정한 Lot 속성정정. 「이 로케이션의 이 재고 중 N개는 제조일자가 X였다」를
@@ -148,19 +150,13 @@ public class InvLotChngService {
 
         // 1) 상품 로우 락 — id 오름차순. 목적지 Lot의 재사용 조회·채번이 검수와 같은 경합을 가져
         //    같은 락으로 직렬화한다. FK가 없어 상품 행 부재를 DB가 못 잡는다 (기존 정정과 같은 방어)
-        Map<Long, Prod> prodById = new HashMap<>();
-        for (Long prodId : ctxs.stream().map(c -> c.key.prodId()).distinct().sorted().toList()) {
-            prodById.put(prodId, prodRepository.findByIdForUpdate(prodId)
-                    .orElseThrow(() -> new IllegalStateException("재고가 참조하는 상품이 없습니다 (정합성 오류): " + prodId)));
-        }
+        Map<Long, Prod> prodById = lockAscending(ctxs.stream().map(c -> c.key.prodId()).toList(),
+                prodRepository::findByIdForUpdate, "재고가 참조하는 상품이 없습니다 (정합성 오류): ");
 
         // 2) 원 Lot 로우 락 — id 오름차순. 전량 정정(기존 화면)이 동시에 원 Lot의 제조일자를
         //    바꾸는 중이면 목적지 배치 키 계산이 어긋난다
-        Map<Long, Lot> lotById = new HashMap<>();
-        for (Long lotId : ctxs.stream().map(c -> c.key.lotId()).distinct().sorted().toList()) {
-            lotById.put(lotId, lotRepository.findByIdForUpdate(lotId)
-                    .orElseThrow(() -> new IllegalStateException("재고가 참조하는 Lot이 없습니다 (정합성 오류): " + lotId)));
-        }
+        Map<Long, Lot> lotById = lockAscending(ctxs.stream().map(c -> c.key.lotId()).toList(),
+                lotRepository::findByIdForUpdate, "재고가 참조하는 Lot이 없습니다 (정합성 오류): ");
 
         // 3) 검증 + 목적지 Lot 확보 — 상품 락 안이라 안전하고, 재고 락보다 앞이라 채번 규칙(락 계층)과 무관하다
         for (ItemCtx ctx : ctxs) {
@@ -182,6 +178,15 @@ public class InvLotChngService {
             noByInvId.put(ctx.item.getInvId(), changeOne(ctx, locked.get(ctx.key)));
         }
         return items.stream().map(item -> noByInvId.get(item.getInvId())).toList();
+    }
+
+    private <T> Map<Long, T> lockAscending(Collection<Long> ids, Function<Long, Optional<T>> locker, String errMsg) {
+        Map<Long, T> byId = new HashMap<>();
+        for (Long id : ids.stream().distinct().sorted().toList()) {
+            byId.put(id, locker.apply(id)
+                    .orElseThrow(() -> new IllegalStateException(errMsg + id)));
+        }
+        return byId;
     }
 
     /**
