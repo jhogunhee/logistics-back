@@ -25,25 +25,20 @@ public interface ProdRefChecker {
 
     /**
      * 이 상품을 참조 중이면 사용자에게 보일 이름("재고" · "입고주문" 등), 아니면 null.
-     * 몇 건인지는 필요 없다 — 삭제를 막을 이유 하나면 충분하다. 상품 삭제 가드가 쓴다.
+     * 상품 삭제 가드가 쓴다.
      */
     String findReference(Long prodId);
 
     /**
      * 입고단위 환산이 <b>앞으로 실행될</b> 문서가 있으면 그 이름, 없으면 null — 단위 변경
-     * 가드({@link ProdUomChangeGuard})가 쓴다.
      * <p>
-     * {@link #findReference}(참조가 하나라도 있으면 막음)와 달리 환산이 끝나지 않은 문서만
-     * 본다. OMS 주문 라인은 수량을 입고단위/출고단위로 갖고 있다가 확정·검수 시점에 그때의
-     * 마스터로 낱개(EA) 환산한다({@code Prod.toEaQty}) — 그 사이에 단위 구성이 바뀌면 같은
-     * 수량이 다른 낱개 수가 된다. 이미 환산이 끝난 문서(확정된 출고주문, 입고확정된 ASN)는
-     * EA로 못박혀 있어 마스터가 바뀌어도 안전하다.
+     * {@link #findReference}(참조가 하나라도 있으면 막음)와 달리 환산이 끝나지 않은 문서만 본다.
      */
     default String findOpenInbRef(Long prodId) {
         return null;
     }
 
-    /** 출고단위 환산이 앞으로 실행될 문서가 있으면 그 이름, 없으면 null ({@link #findOpenInbRef} 참고) */
+    /** 출고단위 환산이 <b>앞으로 실행될</b> 문서가 있으면 그 이름, 없으면 null ({@link #findOpenInbRef} 참고) */
     default String findOpenOutbRef(Long prodId) {
         return null;
     }
