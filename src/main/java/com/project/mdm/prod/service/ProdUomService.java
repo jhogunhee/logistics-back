@@ -84,37 +84,26 @@ public class ProdUomService {
     }
 
     private Prod create(ProdUomSaveRequest row) {
-        if (row.getProdId() == null) {
-            throw new IllegalArgumentException("상품은 필수입니다.");
-        }
-        if (row.getUomCd() == null || row.getUomCd().isBlank()) {
-            throw new IllegalArgumentException("단위는 필수입니다.");
-        }
-        Prod prod = prodRepository.findById(row.getProdId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다: " + row.getProdId()));
+        Prod prod = findProd(row.getProdId());
         // uq_prod_uom 위반을 커밋 시점 예외가 아니라 여기서 잡는다
         if (prodUomRepository.existsByProdIdAndUomCd(prod.getId(), row.getUomCd())) {
             throw new IllegalArgumentException(
                     "이미 등록된 단위입니다: " + prod.getProdNm() + " / " + row.getUomCd());
         }
-        validateQty(row, prod.getProdNm() + " / " + row.getUomCd());
-
-        prod.addUom(ProdUom.builder()
-                .uomCd(row.getUomCd())
-                .eaQty(row.getEaQty())
-                .wgt(row.getWgt())
-                .build());
-        applyRoles(row, prod, row.getUomCd());
+        ProdUom uom = row.toEntity(prod);
+        applyRoles(row, prod, uom.getUomCd());
         return prod;
     }
 
     private Prod update(ProdUomSaveRequest row) {
         ProdUom uom = find(row.getProdUomId());
         Prod prod = uom.getProd();
-        validateQty(row, prod.getProdNm() + " / " + uom.getUomCd());
+        boolean eaQtyChanges = !uom.getEaQty().equals(row.getEaQty());
+        // 반영 뒤에 검사해도 예외면 트랜잭션이 롤백되므로 필드 검사(updateEntity)가 먼저 걸리게 둔다
+        row.updateEntity(uom);
         // 입고/출고단위로 쓰이는 포장의 낱개수량 변경은 환산이 남은 주문이 없을 때만 —
         // 주문 수량은 그 단위 기준이라 계수가 바뀌면 확정/검수 때 다른 낱개 수가 된다
-        if (!row.getEaQty().equals(uom.getEaQty())) {
+        if (eaQtyChanges) {
             if (uom.getUomCd().equals(prod.getInbUomCd())) {
                 prodUomChangeGuard.requireInbChangeable(prod);
             }
@@ -122,7 +111,6 @@ public class ProdUomService {
                 prodUomChangeGuard.requireOutbChangeable(prod);
             }
         }
-        uom.update(row.getEaQty(), row.getWgt());
         applyRoles(row, prod, uom.getUomCd());
         return prod;
     }
@@ -151,22 +139,19 @@ public class ProdUomService {
         return prod;
     }
 
+    private Prod findProd(Long prodId) {
+        if (prodId == null) {
+            throw new IllegalArgumentException("상품은 필수입니다.");
+        }
+        return prodRepository.findById(prodId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다: " + prodId));
+    }
+
     private ProdUom find(Long prodUomId) {
         if (prodUomId == null) {
             throw new IllegalArgumentException("포장 식별자가 없습니다.");
         }
         return prodUomRepository.findById(prodUomId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 포장입니다: " + prodUomId));
-    }
-
-    private void validateQty(ProdUomSaveRequest row, String label) {
-        // 낱개수량이 0이나 음수면 환산이 수량을 0으로 만들거나 부호를 뒤집는다
-        if (row.getEaQty() == null || row.getEaQty() < 1) {
-            throw new IllegalArgumentException("낱개수량은 1 이상이어야 합니다: " + label);
-        }
-        // 미측정(NULL)은 허용하되 0이나 음수 중량은 실측값일 수 없다
-        if (row.getWgt() != null && row.getWgt().signum() <= 0) {
-            throw new IllegalArgumentException("중량은 비워두거나(미측정) 0보다 커야 합니다: " + label);
-        }
     }
 }
