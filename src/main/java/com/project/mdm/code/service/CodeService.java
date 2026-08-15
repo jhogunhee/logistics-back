@@ -41,9 +41,6 @@ public class CodeService {
     @Transactional
     public void saveAllGroups(List<CodeGroupSaveRequest> rows) {
         for (CodeGroupSaveRequest row : rows) {
-            if (row.getGrpCd() == null || row.getGrpCd().isBlank()) {
-                throw new IllegalArgumentException("그룹 코드는 필수입니다.");
-            }
             switch (row.getStatus()) {
                 case "C" -> createGroup(row);
                 case "U" -> updateGroup(row);
@@ -55,20 +52,15 @@ public class CodeService {
     }
 
     private void createGroup(CodeGroupSaveRequest row) {
-        requireGroupNm(row);
-        if (codeGroupRepository.existsById(row.getGrpCd())) {
-            throw new IllegalArgumentException("이미 존재하는 그룹입니다: " + row.getGrpCd());
+        CodeGroup group = row.toEntity();
+        if (codeGroupRepository.existsById(group.getGrpCd())) {
+            throw new IllegalArgumentException("이미 존재하는 그룹입니다: " + group.getGrpCd());
         }
-        codeGroupRepository.save(CodeGroup.builder()
-                .grpCd(row.getGrpCd())
-                .grpNm(row.getGrpNm())
-                .dscr(row.getDscr())
-                .build());
+        codeGroupRepository.save(group);
     }
 
     private void updateGroup(CodeGroupSaveRequest row) {
-        requireGroupNm(row);
-        findGroup(row.getGrpCd()).update(row.getGrpNm(), row.getDscr());
+        row.updateEntity(findGroup(row.getGrpCd()));
     }
 
     private void deleteGroup(CodeGroupSaveRequest row) {
@@ -83,12 +75,6 @@ public class CodeService {
     private CodeGroup findGroup(String grpCd) {
         return codeGroupRepository.findById(grpCd)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 그룹입니다: " + grpCd));
-    }
-
-    private void requireGroupNm(CodeGroupSaveRequest row) {
-        if (row.getGrpNm() == null || row.getGrpNm().isBlank()) {
-            throw new IllegalArgumentException("그룹명은 필수입니다: " + row.getGrpCd());
-        }
     }
 
     /** 그룹의 코드 목록 (srt_seq 순). 화면 콤보박스가 쓴다 */
@@ -114,8 +100,8 @@ public class CodeService {
         }
         for (CodeSaveRequest row : rows) {
             switch (row.getStatus()) {
-                case "C" -> { validate(row); create(grpCd, row); }
-                case "U" -> { validate(row); update(grpCd, row); }
+                case "C" -> create(grpCd, row);
+                case "U" -> update(grpCd, row);
                 case "D" -> delete(grpCd, row);
                 default -> throw new IllegalArgumentException("알 수 없는 행 상태입니다: " + row.getStatus());
             }
@@ -124,24 +110,15 @@ public class CodeService {
     }
 
     private void create(String grpCd, CodeSaveRequest row) {
-        if (codeDetailRepository.existsById(new CodeDetailId(grpCd, row.getCodeCd()))) {
-            throw new IllegalArgumentException("이미 존재하는 코드입니다: " + row.getCodeCd());
+        CodeDetail code = row.toEntity(grpCd);
+        if (codeDetailRepository.existsById(new CodeDetailId(grpCd, code.getCodeCd()))) {
+            throw new IllegalArgumentException("이미 존재하는 코드입니다: " + code.getCodeCd());
         }
-        codeDetailRepository.save(CodeDetail.builder()
-                .grpCd(grpCd)
-                .codeCd(row.getCodeCd())
-                .codeNm(row.getCodeNm())
-                .srtSeq(row.getSrtSeq())
-                .ref1(row.getRef1())
-                .ref2(row.getRef2())
-                .ref3(row.getRef3())
-                .build());
+        codeDetailRepository.save(code);
     }
 
-    /** 코드 값은 PK이자 로직이 리터럴로 참조하는 값이라 수정 대상에서 제외한다 */
     private void update(String grpCd, CodeSaveRequest row) {
-        find(grpCd, row.getCodeCd())
-                .update(row.getCodeNm(), row.getSrtSeq(), row.getRef1(), row.getRef2(), row.getRef3());
+        row.updateEntity(find(grpCd, row.getCodeCd()));
     }
 
     /**
@@ -155,17 +132,5 @@ public class CodeService {
     private CodeDetail find(String grpCd, String codeCd) {
         return codeDetailRepository.findById(new CodeDetailId(grpCd, codeCd))
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 코드입니다: " + grpCd + " / " + codeCd));
-    }
-
-    private void validate(CodeSaveRequest row) {
-        if (row.getCodeCd() == null || row.getCodeCd().isBlank()) {
-            throw new IllegalArgumentException("코드는 필수입니다.");
-        }
-        if (row.getCodeNm() == null || row.getCodeNm().isBlank()) {
-            throw new IllegalArgumentException("코드명은 필수입니다: " + row.getCodeCd());
-        }
-        if (row.getSrtSeq() == null) {
-            throw new IllegalArgumentException("정렬순서는 필수입니다: " + row.getCodeCd());
-        }
     }
 }

@@ -44,8 +44,8 @@ public class LocService {
 
         for (LocSaveRequest row : rows) {
             switch (row.getStatus()) {
-                case "C" -> { validate(row, zonMap); create(row); }
-                case "U" -> { validate(row, zonMap); update(row); }
+                case "C" -> create(row, zonMap);
+                case "U" -> update(row, zonMap);
                 case "D" -> delete(row);
                 default -> throw new IllegalArgumentException("알 수 없는 행 상태입니다: " + row.getStatus());
             }
@@ -54,41 +54,49 @@ public class LocService {
         locRepository.flush();
     }
 
-    private void create(LocSaveRequest row) {
-        if (locRepository.existsByLocCd(row.getLocCd())) {
-            throw new IllegalArgumentException("이미 존재하는 로케이션 코드입니다: " + row.getLocCd());
+    private void create(LocSaveRequest row, Map<String, Zon> zonMap) {
+        Loc loc = row.toEntity();
+        requireZonConsistent(loc, zonMap);
+        if (locRepository.existsByLocCd(loc.getLocCd())) {
+            throw new IllegalArgumentException("이미 존재하는 로케이션 코드입니다: " + loc.getLocCd());
         }
-        locRepository.save(Loc.builder()
-                .locCd(row.getLocCd())
-                .zonCd(row.getZonCd())
-                .tmpZon(row.getTmpZon())
-                .locTyp(row.getLocTyp())
-                .pikngPrty(row.getPikngPrty())
-                .ptawyPrty(row.getPtawyPrty())
-                .maxQty(row.getMaxQty())
-                .build());
+        locRepository.save(loc);
     }
 
-    private void update(LocSaveRequest row) {
-        Loc loc = locRepository.findById(row.getLocId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 로케이션입니다: " + row.getLocId()));
+    private void update(LocSaveRequest row, Map<String, Zon> zonMap) {
+        Loc loc = find(row.getLocId());
+        boolean tmpZonOrTypChanges = loc.getTmpZon() != row.getTmpZon() || loc.getLocTyp() != row.getLocTyp();
+        // 반영 뒤 저장될 상태로 검사한다 — 예외면 트랜잭션이 롤백되므로 필드 검사(updateEntity)가 먼저 걸리게 둔다
+        row.updateEntity(loc);
+        requireZonConsistent(loc, zonMap);
         // 재고가 놓인 로케이션의 온도대·유형을 바꾸면 이미 놓인 재고가 온도대 일치·할당 후보 판정의 전제를 깬다
-        if ((loc.getTmpZon() != row.getTmpZon() || loc.getLocTyp() != row.getLocTyp())
-                && locRefQueryRepository.existsInv(loc.getId())) {
+        if (tmpZonOrTypChanges && locRefQueryRepository.existsInv(loc.getId())) {
             throw new IllegalArgumentException("재고가 있는 로케이션은 온도대·유형을 변경할 수 없습니다: " + loc.getLocCd());
         }
         // 사용량(현재고 + 미완료 지시 유입) 아래로 줄이면 적재가능수량이 음수가 되어 이동·적치 검증이 왜곡된다
-        if (row.getMaxQty() != null) {
+        if (loc.getMaxQty() != null) {
             long used = locCapacityQueryRepository.onHandQty(loc.getId())
                     + locCapacityQueryRepository.openInflowQty(loc.getId());
-            if (row.getMaxQty() < used) {
+            if (loc.getMaxQty() < used) {
                 throw new IllegalArgumentException(
                         "최대 적재 수량은 현재 사용량(%d) 이상이어야 합니다: %s".formatted(used, loc.getLocCd()));
             }
         }
-        // null→0 기본값 처리는 빌더와 함께 엔티티(update)가 맡는다 — 두 경로가 갈라지지 않게
-        loc.update(row.getZonCd(), row.getTmpZon(), row.getLocTyp(),
-                row.getPikngPrty(), row.getPtawyPrty(), row.getMaxQty());
+    }
+
+    /**
+     * 모든 로케이션은 존 마스터에 등록된 존에 속해야 하고(loc.zon_cd는 FK가 없어 DB가 막지 않는다),
+     * 보관 로케이션은 존과 온도대가 같아야 적치·이동 시 온도대 일치 검증이 성립한다
+     * (스테이징은 전 온도대 재고가 거쳐 가는 지점이라 예외).
+     */
+    private void requireZonConsistent(Loc loc, Map<String, Zon> zonMap) {
+        Zon zon = zonMap.get(loc.getZonCd());
+        if (zon == null) {
+            throw new IllegalArgumentException("존재하지 않는 존입니다: " + loc.getZonCd());
+        }
+        if (loc.getLocTyp() == LocTyp.STORAGE && zon.getTmpZon() != loc.getTmpZon()) {
+            throw new IllegalArgumentException("보관 로케이션의 온도대는 존의 온도대와 같아야 합니다: " + loc.getLocCd());
+        }
     }
 
     /**
@@ -96,8 +104,7 @@ public class LocService {
      * 그냥 지우면 재고가 없는 로케이션을 가리키게 되고 재고 조회·원장 검증이 로케이션 축을 잃는다.
      */
     private void delete(LocSaveRequest row) {
-        Loc loc = locRepository.findById(row.getLocId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 로케이션입니다: " + row.getLocId()));
+        Loc loc = find(row.getLocId());
         String usedBy = locRefQueryRepository.findAnyReference(loc.getId());
         if (usedBy != null) {
             throw new IllegalArgumentException(
@@ -106,41 +113,8 @@ public class LocService {
         locRepository.delete(loc);
     }
 
-    private void validate(LocSaveRequest row, Map<String, Zon> zonMap) {
-        if (row.getLocCd() == null || row.getLocCd().isBlank()) {
-            throw new IllegalArgumentException("로케이션 코드는 필수입니다.");
-        }
-        if (row.getZonCd() == null || row.getZonCd().isBlank()) {
-            throw new IllegalArgumentException("존은 필수입니다: " + row.getLocCd());
-        }
-        if (row.getTmpZon() == null) {
-            throw new IllegalArgumentException("온도대는 필수입니다: " + row.getLocCd());
-        }
-        if (row.getLocTyp() == null) {
-            throw new IllegalArgumentException("유형은 필수입니다: " + row.getLocCd());
-        }
-        // 모든 로케이션은 존 마스터에 등록된 존에 속해야 한다 (loc.zon_cd는 FK가 없어 DB가 막지 않는다)
-        Zon zon = zonMap.get(row.getZonCd());
-        if (zon == null) {
-            throw new IllegalArgumentException("존재하지 않는 존입니다: " + row.getZonCd());
-        }
-        // 보관 로케이션은 존과 온도대가 같아야 적치·이동 시 온도대 일치 검증이 성립한다
-        // (스테이징은 전 온도대 재고가 거쳐 가는 지점이라 예외)
-        if (row.getLocTyp() == LocTyp.STORAGE && zon.getTmpZon() != row.getTmpZon()) {
-            throw new IllegalArgumentException("보관 로케이션의 온도대는 존의 온도대와 같아야 합니다: " + row.getLocCd());
-        }
-        // DB 제약(ck_loc_storage_capacity · ck_loc_max_qty)을 커밋 전에 사용자 메시지로 돌려준다
-        if (row.getLocTyp() == LocTyp.STORAGE && row.getMaxQty() == null) {
-            throw new IllegalArgumentException("보관 로케이션은 최대 적재 수량이 필수입니다: " + row.getLocCd());
-        }
-        if (row.getMaxQty() != null && row.getMaxQty() < 1) {
-            throw new IllegalArgumentException("최대 적재 수량은 1 이상이어야 합니다: " + row.getLocCd());
-        }
-        if (row.getPikngPrty() != null && row.getPikngPrty() < 0) {
-            throw new IllegalArgumentException("피킹 우선순위는 0 이상이어야 합니다: " + row.getLocCd());
-        }
-        if (row.getPtawyPrty() != null && row.getPtawyPrty() < 0) {
-            throw new IllegalArgumentException("적치 우선순위는 0 이상이어야 합니다: " + row.getLocCd());
-        }
+    private Loc find(Long locId) {
+        return locRepository.findById(locId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 로케이션입니다: " + locId));
     }
 }

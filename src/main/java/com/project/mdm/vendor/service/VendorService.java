@@ -33,8 +33,8 @@ public class VendorService {
     public void saveAll(List<VendorSaveRequest> rows) {
         for (VendorSaveRequest row : rows) {
             switch (row.getStatus()) {
-                case "C" -> { validate(row); create(row); }
-                case "U" -> { validate(row); update(row); }
+                case "C" -> create(row);
+                case "U" -> update(row);
                 case "D" -> delete(row);
                 default -> throw new IllegalArgumentException("알 수 없는 행 상태입니다: " + row.getStatus());
             }
@@ -45,19 +45,11 @@ public class VendorService {
 
     private void create(VendorSaveRequest row) {
         // 클라이언트가 보낸 코드는 받지 않는다 — 채번 규칙 VNDR_CD로 발급 (VD-0001 형식)
-        String vndrCd = nbrService.issue("VNDR_CD");
-        vendorRepository.save(Vendor.builder()
-                .vndrCd(vndrCd)
-                .vndrNm(row.getVndrNm())
-                .picNm(row.getPicNm())
-                .telNo(row.getTelNo())
-                .build());
+        vendorRepository.save(row.toEntity(nbrService.issue("VNDR_CD")));
     }
 
     private void update(VendorSaveRequest row) {
-        Vendor vendor = vendorRepository.findById(row.getVendorId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 벤더입니다: " + row.getVendorId()));
-        vendor.update(row.getVndrNm(), row.getPicNm(), row.getTelNo());
+        row.updateEntity(find(row.getVendorId()));
     }
 
     /**
@@ -67,8 +59,7 @@ public class VendorService {
      * 참조 검사는 {@link VendorRefChecker} 구현체가 한다 — mdm은 자기 데이터를 누가 쓰는지 모른다.
      */
     private void delete(VendorSaveRequest row) {
-        Vendor vendor = vendorRepository.findById(row.getVendorId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 벤더입니다: " + row.getVendorId()));
+        Vendor vendor = find(row.getVendorId());
         String usedBy = findAnyReference(vendor.getId());
         if (usedBy != null) {
             throw new IllegalArgumentException(
@@ -86,9 +77,8 @@ public class VendorService {
         return null;
     }
 
-    private void validate(VendorSaveRequest row) {
-        if (row.getVndrNm() == null || row.getVndrNm().isBlank()) {
-            throw new IllegalArgumentException("벤더명은 필수입니다.");
-        }
+    private Vendor find(Long vendorId) {
+        return vendorRepository.findById(vendorId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 벤더입니다: " + vendorId));
     }
 }

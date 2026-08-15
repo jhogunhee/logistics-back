@@ -11,7 +11,7 @@ import lombok.Setter;
  * 그리드 일괄 저장 행. status: C(신규) / U(수정) / D(삭제).
  * 신규 행의 상품 코드는 클라이언트에서 받지 않는다 — 서버가 시퀀스로 채번한다.
  * <p>
- * 자기 필드만으로 판정할 수 있는 검사와 엔티티 생성·반영은 여기서 한다({@link #toEntity} · {@link #applyTo}).
+ * 자기 필드만으로 판정할 수 있는 검사와 엔티티 생성·반영은 여기서 한다({@link #toEntity} · {@link #updateEntity}).
  * DB를 봐야 하는 일(채번 · 삭제 참조 검사)은 서비스 몫이다.
  */
 @Getter
@@ -53,7 +53,7 @@ public class ProdSaveRequest {
     }
 
     /** 수정 행 → 기존 엔티티에 반영. 입고/출고단위는 보지 않는다 — 등록 후 변경은 단위 관리 화면이 맡는다 */
-    public void applyTo(Prod prod) {
+    public void updateEntity(Prod prod) {
         validateFields();
         prod.update(prodNm, tmpZon, shelfLifeDays);
     }

@@ -35,8 +35,8 @@ public class StoreService {
     public void saveAll(List<StoreSaveRequest> rows) {
         for (StoreSaveRequest row : rows) {
             switch (row.getStatus()) {
-                case "C" -> { validate(row); create(row); }
-                case "U" -> { validate(row); update(row); }
+                case "C" -> create(row);
+                case "U" -> update(row);
                 case "D" -> delete(row);
                 default -> throw new IllegalArgumentException("알 수 없는 행 상태입니다: " + row.getStatus());
             }
@@ -47,20 +47,11 @@ public class StoreService {
 
     private void create(StoreSaveRequest row) {
         // 클라이언트가 보낸 코드는 받지 않는다 — 채번 규칙 STORE_CD로 발급 (ST-0001 형식)
-        String storeCd = nbrService.issue("STORE_CD");
-        storeRepository.save(Store.builder()
-                .storeCd(storeCd)
-                .storeNm(row.getStoreNm())
-                .storeGrp(row.getStoreGrp())
-                .storeTyp(row.getStoreTyp())
-                .outbLifeRate(row.getOutbLifeRate())
-                .build());
+        storeRepository.save(row.toEntity(nbrService.issue("STORE_CD")));
     }
 
     private void update(StoreSaveRequest row) {
-        Store store = storeRepository.findById(row.getStoreId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 점포입니다: " + row.getStoreId()));
-        store.update(row.getStoreNm(), row.getStoreGrp(), row.getStoreTyp(), row.getOutbLifeRate());
+        row.updateEntity(find(row.getStoreId()));
     }
 
     /**
@@ -70,8 +61,7 @@ public class StoreService {
      * 참조 검사는 {@link StoreRefChecker} 구현체가 한다 — mdm은 자기 데이터를 누가 쓰는지 모른다.
      */
     private void delete(StoreSaveRequest row) {
-        Store store = storeRepository.findById(row.getStoreId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 점포입니다: " + row.getStoreId()));
+        Store store = find(row.getStoreId());
         String usedBy = findAnyReference(store.getId());
         if (usedBy != null) {
             throw new IllegalArgumentException(
@@ -89,17 +79,8 @@ public class StoreService {
         return null;
     }
 
-    private void validate(StoreSaveRequest row) {
-        if (row.getStoreNm() == null || row.getStoreNm().isBlank()) {
-            throw new IllegalArgumentException("점포명은 필수입니다.");
-        }
-        // 그리드 숫자 셀을 비우면 null로 넘어온다 — DB NOT NULL·CHECK(0~100)에 맡기면
-        // 어느 필드가 문제인지 없는 일반 메시지(409)가 나가므로 여기서 필드를 짚어 먼저 막는다
-        if (row.getOutbLifeRate() == null) {
-            throw new IllegalArgumentException("잔여수명 허용률은 필수입니다: " + row.getStoreNm());
-        }
-        if (row.getOutbLifeRate() < 0 || row.getOutbLifeRate() > 100) {
-            throw new IllegalArgumentException("잔여수명 허용률은 0~100 사이여야 합니다: " + row.getStoreNm());
-        }
+    private Store find(Long storeId) {
+        return storeRepository.findById(storeId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 점포입니다: " + storeId));
     }
 }

@@ -49,7 +49,7 @@ public class ProdService {
     }
 
     private void update(ProdSaveRequest row) {
-        row.applyTo(find(row.getProdId()));
+        row.updateEntity(find(row.getProdId()));
     }
 
     /**

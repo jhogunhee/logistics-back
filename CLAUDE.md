@@ -54,6 +54,8 @@ common  ← mdm ← wmsback ← omsback
 
 각 도메인 패키지는 `controller / dto / entity / repository / service` 구성을 따른다. `strategy`는 예외다 — 전략 커널이라 `condition / field / component / exception`이 추가로 있고(`component`는 유형별 구성요소 enum과 그 입출력이 사는 자리 — 검수 규칙·적치 방식·할당 구현체), `InspectionQueryRepository` · `PutawayQueryRepository` · `AlocQueryRepository`는 Spring Data 인터페이스 없이 `JPAQueryFactory`만 드는 **읽기 전용 조회 포트**로 아래 「QueryDSL 리포지토리 패턴」의 3파일 삼각형을 따르지 않는다.
 
+**마스터 그리드 저장(C/U/D 일괄)의 검증 경계** — `XxxSaveRequest`가 자기 필드만으로 판정할 수 있는 검사(필수·범위)와 엔티티 생성·반영을 맡고(`toEntity()` · `updateEntity(entity)`), DB를 봐야 하는 검사(채번 · 코드 중복 · 존재 · 참조 · 재고)는 서비스가 한다. 상품 · 거래처 · 점포 · 존 · 로케이션 · 공통코드가 이 틀이고, 새 마스터도 같은 자리에 같은 것을 둔다.
+
 ### FK가 하나도 없다
 
 `docs/schema.sql`은 FK를 하나도 선언하지 않고, 라이브 DB에도 FK가 0건이다(`docs/migration-catchup-to-schema.sql`이 카탈로그를 훑어 전량 제거했다 — 예외 없음). 참조 무결성은 애플리케이션 책임이다. DB가 여전히 막아주는 것은 `CHECK`와 `UNIQUE`뿐이므로 이것들을 약화시키면 안 된다 — `ck_inv_qty`(재고 음수·과할당 금지), `ck_ib_line_qty`, `uq_inv`, `uq_lot` 등.
