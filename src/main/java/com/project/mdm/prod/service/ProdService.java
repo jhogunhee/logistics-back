@@ -5,7 +5,6 @@ import com.project.mdm.prod.dto.ProdResponse;
 import com.project.mdm.prod.dto.ProdSaveRequest;
 import com.project.mdm.prod.dto.ProdSearchCond;
 import com.project.mdm.prod.entity.Prod;
-import com.project.mdm.prod.entity.ProdUom;
 import com.project.mdm.prod.repository.ProdRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -34,8 +33,8 @@ public class ProdService {
     public void saveAll(List<ProdSaveRequest> rows) {
         for (ProdSaveRequest row : rows) {
             switch (row.getStatus()) {
-                case "C" -> { validate(row); create(row); }
-                case "U" -> { validate(row); update(row); }
+                case "C" -> create(row);
+                case "U" -> update(row);
                 case "D" -> delete(row);
                 default -> throw new IllegalArgumentException("알 수 없는 행 상태입니다: " + row.getStatus());
             }
@@ -46,45 +45,11 @@ public class ProdService {
 
     private void create(ProdSaveRequest row) {
         // 클라이언트가 보낸 코드는 받지 않는다 — 채번 규칙 PROD_CD로 발급 (PROD-0001 형식)
-        String prodCd = nbrService.issue("PROD_CD");
-        // 저장을 바로 하지 않고 변수로 받는 이유는 ensureUoms 때문이다 — 포장을 붙인 뒤
-        // 한 번에 저장해야 cascade가 상품과 포장을 같이 넣는다.
-        Prod prod = Prod.builder()
-                .prodCd(prodCd)
-                .prodNm(row.getProdNm())
-                .tmpZon(row.getTmpZon())
-                .inbUomCd(row.getInbUomCd())
-                .outbUomCd(row.getOutbUomCd())
-                .shelfLifeDays(row.getShelfLifeDays())
-                .build();
-        ensureUoms(prod);
-        prodRepository.save(prod); // cascade로 포장까지 함께 저장
+        prodRepository.save(row.toEntity(nbrService.issue("PROD_CD"))); // cascade로 포장까지 함께 저장
     }
 
     private void update(ProdSaveRequest row) {
-        Prod prod = prodRepository.findById(row.getProdId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다: " + row.getProdId()));
-
-        prod.update(row.getProdNm(), row.getTmpZon(), row.getShelfLifeDays());
-    }
-
-    /**
-     * 신규 상품의 입고단위·출고단위 포장 행을 보장한다. 없으면 낱개수량 1로 만든다 —
-     * {@link Prod#eaQtyOf}가 포장 없는 단위에서 예외를 던지므로 상품만 저장하고 끝내면
-     * 그 상품은 조회도 발주 변환도 되지 않는다. 실제 입수량(BOX 24 등)은 단위 관리 화면에서 넣는다.
-     * <p>
-     * 나머지 포장(파렛트 등)은 여기서 건드리지 않는다 — 상품 저장은 포장 목록을 받지 않는다.
-     */
-    private void ensureUoms(Prod prod) {
-        ensureUom(prod, prod.getOutbUomCd());
-        ensureUom(prod, prod.getInbUomCd());
-    }
-
-    private void ensureUom(Prod prod, String uomCd) {
-        boolean exists = prod.getUoms().stream().anyMatch(u -> u.getUomCd().equals(uomCd));
-        if (!exists) {
-            prod.addUom(ProdUom.builder().uomCd(uomCd).eaQty(1L).build());
-        }
+        row.applyTo(find(row.getProdId()));
     }
 
     /**
@@ -95,8 +60,7 @@ public class ProdService {
      * 참조 검사는 {@link ProdRefChecker} 구현체가 한다 — mdm은 자기 데이터를 누가 쓰는지 모른다.
      */
     private void delete(ProdSaveRequest row) {
-        Prod prod = prodRepository.findById(row.getProdId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다: " + row.getProdId()));
+        Prod prod = find(row.getProdId());
         String usedBy = findAnyReference(prod.getId());
         if (usedBy != null) {
             throw new IllegalArgumentException(
@@ -114,25 +78,8 @@ public class ProdService {
         return null;
     }
 
-    private void validate(ProdSaveRequest row) {
-        if (row.getProdNm() == null || row.getProdNm().isBlank()) {
-            throw new IllegalArgumentException("상품명은 필수입니다.");
-        }
-        if (row.getTmpZon() == null) {
-            throw new IllegalArgumentException("온도대는 필수입니다: " + row.getProdNm());
-        }
-
-        requireUomCd(row.getInbUomCd(), "입고단위", row.getProdNm());
-        requireUomCd(row.getOutbUomCd(), "출고단위", row.getProdNm());
-        // NULL = 유통기한 미관리(공산품 등). 값이 있으면 1 이상이어야 한다.
-        if (row.getShelfLifeDays() != null && row.getShelfLifeDays() < 1) {
-            throw new IllegalArgumentException("유통기한(일)은 비워두거나(미관리) 1 이상이어야 합니다: " + row.getProdNm());
-        }
-    }
-
-    private void requireUomCd(String uomCd, String label, String prodNm) {
-        if (uomCd == null || uomCd.isBlank()) {
-            throw new IllegalArgumentException(label + "는 필수입니다: " + prodNm);
-        }
+    private Prod find(Long prodId) {
+        return prodRepository.findById(prodId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다: " + prodId));
     }
 }

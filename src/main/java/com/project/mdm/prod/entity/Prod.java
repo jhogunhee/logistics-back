@@ -95,6 +95,26 @@ public class Prod extends BaseEntity {
         uom.assignProd(this);
     }
 
+    /**
+     * 입고단위·출고단위의 포장 행을 보장한다. 없으면 낱개수량 1로 만든다 —
+     * {@link #eaQtyOf}가 포장 없는 단위에서 예외를 던지므로 상품만 저장하고 끝내면
+     * 그 상품은 조회도 발주 변환도 되지 않는다. 실제 입수량(BOX 24 등)은 단위 관리 화면에서 넣는다.
+     * <p>
+     * 나머지 포장(파렛트 등)은 건드리지 않는다. 나누어떨어짐 검증도 없다 — 재고 저장 단위가
+     * 낱개(EA)로 통일되면서 환산(toEaQty)이 곱셈만 남아, 어떤 포장 조합이어도 수량이 깎일 수 없다.
+     */
+    public void ensureRoleUoms() {
+        ensureUom(outbUomCd);
+        ensureUom(inbUomCd);
+    }
+
+    private void ensureUom(String uomCd) {
+        boolean exists = uoms.stream().anyMatch(u -> u.getUomCd().equals(uomCd));
+        if (!exists) {
+            addUom(ProdUom.builder().uomCd(uomCd).eaQty(1L).build());
+        }
+    }
+
     /** 단위 관리 화면의 삭제 — orphanRemoval이 DELETE를 낸다. 컬렉션에 남겨둔 채 리포지토리로
      *  지우면 cascade가 flush 시점에 되살릴 수 있어 반드시 이쪽으로 지운다 */
     public void removeUom(ProdUom uom) {
