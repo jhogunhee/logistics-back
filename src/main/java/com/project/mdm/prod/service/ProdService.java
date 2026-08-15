@@ -22,7 +22,6 @@ public class ProdService {
     private final NbrService nbrService;
     /** 상품을 참조하는 앱들의 신고 창구. @Order 순으로 주입된다 (WMS → OMS) */
     private final List<ProdRefChecker> prodRefCheckers;
-    private final ProdUomChangeGuard prodUomChangeGuard;
 
     public List<ProdResponse> list(ProdSearchCond cond) {
         return prodRepository.search(cond).stream()
@@ -65,21 +64,12 @@ public class ProdService {
     private void update(ProdSaveRequest row) {
         Prod prod = prodRepository.findById(row.getProdId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다: " + row.getProdId()));
-        // 입고/출고단위 교체는 환산이 남은 주문이 없을 때만 — 주문 수량은 그 단위 기준이라
-        // 단위가 바뀌면 확정/검수 때 다른 낱개 수가 된다 (ProdUomChangeGuard 참고)
-        if (!prod.getInbUomCd().equals(row.getInbUomCd())) {
-            prodUomChangeGuard.requireInbChangeable(prod);
-        }
-        if (!prod.getOutbUomCd().equals(row.getOutbUomCd())) {
-            prodUomChangeGuard.requireOutbChangeable(prod);
-        }
-        prod.update(row.getProdNm(), row.getTmpZon(),
-                row.getInbUomCd(), row.getOutbUomCd(), row.getShelfLifeDays());
-        ensureUoms(prod);
+
+        prod.update(row.getProdNm(), row.getTmpZon(), row.getShelfLifeDays());
     }
 
     /**
-     * 입고단위·출고단위의 포장 행을 보장한다. 없으면 낱개수량 1로 만든다 —
+     * 신규 상품의 입고단위·출고단위 포장 행을 보장한다. 없으면 낱개수량 1로 만든다 —
      * {@link Prod#eaQtyOf}가 포장 없는 단위에서 예외를 던지므로 상품만 저장하고 끝내면
      * 그 상품은 조회도 발주 변환도 되지 않는다. 실제 입수량(BOX 24 등)은 단위 관리 화면에서 넣는다.
      * <p>
@@ -88,8 +78,6 @@ public class ProdService {
     private void ensureUoms(Prod prod) {
         ensureUom(prod, prod.getOutbUomCd());
         ensureUom(prod, prod.getInbUomCd());
-        // 나누어떨어짐 검증은 없다 — 재고 저장 단위가 낱개(EA)로 통일되면서 환산(toEaQty)이
-        // 곱셈만 남아, 어떤 포장 조합이어도 수량이 깎일 수 없다.
     }
 
     private void ensureUom(Prod prod, String uomCd) {
@@ -133,8 +121,7 @@ public class ProdService {
         if (row.getTmpZon() == null) {
             throw new IllegalArgumentException("온도대는 필수입니다: " + row.getProdNm());
         }
-        // 단위 코드가 공통코드 UOM 그룹에 실재하는지는 확인하지 않는다 — 화면 콤보박스로만
-        // 들어오는 사내 시스템이라 저장 때마다 재조회는 쿼리만 늘린다. 빈 값만 막는다.
+
         requireUomCd(row.getInbUomCd(), "입고단위", row.getProdNm());
         requireUomCd(row.getOutbUomCd(), "출고단위", row.getProdNm());
         // NULL = 유통기한 미관리(공산품 등). 값이 있으면 1 이상이어야 한다.

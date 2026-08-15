@@ -22,9 +22,9 @@ public class ProdSaveRequest {
     private Long prodId;
     private String prodNm;
     private TmpZon tmpZon;
-    /** 발주·납품 단위 (공통코드 UOM). 그 상품의 포장이 없으면 낱개수량 1로 자동 생성된다 */
+    /** 발주·납품 단위 (공통코드 UOM). 신규 등록 시 그 포장이 없으면 낱개수량 1로 자동 생성된다. 등록 후 변경은 단위 관리 화면 */
     private String inbUomCd;
-    /** 재고 저장 단위 (공통코드 UOM). 마찬가지로 포장이 없으면 자동 생성된다 */
+    /** 출고주문 단위 (공통코드 UOM). 마찬가지로 신규 등록 시에만 자동 생성되고 등록 후엔 못 바꾼다 */
     private String outbUomCd;
     private Integer shelfLifeDays;
 

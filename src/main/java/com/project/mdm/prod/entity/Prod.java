@@ -83,12 +83,10 @@ public class Prod extends BaseEntity {
         this.shelfLifeDays = shelfLifeDays;
     }
 
-    public void update(String prodNm, TmpZon tmpZon,
-                       String inbUomCd, String outbUomCd, Integer shelfLifeDays) {
+    /** 입고/출고단위는 여기서 바꾸지 않는다 — 역할 이동은 {@link #assignInbUomCd} · {@link #assignOutbUomCd} */
+    public void update(String prodNm, TmpZon tmpZon, Integer shelfLifeDays) {
         this.prodNm = prodNm;
         this.tmpZon = tmpZon;
-        this.inbUomCd = inbUomCd;
-        this.outbUomCd = outbUomCd;
         this.shelfLifeDays = shelfLifeDays;
     }
 

@@ -7,11 +7,9 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * 미확정 주문이 있는 상품의 단위 구성 변경을 막는 가드. 검사 대상은
- * {@link ProdRefChecker#findOpenInbRef} 참고.
+ * 미확정 주문이 있는 상품의 단위 구성 변경을 막는 가드. 검사 대상은 {@link ProdRefChecker#findOpenInbRef} 참고.
  * <p>
- * 상품 화면(입고/출고단위 변경)과 단위 화면(역할 이동·낱개수량 수정)이 같은 검사를 쓰므로
- * 서비스 둘이 공유하는 컴포넌트로 뺐다.
+ * 단위 화면의 역할 이동과 낱개수량 수정이 같은 검사를 쓴다({@code ProdUomService}).
  */
 @Component
 @RequiredArgsConstructor
