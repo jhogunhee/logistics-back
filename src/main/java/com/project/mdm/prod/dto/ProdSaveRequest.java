@@ -32,9 +32,6 @@ public class ProdSaveRequest {
     private String outbUomCd;
     private Integer shelfLifeDays;
 
-    // 포장 목록(prod_uom)은 여기서 받지 않는다 — 상품 한 건에 여러 행이라 그리드 한 줄에 담기지
-    // 않고, 낱개수량·중량은 상품 정보를 고칠 때마다 다시 보낼 값이 아니다. 단위 관리 화면이 맡는다.
-
     /** 신규 행 → 엔티티. 상품 코드는 서비스가 채번해 넘긴다. 단위 필수 검사는 신규에만 있다 */
     public Prod toEntity(String prodCd) {
         validateFields();
