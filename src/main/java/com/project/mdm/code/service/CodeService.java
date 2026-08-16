@@ -2,6 +2,7 @@ package com.project.mdm.code.service;
 
 import com.project.mdm.code.dto.CodeGroupResponse;
 import com.project.mdm.code.dto.CodeGroupSaveRequest;
+import com.project.mdm.code.dto.CodeGroupSearchCond;
 import com.project.mdm.code.dto.CodeResponse;
 import com.project.mdm.code.dto.CodeSaveRequest;
 import com.project.mdm.code.dto.CodeSearchCond;
@@ -27,6 +28,13 @@ public class CodeService {
     /** 그룹 목록. 공통코드 관리 화면이 어느 그룹을 편집할지 고르는 데 쓴다 */
     public List<CodeGroupResponse> groups() {
         return codeGroupRepository.findAllByOrderByGrpCd().stream()
+                .map(CodeGroupResponse::from)
+                .toList();
+    }
+
+    /** 관리 화면용 그룹 검색 (그룹코드/그룹명 부분일치) */
+    public List<CodeGroupResponse> searchGroups(CodeGroupSearchCond cond) {
+        return codeGroupRepository.search(cond).stream()
                 .map(CodeGroupResponse::from)
                 .toList();
     }

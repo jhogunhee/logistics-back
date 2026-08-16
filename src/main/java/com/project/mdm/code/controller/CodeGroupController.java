@@ -2,9 +2,11 @@ package com.project.mdm.code.controller;
 
 import com.project.mdm.code.dto.CodeGroupResponse;
 import com.project.mdm.code.dto.CodeGroupSaveRequest;
+import com.project.mdm.code.dto.CodeGroupSearchCond;
 import com.project.mdm.code.service.CodeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,6 +30,12 @@ public class CodeGroupController {
     @GetMapping
     public List<CodeGroupResponse> groups() {
         return codeService.groups();
+    }
+
+    /** 관리 화면용 그룹 검색 (그룹코드/그룹명 부분일치) */
+    @GetMapping("/search")
+    public List<CodeGroupResponse> search(@ModelAttribute CodeGroupSearchCond cond) {
+        return codeService.searchGroups(cond);
     }
 
     /** 그룹 일괄 저장. 그룹 코드는 신규 행에서만 받고, 삭제는 하위 코드가 없을 때만 된다 */
