@@ -1,6 +1,8 @@
 package com.project.wmsback.inbound.controller;
 
 import com.project.wmsback.inbound.dto.IbLineResponse;
+import com.project.wmsback.inbound.dto.IbOrderCfmResponse;
+import com.project.wmsback.inbound.dto.IbOrderInspResponse;
 import com.project.wmsback.inbound.dto.IbOrderResponse;
 import com.project.wmsback.inbound.dto.IbOrderSearchCond;
 import com.project.wmsback.inbound.dto.ReceiptResponse;
@@ -26,9 +28,25 @@ public class IbOrderController {
     private final IbOrderService ibOrderService;
     private final ReceivingService receivingService;
 
+    // 목록이 화면별로 셋인 이유는 IbOrderRepositoryImpl 주석 참고 — 뽑는 컬럼이 아니라
+    // 쿼리 모양(적치지시 EXISTS · 검수일시 서브쿼리)이 화면마다 갈려서다.
+
+    /** 입고예정(ASN) 관리 · 대시보드 */
     @GetMapping
     public List<IbOrderResponse> list(@ModelAttribute IbOrderSearchCond cond) {
         return ibOrderService.list(cond);
+    }
+
+    /** 입고검수 · 검수정책 시뮬레이션 — 진행단계 대신 저장 상태와 라인 진행(3/5)을 준다 */
+    @GetMapping("/inspection")
+    public List<IbOrderInspResponse> listForInsp(@ModelAttribute IbOrderSearchCond cond) {
+        return ibOrderService.listForInsp(cond);
+    }
+
+    /** 입고확정 — 결품·미적치 계산용 수량 합계를 준다 */
+    @GetMapping("/confirmation")
+    public List<IbOrderCfmResponse> listForCfm(@ModelAttribute IbOrderSearchCond cond) {
+        return ibOrderService.listForCfm(cond);
     }
 
     // ASN의 생성/취소 엔드포인트는 여기 없다 — 둘 다 OMS 입고주문이 주관한다.

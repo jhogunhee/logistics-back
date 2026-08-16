@@ -143,29 +143,4 @@ public class IbOrder extends BaseEntity {
     private boolean allLinesFullyPutaway() {
         return lines.stream().allMatch(l -> l.getPtawyQty().equals(l.getRcvdQty()));
     }
-
-    /**
-     * 화면 표시용 5단계 진행({@link IbPrgr}) — 저장하지 않고 그때그때 계산한다.
-     * 적치지시 존재 여부는 엔티티가 모르므로 인자로 받는다(주문 단위 배치 집계는 서비스가 한다).
-     * <p>
-     * SCHEDULED 판정(Σrcvd == 0)이 적치완료 판정보다 먼저다 — 검수가 하나도 없으면
-     * 전 라인이 0 == 0으로 「전량 적치」를 헛통과하기 때문.
-     */
-    public IbPrgr progress(boolean hasOpenPtawyDrct) {
-        if (status == IbStatus.CONFIRMED) {
-            return IbPrgr.CONFIRMED;
-        }
-        long totalRcvd = lines.stream().mapToLong(IbLine::getRcvdQty).sum();
-        if (totalRcvd == 0) {
-            return IbPrgr.SCHEDULED;
-        }
-        if (allLinesFullyPutaway()) {
-            return IbPrgr.PTAWY_CMPL; // 확정 대기
-        }
-        long totalPtawy = lines.stream().mapToLong(IbLine::getPtawyQty).sum();
-        if (hasOpenPtawyDrct || totalPtawy > 0) {
-            return IbPrgr.PTAWY_DRCT;
-        }
-        return IbPrgr.RECEIVING;
-    }
 }

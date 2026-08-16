@@ -16,12 +16,12 @@ public class OmsIbLineRepositoryImpl implements OmsIbLineRepositoryCustom {
 
     @Override
     public List<OmsIbLine> findAllByOrderIdWithProd(Long omsIbOrderId) {
-        // 응답이 환산수량(Prod.eaQtyOf → prod.uoms)까지 쓰므로 포장 컬렉션도 함께 로딩한다.
-        // 컬렉션 fetch join은 행을 곱하므로 distinct로 라인 중복을 걷어낸다.
+        // 응답이 환산수량(Prod.eaQtyOf → prod.uoms)을 쓰지만 포장 컬렉션은 fetch join하지 않는다 —
+        // 컬렉션을 붙이면 라인 하나가 포장 수만큼 행으로 불어난다. 지연로딩은
+        // default_batch_fetch_size(100)가 IN 한 방으로 묶으므로 쿼리만 하나 더 든다.
         return queryFactory
-                .selectFrom(omsIbLine).distinct()
+                .selectFrom(omsIbLine)
                 .innerJoin(omsIbLine.prod, prod).fetchJoin()
-                .leftJoin(prod.uoms).fetchJoin()
                 .where(omsIbLine.omsIbOrder.id.eq(omsIbOrderId))
                 .orderBy(omsIbLine.id.asc())
                 .fetch();

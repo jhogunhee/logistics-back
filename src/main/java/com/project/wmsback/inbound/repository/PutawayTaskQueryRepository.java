@@ -13,7 +13,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -88,27 +87,6 @@ public class PutawayTaskQueryRepository {
                     Objects.requireNonNullElse(row.get(remainder), 0L));
         }
         return byBatch;
-    }
-
-    /**
-     * 미완료(DIRECTED) 지시가 하나라도 있는 입고건 id 집합. 입고예정 목록의 5단계 진행 파생
-     * ({@code IbOrder#progress})이 「적치지시」 단계 판정에 쓴다 — 건별로 물으면 N+1이라 한 번에 받는다.
-     */
-    public Set<Long> orderIdsWithOpenTask(Collection<Long> ibOrderIds) {
-        if (ibOrderIds.isEmpty()) {
-            return Set.of();
-        }
-        List<Long> ids = queryFactory
-                .select(ibOrder.id).distinct()
-                .from(putawayTask)
-                .innerJoin(putawayTask.ibLine, ibLine)
-                .innerJoin(ibLine.ibOrder, ibOrder)
-                .where(
-                        ibOrder.id.in(ibOrderIds),
-                        putawayTask.status.eq(PutawayTaskStatus.DIRECTED)
-                )
-                .fetch();
-        return Set.copyOf(ids);
     }
 
     /** 한 배치의 미완료 지시 잔량. 지시 생성이 배치 상한을 검증할 때 건별로 쓴다 */

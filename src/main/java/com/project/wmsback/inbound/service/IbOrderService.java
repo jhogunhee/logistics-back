@@ -1,22 +1,17 @@
 package com.project.wmsback.inbound.service;
 
 import com.project.wmsback.inbound.dto.IbLineResponse;
+import com.project.wmsback.inbound.dto.IbOrderCfmResponse;
+import com.project.wmsback.inbound.dto.IbOrderInspResponse;
 import com.project.wmsback.inbound.dto.IbOrderResponse;
 import com.project.wmsback.inbound.dto.IbOrderSearchCond;
-import com.project.wmsback.inbound.entity.IbLine;
-import com.project.wmsback.inbound.entity.IbOrder;
 import com.project.wmsback.inbound.repository.IbLineRepository;
 import com.project.wmsback.inbound.repository.IbOrderRepository;
-import com.project.wmsback.inbound.repository.PutawayTaskQueryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -25,38 +20,23 @@ public class IbOrderService {
 
     private final IbOrderRepository ibOrderRepository;
     private final IbLineRepository ibLineRepository;
-    private final PutawayTaskQueryRepository putawayTaskQueryRepository;
 
+    // 목록은 화면별로 세 벌이다 — 수량 집계 · 최종 검수일시 · 진행 파생과 필터가 전부 쿼리 안에 있어
+    // 서비스가 뒤에 붙일 것이 없다. 왜 하나로 합치지 않았는지는 IbOrderRepositoryImpl 주석 참고.
+
+    /** 입고예정(ASN) 관리 · 대시보드 */
     public List<IbOrderResponse> list(IbOrderSearchCond cond) {
-        List<IbOrder> orders = ibOrderRepository.search(cond);
-
-        // search()가 라인을 fetch join으로 이미 들고 오므로 라인 id는 메모리에서 뽑는다 (추가 조회 없음).
-        // 검수일시는 건별로 구하면 그대로 N+1이라 한 번에 받아 주문별로 접는다
-        List<Long> ibLineIds = orders.stream()
-                .flatMap(o -> o.getLines().stream())
-                .map(IbLine::getId)
-                .toList();
-        Map<Long, LocalDateTime> lastReceiveDtByLine = ibOrderRepository.lastReceiveDtByLine(ibLineIds);
-
-        // 5단계 진행 파생 중 「적치지시」만 라인 수량 밖의 사실(미완료 지시 존재)이 필요하다 — 같은 배치 패턴
-        Set<Long> orderIdsWithOpenTask = putawayTaskQueryRepository
-                .orderIdsWithOpenTask(orders.stream().map(IbOrder::getId).toList());
-
-        return orders.stream()
-                .map(o -> IbOrderResponse.of(o, lastReceiveDt(o, lastReceiveDtByLine),
-                        orderIdsWithOpenTask.contains(o.getId())))
-                // 진행단계는 저장 컬럼이 아니라 SQL로 못 거른다 — 파생을 끝낸 응답에서 거른다
-                .filter(r -> cond.getPrgr() == null || r.getPrgr() == cond.getPrgr())
-                .toList();
+        return ibOrderRepository.search(cond);
     }
 
-    /** 입고건의 최종 검수일시 = 그 라인들 중 가장 늦은 것 (검수 전이면 null) */
-    private LocalDateTime lastReceiveDt(IbOrder order, Map<Long, LocalDateTime> byLine) {
-        return order.getLines().stream()
-                .map(l -> byLine.get(l.getId()))
-                .filter(Objects::nonNull)
-                .max(LocalDateTime::compareTo)
-                .orElse(null);
+    /** 입고검수 · 검수정책 시뮬레이션 */
+    public List<IbOrderInspResponse> listForInsp(IbOrderSearchCond cond) {
+        return ibOrderRepository.searchForInsp(cond);
+    }
+
+    /** 입고확정 */
+    public List<IbOrderCfmResponse> listForCfm(IbOrderSearchCond cond) {
+        return ibOrderRepository.searchForCfm(cond);
     }
 
     public List<IbLineResponse> lines(Long ibOrderId) {

@@ -746,7 +746,9 @@ COMMENT ON COLUMN inv_hist.cncl_inv_hist_id IS '검수 취소(ADJUST) 건이 되
 
 CREATE INDEX ix_invh_prod_created ON inv_hist (prod_id, created_at);
 CREATE INDEX ix_invh_rfn_doc ON inv_hist (rfn_doc_no);
-CREATE INDEX ix_invh_ib_line ON inv_hist (ib_line_id);
+-- 입고 라인 역추적. tx_typ·created_at까지 담아 커버링으로 둔다 — 입고예정 목록의 최종 검수일시가
+-- RECEIVE 행의 max(created_at) 파생이라, 세 컬럼이 인덱스에 있어야 테이블을 읽지 않는다
+CREATE INDEX ix_invh_ib_line_typ_created ON inv_hist (ib_line_id, tx_typ, created_at);
 -- 대사(reconciliation) 배치: 키별 SUM(qty) vs inv.on_hand_qty 비교용
 CREATE INDEX ix_invh_inv_key ON inv_hist (prod_id, loc_id, lot_id);
 
