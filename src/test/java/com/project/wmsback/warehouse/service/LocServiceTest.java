@@ -53,7 +53,7 @@ class LocServiceTest {
         dry = mock(Zon.class);
         when(dry.getZonCd()).thenReturn("DRY");
         when(dry.getTmpZon()).thenReturn(TmpZon.DRY);
-        when(zonRepository.findAll()).thenReturn(List.of(dry));
+        when(zonRepository.findByZonCd("DRY")).thenReturn(Optional.of(dry));
         when(locRepository.existsByLocCd("DRY-A-01-01")).thenReturn(false);
     }
 
