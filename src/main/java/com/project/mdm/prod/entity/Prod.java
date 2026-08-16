@@ -115,6 +115,24 @@ public class Prod extends BaseEntity {
         }
     }
 
+    /**
+     * {@link #ensureRoleUoms}의 검사 쪽 — 입고단위·출고단위가 가리키는 포장 행이 있는지 확인하고
+     * 없으면 예외. 단위 관리 저장이 끝에 부른다. 지운 채 두면 {@link #eaQtyOf}가 환산 시점에
+     * 예외를 던져 발주 변환이 죽는다.
+     */
+    public void requireRoleUoms() {
+        requireUom(inbUomCd, "입고단위");
+        requireUom(outbUomCd, "출고단위");
+    }
+
+    private void requireUom(String uomCd, String role) {
+        if (uoms.stream().noneMatch(u -> u.getUomCd().equals(uomCd))) {
+            throw new IllegalArgumentException(
+                    role + "로 쓰이는 포장은 삭제할 수 없습니다. " + role + "를 다른 포장으로 옮긴 뒤 지우세요: "
+                            + prodNm + " / " + uomCd);
+        }
+    }
+
     /** 단위 관리 화면의 삭제 — orphanRemoval이 DELETE를 낸다. 컬렉션에 남겨둔 채 리포지토리로
      *  지우면 cascade가 flush 시점에 되살릴 수 있어 반드시 이쪽으로 지운다 */
     public void removeUom(ProdUom uom) {
