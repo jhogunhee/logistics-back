@@ -41,16 +41,16 @@ public class ProdUomService {
      */
     @Transactional
     public void saveAll(List<ProdUomSaveRequest> rows) {
-        Set<Prod> touched = new LinkedHashSet<>();
+        Set<Prod> prods = new LinkedHashSet<>();
         for (ProdUomSaveRequest row : rows) {
-            touched.add(switch (row.getStatus()) {
+            prods.add(switch (row.getStatus()) {
                 case "C" -> create(row);
                 case "U" -> update(row);
                 case "D" -> delete(row);
                 default -> throw new IllegalArgumentException("알 수 없는 행 상태입니다: " + row.getStatus());
             });
         }
-        touched.forEach(Prod::requireRoleUoms);
+        prods.forEach(Prod::requireRoleUoms);
         prodUomRepository.flush();
     }
 
