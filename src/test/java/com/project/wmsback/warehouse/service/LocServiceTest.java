@@ -45,11 +45,12 @@ class LocServiceTest {
     @Mock LocRefQueryRepository locRefQueryRepository;
 
     private LocService locService;
+    private Zon dry;
 
     @BeforeEach
     void setUp() {
         locService = new LocService(locRepository, zonRepository, locCapacityQueryRepository, locRefQueryRepository);
-        Zon dry = mock(Zon.class);
+        dry = mock(Zon.class);
         when(dry.getZonCd()).thenReturn("DRY");
         when(dry.getTmpZon()).thenReturn(TmpZon.DRY);
         when(zonRepository.findAll()).thenReturn(List.of(dry));
@@ -110,7 +111,7 @@ class LocServiceTest {
     @DisplayName("수정 시 최대 적재 수량이 반영된다")
     void update_appliesMaxQty() {
         Loc loc = Loc.builder()
-                .locCd("DRY-A-01-01").zonCd("DRY").tmpZon(TmpZon.DRY)
+                .locCd("DRY-A-01-01").zon(dry).tmpZon(TmpZon.DRY)
                 .locTyp(LocTyp.STORAGE).pikngPrty(1).ptawyPrty(1).maxQty(50L)
                 .build();
         when(locRepository.findById(10L)).thenReturn(Optional.of(loc));
@@ -132,7 +133,7 @@ class LocServiceTest {
     @DisplayName("응답 DTO에 최대 적재 수량이 포함된다")
     void response_includesMaxQty() {
         Loc loc = Loc.builder()
-                .locCd("DRY-A-01-01").zonCd("DRY").tmpZon(TmpZon.DRY)
+                .locCd("DRY-A-01-01").zon(dry).tmpZon(TmpZon.DRY)
                 .locTyp(LocTyp.STORAGE).pikngPrty(1).ptawyPrty(1).maxQty(80L)
                 .build();
 

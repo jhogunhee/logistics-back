@@ -54,9 +54,9 @@ public class AlocQueryRepository {
                 .from(inv)
                 .join(inv.loc, loc)
                 .join(inv.lot, lot)
-                // 로케이션의 존코드는 FK가 없어 미등록 존이 있을 수 있다 — 그때 업무유형은 null이고
+                // 로케이션의 존은 FK가 없어 미등록 존이 있을 수 있다 — 그때 업무유형은 null이고
                 // 계층 지정(BIZ_DVSN IN) 조건에서 자연히 빠진다
-                .leftJoin(zon).on(zon.zonCd.eq(loc.zonCd))
+                .leftJoin(loc.zon, zon)
                 .where(
                         inv.prod.id.in(prodIds),
                         // 스테이징 재고는 후보가 아니다 — 피킹이 「보관 → SHIP-STAGE」라
@@ -81,13 +81,13 @@ public class AlocQueryRepository {
     }
 
     /**
-     * 존코드 → 업무유형. 존은 마스터라 건수가 작아 통째로 읽고 메모리에서 붙인다 —
+     * 존 id → 업무유형. 존은 마스터라 건수가 작아 통째로 읽고 메모리에서 붙인다 —
      * 실전 경로가 후보를 <b>락을 걸며 한 건씩</b> 읽기 때문에, 재고 조회에 존을 조인해 둘 수 없다.
      */
-    public Map<String, String> bizDvsnByZon() {
-        Map<String, String> map = new HashMap<>();
-        for (Tuple row : queryFactory.select(zon.zonCd, zon.bizDvsn).from(zon).fetch()) {
-            map.put(row.get(zon.zonCd), row.get(zon.bizDvsn) != null ? row.get(zon.bizDvsn).name() : null);
+    public Map<Long, String> bizDvsnByZon() {
+        Map<Long, String> map = new HashMap<>();
+        for (Tuple row : queryFactory.select(zon.id, zon.bizDvsn).from(zon).fetch()) {
+            map.put(row.get(zon.id), row.get(zon.bizDvsn) != null ? row.get(zon.bizDvsn).name() : null);
         }
         return map;
     }

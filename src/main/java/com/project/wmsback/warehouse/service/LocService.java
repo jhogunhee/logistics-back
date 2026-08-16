@@ -38,7 +38,8 @@ public class LocService {
     /** 신규(C)/수정(U)/삭제(D) 행 일괄 저장. 한 건이라도 실패하면 전체 롤백. */
     @Transactional
     public void saveAll(List<LocSaveRequest> rows) {
-        // 존 마스터는 작고 엑셀 업로드는 수백 행을 한 번에 보내므로, 행마다 조회하지 않고 한 번만 읽어 쓴다
+        // 행은 존을 코드로 보내므로 연관에 실을 존 엔티티를 찾아야 한다 — 존 마스터는 작고
+        // 엑셀 업로드는 수백 행을 한 번에 보내므로, 행마다 조회하지 않고 한 번만 읽어 쓴다
         Map<String, Zon> zonMap = zonRepository.findAll().stream()
                 .collect(Collectors.toMap(Zon::getZonCd, Function.identity()));
 
@@ -55,8 +56,8 @@ public class LocService {
     }
 
     private void create(LocSaveRequest row, Map<String, Zon> zonMap) {
-        Loc loc = row.toEntity();
-        requireZonConsistent(loc, zonMap);
+        Loc loc = row.toEntity(zonMap.get(row.getZonCd()));
+        requireZonConsistent(loc, row.getZonCd());
         if (locRepository.existsByLocCd(loc.getLocCd())) {
             throw new IllegalArgumentException("이미 존재하는 로케이션 코드입니다: " + loc.getLocCd());
         }
@@ -67,8 +68,8 @@ public class LocService {
         Loc loc = find(row.getLocId());
         boolean tmpZonOrTypChanges = loc.getTmpZon() != row.getTmpZon() || loc.getLocTyp() != row.getLocTyp();
         // 반영 뒤 저장될 상태로 검사한다 — 예외면 트랜잭션이 롤백되므로 필드 검사(updateEntity)가 먼저 걸리게 둔다
-        row.updateEntity(loc);
-        requireZonConsistent(loc, zonMap);
+        row.updateEntity(loc, zonMap.get(row.getZonCd()));
+        requireZonConsistent(loc, row.getZonCd());
         // 재고가 놓인 로케이션의 온도대·유형을 바꾸면 이미 놓인 재고가 온도대 일치·할당 후보 판정의 전제를 깬다
         if (tmpZonOrTypChanges && locRefQueryRepository.existsInv(loc.getId())) {
             throw new IllegalArgumentException("재고가 있는 로케이션은 온도대·유형을 변경할 수 없습니다: " + loc.getLocCd());
@@ -85,14 +86,14 @@ public class LocService {
     }
 
     /**
-     * 모든 로케이션은 존 마스터에 등록된 존에 속해야 하고(loc.zon_cd는 FK가 없어 DB가 막지 않는다),
-     * 보관 로케이션은 존과 온도대가 같아야 적치·이동 시 온도대 일치 검증이 성립한다
-     * (스테이징은 전 온도대 재고가 거쳐 가는 지점이라 예외).
+     * 모든 로케이션은 존 마스터에 등록된 존에 속해야 하고(loc.zon_id는 FK가 없어 DB가 막지 않는다 —
+     * 존 코드로 못 찾은 행은 존이 비어 있다), 보관 로케이션은 존과 온도대가 같아야
+     * 적치·이동 시 온도대 일치 검증이 성립한다 (스테이징은 전 온도대 재고가 거쳐 가는 지점이라 예외).
      */
-    private void requireZonConsistent(Loc loc, Map<String, Zon> zonMap) {
-        Zon zon = zonMap.get(loc.getZonCd());
+    private void requireZonConsistent(Loc loc, String zonCd) {
+        Zon zon = loc.getZon();
         if (zon == null) {
-            throw new IllegalArgumentException("존재하지 않는 존입니다: " + loc.getZonCd());
+            throw new IllegalArgumentException("존재하지 않는 존입니다: " + zonCd);
         }
         if (loc.getLocTyp() == LocTyp.STORAGE && zon.getTmpZon() != loc.getTmpZon()) {
             throw new IllegalArgumentException("보관 로케이션의 온도대는 존의 온도대와 같아야 합니다: " + loc.getLocCd());

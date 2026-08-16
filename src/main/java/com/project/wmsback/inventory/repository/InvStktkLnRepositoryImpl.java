@@ -24,7 +24,7 @@ public class InvStktkLnRepositoryImpl implements InvStktkLnRepositoryCustom {
                 .select(Projections.constructor(InvStktkLnResponse.class,
                         invStktkLn.id,
                         prod.prodCd, prod.prodNm, prod.tmpZon,
-                        loc.locCd, loc.zonCd,
+                        loc.locCd, loc.zon.zonCd,
                         lot.lotNo, lot.expiryDt,
                         invStktkLn.sysQty,
                         // 현재 재고 — 라인이 가리키는 재고 행이 없을 수 있다(수동 추가 라인 · 전량 소진).

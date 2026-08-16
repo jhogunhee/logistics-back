@@ -185,7 +185,7 @@ public class OutbAllocService {
 
         // 존 업무유형은 계층 지정 판정에만 쓰인다. 후보를 락을 걸며 한 건씩 읽는 구조라
         // 재고 조회에 존을 조인할 수 없어, 마스터를 통째로 읽어 메모리에서 붙인다.
-        Map<String, String> bizDvsnByZon = alocQueryRepository.bizDvsnByZon();
+        Map<Long, String> bizDvsnByZon = alocQueryRepository.bizDvsnByZon();
 
         List<AllocExecuteResponse.LineResult> results = new ArrayList<>();
         List<AlocDecisionTrace> groupTraces = new ArrayList<>();
@@ -253,10 +253,13 @@ public class OutbAllocService {
         return wavNos.get(0) + " 외 " + (wavNos.size() - 1) + "건";
     }
 
-    /** 존 미등록 로케이션은 업무유형이 없다 — 계층 지정 조건에서 자연히 빠진다 */
-    private static String bizDvsnOf(Map<String, String> bizDvsnByZon, Inv inv) {
-        String zonCd = inv.getLoc().getZonCd();
-        return zonCd != null ? bizDvsnByZon.get(zonCd) : null;
+    /**
+     * 존 미등록 로케이션(zon_id가 가리키는 존이 없음)은 업무유형이 없다 — 계층 지정 조건에서 자연히 빠진다.
+     * 존은 id로만 본다 — 지연 프록시의 id는 DB를 안 타고, 존이 없어도 프록시는 null이 아니라 초기화 때 터지므로
+     * 코드를 꺼내지 않는다.
+     */
+    private static String bizDvsnOf(Map<Long, String> bizDvsnByZon, Inv inv) {
+        return bizDvsnByZon.get(inv.getLoc().getZon().getId());
     }
 
     private AlocLineTarget target(OutbLine line, Map<Long, Long> alreadyByLine) {

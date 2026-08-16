@@ -29,7 +29,7 @@ public class PutawayQueryRepository {
      * 점유 = 그 로케이션의 전체 상품 on_hand 합 — <b>현재고만</b>이다. 미완료 지시가 잡아둔 자리는
      * 여기서 빼지 않고 PutawayRecommendService가 LocCapacityService로 받아 합산한다
      * (유입 원천이 적치지시·이동지시 둘이라 한 쿼리로 묶으면 이 조회 포트가 두 도메인을 알게 된다).
-     * 존 조인은 업무유형 조건(BIZ_DVSN) 판정용 — loc.zon_cd는 FK가 없어 left join (미등록 존이면 null).
+     * 존 조인은 업무유형 조건(BIZ_DVSN) 판정용 — loc.zon_id는 FK가 없어 left join (미등록 존이면 null).
      */
     public List<PutawayMethodContext.LocStock> storageStocks(TmpZon tmpZon, Long prodId) {
         NumberExpression<Long> occupied = inv.onHandQty.sum().coalesce(0L);
@@ -41,7 +41,7 @@ public class PutawayQueryRepository {
         List<Tuple> rows = queryFactory
                 .select(loc, occupied, prodQty, zon.bizDvsn)
                 .from(loc)
-                .leftJoin(zon).on(zon.zonCd.eq(loc.zonCd))
+                .leftJoin(loc.zon, zon)
                 .leftJoin(inv).on(inv.loc.eq(loc))
                 .where(
                         loc.locTyp.eq(LocTyp.STORAGE),

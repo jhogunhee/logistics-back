@@ -26,7 +26,7 @@ public class LocResponse {
     private LocResponse(Loc loc) {
         this.locId = loc.getId();
         this.locCd = loc.getLocCd();
-        this.zonCd = loc.getZonCd();
+        this.zonCd = loc.getZon().getZonCd();
         this.tmpZon = loc.getTmpZon();
         this.locTyp = loc.getLocTyp();
         this.pikngPrty = loc.getPikngPrty();

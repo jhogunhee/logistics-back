@@ -3,6 +3,7 @@ package com.project.wmsback.warehouse.dto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.LocTyp;
+import com.project.wmsback.warehouse.entity.Zon;
 import com.project.mdm.prod.entity.TmpZon;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -13,7 +14,8 @@ import lombok.Setter;
  * 로케이션 코드는 채번 없이 사용자가 입력한다 (신규일 때만, 중복 검증은 서버에서).
  * <p>
  * 자기 필드만으로 판정할 수 있는 검사와 엔티티 생성·반영은 여기서 한다({@link #toEntity} · {@link #updateEntity}).
- * DB를 봐야 하는 일(코드 중복 · 존 존재와 온도대 일치 · 재고 · 참조 검사)은 서비스 몫이다.
+ * DB를 봐야 하는 일(코드 중복 · 존 존재와 온도대 일치 · 재고 · 참조 검사)은 서비스 몫이다 —
+ * 그래서 존은 코드({@code zonCd})로 받고, 서비스가 찾은 {@link Zon}을 넘겨받아 엔티티에 싣는다.
  */
 @Getter
 @Setter
@@ -34,14 +36,14 @@ public class LocSaveRequest {
     private Long maxQty;
 
     /** 신규 행 → 엔티티. 우선순위 null→0 기본값은 엔티티 빌더가 맡는다 */
-    public Loc toEntity() {
+    public Loc toEntity(Zon zon) {
         if (locCd == null || locCd.isBlank()) {
             throw new IllegalArgumentException("로케이션 코드는 필수입니다.");
         }
         validateFields(locCd);
         return Loc.builder()
                 .locCd(locCd)
-                .zonCd(zonCd)
+                .zon(zon)
                 .tmpZon(tmpZon)
                 .locTyp(locTyp)
                 .pikngPrty(pikngPrty)
@@ -51,9 +53,9 @@ public class LocSaveRequest {
     }
 
     /** 수정 행 → 기존 엔티티에 반영. null→0 기본값 처리는 빌더와 함께 엔티티(update)가 맡는다 — 두 경로가 갈라지지 않게 */
-    public void updateEntity(Loc loc) {
+    public void updateEntity(Loc loc, Zon zon) {
         validateFields(loc.getLocCd());
-        loc.update(zonCd, tmpZon, locTyp, pikngPrty, ptawyPrty, maxQty);
+        loc.update(zon, tmpZon, locTyp, pikngPrty, ptawyPrty, maxQty);
     }
 
     private void validateFields(String locCd) {

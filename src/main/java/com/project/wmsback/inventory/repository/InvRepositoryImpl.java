@@ -29,7 +29,7 @@ public class InvRepositoryImpl implements InvRepositoryCustom {
                 .select(Projections.constructor(InvResponse.class,
                         inv.id,
                         prod.prodCd, prod.prodNm, prod.tmpZon,
-                        loc.locCd, loc.zonCd, loc.locTyp,
+                        loc.locCd, loc.zon.zonCd, loc.locTyp,
                         lot.lotNo, lot.expiryDt,
                         inv.onHandQty, inv.alocQty, inv.hldQty,
                         inv.onHandQty.subtract(inv.alocQty).subtract(inv.hldQty)))
@@ -75,7 +75,7 @@ public class InvRepositoryImpl implements InvRepositoryCustom {
     // 조건 메서드가 null을 반환하면 where()가 그 조건을 무시한다 — QueryDSL 동적 쿼리 관례
 
     private BooleanExpression zonCdEq(String zonCd) {
-        return StringUtils.hasText(zonCd) ? loc.zonCd.eq(zonCd) : null;
+        return StringUtils.hasText(zonCd) ? loc.zon.zonCd.eq(zonCd) : null;
     }
 
     private BooleanExpression locIdEq(Long locId) {

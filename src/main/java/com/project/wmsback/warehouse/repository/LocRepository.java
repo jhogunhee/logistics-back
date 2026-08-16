@@ -2,6 +2,7 @@ package com.project.wmsback.warehouse.repository;
 
 import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.LocTyp;
+import com.project.wmsback.warehouse.entity.Zon;
 import com.project.mdm.prod.entity.TmpZon;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -27,10 +28,10 @@ public interface LocRepository extends JpaRepository<Loc, Long>, LocRepositoryCu
     boolean existsByLocCd(String locCd);
 
     /** 존 삭제 가드 — 하위 로케이션이 하나라도 있으면 그 존은 지울 수 없다 (FK가 없어 DB가 막지 않는다) */
-    boolean existsByZonCd(String zonCd);
+    boolean existsByZon(Zon zon);
 
     /** 존 온도대 수정 가드 — 하위 보관 로케이션이 있으면 온도대 일치 불변식이 깨지므로 바꿀 수 없다 */
-    boolean existsByZonCdAndLocTyp(String zonCd, LocTyp locTyp);
+    boolean existsByZonAndLocTyp(Zon zon, LocTyp locTyp);
 
     Optional<Loc> findByLocCd(String locCd);
 

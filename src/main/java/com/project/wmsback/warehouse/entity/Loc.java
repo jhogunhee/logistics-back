@@ -6,9 +6,12 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -33,9 +36,10 @@ public class Loc extends BaseEntity {
     @Column(name = "loc_cd", nullable = false, length = 30, unique = true)
     private String locCd;
 
-    /** 존 코드 (RCV-STAGE / DRY / CHL / FRZ) */
-    @Column(name = "zon_cd", nullable = false, length = 20)
-    private String zonCd;
+    /** 소속 존. FK는 없다 — 존재 검증은 LocService, 존 삭제 가드는 ZonService */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "zon_id", nullable = false)
+    private Zon zon;
 
     /** 존 온도대. 상품 온도대와 불일치하면 적치·이동 차단 */
     @Enumerated(EnumType.STRING)
@@ -63,10 +67,10 @@ public class Loc extends BaseEntity {
     private Long maxQty;
 
     @Builder
-    private Loc(String locCd, String zonCd, TmpZon tmpZon, LocTyp locTyp, Integer pikngPrty, Integer ptawyPrty,
+    private Loc(String locCd, Zon zon, TmpZon tmpZon, LocTyp locTyp, Integer pikngPrty, Integer ptawyPrty,
                 Long maxQty) {
         this.locCd = locCd;
-        this.zonCd = zonCd;
+        this.zon = zon;
         this.tmpZon = tmpZon;
         this.locTyp = locTyp;
         this.pikngPrty = pikngPrty != null ? pikngPrty : 0;
@@ -74,9 +78,9 @@ public class Loc extends BaseEntity {
         this.maxQty = maxQty;
     }
 
-    public void update(String zonCd, TmpZon tmpZon, LocTyp locTyp, Integer pikngPrty, Integer ptawyPrty,
+    public void update(Zon zon, TmpZon tmpZon, LocTyp locTyp, Integer pikngPrty, Integer ptawyPrty,
                        Long maxQty) {
-        this.zonCd = zonCd;
+        this.zon = zon;
         this.tmpZon = tmpZon;
         this.locTyp = locTyp;
         this.pikngPrty = pikngPrty != null ? pikngPrty : 0;

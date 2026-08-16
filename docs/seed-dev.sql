@@ -128,7 +128,7 @@ JOIN (VALUES
     ('냉동 블루베리 1kg',          'BOX',   10,     NULL)    -- 미측정
 ) AS v(prod_nm, uom_cd, ea_qty, wgt) ON v.prod_nm = p.prod_nm;
 
--- 존 (로케이션의 상위 그룹). loc.zon_cd가 참조하므로 로케이션보다 먼저 넣는다.
+-- 존 (로케이션의 상위 그룹). loc.zon_id가 참조하므로 로케이션보다 먼저 넣는다.
 INSERT INTO zon (zon_cd, zon_nm, tmp_zon, strg_typ, biz_dvsn) VALUES ('RCV-STAGE',  '입고 스테이징', 'DRY', 'VRTL', 'INB') ON CONFLICT (zon_cd) DO NOTHING;
 INSERT INTO zon (zon_cd, zon_nm, tmp_zon, strg_typ, biz_dvsn) VALUES ('SHIP-STAGE', '출고 스테이징', 'DRY', 'VRTL', 'OUTB') ON CONFLICT (zon_cd) DO NOTHING;
 INSERT INTO zon (zon_cd, zon_nm, tmp_zon, strg_typ, biz_dvsn) VALUES ('DRY',        '상온 보관존',   'DRY', 'RACK', 'STRG') ON CONFLICT (zon_cd) DO NOTHING;
@@ -141,38 +141,38 @@ INSERT INTO zon (zon_cd, zon_nm, tmp_zon, strg_typ, biz_dvsn) VALUES ('FRZ',    
 -- 스테이징은 받는 대로 쌓이는 곳이라 NULL(무제한)로 둔다.
 -- 온도대별 1순위 로케이션만 일부러 작게(300) 잡아, 적치 지시가 한 배치를 여러 로케이션으로
 -- 1:N 분할하는 경로가 시드 데이터만으로도 재현되게 한다 (전부 넉넉하면 분할이 안 나온다).
-INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('RCV-STAGE', 'RCV-STAGE', 'DRY', 'STAGE', 0, NULL) ON CONFLICT (loc_cd) DO NOTHING;
-INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('SHIP-STAGE', 'SHIP-STAGE', 'DRY', 'STAGE', 0, NULL) ON CONFLICT (loc_cd) DO NOTHING;
-INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('DRY-A-01-01', 'DRY', 'DRY', 'STORAGE', 1, 300) ON CONFLICT (loc_cd) DO NOTHING;
-INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('DRY-A-01-02', 'DRY', 'DRY', 'STORAGE', 2, 1000) ON CONFLICT (loc_cd) DO NOTHING;
-INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('DRY-A-02-01', 'DRY', 'DRY', 'STORAGE', 3, 1000) ON CONFLICT (loc_cd) DO NOTHING;
-INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('DRY-B-01-01', 'DRY', 'DRY', 'STORAGE', 4, 1000) ON CONFLICT (loc_cd) DO NOTHING;
-INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('CHL-A-01-01', 'CHL', 'CHL', 'STORAGE', 1, 300) ON CONFLICT (loc_cd) DO NOTHING;
-INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('CHL-A-01-02', 'CHL', 'CHL', 'STORAGE', 2, 1000) ON CONFLICT (loc_cd) DO NOTHING;
-INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('CHL-B-01-01', 'CHL', 'CHL', 'STORAGE', 3, 1000) ON CONFLICT (loc_cd) DO NOTHING;
-INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('FRZ-A-01-01', 'FRZ', 'FRZ', 'STORAGE', 1, 300) ON CONFLICT (loc_cd) DO NOTHING;
-INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('FRZ-A-01-02', 'FRZ', 'FRZ', 'STORAGE', 2, 1000) ON CONFLICT (loc_cd) DO NOTHING;
-INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('DRY-B-01-02', 'DRY', 'DRY', 'STORAGE', 5, 1000) ON CONFLICT (loc_cd) DO NOTHING;
-INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('DRY-C-01-01', 'DRY', 'DRY', 'STORAGE', 6, 1000) ON CONFLICT (loc_cd) DO NOTHING;
-INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('CHL-B-01-02', 'CHL', 'CHL', 'STORAGE', 4, 1000) ON CONFLICT (loc_cd) DO NOTHING;
-INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('FRZ-B-01-01', 'FRZ', 'FRZ', 'STORAGE', 3, 1000) ON CONFLICT (loc_cd) DO NOTHING;
-INSERT INTO loc (loc_cd, zon_cd, tmp_zon, loc_typ, pikng_prty, max_qty)
-VALUES ('FRZ-B-01-02', 'FRZ', 'FRZ', 'STORAGE', 4, 1000) ON CONFLICT (loc_cd) DO NOTHING;
+INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, max_qty)
+SELECT 'RCV-STAGE', zon_id, 'DRY', 'STAGE', 0, NULL FROM zon WHERE zon_cd = 'RCV-STAGE' ON CONFLICT (loc_cd) DO NOTHING;
+INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, max_qty)
+SELECT 'SHIP-STAGE', zon_id, 'DRY', 'STAGE', 0, NULL FROM zon WHERE zon_cd = 'SHIP-STAGE' ON CONFLICT (loc_cd) DO NOTHING;
+INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, max_qty)
+SELECT 'DRY-A-01-01', zon_id, 'DRY', 'STORAGE', 1, 300 FROM zon WHERE zon_cd = 'DRY' ON CONFLICT (loc_cd) DO NOTHING;
+INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, max_qty)
+SELECT 'DRY-A-01-02', zon_id, 'DRY', 'STORAGE', 2, 1000 FROM zon WHERE zon_cd = 'DRY' ON CONFLICT (loc_cd) DO NOTHING;
+INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, max_qty)
+SELECT 'DRY-A-02-01', zon_id, 'DRY', 'STORAGE', 3, 1000 FROM zon WHERE zon_cd = 'DRY' ON CONFLICT (loc_cd) DO NOTHING;
+INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, max_qty)
+SELECT 'DRY-B-01-01', zon_id, 'DRY', 'STORAGE', 4, 1000 FROM zon WHERE zon_cd = 'DRY' ON CONFLICT (loc_cd) DO NOTHING;
+INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, max_qty)
+SELECT 'CHL-A-01-01', zon_id, 'CHL', 'STORAGE', 1, 300 FROM zon WHERE zon_cd = 'CHL' ON CONFLICT (loc_cd) DO NOTHING;
+INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, max_qty)
+SELECT 'CHL-A-01-02', zon_id, 'CHL', 'STORAGE', 2, 1000 FROM zon WHERE zon_cd = 'CHL' ON CONFLICT (loc_cd) DO NOTHING;
+INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, max_qty)
+SELECT 'CHL-B-01-01', zon_id, 'CHL', 'STORAGE', 3, 1000 FROM zon WHERE zon_cd = 'CHL' ON CONFLICT (loc_cd) DO NOTHING;
+INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, max_qty)
+SELECT 'FRZ-A-01-01', zon_id, 'FRZ', 'STORAGE', 1, 300 FROM zon WHERE zon_cd = 'FRZ' ON CONFLICT (loc_cd) DO NOTHING;
+INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, max_qty)
+SELECT 'FRZ-A-01-02', zon_id, 'FRZ', 'STORAGE', 2, 1000 FROM zon WHERE zon_cd = 'FRZ' ON CONFLICT (loc_cd) DO NOTHING;
+INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, max_qty)
+SELECT 'DRY-B-01-02', zon_id, 'DRY', 'STORAGE', 5, 1000 FROM zon WHERE zon_cd = 'DRY' ON CONFLICT (loc_cd) DO NOTHING;
+INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, max_qty)
+SELECT 'DRY-C-01-01', zon_id, 'DRY', 'STORAGE', 6, 1000 FROM zon WHERE zon_cd = 'DRY' ON CONFLICT (loc_cd) DO NOTHING;
+INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, max_qty)
+SELECT 'CHL-B-01-02', zon_id, 'CHL', 'STORAGE', 4, 1000 FROM zon WHERE zon_cd = 'CHL' ON CONFLICT (loc_cd) DO NOTHING;
+INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, max_qty)
+SELECT 'FRZ-B-01-01', zon_id, 'FRZ', 'STORAGE', 3, 1000 FROM zon WHERE zon_cd = 'FRZ' ON CONFLICT (loc_cd) DO NOTHING;
+INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, max_qty)
+SELECT 'FRZ-B-01-02', zon_id, 'FRZ', 'STORAGE', 4, 1000 FROM zon WHERE zon_cd = 'FRZ' ON CONFLICT (loc_cd) DO NOTHING;
 
 -- 벤더 (입고 거래처). 코드는 VendorService의 채번 규칙(VD-0001)을 따른다.
 INSERT INTO vendor (vndr_cd, vndr_nm, pic_nm, tel_no)

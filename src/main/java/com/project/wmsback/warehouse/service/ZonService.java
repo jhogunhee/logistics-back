@@ -56,7 +56,7 @@ public class ZonService {
         // 보관 로케이션은 존과 온도대가 같아야 한다 — 하위 보관 로케이션을 둔 채 존 온도대만 바꾸면
         // 그 로케이션들이 전부 불일치가 되어 이후 수정 저장이 막힌다 (LocService의 온도대 일치 검증).
         // 반영 뒤에 검사해도 예외면 트랜잭션이 롤백되므로 필드 검사(updateEntity)가 먼저 걸리게 둔다.
-        if (tmpZonChanges && locRepository.existsByZonCdAndLocTyp(zon.getZonCd(), LocTyp.STORAGE)) {
+        if (tmpZonChanges && locRepository.existsByZonAndLocTyp(zon, LocTyp.STORAGE)) {
             throw new IllegalArgumentException(
                     "하위 보관 로케이션이 있는 존은 온도구분을 변경할 수 없습니다: " + zon.getZonCd());
         }
@@ -65,7 +65,7 @@ public class ZonService {
     private void delete(ZonSaveRequest row) {
         Zon zon = find(row.getZonId());
         // FK가 없어 DB가 막아주지 않는다 — 하위 로케이션 존재 여부를 여기서 직접 확인한다
-        if (locRepository.existsByZonCd(zon.getZonCd())) {
+        if (locRepository.existsByZon(zon)) {
             throw new IllegalArgumentException("하위 로케이션이 있는 존은 삭제할 수 없습니다: " + zon.getZonCd());
         }
         zonRepository.delete(zon);
