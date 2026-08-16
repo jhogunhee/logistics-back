@@ -14,8 +14,10 @@ import lombok.Setter;
  * 로케이션 코드는 채번 없이 사용자가 입력한다 (신규일 때만, 중복 검증은 서버에서).
  * <p>
  * 자기 필드만으로 판정할 수 있는 검사와 엔티티 생성·반영은 여기서 한다({@link #toEntity} · {@link #updateEntity}).
- * DB를 봐야 하는 일(코드 중복 · 존 존재와 온도대 일치 · 재고 · 참조 검사)은 서비스 몫이다 —
+ * DB를 봐야 하는 일(코드 중복 · 존 존재 · 재고 · 참조 검사)은 서비스 몫이다 —
  * 그래서 존은 코드({@code zonCd})로 받고, 서비스가 찾은 {@link Zon}을 넘겨받아 엔티티에 싣는다.
+ * 존 코드의 필수 검사도 그 조회(LocService.findZon)에 붙어 있다 — 존을 찾는 쪽이 빈 코드를 먼저 만난다.
+ * 존과의 온도대 일치는 넘겨받은 존만 보면 되므로 여기서 검사한다.
  */
 @Getter
 @Setter
@@ -40,7 +42,7 @@ public class LocSaveRequest {
         if (locCd == null || locCd.isBlank()) {
             throw new IllegalArgumentException("로케이션 코드는 필수입니다.");
         }
-        validateFields(locCd);
+        validateFields(locCd, zon);
         return Loc.builder()
                 .locCd(locCd)
                 .zon(zon)
@@ -54,19 +56,21 @@ public class LocSaveRequest {
 
     /** 수정 행 → 기존 엔티티에 반영. null→0 기본값 처리는 빌더와 함께 엔티티(update)가 맡는다 — 두 경로가 갈라지지 않게 */
     public void updateEntity(Loc loc, Zon zon) {
-        validateFields(loc.getLocCd());
+        validateFields(loc.getLocCd(), zon);
         loc.update(zon, tmpZon, locTyp, pikngPrty, ptawyPrty, maxQty);
     }
 
-    private void validateFields(String locCd) {
-        if (zonCd == null || zonCd.isBlank()) {
-            throw new IllegalArgumentException("존은 필수입니다: " + locCd);
-        }
+    private void validateFields(String locCd, Zon zon) {
         if (tmpZon == null) {
             throw new IllegalArgumentException("온도대는 필수입니다: " + locCd);
         }
         if (locTyp == null) {
             throw new IllegalArgumentException("유형은 필수입니다: " + locCd);
+        }
+        // 보관 로케이션은 존과 온도대가 같아야 적치·이동 시 온도대 일치 검증이 성립한다
+        // (스테이징은 전 온도대 재고가 거쳐 가는 지점이라 예외)
+        if (locTyp == LocTyp.STORAGE && zon.getTmpZon() != tmpZon) {
+            throw new IllegalArgumentException("보관 로케이션의 온도대는 존의 온도대와 같아야 합니다: " + locCd);
         }
         // DB 제약(ck_loc_storage_capacity · ck_loc_max_qty)을 커밋 전에 사용자 메시지로 돌려준다
         if (locTyp == LocTyp.STORAGE && maxQty == null) {

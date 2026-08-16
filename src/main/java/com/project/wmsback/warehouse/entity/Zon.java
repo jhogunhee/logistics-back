@@ -33,7 +33,7 @@ public class Zon extends BaseEntity {
     @Column(name = "zon_id")
     private Long id;
 
-    /** 존 코드 (예: DRY, RCV-STAGE). 하위 로케이션이 문자열로 참조하므로 등록 후 변경하지 않는다 */
+    /** 존 코드 (예: DRY, RCV-STAGE). 업무 식별자라 등록 후 변경하지 않는다 (재고조사 범위 등이 코드값을 보존한다) */
     @Column(name = "zon_cd", nullable = false, length = 20, unique = true)
     private String zonCd;
 
