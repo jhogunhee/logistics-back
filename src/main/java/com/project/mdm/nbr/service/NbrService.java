@@ -17,6 +17,10 @@ import java.time.format.DateTimeFormatter;
 @Transactional(readOnly = true)
 public class NbrService {
 
+    /**
+     * NONE 규칙의 동적키. nbr_seq는 PK가 (rule_cd, dync_ky)이고 dync_ky가 NOT NULL이라
+     * 리셋 단위가 없는 규칙도 카운터 행을 가지려면 키 값이 필요하다 — 스키마 주석이 정한 고정값 "-".
+     */
     private static final String NONE_DYNC_KY = "-";
 
     private final NbrRuleRepository nbrRuleRepository;
@@ -30,13 +34,13 @@ public class NbrService {
             throw new IllegalStateException(
                     "NONE 이외 규칙은 issue(ruleCd, LocalDate)를 써야 합니다: " + ruleCd);
         }
-        return issueWithKey(rule, NONE_DYNC_KY, LocalDate.now());
+        long seq = nextSeq(rule, NONE_DYNC_KY);
+        return NbrPattern.render(rule.getPrfx(), rule.getPrfxDlmt(), rule.getDeDlmt(), rule.getSeqDgt(),
+                seq, rule.getDyncKyTyp(), null);
     }
 
     /**
      * YEAR/MONTH/DAY 규칙 전용 발급. de가 동적키(리셋 단위)이자 패턴의 날짜 조각 렌더링 기준이다.
-     * 서버가 오늘 날짜로 강제하지 않는다 — 예정일·주문일처럼 호출자가 이미 들고 있는
-     * 업무 일자를 그대로 쓴다 (신뢰된 서버 내부 호출이라 위변조 우려가 없다).
      */
     @Transactional
     public String issue(String ruleCd, LocalDate de) {
@@ -46,7 +50,9 @@ public class NbrService {
                     "NONE 규칙은 issue(ruleCd)를 써야 합니다: " + ruleCd);
         }
         String dyncKy = de.format(DateTimeFormatter.ofPattern(rule.getDyncKyTyp().getDyncKyPattern()));
-        return issueWithKey(rule, dyncKy, de);
+        long seq = nextSeq(rule, dyncKy);
+        return NbrPattern.render(rule.getPrfx(), rule.getPrfxDlmt(), rule.getDeDlmt(), rule.getSeqDgt(),
+                seq, rule.getDyncKyTyp(), de);
     }
 
     /** DB 접근 없이 오늘 날짜 + seq=1로 렌더링만 — 규칙 저장 전 화면 미리보기용 */
@@ -60,7 +66,8 @@ public class NbrService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 채번 규칙입니다: " + ruleCd));
     }
 
-    private String issueWithKey(NbrRule rule, String dyncKy, LocalDate de) {
+    /** rule_cd+dync_ky 카운터를 행 락 아래 1 증가시키고 그 값을 돌려준다 */
+    private long nextSeq(NbrRule rule, String dyncKy) {
         NbrSeq row = nbrSeqRepository.findByIdForUpdate(rule.getRuleCd(), dyncKy)
                 .orElseGet(() -> {
                     nbrSeqRepository.insertIfAbsent(rule.getRuleCd(), dyncKy);
@@ -69,7 +76,6 @@ public class NbrService {
                                     "채번 카운터 초기화에 실패했습니다: " + rule.getRuleCd()));
                 });
         row.increment();
-        return NbrPattern.render(rule.getPrfx(), rule.getPrfxDlmt(), rule.getDeDlmt(), rule.getSeqDgt(),
-                row.getSeq(), rule.getDyncKyTyp(), de);
+        return row.getSeq();
     }
 }
