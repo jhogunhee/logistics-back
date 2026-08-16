@@ -47,7 +47,7 @@ public class ZonSaveRequest {
                 .build();
     }
 
-    /** 수정 행 → 기존 엔티티에 반영. 존 코드는 하위 로케이션(loc.zon_cd)이 문자열로 참조하므로 바꾸지 않는다 */
+    /** 수정 행 → 기존 엔티티에 반영. 존 코드는 등록 후 바꾸지 않는다 (업무 식별자 — 재고조사 범위 등이 코드값을 보존한다) */
     public void updateEntity(Zon zon) {
         validateFields(zon.getZonCd());
         zon.update(zonNm, tmpZon, strgTyp, bizDvsn);

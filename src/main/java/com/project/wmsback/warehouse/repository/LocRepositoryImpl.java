@@ -11,6 +11,7 @@ import org.springframework.util.StringUtils;
 import java.util.List;
 
 import static com.project.wmsback.warehouse.entity.QLoc.loc;
+import static com.project.wmsback.warehouse.entity.QZon.zon;
 
 @RequiredArgsConstructor
 public class LocRepositoryImpl implements LocRepositoryCustom {
@@ -19,14 +20,16 @@ public class LocRepositoryImpl implements LocRepositoryCustom {
 
     @Override
     public List<Loc> search(LocSearchCond cond) {
+        // 응답이 존 코드를 싣는다 — 로케이션마다 존을 지연 로딩하지 않게 함께 가져온다
         return queryFactory
                 .selectFrom(loc)
+                .join(loc.zon, zon).fetchJoin()
                 .where(
                         locCdContains(cond.getLocCd()),
                         zonCdEq(cond.getZonCd()),
                         locTypEq(cond.getLocTyp())
                 )
-                .orderBy(loc.zonCd.asc(), loc.locCd.asc())
+                .orderBy(zon.zonCd.asc(), loc.locCd.asc())
                 .fetch();
     }
 
@@ -37,7 +40,7 @@ public class LocRepositoryImpl implements LocRepositoryCustom {
     }
 
     private BooleanExpression zonCdEq(String zonCd) {
-        return StringUtils.hasText(zonCd) ? loc.zonCd.eq(zonCd) : null;
+        return StringUtils.hasText(zonCd) ? zon.zonCd.eq(zonCd) : null;
     }
 
     private BooleanExpression locTypEq(LocTyp locTyp) {

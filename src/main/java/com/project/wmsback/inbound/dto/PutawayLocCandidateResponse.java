@@ -20,7 +20,7 @@ public class PutawayLocCandidateResponse {
     private PutawayLocCandidateResponse(Loc loc, Long availQty) {
         this.locId = loc.getId();
         this.locCd = loc.getLocCd();
-        this.zonCd = loc.getZonCd();
+        this.zonCd = loc.getZon().getZonCd();
         this.pikngPrty = loc.getPikngPrty();
         this.availQty = availQty;
     }

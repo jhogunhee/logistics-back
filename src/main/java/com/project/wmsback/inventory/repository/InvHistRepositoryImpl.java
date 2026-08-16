@@ -59,7 +59,7 @@ public class InvHistRepositoryImpl implements InvHistRepositoryCustom {
                 .select(Projections.constructor(InvHistResponse.class,
                         invHist.id, invHist.txTyp,
                         prod.prodCd, prod.prodNm,
-                        loc.locCd, loc.zonCd, loc.tmpZon,
+                        loc.locCd, loc.zon.zonCd, loc.tmpZon,
                         lot.lotNo,
                         invHist.qty,
                         invHist.rfnDocTyp, invHist.rfnDocNo,

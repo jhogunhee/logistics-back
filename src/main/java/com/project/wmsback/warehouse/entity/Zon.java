@@ -17,7 +17,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * 존 마스터. 로케이션의 상위 그룹 (온도 · 보관형태 · 담당업무 단위).
- * {@code Loc.zonCd}가 {@code zonCd}를 문자열로 참조한다 (FK 없음 — 존재 검증은 LocService).
+ * {@code Loc.zon}이 {@code zon_id}로 참조한다 (FK 없음 — 존재 검증은 LocService, 삭제 가드는 ZonService).
  * <p>
  * 컬럼·필드명은 {@code docs/naming-dictionary.md} 사전을 따르고, 온도구분의 타입만
  * 기존 {@link TmpZon}을 재사용한다 (상품·로케이션과 값 도메인을 공유해야 하므로 복제하지 않는다).

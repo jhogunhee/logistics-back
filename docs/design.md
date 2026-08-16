@@ -69,7 +69,7 @@ flowchart TD
     G -->|없음| H[삭제]
 ```
 
-- **하위 로케이션이 하나라도 있으면 삭제하지 않는다.** `loc.zon_cd`는 FK가 아니라 문자열 참조라 DB가 막아주지 않으므로 `ZonService`가 `LocRepository.existsByZonCd`로 직접 확인한다. 같은 이유로 **존코드는 등록 후 수정할 수 없다** — 코드를 바꾸면 하위 로케이션이 전부 고아가 된다.
+- **하위 로케이션이 하나라도 있으면 삭제하지 않는다.** `loc.zon_id`는 `Loc.zon` 연관(`@ManyToOne`)이지만 FK가 없어 DB가 막아주지 않으므로 `ZonService`가 `LocRepository.existsByZon`으로 직접 확인한다. **존코드는 등록 후 수정할 수 없다** — 업무 식별자이고, 재고조사 범위(`inv_stktk.zon_cd`)처럼 코드값을 그대로 보존하는 곳이 있어 바꾸면 그 기록이 가리키는 존을 잃는다.
 - **온도구분·보관유형·업무구분에는 CHECK 제약을 걸지 않았다.** 값 목록의 주인은 공통코드(`TEMP_ZONE` · `STRG_TYP` · `BIZ_DVSN`)이고, 코드를 추가할 때마다 DDL을 고치게 만들지 않기 위해서다. 서버측 검증은 Java enum(`TempZone` · `StrgTyp` · `BizDvsn`)의 역직렬화가 담당한다. 이 코드베이스의 다른 마스터(`loc` · `prod`)는 CHECK를 갖고 있어 **존만 다른 방식**이라는 점에 유의할 것.
 - 온도구분 컬럼은 `zon.tmp_zon`으로, `loc.tmp_zon` · `prod.tmp_zon`과 **이름과 값 도메인을 모두 공유**한다(공통코드 `TEMP_ZONE`, Java `TempZone` enum). 온도대 일치 검증이 상품 ↔ 로케이션 ↔ 존 세 군데를 관통해야 하므로 복제하지 않았다.
 

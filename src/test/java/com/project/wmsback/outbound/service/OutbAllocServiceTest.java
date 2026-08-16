@@ -26,6 +26,7 @@ import com.project.wmsback.strategy.core.service.StgyExecLogService;
 import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.LocTyp;
 import com.project.wmsback.warehouse.entity.Lot;
+import com.project.wmsback.warehouse.entity.Zon;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -476,10 +477,14 @@ class OutbAllocServiceTest {
         when(lot.getMfgDt()).thenReturn(mfgDt);
         when(lot.getExpiryDt()).thenReturn(expiryDt);
 
+        Zon zon = mock(Zon.class);
+        when(zon.getId()).thenReturn(1L);
+
         Loc loc = mock(Loc.class);
         when(loc.getId()).thenReturn(id);
         when(loc.getLocCd()).thenReturn("A-01-" + id);
         when(loc.getLocTyp()).thenReturn(LocTyp.STORAGE);
+        when(loc.getZon()).thenReturn(zon);
 
         Inv created = Inv.builder().prod(prod).loc(loc).lot(lot).build();
         setId(created, id);
