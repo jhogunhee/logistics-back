@@ -1,5 +1,6 @@
 package com.project.wmsback.outbound.dto;
 
+import com.project.wmsback.outbound.entity.OutbStatus;
 import com.project.wmsback.outbound.entity.OutbWave;
 import com.project.wmsback.outbound.entity.WaveStatus;
 import lombok.Getter;
@@ -19,6 +20,12 @@ public class OutbWaveResponse {
     private final WaveStatus status;
     /** 편성된 주문 수 (orders 매핑에서 파생) */
     private final int orderCount;
+    /**
+     * 할당이 시작된(CREATED가 아닌) 주문 수 (orders 매핑에서 파생). 0보다 크면 그 주문은 웨이브에서
+     * 뺄 수 없고 웨이브도 해체할 수 없다 — 화면이 눌러보기 전에 알 수 있게 목록에 실어 내린다.
+     * 웨이브 상태는 할당을 기록하지 않으므로(PLANNED → ISSUED 둘뿐) 주문 상태에서 세는 것이 맞다.
+     */
+    private final int alocStartedCount;
     /** 피킹지시 발행 시각. 미발행(PLANNED)이면 NULL */
     private final LocalDateTime issuedDt;
     /** 이 웨이브를 만든 전략 (NULL = 수동 생성) */
@@ -31,6 +38,8 @@ public class OutbWaveResponse {
         this.wavNo = wave.getWavNo();
         this.status = wave.getStatus();
         this.orderCount = wave.getOrders().size();
+        this.alocStartedCount = (int) wave.getOrders().stream()
+                .filter(o -> o.getStatus() != OutbStatus.CREATED).count();
         this.issuedDt = wave.getIssuedDt();
         this.wavStgyId = wave.getWavStgyId();
         this.rvsnNo = wave.getRvsnNo();
