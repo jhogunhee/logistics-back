@@ -94,7 +94,13 @@ public class OmsIbOrder extends BaseEntity {
         this.status = OmsIbStatus.CREATED;
     }
 
-    public void addLine(OmsIbLine line) {
+    public void addLines(List<OmsIbLine> newLines) {
+        for (OmsIbLine line : newLines) {
+            addLine(line);
+        }
+    }
+
+    private void addLine(OmsIbLine line) {
         lines.add(line);
         line.assignOrder(this);
     }
@@ -122,7 +128,7 @@ public class OmsIbOrder extends BaseEntity {
         this.picNm = picNm;
         this.rmk = rmk;
         lines.clear();
-        newLines.forEach(this::addLine);
+        addLines(newLines);
     }
 
     /**

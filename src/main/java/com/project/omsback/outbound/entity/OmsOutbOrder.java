@@ -104,7 +104,13 @@ public class OmsOutbOrder extends BaseEntity {
         this.status = OmsOutbStatus.CREATED;
     }
 
-    public void addLine(OmsOutbLine line) {
+    public void addLines(List<OmsOutbLine> newLines) {
+        for (OmsOutbLine line : newLines) {
+            addLine(line);
+        }
+    }
+
+    private void addLine(OmsOutbLine line) {
         lines.add(line);
         line.assignOrder(this);
     }
@@ -133,7 +139,7 @@ public class OmsOutbOrder extends BaseEntity {
         this.picNm = picNm;
         this.rmk = rmk;
         lines.clear();
-        newLines.forEach(this::addLine);
+        addLines(newLines);
     }
 
     /**

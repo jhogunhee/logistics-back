@@ -86,7 +86,7 @@ public class OmsIbOrderService {
                 .picNm(req.getPicNm())
                 .rmk(req.getRmk())
                 .build();
-        toLines(req).forEach(order::addLine);
+        order.addLines(toLines(req));
         omsIbOrderRepository.save(order); // cascade로 라인까지 함께 저장
         return order.getId();
     }

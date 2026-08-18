@@ -90,7 +90,7 @@ public class OmsOutbOrderService {
                 .picNm(req.getPicNm())
                 .rmk(req.getRmk())
                 .build();
-        toLines(req).forEach(order::addLine);
+        order.addLines(toLines(req));
         omsOutbOrderRepository.save(order); // cascade로 라인까지 함께 저장
         return order.getId();
     }
