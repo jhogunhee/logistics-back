@@ -55,6 +55,15 @@ public class OmsOutbOrderService {
                 .toList();
     }
 
+    /** 단건 조회. 수정 화면 진입용 — 목록과 같은 응답 형태(WMS 출고주문 요약 포함)로 내려준다 */
+    public OmsOutbOrderResponse get(Long omsOutbOrderId) {
+        OmsOutbOrder order = omsOutbOrderRepository.findById(omsOutbOrderId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 출고주문입니다: " + omsOutbOrderId));
+        OutbOrderRef ref = omsOutbOrderRepository.findOutbOrderRefs(List.of(omsOutbOrderId)).stream()
+                .findFirst().orElse(null);
+        return OmsOutbOrderResponse.from(order, ref);
+    }
+
     public List<OmsOutbLineResponse> lines(Long omsOutbOrderId) {
         if (!omsOutbOrderRepository.existsById(omsOutbOrderId)) {
             throw new IllegalArgumentException("존재하지 않는 출고주문입니다: " + omsOutbOrderId);

@@ -30,6 +30,11 @@ public class OmsOutbOrderController {
         return omsOutbOrderService.list(cond);
     }
 
+    @GetMapping("/{omsOutbOrderId}")
+    public OmsOutbOrderResponse get(@PathVariable Long omsOutbOrderId) {
+        return omsOutbOrderService.get(omsOutbOrderId);
+    }
+
     @PostMapping
     public Long create(@RequestBody OmsOutbOrderSaveRequest req) {
         return omsOutbOrderService.create(req);

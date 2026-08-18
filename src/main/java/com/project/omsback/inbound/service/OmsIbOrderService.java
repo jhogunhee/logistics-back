@@ -52,6 +52,15 @@ public class OmsIbOrderService {
                 .toList();
     }
 
+    /** 단건 조회. 수정 화면 진입용 — 목록과 같은 응답 형태(ASN 요약 포함)로 내려준다 */
+    public OmsIbOrderResponse get(Long omsIbOrderId) {
+        OmsIbOrder order = omsIbOrderRepository.findById(omsIbOrderId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고주문입니다: " + omsIbOrderId));
+        AsnRef asn = omsIbOrderRepository.findAsnRefs(List.of(omsIbOrderId)).stream()
+                .findFirst().orElse(null);
+        return OmsIbOrderResponse.from(order, asn);
+    }
+
     public List<OmsIbLineResponse> lines(Long omsIbOrderId) {
         if (!omsIbOrderRepository.existsById(omsIbOrderId)) {
             throw new IllegalArgumentException("존재하지 않는 입고주문입니다: " + omsIbOrderId);

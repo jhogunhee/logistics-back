@@ -30,6 +30,11 @@ public class OmsIbOrderController {
         return omsIbOrderService.list(cond);
     }
 
+    @GetMapping("/{omsIbOrderId}")
+    public OmsIbOrderResponse get(@PathVariable Long omsIbOrderId) {
+        return omsIbOrderService.get(omsIbOrderId);
+    }
+
     @PostMapping
     public Long create(@RequestBody OmsIbOrderSaveRequest req) {
         return omsIbOrderService.create(req);
