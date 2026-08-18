@@ -1,5 +1,7 @@
 package com.project.omsback.outbound.service;
 
+import com.project.common.batch.BatchExecutor;
+import com.project.common.batch.BatchResult;
 import com.project.mdm.code.entity.CodeDetailId;
 import com.project.mdm.code.repository.CodeDetailRepository;
 import com.project.mdm.nbr.service.NbrService;
@@ -22,6 +24,7 @@ import com.project.wmsback.outbound.entity.OutbOrder;
 import com.project.wmsback.outbound.repository.OutbOrderRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
@@ -43,6 +46,7 @@ public class OmsOutbOrderService {
     /** 확정 시 WMS 출고주문을 만들기 위한 의존. 방향은 omsback → wmsback 한쪽만 */
     private final OutbOrderRepository outbOrderRepository;
     private final NbrService nbrService;
+    private final BatchExecutor batchExecutor;
 
     public List<OmsOutbOrderResponse> list(OmsOutbOrderSearchCond cond) {
         List<OmsOutbOrder> orders = omsOutbOrderRepository.search(cond);
@@ -187,6 +191,29 @@ public class OmsOutbOrderService {
         OmsOutbOrder order = findOrder(omsOutbOrderId);
         order.requireDeletable();
         omsOutbOrderRepository.delete(order);
+    }
+
+    /**
+     * 일괄 확정·확정취소·삭제. 화면의 체크 목록을 한 요청으로 받아 건별로 처리한다 —
+     * 건마다 왕복하면 100건 확정에 100번의 요청이 든다.
+     * 트랜잭션은 요청 전체가 아니라 건별이다(BatchExecutor). 한 건이 엔티티 규칙에 막혀도
+     * 나머지는 처리되고, 막힌 건은 사유와 함께 failed로 돌아간다.
+     * 이 메서드 자체는 트랜잭션 밖에서 돈다 — 클래스의 readOnly 트랜잭션이 배치 전체를 감싸
+     * 커넥션을 붙들고 있지 않도록.
+     */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public BatchResult confirmAll(List<Long> omsOutbOrderIds) {
+        return batchExecutor.run(omsOutbOrderIds, this::confirm);
+    }
+
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public BatchResult cancelConfirmAll(List<Long> omsOutbOrderIds) {
+        return batchExecutor.run(omsOutbOrderIds, this::cancelConfirm);
+    }
+
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public BatchResult deleteAll(List<Long> omsOutbOrderIds) {
+        return batchExecutor.run(omsOutbOrderIds, this::delete);
     }
 
     private OmsOutbOrder findOrder(Long omsOutbOrderId) {

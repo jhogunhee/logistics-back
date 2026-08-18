@@ -1,5 +1,7 @@
 package com.project.omsback.inbound.service;
 
+import com.project.common.batch.BatchExecutor;
+import com.project.common.batch.BatchResult;
 import com.project.omsback.inbound.dto.AsnRef;
 import com.project.omsback.inbound.dto.OmsIbLineSaveRequest;
 import com.project.omsback.inbound.dto.OmsIbLineResponse;
@@ -20,6 +22,7 @@ import com.project.mdm.vendor.repository.VendorRepository;
 import com.project.mdm.nbr.service.NbrService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
@@ -40,6 +43,7 @@ public class OmsIbOrderService {
     /** 확정 시 ASN을 만들기 위한 WMS 쪽 의존. 방향은 omsback → wmsback 한쪽만 */
     private final IbOrderRepository ibOrderRepository;
     private final NbrService nbrService;
+    private final BatchExecutor batchExecutor;
 
     public List<OmsIbOrderResponse> list(OmsIbOrderSearchCond cond) {
         List<OmsIbOrder> orders = omsIbOrderRepository.search(cond);
@@ -211,6 +215,29 @@ public class OmsIbOrderService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고주문입니다: " + omsIbOrderId));
         order.requireDeletable();
         omsIbOrderRepository.delete(order);
+    }
+
+    /**
+     * 일괄 확정·확정취소·삭제. 화면의 체크 목록을 한 요청으로 받아 건별로 처리한다 —
+     * 건마다 왕복하면 100건 확정에 100번의 요청이 든다.
+     * 트랜잭션은 요청 전체가 아니라 건별이다(BatchExecutor). 한 건이 엔티티 규칙에 막혀도
+     * 나머지는 처리되고, 막힌 건은 사유와 함께 failed로 돌아간다.
+     * 이 메서드 자체는 트랜잭션 밖에서 돈다 — 클래스의 readOnly 트랜잭션이 배치 전체를 감싸
+     * 커넥션을 붙들고 있지 않도록.
+     */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public BatchResult confirmAll(List<Long> omsIbOrderIds) {
+        return batchExecutor.run(omsIbOrderIds, this::confirm);
+    }
+
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public BatchResult cancelConfirmAll(List<Long> omsIbOrderIds) {
+        return batchExecutor.run(omsIbOrderIds, this::cancelConfirm);
+    }
+
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public BatchResult deleteAll(List<Long> omsIbOrderIds) {
+        return batchExecutor.run(omsIbOrderIds, this::delete);
     }
 
     private void validate(OmsIbOrderSaveRequest req) {
