@@ -47,11 +47,6 @@ public class OutbWaveController {
         return outbWaveService.create(req);
     }
 
-    @GetMapping("/{wavId}")
-    public OutbWaveResponse detail(@PathVariable Long wavId) {
-        return outbWaveService.detail(wavId);
-    }
-
     @PostMapping("/{wavId}/orders")
     public void addOrders(@PathVariable Long wavId, @RequestBody OutbWaveOrdersRequest req) {
         outbWaveService.addOrders(wavId, req);

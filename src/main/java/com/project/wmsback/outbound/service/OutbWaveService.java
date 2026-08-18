@@ -37,12 +37,6 @@ public class OutbWaveService {
                 .toList();
     }
 
-    public OutbWaveResponse detail(Long wavId) {
-        OutbWave wave = outbWaveRepository.findById(wavId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 웨이브입니다: " + wavId));
-        return OutbWaveResponse.from(wave);
-    }
-
     /** 웨이브 생성. 웨이브번호는 생성일 + 시퀀스로 채번 (예: WV-20260718-001). 초기 주문 목록은 선택 */
     @Transactional
     public Long create(OutbWaveOrdersRequest req) {
