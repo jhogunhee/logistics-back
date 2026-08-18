@@ -1,28 +1,26 @@
 package com.project.wmsback.inbound.repository;
 
+import com.project.wmsback.inbound.dto.IbOrderCfmResponse;
+import com.project.wmsback.inbound.dto.IbOrderInspResponse;
+import com.project.wmsback.inbound.dto.IbOrderResponse;
 import com.project.wmsback.inbound.dto.IbOrderSearchCond;
-import com.project.wmsback.inbound.entity.IbOrder;
 
-import java.time.LocalDateTime;
-import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 
+/**
+ * 입고건 목록은 화면별로 세 벌이다. 엔티티가 아니라 응답을 바로 뽑는다 — 라인 수량 집계 ·
+ * 최종 검수일시 · 5단계 진행이 전부 SQL에서 계산되므로 서비스가 뒤에 붙일 것이 없다.
+ * <p>
+ * 셋으로 나눈 기준은 뽑는 컬럼이 아니라 <b>쿼리 모양</b>이다 — 자세한 것은 구현체 주석 참고.
+ */
 public interface IbOrderRepositoryCustom {
 
-    List<IbOrder> search(IbOrderSearchCond cond);
+    /** 입고예정(ASN) 관리 · 대시보드 */
+    List<IbOrderResponse> search(IbOrderSearchCond cond);
 
-    /**
-     * 입고라인별 최종 검수일시 — inv_hist의 RECEIVE 행 중 가장 늦은 created_at.
-     * <p>
-     * 최초가 아니라 최종인 이유: 최초는 한 번 찍히면 갱신되지 않아 「착수했다」만 말한다.
-     * 라인이 여럿이면 첫 라인 하나만 반영되고 나머지가 나중에 검수돼도 값이 그대로다.
-     * 최종은 계속 갱신되므로 「마지막으로 움직인 때」를 말하고 전량검수 완료 시점과도 맞는다.
-     * <p>
-     * ib_order에 컬럼을 두지 않고 원장에서 파생하는 이유: 검수는 이미 inv_hist에 RECEIVE 행을
-     * 남기며 ib_line_id를 채우므로 원천이 있고, 캐시 컬럼을 늘리면 갱신 누락 지점이 하나 는다.
-     *
-     * @return 입고라인 id → 최종 검수일시 (검수 이력이 없는 라인은 결과에서 빠진다)
-     */
-    Map<Long, LocalDateTime> lastReceiveDtByLine(Collection<Long> ibLineIds);
+    /** 입고검수 · 검수정책 시뮬레이션 — 진행단계를 만들지 않는다 */
+    List<IbOrderInspResponse> searchForInsp(IbOrderSearchCond cond);
+
+    /** 입고확정 — 최종 검수일시를 만들지 않는다 */
+    List<IbOrderCfmResponse> searchForCfm(IbOrderSearchCond cond);
 }
