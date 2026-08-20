@@ -27,6 +27,7 @@ import org.mockito.quality.Strictness;
 import java.util.Optional;
 
 import org.mockito.ArgumentCaptor;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -80,9 +81,17 @@ class PutawayTaskServiceTest {
                 .drctQty(50L)
                 .build();
 
+        ReflectionTestUtils.setField(task, "id", 1L);
+
         when(putawayTaskRepository.findById(1L)).thenReturn(Optional.of(task));
         when(locRepository.findById(200L)).thenReturn(Optional.of(newLoc));
         when(locCapacityService.availCapacity(newLoc)).thenReturn(100L);
+        // 분할이 저장하는 새 지시 — DB가 채울 id를 대신 채워 돌려준다
+        when(putawayTaskRepository.save(any())).thenAnswer(inv -> {
+            PutawayTask saved = inv.getArgument(0);
+            ReflectionTestUtils.setField(saved, "id", 99L);
+            return saved;
+        });
     }
 
     private Loc storageLoc(Long id, String locCd) {
@@ -95,10 +104,11 @@ class PutawayTaskServiceTest {
     }
 
     @Test
-    @DisplayName("전량 변경(미실행) — 지시의 목적지만 바뀌고 새 지시도 재고 접촉도 없다")
+    @DisplayName("전량 변경(미실행) — 목적지만 바뀌고 원 지시 id를 돌려준다. 새 지시도 재고 접촉도 없다")
     void changeLocWhole() {
-        service.changeLoc(1L, 200L, 50L);
+        Long executableId = service.changeLoc(1L, 200L, 50L);
 
+        assertEquals(1L, executableId);
         assertEquals(newLoc, task.getToLoc());
         verify(putawayTaskRepository, never()).save(any());
         verifyNoInteractions(invStore);
@@ -114,10 +124,11 @@ class PutawayTaskServiceTest {
     }
 
     @Test
-    @DisplayName("일부 수량 변경 = 분할 — 원 지시는 줄고 잔여분이 새 지시로 떨어져 나간다")
+    @DisplayName("일부 수량 변경 = 분할 — 원 지시는 줄고 잔여분이 새 지시로 떨어져 나가며 그 id를 돌려준다")
     void splitToNewLoc() {
-        service.changeLoc(1L, 200L, 20L);
+        Long executableId = service.changeLoc(1L, 200L, 20L);
 
+        assertEquals(99L, executableId);
         assertEquals(30L, task.getDrctQty());
         assertEquals(currentLoc, task.getToLoc());
         assertEquals(PutawayTaskStatus.DIRECTED, task.getStatus());
@@ -137,8 +148,9 @@ class PutawayTaskServiceTest {
     void splitAllRemainingAfterPartialExecution() {
         task.execute(10L);
 
-        service.changeLoc(1L, 200L, 40L);
+        Long executableId = service.changeLoc(1L, 200L, 40L);
 
+        assertEquals(99L, executableId);
         assertEquals(10L, task.getDrctQty());
         assertEquals(PutawayTaskStatus.DONE, task.getStatus());
 

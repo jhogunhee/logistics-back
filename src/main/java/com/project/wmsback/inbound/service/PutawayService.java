@@ -97,6 +97,15 @@ public class PutawayService {
         }
 
         IbLine ibLine = task.getIbLine();
+        // 라인 상한 선검증 — 정상 데이터에선 지시 예약이 미적치(검수 − 적치누계)를 넘을 수 없어
+        // 여기 걸리면 라인 카운터와 재고가 어긋난 것이다. DB CHECK(ck_ib_line_qty)에 맡기면
+        // 「허용 범위를 벗어난 값」이라는 읽히지 않는 메시지가 나가서 원인을 먼저 말해준다
+        long lineRemaining = ibLine.getRcvdQty() - ibLine.getPtawyQty();
+        if (qty > lineRemaining) {
+            throw new IllegalStateException("검수수량을 초과해 적치할 수 없습니다 (정합성 오류 — 검수 "
+                    + ibLine.getRcvdQty() + " / 적치 완료 " + ibLine.getPtawyQty()
+                    + " / 미적치 " + lineRemaining + "): " + ibLine.getProd().getProdCd());
+        }
         Prod prod = ibLine.getProd();
         Lot lot = task.getLot();
         Loc target = task.getToLoc();

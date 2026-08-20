@@ -82,10 +82,13 @@ public class PutawayController {
         putawayService.executeAll(req);
     }
 
-    /** 적치지시 로케이션 변경 — 실행 실적이 없는 지시만. 실행 화면의 로케이션 팝업이 쓴다 */
+    /**
+     * 적치지시 로케이션 변경·분할 — 실행 화면의 로케이션 팝업이 쓴다.
+     * 옮긴 수량이 실린 지시의 id(분할이면 새 지시)를 돌려줘 화면이 이어서 실행할 수 있게 한다
+     */
     @PostMapping("/tasks/{taskId}/change-loc")
-    public void changeLoc(@PathVariable Long taskId, @RequestBody PutawayChangeLocRequest req) {
-        putawayTaskService.changeLoc(taskId, req.getLocId(), req.getQty());
+    public Long changeLoc(@PathVariable Long taskId, @RequestBody PutawayChangeLocRequest req) {
+        return putawayTaskService.changeLoc(taskId, req.getLocId(), req.getQty());
     }
 
     /** 적치지시 취소 (예약 해제). 실행 실적이 없는 지시만 */

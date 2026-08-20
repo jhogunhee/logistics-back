@@ -171,7 +171,7 @@ public class PutawayTaskService {
      * 목적지 검증은 생성 때와 같은 식이되, 적재가능수량은 옮기는 수량 기준이다.
      */
     @Transactional
-    public void changeLoc(Long taskId, Long locId, Long qty) {
+    public Long changeLoc(Long taskId, Long locId, Long qty) {
         PutawayTask task = putawayTaskRepository.findById(taskId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 적치지시입니다: " + taskId));
         if (task.getStatus() != PutawayTaskStatus.DIRECTED) {
@@ -197,18 +197,19 @@ public class PutawayTaskService {
             throw new IllegalArgumentException("적재가능수량을 초과했습니다 (적재가능 " + capacity + "): " + toLoc.getLocCd());
         }
 
-        // 전량·미실행이면 지시 이동, 아니면 분할 — moveQty == drctQty ⟺ 실행분 0 + 잔여 전량
+        // 전량·미실행이면 지시 이동, 아니면 분할 — moveQty == drctQty ⟺ 실행분 0 + 잔여 전량.
+        // 옮긴 수량이 실린 지시의 id를 돌려준다 — 화면이 저장 시점에 변경과 실행을 이어 부르는 데 쓴다
         if (moveQty == task.getDrctQty()) {
             task.changeToLoc(toLoc);
-        } else {
-            task.split(moveQty);
-            putawayTaskRepository.save(PutawayTask.builder()
-                    .ibLine(task.getIbLine())
-                    .lot(task.getLot())
-                    .toLoc(toLoc)
-                    .drctQty(moveQty)
-                    .build());
+            return task.getId();
         }
+        task.split(moveQty);
+        return putawayTaskRepository.save(PutawayTask.builder()
+                .ibLine(task.getIbLine())
+                .lot(task.getLot())
+                .toLoc(toLoc)
+                .drctQty(moveQty)
+                .build()).getId();
     }
 
     /** 목적지 검증 (생성·변경 공용) — 보관 로케이션 + 상품 온도대 일치 */
