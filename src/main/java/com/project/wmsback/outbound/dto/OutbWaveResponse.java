@@ -1,10 +1,12 @@
 package com.project.wmsback.outbound.dto;
 
+import com.project.wmsback.outbound.entity.OutbOrder;
 import com.project.wmsback.outbound.entity.OutbStatus;
 import com.project.wmsback.outbound.entity.OutbWave;
 import com.project.wmsback.outbound.entity.WaveStatus;
 import lombok.Getter;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -26,6 +28,11 @@ public class OutbWaveResponse {
      * 웨이브 상태는 할당을 기록하지 않으므로(PLANNED → ISSUED 둘뿐) 주문 상태에서 세는 것이 맞다.
      */
     private final int alocStartedCount;
+    /**
+     * 웨이브의 출고예정일 (orders 매핑에서 파생 — 빈 웨이브면 NULL). 편성 가드가 소속 주문의
+     * 출고예정일을 하나로 강제하므로 어느 주문의 값이든 같다. 화면은 이 값으로 담기 후보를 거른다.
+     */
+    private final LocalDate expctDe;
     /** 피킹지시 발행 시각. 미발행(PLANNED)이면 NULL */
     private final LocalDateTime issuedDt;
     /** 이 웨이브를 만든 전략 (NULL = 수동 생성) */
@@ -40,6 +47,8 @@ public class OutbWaveResponse {
         this.orderCount = wave.getOrders().size();
         this.alocStartedCount = (int) wave.getOrders().stream()
                 .filter(o -> o.getStatus() != OutbStatus.CREATED).count();
+        this.expctDe = wave.getOrders().stream()
+                .map(OutbOrder::getExpctDe).findFirst().orElse(null);
         this.issuedDt = wave.getIssuedDt();
         this.wavStgyId = wave.getWavStgyId();
         this.rvsnNo = wave.getRvsnNo();

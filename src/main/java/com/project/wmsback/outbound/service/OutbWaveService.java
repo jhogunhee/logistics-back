@@ -113,10 +113,20 @@ public class OutbWaveService {
         if (orderIds == null || orderIds.isEmpty()) {
             return;
         }
+        // 웨이브의 출고예정일 — 소속 주문에서 파생한다(웨이브에 날짜 컬럼 없음). 빈 웨이브면 첫 주문이 정한다.
+        // 편성 후에는 주문의 출고예정일이 바뀔 수 없어(OMS 수정은 작성 상태만 · 확정취소는 편성 전만) 이 가드로 충분하다.
+        LocalDate waveDe = outbOrderRepository.findByWaveId(wave.getId()).stream()
+                .map(OutbOrder::getExpctDe).findFirst().orElse(null);
         List<Long> sorted = orderIds.stream().filter(Objects::nonNull).distinct().sorted().toList();
         for (Long orderId : sorted) {
             OutbOrder order = outbOrderRepository.findByIdForUpdate(orderId)
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 출고 주문입니다: " + orderId));
+            if (waveDe == null) {
+                waveDe = order.getExpctDe();
+            } else if (!waveDe.equals(order.getExpctDe())) {
+                throw new IllegalArgumentException("출고예정일이 다른 주문은 한 웨이브에 담을 수 없습니다 — 웨이브 "
+                        + waveDe + " · 주문 " + order.getOutbNo() + " " + order.getExpctDe());
+            }
             // 화면에서 직접 담은 편성이라 출처는 MANUAL — 전략 실행분과 구분해 표시하기 위함
             order.assignWave(wave, WavRegTyp.MANUAL); // 상태(CREATED)·중복편성 검증은 엔티티가 한다
         }

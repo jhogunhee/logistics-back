@@ -58,12 +58,13 @@ public class WaveStgyExecService {
      */
     @Transactional
     public WaveStgyExecResponse execute(WaveStgyExecRequest request) {
+        requireExpctDe(request.expctDe());
         List<WavStgy> strategies = selectStrategies(request.wavStgyId());
         if (strategies.isEmpty()) {
             throw new IllegalArgumentException("실행할 웨이브 전략이 없습니다 — 먼저 전략을 등록하세요.");
         }
 
-        List<OutbOrder> candidates = lockTargetOrders(request.expctDeFrom(), request.expctDeTo());
+        List<OutbOrder> candidates = lockTargetOrders(request.expctDe());
         int tgtCount = candidates.size();
 
         List<WaveStgyExecResponse.StgyResult> results = new ArrayList<>();
@@ -117,7 +118,8 @@ public class WaveStgyExecService {
 
     /** 미저장 정의로 미리보기 — DB 변경 없음, 실행 로그도 남기지 않는다 */
     public WaveDecisionTrace preview(WavStgyDefinition definition, WavPreviewRequest request) {
-        List<WaveMatchResult> orders = targetOrders(request.expctDeFrom(), request.expctDeTo()).stream()
+        requireExpctDe(request.expctDe());
+        List<WaveMatchResult> orders = targetOrders(request.expctDe()).stream()
                 .map(order -> WaveMatcher.evaluate(definition.condGrp(), WaveOrderTarget.from(order)))
                 .toList();
         return new WaveDecisionTrace(orders.size(),
@@ -137,8 +139,8 @@ public class WaveStgyExecService {
      * 취소·할당 이후 주문은 상태 조건에서 자연히 빠진다. 주문 헤더에는 보류·마감 개념이 없으므로
      * 별도 제외 조건이 없다 (보류는 재고 쪽 inv.hld_qty의 개념이다).
      */
-    private List<OutbOrder> targetOrders(LocalDate from, LocalDate to) {
-        return outbOrderRepository.search(targetCond(from, to));
+    private List<OutbOrder> targetOrders(LocalDate expctDe) {
+        return outbOrderRepository.search(targetCond(expctDe));
     }
 
     /**
@@ -149,9 +151,9 @@ public class WaveStgyExecService {
      * 컨텍스트에 올라가 락을 걸어도 값이 갱신되지 않는다. 잠근 뒤 조건을 다시 확인해
      * id 조회와 락 사이에 편성·진행된 주문을 대상에서 뺀다.
      */
-    private List<OutbOrder> lockTargetOrders(LocalDate from, LocalDate to) {
+    private List<OutbOrder> lockTargetOrders(LocalDate expctDe) {
         List<OutbOrder> orders = new ArrayList<>();
-        for (Long id : outbOrderRepository.searchIds(targetCond(from, to))) {
+        for (Long id : outbOrderRepository.searchIds(targetCond(expctDe))) {
             outbOrderRepository.findByIdForUpdate(id)
                     .filter(order -> order.getStatus() == OutbStatus.CREATED && order.getWave() == null)
                     .ifPresent(orders::add);
@@ -159,12 +161,22 @@ public class WaveStgyExecService {
         return orders;
     }
 
-    private OutbOrderSearchCond targetCond(LocalDate from, LocalDate to) {
+    /**
+     * 대상 출고예정일은 하루 필수 — 웨이브는 같은 출고예정일 주문만 묶으므로({@code OutbWaveService}의
+     * 편성 가드), 범위 실행을 허용하면 「전략마다 웨이브 하나」가 날짜별 쪼개기로 바뀐다.
+     */
+    private void requireExpctDe(LocalDate expctDe) {
+        if (expctDe == null) {
+            throw new IllegalArgumentException("대상 출고예정일을 지정하세요 — 전략 실행은 하루 단위입니다.");
+        }
+    }
+
+    private OutbOrderSearchCond targetCond(LocalDate expctDe) {
         OutbOrderSearchCond cond = new OutbOrderSearchCond();
         cond.setStatus(OutbStatus.CREATED);
         cond.setUnassigned(true);
-        cond.setDateFrom(from);
-        cond.setDateTo(to);
+        cond.setDateFrom(expctDe);
+        cond.setDateTo(expctDe);
         return cond;
     }
 

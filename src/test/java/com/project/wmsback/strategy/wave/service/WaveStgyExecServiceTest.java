@@ -95,7 +95,7 @@ class WaveStgyExecServiceTest {
                         cond("OUTB_TYP", ConditionOperator.EQ, "NRML"),
                         cond("VHCL_FLTNO", ConditionOperator.EQ, "1"))))));
 
-        WaveStgyExecResponse res = service.execute(new WaveStgyExecRequest(null, null, null));
+        WaveStgyExecResponse res = service.execute(new WaveStgyExecRequest(null, EXPCT_DE));
 
         assertEquals(2, res.tgtCount());
         assertEquals(1, res.assignedCount());
@@ -117,7 +117,7 @@ class WaveStgyExecServiceTest {
                                 cond("VHCL_FLTNO", ConditionOperator.EQ, "2")),
                         List.of(cond("OUTB_TYP", ConditionOperator.EQ, "RTNGS"))))));
 
-        WaveStgyExecResponse res = service.execute(new WaveStgyExecRequest(null, null, null));
+        WaveStgyExecResponse res = service.execute(new WaveStgyExecRequest(null, EXPCT_DE));
 
         assertEquals(2, res.assignedCount());
         assertNotNull(byFleet.getWave());
@@ -134,7 +134,7 @@ class WaveStgyExecServiceTest {
                 stgy("1편", 0, List.of(List.of(cond("VHCL_FLTNO", ConditionOperator.EQ, "1")))),
                 stgy("1편 아님", 1, List.of(List.of(cond("VHCL_FLTNO", ConditionOperator.NE, "1"))))));
 
-        WaveStgyExecResponse res = service.execute(new WaveStgyExecRequest(null, null, null));
+        WaveStgyExecResponse res = service.execute(new WaveStgyExecRequest(null, EXPCT_DE));
 
         assertEquals(0, res.results().get(0).assignedCount());
         assertEquals(1, res.results().get(1).assignedCount());
@@ -150,7 +150,7 @@ class WaveStgyExecServiceTest {
                 stgy("먼저", 0, List.of(List.of(cond("OUTB_TYP", ConditionOperator.EQ, "NRML")))),
                 stgy("나중", 1, List.of(List.of(cond("VHCL_FLTNO", ConditionOperator.IN, "1", "2"))))));
 
-        WaveStgyExecResponse res = service.execute(new WaveStgyExecRequest(null, null, null));
+        WaveStgyExecResponse res = service.execute(new WaveStgyExecRequest(null, EXPCT_DE));
 
         assertEquals(1, res.assignedCount());
         assertEquals(1, res.results().get(0).assignedCount());
@@ -169,7 +169,7 @@ class WaveStgyExecServiceTest {
                 stgy("반품출고 웨이브", 0, List.of(List.of(
                         cond("OUTB_TYP", ConditionOperator.EQ, "RTNGS"))))));
 
-        WaveStgyExecResponse res = service.execute(new WaveStgyExecRequest(null, null, null));
+        WaveStgyExecResponse res = service.execute(new WaveStgyExecRequest(null, EXPCT_DE));
 
         assertEquals(0, res.assignedCount());
         assertNull(res.results().get(0).wavId());
@@ -186,7 +186,7 @@ class WaveStgyExecServiceTest {
         var res = service.preview(
                 new WavStgyDefinition("미저장", 0,
                         List.of(List.of(cond("OUTB_TYP", ConditionOperator.EQ, "NRML")))),
-                new WavPreviewRequest(null, null, null));
+                new WavPreviewRequest(null, EXPCT_DE));
 
         assertEquals(1, res.tgtCount());
         assertEquals(1, res.matchedCount());
