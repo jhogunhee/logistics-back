@@ -2,6 +2,7 @@ package com.project.wmsback.inbound.controller;
 
 import com.project.wmsback.inbound.dto.PutawayBulkExecuteRequest;
 import com.project.wmsback.inbound.dto.PutawayCandidateResponse;
+import com.project.wmsback.inbound.dto.PutawayChangeLocRequest;
 import com.project.wmsback.inbound.dto.PutawayExecuteRequest;
 import com.project.wmsback.inbound.dto.PutawayLocCandidateResponse;
 import com.project.wmsback.inbound.dto.PutawaySearchCond;
@@ -79,6 +80,12 @@ public class PutawayController {
     @PostMapping("/tasks/execute")
     public void executeAll(@RequestBody PutawayBulkExecuteRequest req) {
         putawayService.executeAll(req);
+    }
+
+    /** 적치지시 로케이션 변경 — 실행 실적이 없는 지시만. 실행 화면의 로케이션 팝업이 쓴다 */
+    @PostMapping("/tasks/{taskId}/change-loc")
+    public void changeLoc(@PathVariable Long taskId, @RequestBody PutawayChangeLocRequest req) {
+        putawayTaskService.changeLoc(taskId, req.getLocId(), req.getQty());
     }
 
     /** 적치지시 취소 (예약 해제). 실행 실적이 없는 지시만 */

@@ -124,13 +124,7 @@ public class PutawayTaskService {
         }
         Loc toLoc = locRepository.findById(assignment.getLocId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 로케이션입니다: " + assignment.getLocId()));
-        if (toLoc.getLocTyp() != LocTyp.STORAGE) {
-            throw new IllegalArgumentException("보관 로케이션으로만 적치할 수 있습니다: " + toLoc.getLocCd());
-        }
-        if (toLoc.getTmpZon() != prod.getTmpZon()) {
-            throw new IllegalArgumentException("온도대가 일치하지 않습니다 (상품 " + prod.getTmpZon()
-                    + " / 로케이션 " + toLoc.getTmpZon() + "): " + toLoc.getLocCd());
-        }
+        validateToLoc(toLoc, prod);
 
         // ① 배치 상한 — 이 (입고라인, Lot)이 스테이징에 남긴 잔량에서 이미 지시한 몫을 뺀 만큼만 지시할 수 있다.
         //    ②의 재고 예약만으로는 같은 Lot을 공유하는 다른 입고라인의 물량까지 끌어다 지시하게 된다
@@ -167,6 +161,65 @@ public class PutawayTaskService {
                 .drctQty(qty)
                 .build());
         return task.getId();
+    }
+
+    /**
+     * 적치지시 로케이션 변경·분할 — 지시받은 자리에 실물을 못 넣을 때 취소 후 재지시를 대신한다.
+     * 잔여 전량(미실행)이면 목적지만 바꾸고, 일부면 그만큼 새 지시로 떼어낸다(분할).
+     * 분할로 원 지시에 실행분만 남으면 완료로 전이하므로, 부분 실행된 지시의 잔여분도 이 창구로 빠져나간다.
+     * 예약은 스테이징 재고에 (상품, 로케이션, Lot) 단위로 걸려 있어 분할해도 총량이 그대로다 — 재고 무접촉.
+     * 목적지 검증은 생성 때와 같은 식이되, 적재가능수량은 옮기는 수량 기준이다.
+     */
+    @Transactional
+    public void changeLoc(Long taskId, Long locId, Long qty) {
+        PutawayTask task = putawayTaskRepository.findById(taskId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 적치지시입니다: " + taskId));
+        if (task.getStatus() != PutawayTaskStatus.DIRECTED) {
+            throw new IllegalArgumentException("지시 상태의 적치지시만 로케이션을 변경할 수 있습니다 (현재 "
+                    + task.getStatus().getLabel() + "): " + taskId);
+        }
+        long moveQty = qty != null ? qty : task.remainingQty();
+        if (moveQty < 1) {
+            throw new IllegalArgumentException("변경 수량은 1 이상이어야 합니다: " + taskId);
+        }
+        if (moveQty > task.remainingQty()) {
+            throw new IllegalArgumentException("변경 수량이 잔여수량을 초과했습니다 (잔여 "
+                    + task.remainingQty() + "): " + taskId);
+        }
+        Loc toLoc = locRepository.findById(locId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 로케이션입니다: " + locId));
+        if (toLoc.getId().equals(task.getToLoc().getId())) {
+            throw new IllegalArgumentException("현재 지시 로케이션과 같습니다: " + toLoc.getLocCd());
+        }
+        validateToLoc(toLoc, task.getIbLine().getProd());
+        Long capacity = locCapacityService.availCapacity(toLoc);
+        if (capacity != null && moveQty > capacity) {
+            throw new IllegalArgumentException("적재가능수량을 초과했습니다 (적재가능 " + capacity + "): " + toLoc.getLocCd());
+        }
+
+        // 전량·미실행이면 지시 이동, 아니면 분할 — moveQty == drctQty ⟺ 실행분 0 + 잔여 전량
+        if (moveQty == task.getDrctQty()) {
+            task.changeToLoc(toLoc);
+        } else {
+            task.split(moveQty);
+            putawayTaskRepository.save(PutawayTask.builder()
+                    .ibLine(task.getIbLine())
+                    .lot(task.getLot())
+                    .toLoc(toLoc)
+                    .drctQty(moveQty)
+                    .build());
+        }
+    }
+
+    /** 목적지 검증 (생성·변경 공용) — 보관 로케이션 + 상품 온도대 일치 */
+    private void validateToLoc(Loc toLoc, Prod prod) {
+        if (toLoc.getLocTyp() != LocTyp.STORAGE) {
+            throw new IllegalArgumentException("보관 로케이션으로만 적치할 수 있습니다: " + toLoc.getLocCd());
+        }
+        if (toLoc.getTmpZon() != prod.getTmpZon()) {
+            throw new IllegalArgumentException("온도대가 일치하지 않습니다 (상품 " + prod.getTmpZon()
+                    + " / 로케이션 " + toLoc.getTmpZon() + "): " + toLoc.getLocCd());
+        }
     }
 
     /**
