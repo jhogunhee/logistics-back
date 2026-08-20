@@ -1,0 +1,284 @@
+package com.project.wmsback.outbound.service;
+
+import com.project.mdm.prod.entity.Prod;
+import com.project.mdm.store.entity.Store;
+import com.project.wmsback.inventory.entity.Inv;
+import com.project.wmsback.inventory.entity.InvHist;
+import com.project.wmsback.inventory.entity.TxTyp;
+import com.project.wmsback.inventory.repository.InvHistRepository;
+import com.project.wmsback.inventory.repository.InvRepository;
+import com.project.wmsback.inventory.service.InvLockKey;
+import com.project.wmsback.inventory.service.InvStore;
+import com.project.wmsback.outbound.dto.PikngExecuteRequest;
+import com.project.wmsback.outbound.dto.PikngExecuteResponse;
+import com.project.wmsback.outbound.entity.OutbAlloc;
+import com.project.wmsback.outbound.entity.OutbLine;
+import com.project.wmsback.outbound.entity.OutbOrder;
+import com.project.wmsback.outbound.entity.OutbStatus;
+import com.project.wmsback.outbound.entity.OutbWave;
+import com.project.wmsback.outbound.entity.PikngTask;
+import com.project.wmsback.outbound.entity.PikngTaskStatus;
+import com.project.wmsback.outbound.entity.WavRegTyp;
+import com.project.wmsback.outbound.repository.OutbAllocRepository;
+import com.project.wmsback.outbound.repository.OutbWaveRepository;
+import com.project.wmsback.outbound.repository.PikngAcrstRepository;
+import com.project.wmsback.outbound.repository.PikngTaskRepository;
+import com.project.wmsback.warehouse.entity.Loc;
+import com.project.wmsback.warehouse.entity.Lot;
+import com.project.wmsback.warehouse.repository.LocRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
+
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+/**
+ * 피킹 실행의 규칙. 저장소는 목으로 두고 <b>재고 엔티티의 실제 상태</b>(실물·예약의 동시 소진,
+ * 도착 스테이징 증가)와 <b>항등식 세 곳의 동시 갱신</b>(지시 cmpl · 할당 pikng · 실적 행)으로
+ * 검증한다 — {@code OutbAllocServiceTest}와 같은 방식.
+ */
+@ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
+class PikngServiceTest {
+
+    @Mock PikngTaskRepository pikngTaskRepository;
+    @Mock PikngAcrstRepository pikngAcrstRepository;
+    @Mock OutbAllocRepository outbAllocRepository;
+    @Mock OutbWaveRepository outbWaveRepository;
+    @Mock LocRepository locRepository;
+    @Mock InvRepository invRepository;
+    @Mock InvHistRepository invHistRepository;
+
+    // 재고 쓰기 포트는 목이 아니라 실물을 쓴다 — 예약 소진·실물 이동이 검증 대상이기 때문
+    private PikngService pikngService;
+
+    private OutbWave wave;
+    private Prod prod;
+    private Loc shipStage;
+    private final Map<Long, Inv> invById = new HashMap<>();
+    private final List<Inv> createdInvs = new ArrayList<>();
+    private long seq;
+
+    @BeforeEach
+    void setUp() {
+        pikngService = new PikngService(pikngTaskRepository, pikngAcrstRepository, outbAllocRepository,
+                outbWaveRepository, locRepository, new InvStore(invRepository, invHistRepository));
+
+        invById.clear();
+        createdInvs.clear();
+        seq = 0;
+
+        wave = OutbWave.builder().wavNo("WV-20260820-001").build();
+        setId(wave, 100L);
+        wave.issue();
+
+        prod = mock(Prod.class);
+        when(prod.getId()).thenReturn(1L);
+        when(prod.getProdCd()).thenReturn("PROD-0001");
+
+        shipStage = mock(Loc.class);
+        when(shipStage.getId()).thenReturn(900L);
+        when(shipStage.getLocCd()).thenReturn("SHIP-STAGE");
+
+        when(outbWaveRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(wave));
+        when(pikngTaskRepository.findWaveIdsByTaskIds(any())).thenReturn(List.of(100L));
+        when(locRepository.findByLocCd("SHIP-STAGE")).thenReturn(Optional.of(shipStage));
+        when(pikngAcrstRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        // 도착지(SHIP-STAGE) 재고는 없으면 만들어진다 — findOrCreate의 save 경로
+        when(invRepository.save(any(Inv.class))).thenAnswer(i -> {
+            Inv created = i.getArgument(0);
+            createdInvs.add(created);
+            return created;
+        });
+        // 락 경로(InvStore.lockAllByIds): id → 키 선조회 → 키 락. 픽스처 저장소 invById로 흉내낸다
+        when(invRepository.findLockKeysByIdIn(any())).thenAnswer(i -> {
+            List<InvLockKey> rows = new ArrayList<>();
+            for (Long id : i.<Collection<Long>>getArgument(0)) {
+                Inv found = invById.get(id);
+                if (found != null) {
+                    rows.add(new InvLockKey(id, found.getProd().getId(), found.getLoc().getId(), found.getLot().getId()));
+                }
+            }
+            return rows;
+        });
+        when(invRepository.findByKeyForUpdate(any(), any(), any()))
+                .thenAnswer(i -> invById.values().stream()
+                        .filter(candidate -> candidate.getProd().getId().equals(i.getArgument(0))
+                                && candidate.getLoc().getId().equals(i.getArgument(1))
+                                && candidate.getLot().getId().equals(i.getArgument(2)))
+                        .findFirst());
+    }
+
+    @Test
+    @DisplayName("피킹은 실물과 예약을 함께 소진하고 SHIP-STAGE를 늘린다 — 지시·할당·실적 세 곳 동시 갱신")
+    void executeMovesStockAndKeepsIdentity() {
+        PikngTask task = task(1L, 30, 100);
+        Inv storage = task.getOutbAlloc().getInv();
+        when(outbAllocRepository.countUnpickedByOrderId(anyLong())).thenReturn(0L);
+
+        PikngExecuteResponse response = pikngService.execute(execute(item(1L, 30L)));
+
+        // 출발지: 실물 −30, 예약 −30 (aloc ≤ on_hand 불변식 유지)
+        assertEquals(70, storage.getOnHandQty());
+        assertEquals(0, storage.getAlocQty());
+        // 도착지(SHIP-STAGE): 실물 +30
+        assertEquals(1, createdInvs.size());
+        assertEquals(30, createdInvs.get(0).getOnHandQty());
+        // 항등식 — 지시 cmpl = 할당 pikng = 실적 합
+        assertEquals(30, task.getCmplQty());
+        assertEquals(PikngTaskStatus.DONE, task.getStatus());
+        assertEquals(30, task.getOutbAlloc().getPikngQty());
+        verify(pikngAcrstRepository).save(any());
+        // 이력 PICK 2행 (출발 −, 도착 +)
+        ArgumentCaptor<InvHist> hist = ArgumentCaptor.forClass(InvHist.class);
+        verify(invHistRepository, atLeastOnce()).save(hist.capture());
+        assertEquals(2, hist.getAllValues().size());
+        assertTrue(hist.getAllValues().stream().allMatch(h -> h.getTxTyp() == TxTyp.PICK));
+        // 전 할당 소진 → PICKED
+        assertEquals(OutbStatus.PICKED, task.getOutbAlloc().getOutbLine().getOutbOrder().getStatus());
+        assertEquals(1, response.doneTaskCount());
+        assertEquals(1, response.orderChanges().size());
+    }
+
+    @Test
+    @DisplayName("부분 피킹 — 지시는 DIRECTED로 남고 주문은 PICKING이 된다")
+    void partialPickingKeepsDirected() {
+        PikngTask task = task(1L, 30, 100);
+        when(outbAllocRepository.countUnpickedByOrderId(anyLong())).thenReturn(1L);
+
+        pikngService.execute(execute(item(1L, 10L)));
+
+        assertEquals(PikngTaskStatus.DIRECTED, task.getStatus());
+        assertEquals(20, task.remainingQty());
+        assertEquals(10, task.getOutbAlloc().getPikngQty());
+        assertEquals(90, task.getOutbAlloc().getInv().getOnHandQty());
+        assertEquals(20, task.getOutbAlloc().getInv().getAlocQty());
+        assertEquals(OutbStatus.PICKING, task.getOutbAlloc().getOutbLine().getOutbOrder().getStatus());
+    }
+
+    @Test
+    @DisplayName("지시 잔량을 초과한 요청은 거부한다 — 재고는 움직이지 않는다")
+    void rejectsOverRemaining() {
+        PikngTask task = task(1L, 30, 100);
+        task.execute(25);
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> pikngService.execute(execute(item(1L, 10L))));
+
+        assertTrue(e.getMessage().contains("잔량"));
+        assertEquals(100, task.getOutbAlloc().getInv().getOnHandQty());
+        verify(invHistRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("취소된 지시는 실행할 수 없다")
+    void rejectsCancelledTask() {
+        PikngTask task = task(1L, 30, 100);
+        task.cancel();
+
+        assertThrows(IllegalArgumentException.class,
+                () -> pikngService.execute(execute(item(1L, 10L))));
+    }
+
+    @Test
+    @DisplayName("같은 지시를 중복 지정하면 거부한다")
+    void rejectsDuplicateItems() {
+        task(1L, 30, 100);
+        assertThrows(IllegalArgumentException.class,
+                () -> pikngService.execute(execute(item(1L, 5L), item(1L, 5L))));
+    }
+
+    @Test
+    @DisplayName("수량 0 이하는 거부한다")
+    void rejectsNonPositiveQty() {
+        assertThrows(IllegalArgumentException.class,
+                () -> pikngService.execute(execute(item(1L, 0L))));
+    }
+
+    // ── 픽스처 ───────────────────────────────────────────────────────────────
+
+    /** 지시 + 할당 + 보관 재고 한 벌. 재고는 지시수량만큼 예약된 상태로 만든다 */
+    private PikngTask task(long id, long drctQty, long onHand) {
+        Store store = mock(Store.class);
+        OutbOrder order = OutbOrder.builder()
+                .outbNo("OB-20260820-00" + id).omsOutbOrderId(++seq).store(store)
+                .odrDe(LocalDate.of(2026, 8, 20)).expctDe(LocalDate.of(2026, 8, 21)).outbTyp("NRML")
+                .build();
+        setId(order, id);
+        OutbLine line = OutbLine.builder().prod(prod).odrQty(drctQty).build();
+        setId(line, id);
+        order.addLine(line);
+        order.assignWave(wave, WavRegTyp.MANUAL);
+        order.allocate();
+
+        Lot lot = mock(Lot.class);
+        when(lot.getId()).thenReturn(id);
+        Loc loc = mock(Loc.class);
+        when(loc.getId()).thenReturn(id);
+        when(loc.getLocCd()).thenReturn("A-01-" + id);
+
+        Inv inv = Inv.builder().prod(prod).loc(loc).lot(lot).build();
+        setId(inv, id);
+        inv.increaseOnHand(onHand);
+        inv.reserve(drctQty);
+        invById.put(id, inv);
+
+        OutbAlloc alloc = OutbAlloc.builder().outbLine(line).inv(inv).alocQty(drctQty).build();
+        setId(alloc, id);
+
+        PikngTask created = PikngTask.builder()
+                .wave(wave).outbAlloc(alloc).prod(prod).fromLoc(loc).lot(lot)
+                .drctQty(drctQty).srtSeq(1)
+                .build();
+        setId(created, id);
+        when(pikngTaskRepository.findAllWithDetailsByIds(any())).thenReturn(List.of(created));
+        return created;
+    }
+
+    private PikngExecuteRequest execute(PikngExecuteRequest.Item... items) {
+        PikngExecuteRequest request = new PikngExecuteRequest();
+        request.setItems(List.of(items));
+        return request;
+    }
+
+    private PikngExecuteRequest.Item item(long taskId, Long qty) {
+        PikngExecuteRequest.Item created = new PikngExecuteRequest.Item();
+        created.setPikngTaskId(taskId);
+        created.setQty(qty);
+        return created;
+    }
+
+    /** 엔티티 id는 DB가 채우므로 테스트에서는 리플렉션으로 넣는다 (기존 테스트들과 같은 방식) */
+    private static void setId(Object entity, Long id) {
+        try {
+            var field = entity.getClass().getDeclaredField("id");
+            field.setAccessible(true);
+            field.set(entity, id);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+}

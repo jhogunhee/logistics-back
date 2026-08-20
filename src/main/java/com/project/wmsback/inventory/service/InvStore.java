@@ -155,6 +155,37 @@ public class InvStore {
         return toInv;
     }
 
+    /**
+     * 피킹 — 보관 → 출고 스테이징 실물 이동 + <b>예약 소진</b> + 이력 PICK 2행 + 출발 빈 행 정리.
+     * {@link #move}와 골격이 같고 둘이 다르다: 이력이 {@code PICK}이고, 출발지에서
+     * {@code on_hand}와 함께 {@code aloc}을 소진한다 — 실물이 나가므로 할당이 잡아둔 예약도
+     * 함께 줄어야 {@code aloc + hld <= on_hand} 불변식이 유지된다.
+     *
+     * <p>서비스에서 release + decrease + move 조합으로 풀지 않고 한 메서드로 두는 이유:
+     * 조합하면 이력이 PICK이 아니라 MOVE로 남거나 예약 소진이 빠지는 경로가 생길 수 있다 —
+     * 짝을 묶는 것이 이 포트의 존재 이유다.
+     *
+     * @return 도착지(출고 스테이징) 스냅샷
+     */
+    public Inv pick(Inv fromInv, Loc toLoc, long qty, InvDocRef ref) {
+        Prod prod = fromInv.getProd();
+        Lot lot = fromInv.getLot();
+        Loc fromLoc = fromInv.getLoc();
+
+        // 도착지 조회를 출발지 변경보다 먼저 한다 — move()와 같은 함정 (조회의 auto-flush)
+        Inv toInv = findOrCreate(prod, toLoc, lot);
+        // 예약 소진을 감소보다 먼저 — 반대 순서면 aloc + hld <= on_hand 를 위반하는 중간 상태가
+        // 이후 조회의 auto-flush 에 실려 DB에 닿을 수 있다
+        fromInv.release(qty);
+        fromInv.decreaseOnHand(qty);
+        toInv.increaseOnHand(qty);
+
+        saveHist(TxTyp.PICK, prod, fromLoc, lot, -qty, ref, fromLoc.getId(), toLoc.getId());
+        saveHist(TxTyp.PICK, prod, toLoc, lot, qty, ref, fromLoc.getId(), toLoc.getId());
+        purgeIfEmpty(fromInv);
+        return toInv;
+    }
+
     /** 예약 (출고 할당·이동지시 등록). 물리 이동이 아니므로 이력에 남기지 않는다 */
     public void reserve(Inv inv, long qty) {
         inv.reserve(qty);

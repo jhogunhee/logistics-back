@@ -252,9 +252,10 @@
 </tr>
 <tr>
   <td class="name">피킹</td>
-  <td>발행된 피킹지시를 보고 집품 → 수량 입력 → 보관 → <code>SHIP-STAGE</code> MOVE(<code>tx_typ=PICK</code>). 지시 소진. 전 할당의 <code>pikng_qty == aloc_qty</code>가 되면 주문 <code>PICKED</code> 전이</td>
-  <td class="st"><span class="badge todo">미구현</span></td>
-  <td>신규 — 지시 기반</td>
+  <td>발행된 지시를 <strong>집품 동선(<code>srt_seq</code>) 순</strong>으로 보고 수량 입력(기본값 = 잔량) → 보관 → <code>SHIP-STAGE</code> MOVE(<code>tx_typ=PICK</code> 2행, 출발지 <code>on_hand</code>·<code>aloc</code> 동시 소진 — <code>InvStore.pick()</code>). 부분 피킹 허용(잔량 재피킹), 실행 1회 = 실적 1행(<code>pikng_acrst</code>, 실적 내역 모달). <strong>항등식: <code>pikng_task.cmpl_qty = outb_alloc.pikng_qty = SUM(pikng_acrst.pikng_qty)</code></strong>.
+  <br>지시 잔량은 항상 피킹 가능(예약이 실재고 선점 — 실재고 재확인 없음). 첫 실적에 주문 <code>PICKING</code>, 전 할당 소진 시 <code>PICKED</code>(기준은 주문수량이 아니라 <strong>할당수량</strong> — 부분할당분은 부족 출고). 실적 취소는 v1 미지원(역방향 MOVE 백로그)</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>GET /outbound/picking/waves</code><br><code>GET /outbound/picking-tasks/{taskId}/acrsts</code><br><code>POST /outbound/picking/execute</code><br><code>/outbound/picking</code></td>
 </tr>
 <tr>
   <td class="name">출고확정 (Shipping)</td>
@@ -383,7 +384,7 @@
 <tr><td>웨이브 편성</td><td><code>/outbound/wave</code></td><td><code>pages/outbound/Wave.jsx</code> — 웨이브 목록 + 미편성/소속 주문 2단, 담기·빼기·해체, 전략 선택·자동 실행과 미리보기</td></tr>
 <tr><td>할당</td><td><code>/outbound/allocation</code></td><td><code>pages/outbound/Allocation.jsx</code> — 대상 웨이브 + 라인·할당내역 2단, 자동할당·수동할당(<code>components/outbound/AllocCandidateModal.jsx</code>)·해제. 자동할당은 <strong>할당 전략(SC-04)</strong>을 적용하고, 전략이 없으면 기본 동작(FEFO·점포 잔여수명·순차 소진)으로 실행된다 — 실행 결과에 적용 전략명·리비전이 표시되고 할당내역에 전략/수동 출처가 구분된다</td></tr>
 <tr><td>피킹지시</td><td><code>/outbound/pick-order</code></td><td><code>pages/outbound/PickOrder.jsx</code> — 웨이브(편성중·발행) + 지시 대상/내역 2단, 발행·발행취소. 발행 전 하단 목록이 발행될 순서 그대로라 그 자체가 발행 미리보기, 할당 0건 주문은 배너로 차단 사유 표시</td></tr>
-<tr><td>피킹</td><td><code>/outbound/picking</code></td><td>Placeholder</td></tr>
+<tr><td>피킹</td><td><code>/outbound/picking</code></td><td><code>pages/outbound/Picking.jsx</code> — 발행 웨이브 + 지시(집품 동선 순) 2단, 수량 입력(기본 잔량)·일괄 피킹·실적 내역(<code>components/outbound/PikngAcrstModal.jsx</code>). 완료 행은 흐리게·체크 불가</td></tr>
 <tr><td>출고확정</td><td><code>/outbound/shipping</code></td><td>Placeholder</td></tr>
 
 <tr><td class="name" rowspan="4">마스터</td><td>상품 관리</td><td><code>/master/prod</code></td><td><code>pages/master/ProdMaster.jsx</code></td></tr>
@@ -407,7 +408,7 @@
   <li><s><strong>적치 전략관리</strong> → <strong>적치지시</strong> → <strong>적치</strong></s> — 완료(2026-08-04). 전략 없이도 수동 지시로 발행할 수 있게 해서 「전략이 없으면 지시를 만들 수 없다」는 전제는 풀렸다. 즉시 MOVE 경로(<code>POST /lines/{id}</code>)는 제거</li>
   <li><strong>입고확정</strong> — 적치까지 붙은 뒤에야 결품 확정 화면이 의미를 가짐. <strong>백엔드 완료(2026-08-14)</strong> — 화면(<code>/inbound/confirm</code>)만 남음</li>
   <li><s><strong>할당</strong></s> — <strong>완료 2026-08-03.</strong> 진입 단위는 <strong>웨이브</strong>이고 계산·결과는 라인 단위다(재번복 — 위 표 참조). v1의 유일한 할당 경로</li>
-  <li><strong>피킹지시</strong>(웨이브 단위) → <strong>피킹</strong> → <strong>출고확정</strong> — 출고 흐름 완성</li>
+  <li><s><strong>피킹지시</strong>(웨이브 단위) → <strong>피킹</strong></s> — <strong>완료(2026-08-20).</strong> 지시(<code>pikng_task</code>)+실행실적(<code>pikng_acrst</code>) 2테이블, 지시는 적치지시·이동지시와 동등한 위치. 남은 것은 <strong>출고확정</strong> — 출고 흐름 완성</li>
   <li><s>재고 속성변경</s> — 완료 2026-08-03 (<s>재고조사</s> — 완료 2026-08-03)</li>
   <li><s>점포 관리</s> — 완료(2026-08-14). 벤더와 같은 일괄 저장 + 서버 채번(<code>STORE_CD</code>), 삭제는 출고주문 참조 가드</li>
   <li>대시보드</li>
@@ -435,7 +436,7 @@
 <tr><td class="name">"웨이브는 재고 할당의 단위다"</td><td><strong>웨이브는 피킹지시 발행 단위로 역할이 바뀐다.</strong> 할당은 주문 단위, 웨이브는 여러 주문의 집품을 한 번에 지시하는 그룹.
 <br><strong>해소 완료(2026-08-03)</strong> — 상태를 <code>PLANNED → ISSUED</code>로, 시각 컬럼을 <code>released_at → issued_dt</code>로 개명했다(<code>migration-wave-issued.sql</code>). <code>RELEASED</code>를 버린 이유는 ① 「릴리즈(=웨이브 단위 일괄 할당)」라는 동작이 이 설계에 없고 ② <code>inv_hld</code>의 <code>RELEASED</code>가 보류 <em>해제</em>라 한 토큰이 두 뜻이 되기 때문. 덤으로 <code>_at → _dt</code> 사전 이탈도 함께 해소됐다</td></tr>
 <tr><td class="name">주문 관리 화면은 WMS 입고/출고 메뉴 안에 있다</td><td><strong>OMS 그룹을 분리 신설.</strong> 입고주문·출고주문의 등록/관리를 OMS로 빼고, WMS 메뉴는 창고 작업(ASN·검수·적치·웨이브·피킹)만 남긴다. 기존 "출고주문 관리"는 <code>/oms/outbound-orders</code>로 이관</td></tr>
-<tr><td class="name">"피킹은 주문 단위 / 별도 지시 엔티티(pick_task)를 두지 않는다"</td><td><strong>뒤집힘 — 피킹지시 엔티티를 둔다.</strong> 웨이브 단위로 묶어 발행하려면 지시를 담을 레코드가 필요. 단, 집품은 지시 행(=할당 단위)대로 하고 <strong>상품별 집약(배치 피킹)은 하지 않으므로</strong> 주문별 분류 공정은 여전히 불필요</td></tr>
+<tr><td class="name">"피킹은 주문 단위 / 별도 지시 엔티티(pick_task)를 두지 않는다"</td><td><strong>뒤집힘 — 피킹지시 엔티티를 둔다.</strong> 웨이브 단위로 묶어 발행하려면 지시를 담을 레코드가 필요. 단, 집품은 지시 행(=할당 단위)대로 하고 <strong>상품별 집약(배치 피킹)은 하지 않으므로</strong> 주문별 분류 공정은 여전히 불필요. <strong>반영 완료(2026-08-20)</strong> — <code>pikng_task</code>(적치지시·이동지시와 동등한 위치의 지시 문서) + 실행실적 <code>pikng_acrst</code> 2테이블로 구현</td></tr>
 </tbody>
 </table>
 </div>

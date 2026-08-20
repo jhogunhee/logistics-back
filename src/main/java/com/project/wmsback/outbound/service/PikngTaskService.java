@@ -1,5 +1,6 @@
 package com.project.wmsback.outbound.service;
 
+import com.project.wmsback.outbound.dto.PikngAcrstResponse;
 import com.project.wmsback.outbound.dto.PikngCancelRequest;
 import com.project.wmsback.outbound.dto.PikngCancelResponse;
 import com.project.wmsback.outbound.dto.PikngIssueRequest;
@@ -15,6 +16,7 @@ import com.project.wmsback.outbound.entity.PikngTaskStatus;
 import com.project.wmsback.outbound.entity.WaveStatus;
 import com.project.wmsback.outbound.repository.OutbAllocRepository;
 import com.project.wmsback.outbound.repository.OutbOrderRepository;
+import com.project.wmsback.outbound.repository.PikngAcrstRepository;
 import com.project.wmsback.outbound.repository.PikngTaskRepository;
 import com.project.wmsback.outbound.repository.OutbWaveRepository;
 import lombok.RequiredArgsConstructor;
@@ -32,7 +34,7 @@ import java.util.Set;
  * 피킹지시 — <b>웨이브의 할당 레코드를 로케이션 순으로 정렬해 지시 문서(pikng_task)로 발행한다.</b>
  *
  * <p>지시 행은 할당과 1:1이다(상품별 집약 없음). 발행은 재고에 손대지 않는다 — 예약은 할당이
- * 이미 잡았고, 실행이 소진한다. 재고 무변동이므로 취소도 문서 조작뿐이다.
+ * 이미 잡았고, 실행({@link PikngService})이 소진한다. 재고 무변동이므로 취소도 문서 조작뿐이다.
  *
  * <p><b>발행 가드(주문 단위)</b>: 할당이 0건인 주문이 섞여 있으면 웨이브 발행을 차단한다 —
  * 그대로 발행하면 그 주문(CREATED)이 ISSUED 웨이브에 갇혀 편성 변경도 할당도 영영 못 받는다.
@@ -48,6 +50,7 @@ import java.util.Set;
 public class PikngTaskService {
 
     private final PikngTaskRepository pikngTaskRepository;
+    private final PikngAcrstRepository pikngAcrstRepository;
     private final OutbAllocRepository outbAllocRepository;
     private final OutbOrderRepository outbOrderRepository;
     private final OutbWaveRepository outbWaveRepository;
@@ -69,6 +72,17 @@ public class PikngTaskService {
         return new PikngWaveDetailResponse(wave.getId(), wave.getWavNo(), wave.getStatus(),
                 issued ? pikngTaskRepository.taskRows(wavId) : pikngTaskRepository.allocRowsForIssue(wavId),
                 issued ? List.of() : pikngTaskRepository.noAllocOrders(wavId));
+    }
+
+    /** 지시의 실행 실적 로그 (실적 내역 모달) */
+    public List<PikngAcrstResponse> acrsts(Long pikngTaskId) {
+        if (!pikngTaskRepository.existsById(pikngTaskId)) {
+            throw new IllegalArgumentException("존재하지 않는 피킹지시입니다: " + pikngTaskId);
+        }
+        return pikngAcrstRepository.findByPikngTaskIdOrderByIdDesc(pikngTaskId).stream()
+                .map(acrst -> new PikngAcrstResponse(acrst.getId(), acrst.getPikngQty(),
+                        acrst.getCreatedAt(), acrst.getCreatedBy()))
+                .toList();
     }
 
     // ── 발행 ─────────────────────────────────────────────────────────────────

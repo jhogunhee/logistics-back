@@ -1,5 +1,7 @@
 package com.project.wmsback.outbound.repository;
 
+import com.project.wmsback.outbound.dto.PickingSearchCond;
+import com.project.wmsback.outbound.dto.PickingWaveResponse;
 import com.project.wmsback.outbound.dto.PikngRowResponse;
 import com.project.wmsback.outbound.dto.PikngTaskSearchCond;
 import com.project.wmsback.outbound.dto.PikngWaveDetailResponse;
@@ -177,6 +179,44 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
         return result;
     }
 
+    /**
+     * 피킹 화면의 웨이브 목록. 지시(1행)와 주문의 조인은 1:1 경로(task → alloc → line → order)라
+     * fan-out이 없어 쿼리를 나누지 않는다.
+     *
+     * <p>출고예정일은 바깥 WHERE에 직접 건다 — 편성 가드가 웨이브의 출고예정일을 하나로 강제하므로
+     * 라인 일부만 걸러 합계가 틀어지는 일이 없다. 상품 조건만 EXISTS다(직접 걸면 합계가 좁혀진다).
+     */
+    @Override
+    public List<PickingWaveResponse> searchPickingWaves(PickingSearchCond cond) {
+        List<Tuple> rows = queryFactory
+                .select(outbWave.id, outbWave.wavNo, outbWave.issuedDt,
+                        outbOrder.expctDe.min(), pikngTask.drctQty.sum(), pikngTask.cmplQty.sum())
+                .from(pikngTask)
+                .join(pikngTask.wave, outbWave)
+                .join(pikngTask.outbAlloc, outbAlloc)
+                .join(outbAlloc.outbLine, outbLine)
+                .join(outbLine.outbOrder, outbOrder)
+                .where(
+                        outbWave.status.eq(WaveStatus.ISSUED),
+                        pikngTask.status.ne(PikngTaskStatus.CANCELLED),
+                        waveNoContains(cond.getWavNo()),
+                        cond.getExpctDeFrom() != null ? outbOrder.expctDe.goe(cond.getExpctDeFrom()) : null,
+                        cond.getExpctDeTo() != null ? outbOrder.expctDe.loe(cond.getExpctDeTo()) : null,
+                        matchingTaskProdExists(cond.getProdCd())
+                )
+                .groupBy(outbWave.id, outbWave.wavNo, outbWave.issuedDt)
+                .orderBy(outbWave.id.desc())
+                .fetch();
+
+        List<PickingWaveResponse> result = new ArrayList<>(rows.size());
+        for (Tuple row : rows) {
+            result.add(PickingWaveResponse.of(row.get(outbWave.id), row.get(outbWave.wavNo),
+                    row.get(outbOrder.expctDe.min()), row.get(outbWave.issuedDt),
+                    orZero(row.get(pikngTask.drctQty.sum())), orZero(row.get(pikngTask.cmplQty.sum()))));
+        }
+        return result;
+    }
+
     // ── 검색 조건 ────────────────────────────────────────────────────────────
 
     private BooleanExpression statusEq(String status) {
@@ -213,6 +253,22 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
                         hasStore ? order.store.storeCd.containsIgnoreCase(cond.getStoreCd()) : null,
                         hasFrom ? order.expctDe.goe(cond.getExpctDeFrom()) : null,
                         hasTo ? order.expctDe.loe(cond.getExpctDeTo()) : null
+                )
+                .exists();
+    }
+
+    /** 상품 조건 — 그 상품의 지시가 있는 웨이브를 통째로 고른다 (합계는 웨이브 전체) */
+    private BooleanExpression matchingTaskProdExists(String prodCd) {
+        if (!StringUtils.hasText(prodCd)) {
+            return null;
+        }
+        var task = new com.project.wmsback.outbound.entity.QPikngTask("matchTask");
+        return JPAExpressions.selectOne()
+                .from(task)
+                .where(
+                        task.wave.eq(outbWave),
+                        task.status.ne(PikngTaskStatus.CANCELLED),
+                        task.prod.prodCd.containsIgnoreCase(prodCd)
                 )
                 .exists();
     }

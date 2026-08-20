@@ -38,4 +38,8 @@ public interface OutbAllocRepository extends JpaRepository<OutbAlloc, Long>, Out
             + " join fetch l.prod join fetch a.inv i join fetch i.loc join fetch i.lot"
             + " where o.wave.id = :wavId")
     List<OutbAlloc> findAllWithDetailsByWaveId(@Param("wavId") Long wavId);
+
+    /** 주문에 소진되지 않은 할당이 남았는지 — 0이면 전 할당 소진 = PICKED 전이 (OutbOrder.completePicking) */
+    @Query("select count(a) from OutbAlloc a where a.outbLine.outbOrder.id = :outbOrderId and a.pikngQty < a.alocQty")
+    long countUnpickedByOrderId(@Param("outbOrderId") Long outbOrderId);
 }

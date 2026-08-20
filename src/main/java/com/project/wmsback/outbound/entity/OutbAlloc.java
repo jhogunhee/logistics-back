@@ -90,4 +90,18 @@ public class OutbAlloc extends BaseEntity {
     public boolean releasable() {
         return pikngQty == 0L;
     }
+
+    /**
+     * 피킹 실적 누적 — 이 메서드가 유일한 증가 경로다. {@link #releasable()}과 할당해제 가드가
+     * 이 값을 보므로, 다른 경로가 생기면 판정이 갈라진다. 항등식
+     * {@code pikng_qty = pikng_task.cmpl_qty = SUM(pikng_acrst.pikng_qty)}의 주문 도메인 쪽 축이고,
+     * 실행 서비스가 지시·실적과 한 트랜잭션에서 함께 갱신한다.
+     */
+    public void addPikngQty(long qty) {
+        if (pikngQty + qty > alocQty) {
+            throw new IllegalStateException("피킹수량이 할당수량을 초과합니다 (할당 " + alocQty
+                    + ", 기피킹 " + pikngQty + ", 요청 " + qty + ")");
+        }
+        this.pikngQty += qty;
+    }
 }

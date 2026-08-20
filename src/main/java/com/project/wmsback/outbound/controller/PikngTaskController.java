@@ -1,5 +1,6 @@
 package com.project.wmsback.outbound.controller;
 
+import com.project.wmsback.outbound.dto.PikngAcrstResponse;
 import com.project.wmsback.outbound.dto.PikngCancelRequest;
 import com.project.wmsback.outbound.dto.PikngCancelResponse;
 import com.project.wmsback.outbound.dto.PikngIssueRequest;
@@ -52,5 +53,11 @@ public class PikngTaskController {
     @PostMapping("/outbound/picking-tasks/cancel")
     public PikngCancelResponse cancel(@RequestBody PikngCancelRequest request) {
         return pikngTaskService.cancel(request);
+    }
+
+    /** 지시의 실행 실적 로그 — 실적 내역 모달 */
+    @GetMapping("/outbound/picking-tasks/{taskId}/acrsts")
+    public List<PikngAcrstResponse> acrsts(@PathVariable Long taskId) {
+        return pikngTaskService.acrsts(taskId);
     }
 }

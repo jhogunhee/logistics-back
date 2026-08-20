@@ -199,6 +199,40 @@ public class OutbOrder extends BaseEntity {
     }
 
     /**
+     * 첫 피킹 실적 시 ALLOCATED → PICKING 전이. 이미 PICKING이면 그대로 둔다 —
+     * 부분 피킹의 반복 실행이 같은 메서드를 여러 번 호출하기 때문이다 ({@link #allocate()}와 같은 형태).
+     *
+     * <p>전이 시점은 피킹지시 발행이 아니라 <b>첫 실적</b>이다 — 발행은 재고도 실물도 움직이지
+     * 않는 문서 조작이라 주문 상태를 바꾸지 않는다 (웨이브 상태만 ISSUED로 바뀐다).
+     */
+    public void startPicking() {
+        if (status == OutbStatus.ALLOCATED) {
+            this.status = OutbStatus.PICKING;
+            return;
+        }
+        if (status != OutbStatus.PICKING) {
+            throw new IllegalStateException("피킹할 수 없는 상태입니다 (" + status.getLabel() + "): " + outbNo);
+        }
+    }
+
+    /**
+     * 전 할당 소진 시 PICKING → PICKED 전이. <b>판정 재료(전 할당의 pikng_qty == aloc_qty)는
+     * 서비스가 집계해 호출한다</b> — 라인에 수량 컬럼이 없어({@code outb_alloc} 집계로 파생)
+     * 엔티티 안에서는 셀 수 없다 ({@link #revertToCreated()}와 같은 이유).
+     *
+     * <p>판정 기준이 주문수량({@code odr_qty})이 아니라 <b>할당수량</b>인 것에 주의 —
+     * 부분할당 주문은 할당분만 집품되면 PICKED가 되고, 미할당 잔량은 부족 출고로 진행된다
+     * (백오더 없음 원칙의 연장).
+     */
+    public void completePicking() {
+        if (status != OutbStatus.PICKING) {
+            throw new IllegalStateException("피킹 중이 아닌 주문은 피킹완료로 전이할 수 없습니다 ("
+                    + status.getLabel() + "): " + outbNo);
+        }
+        this.status = OutbStatus.PICKED;
+    }
+
+    /**
      * 상위 주문의 확정취소로 이 문서를 물릴 수 있는지. 할당 전(CREATED)이고 <b>웨이브에 편성되기 전</b>만 가능하다.
      * <p>
      * 확정취소는 이 행을 삭제한다. 웨이브에 담긴 뒤에 지우면 그 웨이브의 피킹지시가 존재하지 않는

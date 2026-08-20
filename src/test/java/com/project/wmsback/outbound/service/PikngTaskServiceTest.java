@@ -17,6 +17,7 @@ import com.project.wmsback.outbound.entity.WaveStatus;
 import com.project.wmsback.outbound.repository.OutbAllocRepository;
 import com.project.wmsback.outbound.repository.OutbOrderRepository;
 import com.project.wmsback.outbound.repository.OutbWaveRepository;
+import com.project.wmsback.outbound.repository.PikngAcrstRepository;
 import com.project.wmsback.outbound.repository.PikngTaskRepository;
 import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.Lot;
@@ -56,6 +57,7 @@ import static org.mockito.Mockito.when;
 class PikngTaskServiceTest {
 
     @Mock PikngTaskRepository pikngTaskRepository;
+    @Mock PikngAcrstRepository pikngAcrstRepository;
     @Mock OutbAllocRepository outbAllocRepository;
     @Mock OutbOrderRepository outbOrderRepository;
     @Mock OutbWaveRepository outbWaveRepository;

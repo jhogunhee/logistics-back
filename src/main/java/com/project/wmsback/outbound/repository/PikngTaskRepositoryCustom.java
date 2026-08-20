@@ -1,5 +1,7 @@
 package com.project.wmsback.outbound.repository;
 
+import com.project.wmsback.outbound.dto.PickingSearchCond;
+import com.project.wmsback.outbound.dto.PickingWaveResponse;
 import com.project.wmsback.outbound.dto.PikngRowResponse;
 import com.project.wmsback.outbound.dto.PikngTaskSearchCond;
 import com.project.wmsback.outbound.dto.PikngWaveDetailResponse;
@@ -29,4 +31,7 @@ public interface PikngTaskRepositoryCustom {
 
     /** 할당이 0건이라 발행을 막는 주문 — 라인 목록에 나타나지 않으므로 별도로 내려 화면이 설명한다 */
     List<PikngWaveDetailResponse.NoAllocOrder> noAllocOrders(Long wavId);
+
+    /** 피킹 화면의 웨이브 목록 — ISSUED 웨이브의 살아 있는 지시 합계 (잔량 0도 당일 확인용으로 남긴다) */
+    List<PickingWaveResponse> searchPickingWaves(PickingSearchCond cond);
 }
