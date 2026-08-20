@@ -8,6 +8,8 @@ import com.project.wmsback.warehouse.dto.LocSaveRequest;
 import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.LocTyp;
 import com.project.wmsback.warehouse.entity.Zon;
+import com.project.wmsback.warehouse.entity.FxngLoc;
+import com.project.wmsback.warehouse.repository.FxngLocRepository;
 import com.project.wmsback.warehouse.repository.LocRepository;
 import com.project.wmsback.warehouse.repository.ZonRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -43,18 +46,21 @@ class LocServiceTest {
     @Mock ZonRepository zonRepository;
     @Mock LocCapacityQueryRepository locCapacityQueryRepository;
     @Mock LocRefQueryRepository locRefQueryRepository;
+    @Mock FxngLocRepository fxngLocRepository;
 
     private LocService locService;
     private Zon dry;
 
     @BeforeEach
     void setUp() {
-        locService = new LocService(locRepository, zonRepository, locCapacityQueryRepository, locRefQueryRepository);
+        locService = new LocService(locRepository, zonRepository, locCapacityQueryRepository, locRefQueryRepository,
+                fxngLocRepository);
         dry = mock(Zon.class);
         when(dry.getZonCd()).thenReturn("DRY");
         when(dry.getTmpZon()).thenReturn(TmpZon.DRY);
         when(zonRepository.findByZonCd("DRY")).thenReturn(Optional.of(dry));
         when(locRepository.existsByLocCd("DRY-A-01-01")).thenReturn(false);
+        when(fxngLocRepository.findByLoc(any())).thenReturn(Optional.empty());
     }
 
     private LocSaveRequest row(String status, LocTyp locTyp, Long maxQty) {
@@ -124,9 +130,62 @@ class LocServiceTest {
     @Test
     @DisplayName("STORAGE를 최대 적재 수량 없이 수정하는 것도 거부한다")
     void update_storageRequiresMaxQty() {
+        Loc loc = Loc.builder()
+                .locCd("DRY-A-01-01").zon(dry).tmpZon(TmpZon.DRY)
+                .locTyp(LocTyp.STORAGE).pikngPrty(1).ptawyPrty(1).maxQty(50L)
+                .build();
+        when(locRepository.findById(10L)).thenReturn(Optional.of(loc));
+
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> locService.saveAll(List.of(row("U", LocTyp.STORAGE, null))));
         assertTrue(e.getMessage().contains("최대 적재 수량"));
+    }
+
+    @Test
+    @DisplayName("고정 로케이션 마스터에 등록된 로케이션은 온도대·유형을 변경할 수 없다")
+    void update_rejectsTypChangeWhenFxngExists() {
+        Loc loc = Loc.builder()
+                .locCd("DRY-A-01-01").zon(dry).tmpZon(TmpZon.DRY)
+                .locTyp(LocTyp.STORAGE).pikngPrty(1).ptawyPrty(1).maxQty(50L)
+                .build();
+        when(locRepository.findById(10L)).thenReturn(Optional.of(loc));
+        when(fxngLocRepository.existsByLoc(loc)).thenReturn(true);
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> locService.saveAll(List.of(row("U", LocTyp.STAGE, null))));
+        assertTrue(e.getMessage().contains("고정 로케이션"));
+    }
+
+    @Test
+    @DisplayName("최대 적재 수량을 고정 로케이션의 보충 상한 아래로 낮추면 거부한다")
+    void update_rejectsMaxQtyBelowFxngMax() {
+        Loc loc = Loc.builder()
+                .locCd("DRY-A-01-01").zon(dry).tmpZon(TmpZon.DRY)
+                .locTyp(LocTyp.STORAGE).pikngPrty(1).ptawyPrty(1).maxQty(200L)
+                .build();
+        when(locRepository.findById(10L)).thenReturn(Optional.of(loc));
+        FxngLoc fxng = mock(FxngLoc.class);
+        when(fxng.getMaxQty()).thenReturn(150L);
+        when(fxngLocRepository.findByLoc(loc)).thenReturn(Optional.of(fxng));
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> locService.saveAll(List.of(row("U", LocTyp.STORAGE, 100L))));
+        assertTrue(e.getMessage().contains("보충 상한"));
+    }
+
+    @Test
+    @DisplayName("고정 로케이션 마스터가 참조 중인 로케이션은 삭제할 수 없다")
+    void delete_rejectsWhenFxngReferences() {
+        Loc loc = Loc.builder()
+                .locCd("DRY-A-01-01").zon(dry).tmpZon(TmpZon.DRY)
+                .locTyp(LocTyp.STORAGE).pikngPrty(1).ptawyPrty(1).maxQty(50L)
+                .build();
+        when(locRepository.findById(10L)).thenReturn(Optional.of(loc));
+        when(locRefQueryRepository.findAnyReference(loc.getId())).thenReturn("고정 로케이션 마스터");
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> locService.saveAll(List.of(row("D", LocTyp.STORAGE, 50L))));
+        assertTrue(e.getMessage().contains("고정 로케이션 마스터"));
     }
 
     @Test

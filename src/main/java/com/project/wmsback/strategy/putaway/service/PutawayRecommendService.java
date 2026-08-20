@@ -286,7 +286,7 @@ public class PutawayRecommendService {
             boolean hasProd = stock.hasProd()
                     || prodIdsByLoc.getOrDefault(stock.loc().getId(), Set.of()).contains(prodId);
             return new PutawayMethodContext.LocStock(
-                    stock.loc(), stock.occupiedQty() + qty, hasProd, stock.bizDvsn());
+                    stock.loc(), stock.occupiedQty() + qty, hasProd, stock.bizDvsn(), stock.hasFxng());
         }
     }
 

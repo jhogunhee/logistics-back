@@ -174,6 +174,34 @@ SELECT 'FRZ-B-01-01', zon_id, 'FRZ', 'STORAGE', 3, 1000 FROM zon WHERE zon_cd = 
 INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, max_qty)
 SELECT 'FRZ-B-01-02', zon_id, 'FRZ', 'STORAGE', 4, 1000 FROM zon WHERE zon_cd = 'FRZ' ON CONFLICT (loc_cd) DO NOTHING;
 
+-- 피킹존 (biz_dvsn = PIKNG). 보관 로케이션은 존과 온도대가 같아야 하므로 온도대별로 하나씩 둔다.
+INSERT INTO zon (zon_cd, zon_nm, tmp_zon, strg_typ, biz_dvsn) VALUES ('PIK-DRY', '상온 피킹존', 'DRY', 'RACK', 'PIKNG') ON CONFLICT (zon_cd) DO NOTHING;
+INSERT INTO zon (zon_cd, zon_nm, tmp_zon, strg_typ, biz_dvsn) VALUES ('PIK-CHL', '냉장 피킹존', 'CHL', 'RACK', 'PIKNG') ON CONFLICT (zon_cd) DO NOTHING;
+INSERT INTO zon (zon_cd, zon_nm, tmp_zon, strg_typ, biz_dvsn) VALUES ('PIK-FRZ', '냉동 피킹존', 'FRZ', 'RACK', 'PIKNG') ON CONFLICT (zon_cd) DO NOTHING;
+
+-- 피킹 로케이션. pikng_prty 0 — 보관 로케이션(1~)보다 앞이라 FEFO 동순위에서 먼저 할당된다.
+-- ptawy_prty 9 — 적치 동선의 후순위. max_qty는 피킹 페이스답게 작게(200).
+INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, ptawy_prty, max_qty)
+SELECT 'PIK-DRY-01-01', zon_id, 'DRY', 'STORAGE', 0, 9, 200 FROM zon WHERE zon_cd = 'PIK-DRY' ON CONFLICT (loc_cd) DO NOTHING;
+INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, ptawy_prty, max_qty)
+SELECT 'PIK-DRY-01-02', zon_id, 'DRY', 'STORAGE', 0, 9, 200 FROM zon WHERE zon_cd = 'PIK-DRY' ON CONFLICT (loc_cd) DO NOTHING;
+INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, ptawy_prty, max_qty)
+SELECT 'PIK-CHL-01-01', zon_id, 'CHL', 'STORAGE', 0, 9, 200 FROM zon WHERE zon_cd = 'PIK-CHL' ON CONFLICT (loc_cd) DO NOTHING;
+INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, ptawy_prty, max_qty)
+SELECT 'PIK-FRZ-01-01', zon_id, 'FRZ', 'STORAGE', 0, 9, 200 FROM zon WHERE zon_cd = 'PIK-FRZ' ON CONFLICT (loc_cd) DO NOTHING;
+
+-- 고정 로케이션 마스터 (상품×로케이션). uq_fxng_loc(loc_id)로 멱등 — 한 로케이션 = 한 상품 전용.
+-- min/max는 보충 기준(미구현) — max는 loc.max_qty(200) 이하.
+INSERT INTO fxng_loc (prod_id, loc_id, min_qty, max_qty)
+SELECT p.prod_id, l.loc_id, 50, 200 FROM prod p, loc l
+WHERE p.prod_nm = '신라면 멀티팩 (5입)' AND l.loc_cd = 'PIK-DRY-01-01' ON CONFLICT (loc_id) DO NOTHING;
+INSERT INTO fxng_loc (prod_id, loc_id, min_qty, max_qty)
+SELECT p.prod_id, l.loc_id, 30, 200 FROM prod p, loc l
+WHERE p.prod_nm = '서울우유 1L' AND l.loc_cd = 'PIK-CHL-01-01' ON CONFLICT (loc_id) DO NOTHING;
+INSERT INTO fxng_loc (prod_id, loc_id, min_qty, max_qty)
+SELECT p.prod_id, l.loc_id, 20, 200 FROM prod p, loc l
+WHERE p.prod_nm = '왕교자 만두 1kg' AND l.loc_cd = 'PIK-FRZ-01-01' ON CONFLICT (loc_id) DO NOTHING;
+
 -- 벤더 (입고 거래처). 코드는 VendorService의 채번 규칙(VD-0001)을 따른다.
 INSERT INTO vendor (vndr_cd, vndr_nm, pic_nm, tel_no)
 VALUES ('VD-0001', '서울식품', '김상현', '02-1234-5601') ON CONFLICT (vndr_cd) DO NOTHING;

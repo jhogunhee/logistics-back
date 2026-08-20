@@ -299,6 +299,12 @@
   <td><code>/master/locs</code>, <code>/bulk</code>. 존 드롭다운은 존 마스터에서 조회(하드코딩 <code>ZONE_CODES</code> 제거). 보관 로케이션은 <strong>존의 온도구분</strong>과 온도대가 일치해야 한다</td>
 </tr>
 <tr>
+  <td class="name">고정 로케이션 관리</td>
+  <td>상품×로케이션 지정(한 로케이션 = 한 상품 전용) + 보충 기준(재보충점/보충 상한) 편집. 적치 전략 <code>FXNG_LOC</code> 방식의 후보 원천</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>/master/fxng-locs</code>, <code>/bulk</code>. 보관(STORAGE) 로케이션만 지정 가능, 상품·로케이션 온도대 일치, 보충 상한 ≤ 로케이션 최대 적재 수량. 보충 프로세스는 미구현 — min/max는 그 자리다</td>
+</tr>
+<tr>
   <td class="name">벤더 관리</td>
   <td>벤더코드/벤더명/담당자/연락처 편집. 벤더코드는 서버 채번(<code>VD-0001</code>)</td>
   <td class="st"><span class="badge done">구현</span></td>
@@ -387,9 +393,10 @@
 <tr><td>피킹</td><td><code>/outbound/picking</code></td><td><code>pages/outbound/Picking.jsx</code> — 발행 웨이브 + 지시(집품 동선 순) 2단, 수량 입력(기본 잔량)·일괄 피킹·실적 내역(<code>components/outbound/PikngAcrstModal.jsx</code>). 완료 행은 흐리게·체크 불가</td></tr>
 <tr><td>출고확정</td><td><code>/outbound/shipping</code></td><td>Placeholder</td></tr>
 
-<tr><td class="name" rowspan="4">마스터</td><td>상품 관리</td><td><code>/master/prod</code></td><td><code>pages/master/ProdMaster.jsx</code></td></tr>
+<tr><td class="name" rowspan="5">마스터</td><td>상품 관리</td><td><code>/master/prod</code></td><td><code>pages/master/ProdMaster.jsx</code></td></tr>
 <tr><td>존 관리</td><td><code>/master/zone</code></td><td><code>pages/master/ZonMaster.jsx</code></td></tr>
 <tr><td>로케이션 관리</td><td><code>/master/location</code></td><td><code>pages/master/LocMaster.jsx</code></td></tr>
+<tr><td>고정 로케이션 관리</td><td><code>/master/fxng-loc</code></td><td><code>pages/master/FxngLocMaster.jsx</code> — 상품×로케이션 지정 + 보충 기준(min/max)</td></tr>
 <tr><td>점포 관리</td><td><code>/master/store</code></td><td><code>pages/master/StoreMaster.jsx</code></td></tr>
 
 <tr><td class="name" rowspan="4">전략</td><td>검수 정책관리</td><td><code>/strategy/inspection</code></td><td><code>pages/strategy/InspectionPolicy.jsx</code> — 규칙 목록·미리보기·리비전</td></tr>

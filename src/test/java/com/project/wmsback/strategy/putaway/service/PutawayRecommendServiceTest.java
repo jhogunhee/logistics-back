@@ -87,13 +87,19 @@ class PutawayRecommendServiceTest {
     /** 보관 로케이션 1개의 재고 현황 픽스처 */
     private PutawayMethodContext.LocStock stock(long locId, String locCd, Long maxQty,
                                                 long occupiedQty, boolean hasProd, String bizDvsn) {
+        return stock(locId, locCd, maxQty, occupiedQty, hasProd, bizDvsn, false);
+    }
+
+    private PutawayMethodContext.LocStock stock(long locId, String locCd, Long maxQty,
+                                                long occupiedQty, boolean hasProd, String bizDvsn,
+                                                boolean hasFxng) {
         Loc loc = mock(Loc.class);
         when(loc.getId()).thenReturn(locId);
         when(loc.getLocCd()).thenReturn(locCd);
         when(loc.getMaxQty()).thenReturn(maxQty);
         when(loc.getPikngPrty()).thenReturn(0);
         when(loc.getPtawyPrty()).thenReturn(0);
-        return new PutawayMethodContext.LocStock(loc, occupiedQty, hasProd, bizDvsn);
+        return new PutawayMethodContext.LocStock(loc, occupiedQty, hasProd, bizDvsn, hasFxng);
     }
 
     private PtawyStgyDefinition def(boolean untSpltYn, PtawyStgyDefinition.StageDef... stages) {
@@ -185,6 +191,38 @@ class PutawayRecommendServiceTest {
                 stage("ANY_LOC", List.of(),
                         List.of(new FieldCondition("BIZ_DVSN", ConditionOperator.IN, List.of("STRG"))))), 10);
 
+        assertEquals(List.of("A"),
+                result.assignments().stream().map(PutawayRecommendResponse.Assignment::locCd).toList());
+    }
+
+    @Test
+    @DisplayName("고정로케이션 방식은 이 상품의 고정 로케이션만 후보로 한다 — 넘치면 다음 단계로 이월")
+    void fxngLocStageUsesOnlyFixedLocs() {
+        givenStocks(
+                stock(1L, "PIK", 50L, 0, false, "PIKNG", true),  // 고정 — 여유 50
+                stock(2L, "A", 100L, 0, false, "STRG"));         // 고정 아님
+
+        PutawayRecommendResponse result = preview(
+                def(false, stage("FXNG_LOC", List.of(), List.of()),
+                        stage("ANY_LOC", List.of(), List.of())), 80);
+
+        assertEquals(80, result.asgnQty());
+        assertEquals(List.of("PIK", "A"),
+                result.assignments().stream().map(PutawayRecommendResponse.Assignment::locCd).toList());
+        assertEquals(50, result.assignments().get(0).qty()); // 고정 로케이션도 상한은 loc.max_qty
+        assertEquals(30, result.assignments().get(1).qty());
+    }
+
+    @Test
+    @DisplayName("고정이 없는 상품은 고정로케이션 단계를 그냥 지나간다 — 다음 단계가 전량을 받는다")
+    void fxngLocStagePassesThroughWhenNoFixedLoc() {
+        givenStocks(stock(1L, "A", 100L, 0, false, "STRG"));
+
+        PutawayRecommendResponse result = preview(
+                def(false, stage("FXNG_LOC", List.of(), List.of()),
+                        stage("ANY_LOC", List.of(), List.of())), 10);
+
+        assertEquals(10, result.asgnQty());
         assertEquals(List.of("A"),
                 result.assignments().stream().map(PutawayRecommendResponse.Assignment::locCd).toList());
     }

@@ -11,12 +11,13 @@ import static com.project.wmsback.inventory.entity.QInv.inv;
 import static com.project.wmsback.inventory.entity.QInvHist.invHist;
 import static com.project.wmsback.inventory.entity.QInvMovTask.invMovTask;
 import static com.project.wmsback.inventory.entity.QInvStktkLn.invStktkLn;
+import static com.project.wmsback.warehouse.entity.QFxngLoc.fxngLoc;
 
 /**
  * 로케이션을 참조 중인 테이블이 있는지 확인하는 조회 — 로케이션 삭제·변경 가드가 쓴다.
  * <p>
  * FK가 0건이라 DB가 막아주지 않으므로 "누가 이 로케이션을 쓰는가"를 애플리케이션이 세야 하는데,
- * 그 목록(재고 · 이력 · 이동지시 · 적치지시 · 실사)을 <b>여기서만</b> 안다 — 서비스에 흩으면
+ * 그 목록(재고 · 이력 · 이동지시 · 적치지시 · 실사 · 고정 로케이션)을 <b>여기서만</b> 안다 — 서비스에 흩으면
  * 참조 테이블이 늘 때 확인을 빠뜨리기 쉽다. 참조 대상 엔티티들이 사는 곳이라 이 패키지에 둔다
  * ({@link LocCapacityQueryRepository}와 같은 배치).
  * <p>
@@ -45,6 +46,7 @@ public class LocRefQueryRepository {
         if (exists(invMovTask.fromLoc.id.eq(locId).or(invMovTask.toLoc.id.eq(locId)), invMovTask)) return "이동지시";
         if (exists(putawayTask.toLoc.id.eq(locId), putawayTask)) return "적치지시";
         if (exists(invStktkLn.loc.id.eq(locId), invStktkLn)) return "재고실사";
+        if (exists(fxngLoc.loc.id.eq(locId), fxngLoc)) return "고정 로케이션 마스터";
         return null;
     }
 

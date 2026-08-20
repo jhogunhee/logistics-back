@@ -7,6 +7,7 @@ import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.Zon;
 import com.project.wmsback.inventory.repository.LocCapacityQueryRepository;
 import com.project.wmsback.inventory.repository.LocRefQueryRepository;
+import com.project.wmsback.warehouse.repository.FxngLocRepository;
 import com.project.wmsback.warehouse.repository.LocRepository;
 import com.project.wmsback.warehouse.repository.ZonRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ public class LocService {
     private final ZonRepository zonRepository;
     private final LocCapacityQueryRepository locCapacityQueryRepository;
     private final LocRefQueryRepository locRefQueryRepository;
+    private final FxngLocRepository fxngLocRepository;
 
     public List<LocResponse> list(LocSearchCond cond) {
         return locRepository.search(cond).stream()
@@ -63,6 +65,11 @@ public class LocService {
         if (tmpZonOrTypChanges && locRefQueryRepository.existsInv(loc.getId())) {
             throw new IllegalArgumentException("재고가 있는 로케이션은 온도대·유형을 변경할 수 없습니다: " + loc.getLocCd());
         }
+        // 고정이 걸린 로케이션도 마찬가지다 — STORAGE·온도대 일치는 고정 등록(FxngLocSaveRequest)의 전제
+        if (tmpZonOrTypChanges && fxngLocRepository.existsByLoc(loc)) {
+            throw new IllegalArgumentException(
+                    "고정 로케이션 마스터에 등록된 로케이션은 온도대·유형을 변경할 수 없습니다: " + loc.getLocCd());
+        }
         // 사용량(현재고 + 미완료 지시 유입) 아래로 줄이면 적재가능수량이 음수가 되어 이동·적치 검증이 왜곡된다
         if (loc.getMaxQty() != null) {
             long used = locCapacityQueryRepository.onHandQty(loc.getId())
@@ -71,6 +78,14 @@ public class LocService {
                 throw new IllegalArgumentException(
                         "최대 적재 수량은 현재 사용량(%d) 이상이어야 합니다: %s".formatted(used, loc.getLocCd()));
             }
+            // 고정 등록이 지킨 「보충 상한 ≤ loc.max_qty」의 짝 — 여기서 안 막으면 불변식이 소리 없이 깨진다
+            fxngLocRepository.findByLoc(loc)
+                    .filter(fxng -> fxng.getMaxQty() > loc.getMaxQty())
+                    .ifPresent(fxng -> {
+                        throw new IllegalArgumentException(
+                                "최대 적재 수량은 고정 로케이션의 보충 상한(%d) 이상이어야 합니다: %s"
+                                        .formatted(fxng.getMaxQty(), loc.getLocCd()));
+                    });
         }
     }
 

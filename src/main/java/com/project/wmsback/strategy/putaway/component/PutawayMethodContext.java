@@ -16,7 +16,8 @@ public record PutawayMethodContext(Prod prod, List<LocStock> storageLocs) {
      * @param occupiedQty 이 로케이션의 전체 상품 보유 수량 합 (점유)
      * @param hasProd     같은 상품 재고(on_hand>0)가 이미 있는지
      * @param bizDvsn     소속 존의 업무유형 (zon.biz_dvsn — BizDvsn enum name). 존 미등록이면 null
+     * @param hasFxng     이 로케이션이 해당 상품의 고정 로케이션(fxng_loc)인지
      */
-    public record LocStock(Loc loc, long occupiedQty, boolean hasProd, String bizDvsn) {
+    public record LocStock(Loc loc, long occupiedQty, boolean hasProd, String bizDvsn, boolean hasFxng) {
     }
 }

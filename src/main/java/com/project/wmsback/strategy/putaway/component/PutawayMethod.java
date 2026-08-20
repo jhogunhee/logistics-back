@@ -11,6 +11,15 @@ import java.util.Optional;
  */
 public enum PutawayMethod {
 
+    /** 이 상품의 고정 로케이션(fxng_loc)을 후보로 */
+    FXNG_LOC("고정로케이션",
+            "이 상품의 고정 로케이션에 적치합니다. 피킹존 운영의 첫 단계 — 고정이 없는 상품은 다음 단계로 넘어갑니다.") {
+        @Override
+        public List<PutawayMethodContext.LocStock> candidates(PutawayMethodContext ctx) {
+            return ctx.storageLocs().stream().filter(PutawayMethodContext.LocStock::hasFxng).toList();
+        }
+    },
+
     /** 같은 상품 재고(on_hand>0)가 이미 있는 보관 로케이션을 후보로 */
     SAME_PROD_LOC("적재로케이션",
             "같은 상품의 재고가 이미 있는 보관 로케이션에 합쳐 적치합니다. 로케이션 파편화를 줄일 때 앞 단계로 둡니다.") {
