@@ -7,8 +7,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 /**
- * 사유코드 검증 — 보류 등록/해제·재고조사 조정·Lot 속성 정정이 같은 규칙을 공유한다:
- * 그룹에 존재해야 하고, ETC(기타)일 때만 텍스트 필수·그 외에는 무시(null 저장).
+ * 사유코드 검증 — 보류 등록/해제·재고조사 조정·Lot 속성 정정·피킹 결품 종결이 같은 규칙을
+ * 공유한다: 그룹에 존재해야 하고, ETC(기타)일 때만 텍스트 필수·그 외에는 무시(null 저장).
  */
 @Component
 @RequiredArgsConstructor

@@ -67,4 +67,40 @@ class PikngTaskTest {
         cancelled.cancel();
         assertThrows(IllegalStateException.class, cancelled::cancel);
     }
+
+    @Test
+    @DisplayName("결품 종결은 지시수량을 실적까지 낮춰 DONE으로 닫고 결품수량·사유를 남긴다")
+    void closeShortLowersDirectedQty() {
+        PikngTask task = task(30);
+        task.execute(25);
+
+        task.closeShort("NOSTOCK", null);
+
+        assertEquals(25, task.getDrctQty());
+        assertEquals(25, task.getCmplQty());
+        assertEquals(0, task.remainingQty());
+        assertEquals(5, task.getShotgeQty());
+        assertEquals("NOSTOCK", task.getShotgeRsnCd());
+        assertEquals(PikngTaskStatus.DONE, task.getStatus());
+        assertNotNull(task.getCmplDt());
+    }
+
+    @Test
+    @DisplayName("실적 0은 결품 종결이 아니라 지시취소 대상 — 두 경로가 겹치지 않는다")
+    void closeShortRequiresResult() {
+        PikngTask untouched = task(30);
+        assertThrows(IllegalStateException.class, () -> untouched.closeShort("NOSTOCK", null));
+    }
+
+    @Test
+    @DisplayName("완료·취소된 지시는 결품 종결할 수 없다")
+    void closeShortRejectsNonDirected() {
+        PikngTask done = task(10);
+        done.execute(10);
+        assertThrows(IllegalStateException.class, () -> done.closeShort("NOSTOCK", null));
+
+        PikngTask cancelled = task(10);
+        cancelled.cancel();
+        assertThrows(IllegalStateException.class, () -> cancelled.closeShort("NOSTOCK", null));
+    }
 }

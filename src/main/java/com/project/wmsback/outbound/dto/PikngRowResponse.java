@@ -25,12 +25,17 @@ public record PikngRowResponse(
         long drctQty,
         long cmplQty,
         long remainQty,
-        PikngTaskStatus status
+        PikngTaskStatus status,
+        /** 결품 수량 (결품 종결로 포기한 잔량). 종결되지 않은 지시는 null */
+        Long shotgeQty,
+        /** 결품 사유 코드. 채워져 있으면 결품 종결로 닫힌 지시다 — 전량 집품 DONE과 구분된다 */
+        String shotgeRsnCd
 ) {
     public static PikngRowResponse of(Long taskId, Integer srtSeq, Long allocId, String outbNo, String storeNm,
                                       String prodCd, String prodNm, String locCd, String lotNo,
-                                      LocalDate expiryDt, long drctQty, long cmplQty, PikngTaskStatus status) {
+                                      LocalDate expiryDt, long drctQty, long cmplQty, PikngTaskStatus status,
+                                      Long shotgeQty, String shotgeRsnCd) {
         return new PikngRowResponse(taskId, srtSeq, allocId, outbNo, storeNm, prodCd, prodNm,
-                locCd, lotNo, expiryDt, drctQty, cmplQty, drctQty - cmplQty, status);
+                locCd, lotNo, expiryDt, drctQty, cmplQty, drctQty - cmplQty, status, shotgeQty, shotgeRsnCd);
     }
 }

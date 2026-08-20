@@ -9,6 +9,11 @@ import com.project.wmsback.inventory.repository.InvHistRepository;
 import com.project.wmsback.inventory.repository.InvRepository;
 import com.project.wmsback.inventory.service.InvLockKey;
 import com.project.wmsback.inventory.service.InvStore;
+import com.project.wmsback.inventory.service.RsnValidator;
+import com.project.mdm.code.entity.CodeDetailId;
+import com.project.mdm.code.repository.CodeDetailRepository;
+import com.project.wmsback.outbound.dto.PikngCloseShortRequest;
+import com.project.wmsback.outbound.dto.PikngCloseShortResponse;
 import com.project.wmsback.outbound.dto.PikngExecuteRequest;
 import com.project.wmsback.outbound.dto.PikngExecuteResponse;
 import com.project.wmsback.outbound.entity.OutbAlloc;
@@ -71,6 +76,7 @@ class PikngServiceTest {
     @Mock LocRepository locRepository;
     @Mock InvRepository invRepository;
     @Mock InvHistRepository invHistRepository;
+    @Mock CodeDetailRepository codeDetailRepository;
 
     // 재고 쓰기 포트는 목이 아니라 실물을 쓴다 — 예약 소진·실물 이동이 검증 대상이기 때문
     private PikngService pikngService;
@@ -85,7 +91,8 @@ class PikngServiceTest {
     @BeforeEach
     void setUp() {
         pikngService = new PikngService(pikngTaskRepository, pikngAcrstRepository, outbAllocRepository,
-                outbWaveRepository, locRepository, new InvStore(invRepository, invHistRepository));
+                outbWaveRepository, locRepository, new InvStore(invRepository, invHistRepository),
+                new RsnValidator(codeDetailRepository));
 
         invById.clear();
         createdInvs.clear();
@@ -124,6 +131,7 @@ class PikngServiceTest {
             }
             return rows;
         });
+        when(codeDetailRepository.existsById(any(CodeDetailId.class))).thenReturn(true);
         when(invRepository.findByKeyForUpdate(any(), any(), any()))
                 .thenAnswer(i -> invById.values().stream()
                         .filter(candidate -> candidate.getProd().getId().equals(i.getArgument(0))
@@ -218,6 +226,65 @@ class PikngServiceTest {
                 () -> pikngService.execute(execute(item(1L, 0L))));
     }
 
+    // ── 결품 종결 ─────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("결품 종결 — 잔량만큼 예약을 풀고 지시·할당을 실적까지 낮춰 닫는다")
+    void closeShortReleasesReservationAndClosesTask() {
+        PikngTask task = task(1L, 30, 100);
+        // 실행 시엔 잔량 5가 남아 주문이 PICKING, 종결 뒤엔 소진돼 PICKED가 된다
+        when(outbAllocRepository.countUnpickedByOrderId(anyLong())).thenReturn(1L, 0L);
+        pikngService.execute(execute(item(1L, 25L)));
+        Inv storage = task.getOutbAlloc().getInv();
+        // 25만 나갔고 실물 없는 5가 예약으로 남아 있다 — 이 상태가 곧 교착이었다
+        assertEquals(75, storage.getOnHandQty());
+        assertEquals(5, storage.getAlocQty());
+        assertEquals(OutbStatus.PICKING, task.getOutbAlloc().getOutbLine().getOutbOrder().getStatus());
+
+        PikngCloseShortResponse response = pikngService.closeShort(closeShort(shortItem(1L, "NOSTOCK", null)));
+
+        // 예약만 풀린다 — 실물(on_hand)은 건드리지 않는다 (장부를 줄이는 경로는 재고조사뿐)
+        assertEquals(75, storage.getOnHandQty());
+        assertEquals(0, storage.getAlocQty());
+        // 지시·할당이 실적까지 내려와 항등식(drct = aloc, cmpl = pikng)이 유지된다
+        assertEquals(25, task.getDrctQty());
+        assertEquals(25, task.getCmplQty());
+        assertEquals(25, task.getOutbAlloc().getAlocQty());
+        assertEquals(25, task.getOutbAlloc().getPikngQty());
+        assertEquals(PikngTaskStatus.DONE, task.getStatus());
+        // 결품수량·사유는 종결 후 파생이 불가능해 컬럼으로 남는다
+        assertEquals(5, task.getShotgeQty());
+        assertEquals("NOSTOCK", task.getShotgeRsnCd());
+        assertEquals(5, response.shotgeQty());
+        // 남은 할당이 소진돼 주문이 PICKED로 닫힌다
+        assertEquals(OutbStatus.PICKED, task.getOutbAlloc().getOutbLine().getOutbOrder().getStatus());
+        assertEquals(1, response.orderChanges().size());
+    }
+
+    @Test
+    @DisplayName("실적이 없는 지시는 결품 종결이 아니라 지시취소 대상이다")
+    void closeShortRejectsUntouchedTask() {
+        PikngTask task = task(1L, 30, 100);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> pikngService.closeShort(closeShort(shortItem(1L, "NOSTOCK", null))));
+
+        assertEquals(30, task.getOutbAlloc().getInv().getAlocQty());
+    }
+
+    @Test
+    @DisplayName("결품사유 없이는 종결할 수 없다 — 잔량을 없앤 근거가 남지 않는다")
+    void closeShortRequiresReason() {
+        PikngTask task = task(1L, 30, 100);
+        when(outbAllocRepository.countUnpickedByOrderId(anyLong())).thenReturn(1L);
+        pikngService.execute(execute(item(1L, 25L)));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> pikngService.closeShort(closeShort(shortItem(1L, null, null))));
+
+        assertEquals(5, task.getOutbAlloc().getInv().getAlocQty());
+    }
+
     // ── 픽스처 ───────────────────────────────────────────────────────────────
 
     /** 지시 + 할당 + 보관 재고 한 벌. 재고는 지시수량만큼 예약된 상태로 만든다 */
@@ -268,6 +335,20 @@ class PikngServiceTest {
         PikngExecuteRequest.Item created = new PikngExecuteRequest.Item();
         created.setPikngTaskId(taskId);
         created.setQty(qty);
+        return created;
+    }
+
+    private PikngCloseShortRequest closeShort(PikngCloseShortRequest.Item... items) {
+        PikngCloseShortRequest request = new PikngCloseShortRequest();
+        request.setItems(List.of(items));
+        return request;
+    }
+
+    private PikngCloseShortRequest.Item shortItem(long taskId, String rsnCd, String rsnDscr) {
+        PikngCloseShortRequest.Item created = new PikngCloseShortRequest.Item();
+        created.setPikngTaskId(taskId);
+        created.setRsnCd(rsnCd);
+        created.setRsnDscr(rsnDscr);
         return created;
     }
 

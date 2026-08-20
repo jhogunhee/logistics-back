@@ -370,6 +370,8 @@ INSERT INTO code_group (grp_cd, grp_nm, dscr) VALUES
 INSERT INTO code_group (grp_cd, grp_nm, dscr) VALUES
     ('HLD_RSN', '보류사유', '재고 보류 등록 사유 (inv_hld.rsn_cd). ETC(기타)일 때만 자유 텍스트 rsn_dscr를 받는다');
 INSERT INTO code_group (grp_cd, grp_nm, dscr) VALUES
+    ('SHOTGE_RSN', '결품사유', '피킹 결품 종결 사유 (pikng_task.shotge_rsn_cd). 시킨 만큼 실물이 없어 잔량을 포기할 때의 근거다. ETC(기타)일 때만 자유 텍스트 shotge_rsn_dscr를 받는다');
+INSERT INTO code_group (grp_cd, grp_nm, dscr) VALUES
     ('HLD_RLZ_RSN', '보류 해제사유', '재고 보류 해제 사유 (inv_hld_rlz_acrst.rsn_cd). 등록 사유와 별개 그룹 — 「왜 묶었나」와 「왜 풀었나」는 다른 질문이다. ETC(기타)일 때만 자유 텍스트 rsn_dscr를 받는다');
 INSERT INTO code_group (grp_cd, grp_nm, dscr) VALUES
     ('ADJ_RSN', '재고조정 사유', '재고조사 확정 시 차이 라인의 조정 사유 (inv_stktk_ln.rsn_cd). 차이가 0이 아닌 라인만 필수이며, ETC(기타)일 때만 자유 텍스트 rsn_dscr를 받는다');
@@ -444,6 +446,10 @@ INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('STORE_TYP',
 
 -- 보류사유·해제사유. ETC(기타)는 「코드가 기타면 자유 텍스트 입력」 규칙이 걸리는 값이라 지우면 안 된다.
 -- 코드는 분류 축일 뿐 병존 단위가 아니다 — 같은 재고 행에 같은 사유의 미해제 보류가 여러 건 있을 수 있다.
+INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('SHOTGE_RSN', 'NOSTOCK', '재고없음', 1);
+INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('SHOTGE_RSN', 'DAMG', '파손', 2);
+INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('SHOTGE_RSN', 'MISLOC', '위치오류', 3);
+INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('SHOTGE_RSN', 'ETC', '기타', 4);
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('HLD_RSN', 'QLTY', '품질이상', 1);
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('HLD_RSN', 'DAMG', '파손', 2);
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('HLD_RSN', 'EXPIRY', '유통기한', 3);
@@ -1222,13 +1228,19 @@ CREATE TABLE pikng_task (
     status        VARCHAR(15) NOT NULL,
     srt_seq       INT         NOT NULL,
     cmpl_dt       TIMESTAMP,
+    shotge_qty      BIGINT,
+    shotge_rsn_cd   VARCHAR(10),
+    shotge_rsn_dscr VARCHAR(200),
     created_at    TIMESTAMP   DEFAULT CURRENT_TIMESTAMP NOT NULL,
     created_by    VARCHAR(30) DEFAULT 'admin' NOT NULL,
     updated_at    TIMESTAMP,
     updated_by    VARCHAR(30),
     CONSTRAINT ck_pikng_task_status CHECK (status IN ('DIRECTED', 'DONE', 'CANCELLED')),
     -- 지시 초과 실행을 DB가 거부한다 (ck_ptawy_task_qty·ck_inv_mov_qty와 같은 방어)
-    CONSTRAINT ck_pikng_task_qty CHECK (drct_qty > 0 AND cmpl_qty >= 0 AND cmpl_qty <= drct_qty)
+    CONSTRAINT ck_pikng_task_qty CHECK (drct_qty > 0 AND cmpl_qty >= 0 AND cmpl_qty <= drct_qty),
+    -- 결품 수량과 사유는 짝으로만 존재한다 — 한쪽만 있으면 「왜 사라졌나」와 「얼마나 사라졌나」 중 하나를 잃는다
+    CONSTRAINT ck_pikng_task_shotge CHECK ((shotge_qty IS NULL) = (shotge_rsn_cd IS NULL)
+                                           AND (shotge_qty IS NULL OR shotge_qty > 0))
 );
 
 COMMENT ON TABLE  pikng_task IS '피킹 지시. putaway_task·inv_mov_task와 동등한 위치의 작업지시 문서 — 웨이브 발행 시 outb_alloc과 1:1로 생성된다(상품별 집약 없음). 등록은 예약을 만들지 않는다 — 예약은 할당이 이미 잡았고 실행(PICK)이 소진한다. 발행·취소는 웨이브 단위(웨이브가 발행 문서)';
@@ -1237,11 +1249,14 @@ COMMENT ON COLUMN pikng_task.outb_alloc_id IS '지시의 근거 할당 — 1:1 (
 COMMENT ON COLUMN pikng_task.prod_id       IS '재고 키 스냅샷. alloc → inv 조인으로도 얻지만 inv 행은 수량 0이 되면 삭제된다 — 완료된 지시의 표시를 위해 직접 담는다 (inv_hist·inv_mov_task와 같은 형태)';
 COMMENT ON COLUMN pikng_task.from_loc_id   IS '집품 로케이션 = 할당된 재고의 로케이션 스냅샷. TO는 SHIP-STAGE 고정이라 컬럼으로 두지 않는다 (putaway_task가 FROM을 두지 않는 것의 거울상)';
 COMMENT ON COLUMN pikng_task.lot_id        IS '집품 Lot 스냅샷 (Lot 행은 삭제되지 않는다)';
-COMMENT ON COLUMN pikng_task.drct_qty      IS '지시 수량 = 발행 시점의 aloc_qty. 발행 후 재할당·해제가 막혀 항등식 drct_qty = aloc_qty가 유지된다';
+COMMENT ON COLUMN pikng_task.drct_qty      IS '지시 수량 = 발행 시점의 aloc_qty. 발행 후 재할당·해제가 막혀 항등식 drct_qty = aloc_qty가 유지된다. 결품 종결은 이 값과 outb_alloc.aloc_qty를 같이 cmpl_qty까지 낮추므로 항등식이 그대로 성립한다';
 COMMENT ON COLUMN pikng_task.cmpl_qty      IS '실행(PICK) 완료 수량 누계. 부분 피킹 허용 — drct_qty에 도달하면 DONE. 항등식: cmpl_qty = outb_alloc.pikng_qty = SUM(pikng_acrst.pikng_qty)';
-COMMENT ON COLUMN pikng_task.status        IS 'DIRECTED 지시(부분 실행 포함) / DONE 완료 / CANCELLED 취소(웨이브 단위 지시취소, cmpl_qty=0일 때만). 「진행」 같은 부분 상태는 두지 않는다 — 진행도는 수량 파생';
+COMMENT ON COLUMN pikng_task.status        IS 'DIRECTED 지시(부분 실행 포함) / DONE 완료 — 전량 집품 또는 결품 종결(shotge_rsn_cd로 구분) / CANCELLED 취소(웨이브 단위 지시취소, cmpl_qty=0일 때만). 「진행」 같은 부분 상태는 두지 않는다 — 진행도는 수량 파생';
 COMMENT ON COLUMN pikng_task.srt_seq       IS '집품 순서 (웨이브 내 1..N). 발행 시점에 loc.pikng_prty → loc_cd → outb_alloc_id 순으로 고정한 스냅샷 — 작업 중 마스터가 바뀌어도 리스트 순서가 흔들리지 않는다';
 COMMENT ON COLUMN pikng_task.cmpl_dt       IS '지시 완료 시각 (DONE 전이 시점)';
+COMMENT ON COLUMN pikng_task.shotge_qty      IS '결품 수량 — 결품 종결(closeShort)이 포기한 잔량. 종결이 drct_qty를 cmpl_qty까지 낮추므로 종결 후에는 원래 지시수량이 남지 않아 파생시킬 수 없다. DONE 이후 값이 바뀌지 않는 사실 컬럼이다';
+COMMENT ON COLUMN pikng_task.shotge_rsn_cd   IS '결품 사유 코드 (공통코드 SHOTGE_RSN). 결품 종결로 닫힌 지시에만 채워진다 — 전량 집품으로 DONE이 된 지시는 NULL이라 이 컬럼의 유무가 곧 결품 여부다';
+COMMENT ON COLUMN pikng_task.shotge_rsn_dscr IS '기타 결품사유 텍스트. shotge_rsn_cd = ETC일 때만 사용 (inv_hld.rsn_dscr과 같은 규칙)';
 
 -- 지시 = 할당 1:1의 물리적 강제. 취소(CANCELLED) 행은 이력으로 남으므로 살아 있는 행만 센다 —
 -- 취소 후 재발행이 같은 할당에 새 지시를 만드는 경로를 열어두면서 이중 발행은 거부한다

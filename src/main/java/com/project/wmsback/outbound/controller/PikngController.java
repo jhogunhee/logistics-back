@@ -2,6 +2,8 @@ package com.project.wmsback.outbound.controller;
 
 import com.project.wmsback.outbound.dto.PickingSearchCond;
 import com.project.wmsback.outbound.dto.PickingWaveResponse;
+import com.project.wmsback.outbound.dto.PikngCloseShortRequest;
+import com.project.wmsback.outbound.dto.PikngCloseShortResponse;
 import com.project.wmsback.outbound.dto.PikngExecuteRequest;
 import com.project.wmsback.outbound.dto.PikngExecuteResponse;
 import com.project.wmsback.outbound.service.PikngService;
@@ -34,5 +36,15 @@ public class PikngController {
     @PostMapping("/outbound/picking/execute")
     public PikngExecuteResponse execute(@RequestBody PikngExecuteRequest request) {
         return pikngService.execute(request);
+    }
+
+    /**
+     * 결품 종결 — 끝내 못 집은 잔량을 결품으로 닫고 그만큼의 예약을 푼다.
+     * 실행과 같은 화면에서 같은 지시 행을 대상으로 하고, 실적이 있는 지시만 대상이다
+     * (실적 0은 웨이브 지시취소가 덮는다).
+     */
+    @PostMapping("/outbound/picking/close-short")
+    public PikngCloseShortResponse closeShort(@RequestBody PikngCloseShortRequest request) {
+        return pikngService.closeShort(request);
     }
 }

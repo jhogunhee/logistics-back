@@ -72,7 +72,11 @@ public class PikngTask extends BaseEntity {
     @JoinColumn(name = "lot_id", nullable = false)
     private Lot lot;
 
-    /** 지시 수량 = 발행 시점의 aloc_qty. 발행 후 재할당·해제가 막혀 항등식이 유지된다 */
+    /**
+     * 지시 수량 = 발행 시점의 aloc_qty. 발행 후 재할당·해제가 막혀 항등식이 유지된다.
+     * {@link #closeShort}만 이 값을 낮추며, 그때 {@code outb_alloc.aloc_qty}도 같은 값으로
+     * 함께 내려가므로 항등식은 그대로다.
+     */
     @Column(name = "drct_qty", nullable = false)
     private Long drctQty;
 
@@ -91,6 +95,25 @@ public class PikngTask extends BaseEntity {
     /** 지시 완료 시각 (DONE 전이 시점) */
     @Column(name = "cmpl_dt")
     private LocalDateTime cmplDt;
+
+    /**
+     * 결품 수량 — {@link #closeShort}가 포기한 잔량. 종결이 {@code drct_qty}를 실적까지 낮추므로
+     * <b>종결 후에는 어디에서도 파생시킬 수 없다</b>(원래 지시수량이 남지 않는다). 그래서 컬럼으로 둔다 —
+     * 「저장은 파생 불가능한 것만」의 대상이고, DONE 이후 값이 바뀌지 않아 캐시가 아니라 사실이다.
+     */
+    @Column(name = "shotge_qty")
+    private Long shotgeQty;
+
+    /**
+     * 결품 사유 코드 (공통코드 SHOTGE_RSN). {@link #closeShort}로 닫힌 지시에만 채워진다 —
+     * 전량 집품으로 DONE이 된 지시는 NULL이라, 이 컬럼의 유무가 곧 결품 여부다.
+     */
+    @Column(name = "shotge_rsn_cd", length = 10)
+    private String shotgeRsnCd;
+
+    /** 기타 결품사유 텍스트. shotgeRsnCd = ETC일 때만 사용 (inv_hld.rsn_dscr과 같은 규칙) */
+    @Column(name = "shotge_rsn_dscr", length = 200)
+    private String shotgeRsnDscr;
 
     @Builder
     private PikngTask(OutbWave wave, OutbAlloc outbAlloc, Prod prod, Loc fromLoc, Lot lot,
@@ -121,9 +144,35 @@ public class PikngTask extends BaseEntity {
     }
 
     /**
+     * 결품 종결 — <b>지시수량을 실적수량까지 낮춰 DONE으로 닫는다.</b> 시킨 만큼 실물이 없어
+     * 잔량을 끝내 집을 수 없을 때의 유일한 출구다. {@code InvMovTask.cancelRemainder()}의
+     * 부분확정 분기와 같은 조작이고, 예약 해제는 서비스가 함께 한다.
+     *
+     * <p><b>실적이 있을 때만 연다</b>({@code cmplQty > 0}). 실적 0인 지시는 웨이브 단위
+     * {@link #cancel()}이 이미 덮으므로 여기서 또 열면 살아 있는 지시가 없는 ISSUED 웨이브가
+     * 남고, 주문도 아직 ALLOCATED라 피킹완료 전이가 성립하지 않는다.
+     *
+     * <p>결품사유는 필수다 — 잔량을 없앤 근거가 이 컬럼 말고는 어디에도 남지 않는다.
+     */
+    public void closeShort(String rsnCd, String rsnDscr) {
+        if (status != PikngTaskStatus.DIRECTED) {
+            throw new IllegalStateException("지시 상태에서만 결품 종결할 수 있습니다 (" + status.getLabel() + ")");
+        }
+        if (cmplQty == 0L) {
+            throw new IllegalStateException("피킹 실적이 없는 지시는 결품 종결이 아니라 지시취소 대상입니다");
+        }
+        this.shotgeQty = remainingQty();
+        this.drctQty = this.cmplQty;
+        this.shotgeRsnCd = rsnCd;
+        this.shotgeRsnDscr = rsnDscr;
+        this.status = PikngTaskStatus.DONE;
+        this.cmplDt = LocalDateTime.now();
+    }
+
+    /**
      * 지시 취소 (행 보존 — CANCELLED 전이). 웨이브 단위 지시취소가 웨이브의 살아 있는 지시
-     * 전량에 대해 호출한다. 실행 실적이 있으면 취소하지 않는다 — 피킹 실적 취소(역방향 이동)는
-     * v1 미지원이라 실적 위의 지시도 물릴 수 없다.
+     * 전량에 대해 호출한다. 실행 실적이 있으면 취소하지 않는다 — 실적이 남은 지시를 닫는 것은
+     * {@link #closeShort}의 몫이다(취소가 아니라 결품 종결).
      */
     public void cancel() {
         if (status != PikngTaskStatus.DIRECTED) {

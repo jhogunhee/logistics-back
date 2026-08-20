@@ -92,6 +92,25 @@ public class OutbAlloc extends BaseEntity {
     }
 
     /**
+     * 결품 종결 — <b>할당수량을 실제 피킹수량까지 낮춘다.</b> 지시 쪽
+     * {@code PikngTask.closeShort()}와 한 트랜잭션에서 짝으로 호출된다.
+     *
+     * <p>이동지시와 갈리는 유일한 지점이다 — 이동지시는 예약을 지시 자신이 들고 있어
+     * {@code drct_qty}만 낮추면 끝나지만, 피킹은 <b>예약의 주인이 이 행</b>이다. 여기를 안 낮추면
+     * 「30 줘야 하는데 25만 줬다」가 남아 {@code countUnpickedByOrderId}가 계속 1을 세고
+     * 주문이 영영 PICKING에 머문다.
+     *
+     * <p>{@code pikng_qty = 0}이면 결품 종결이 아니라 지시취소 대상이다 — 낮추면
+     * {@code ck_aloc_qty(aloc_qty > 0)}도 깨진다.
+     */
+    public void closeShort() {
+        if (pikngQty == 0L) {
+            throw new IllegalStateException("피킹 실적이 없는 할당은 결품 종결할 수 없습니다 (할당 " + alocQty + ")");
+        }
+        this.alocQty = this.pikngQty;
+    }
+
+    /**
      * 피킹 실적 누적 — 이 메서드가 유일한 증가 경로다. {@link #releasable()}과 할당해제 가드가
      * 이 값을 보므로, 다른 경로가 생기면 판정이 갈라진다. 항등식
      * {@code pikng_qty = pikng_task.cmpl_qty = SUM(pikng_acrst.pikng_qty)}의 주문 도메인 쪽 축이고,

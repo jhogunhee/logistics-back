@@ -121,7 +121,7 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
                     row.get(outbOrder.outbNo), row.get(outbOrder.store.storeNm),
                     row.get(outbLine.prod.prodCd), row.get(outbLine.prod.prodNm),
                     row.get(inv.loc.locCd), row.get(inv.lot.lotNo), row.get(inv.lot.expiryDt),
-                    orZero(row.get(outbAlloc.alocQty)), orZero(row.get(outbAlloc.pikngQty)), null));
+                    orZero(row.get(outbAlloc.alocQty)), orZero(row.get(outbAlloc.pikngQty)), null, null, null));
         }
         return result;
     }
@@ -133,7 +133,7 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
                         outbOrder.outbNo, outbOrder.store.storeNm,
                         pikngTask.prod.prodCd, pikngTask.prod.prodNm,
                         pikngTask.fromLoc.locCd, pikngTask.lot.lotNo, pikngTask.lot.expiryDt,
-                        pikngTask.drctQty, pikngTask.cmplQty, pikngTask.status)
+                        pikngTask.drctQty, pikngTask.cmplQty, pikngTask.status, pikngTask.shotgeQty, pikngTask.shotgeRsnCd)
                 .from(pikngTask)
                 .join(pikngTask.outbAlloc, outbAlloc)
                 .join(outbAlloc.outbLine, outbLine)
@@ -150,7 +150,7 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
                     row.get(pikngTask.prod.prodCd), row.get(pikngTask.prod.prodNm),
                     row.get(pikngTask.fromLoc.locCd), row.get(pikngTask.lot.lotNo), row.get(pikngTask.lot.expiryDt),
                     orZero(row.get(pikngTask.drctQty)), orZero(row.get(pikngTask.cmplQty)),
-                    row.get(pikngTask.status)));
+                    row.get(pikngTask.status), row.get(pikngTask.shotgeQty), row.get(pikngTask.shotgeRsnCd)));
         }
         return result;
     }

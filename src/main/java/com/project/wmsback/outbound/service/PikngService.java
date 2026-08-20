@@ -4,8 +4,11 @@ import com.project.wmsback.inventory.entity.Inv;
 import com.project.wmsback.inventory.entity.RefDocTyp;
 import com.project.wmsback.inventory.service.InvDocRef;
 import com.project.wmsback.inventory.service.InvStore;
+import com.project.wmsback.inventory.service.RsnValidator;
 import com.project.wmsback.outbound.dto.PickingSearchCond;
 import com.project.wmsback.outbound.dto.PickingWaveResponse;
+import com.project.wmsback.outbound.dto.PikngCloseShortRequest;
+import com.project.wmsback.outbound.dto.PikngCloseShortResponse;
 import com.project.wmsback.outbound.dto.PikngExecuteRequest;
 import com.project.wmsback.outbound.dto.PikngExecuteResponse;
 import com.project.wmsback.outbound.entity.OutbAlloc;
@@ -39,9 +42,11 @@ import java.util.Set;
  * <p>행마다 부분 수량을 허용하고(잔량은 재피킹으로 소진) 요청은 <b>한 트랜잭션</b>이다 —
  * 한 행이라도 걸리면 전량 롤백된다 (이동확정과 같은 판단).
  *
- * <p><b>지시 잔량은 항상 피킹 가능하다</b> — 할당이 {@code inv.aloc_qty}로 재고를 선점했고
- * {@code ck_inv_qty(aloc + hld <= on_hand)}가 예약분의 실물 존재를 보장하므로, 참고 시스템처럼
- * 잔량을 실재고와 비교해 줄여 보여줄 필요가 없다.
+ * <p><b>장부상 잔량은 항상 예약돼 있지만, 선반에 실물이 있다는 보장은 아니다.</b>
+ * {@code ck_inv_qty(aloc + hld <= on_hand)}가 지키는 것은 「장부에 그렇게 적혀 있다」이고,
+ * 장부와 실물이 어긋나는 것 자체가 창고의 일상이다. 그래서 잔량을 실재고와 비교해 줄여
+ * 보여주지는 않되(예약이 이미 그 자리를 잡고 있다), 끝내 못 집은 잔량을 닫는 출구로
+ * {@link #closeShort}를 둔다.
  *
  * <p>실행 1회마다 세 곳을 함께 갱신한다 — 항등식
  * {@code pikng_task.cmpl_qty = outb_alloc.pikng_qty = SUM(pikng_acrst.pikng_qty)}
@@ -58,12 +63,16 @@ public class PikngService {
      */
     private static final String SHIP_STAGING_LOC_CD = "SHIP-STAGE";
 
+    /** 결품사유 공통코드 그룹. 보류·조정 사유와 같은 형태(ETC일 때만 자유 텍스트) */
+    private static final String SHOTGE_RSN_GRP_CD = "SHOTGE_RSN";
+
     private final PikngTaskRepository pikngTaskRepository;
     private final PikngAcrstRepository pikngAcrstRepository;
     private final OutbAllocRepository outbAllocRepository;
     private final OutbWaveRepository outbWaveRepository;
     private final LocRepository locRepository;
     private final InvStore invStore;
+    private final RsnValidator rsnValidator;
 
     // ── 조회 ─────────────────────────────────────────────────────────────────
 
@@ -156,6 +165,120 @@ public class PikngService {
             }
         }
         return new PikngExecuteResponse(tasks.size(), totalQty, doneCount, changes);
+    }
+
+    // ── 결품 종결 ─────────────────────────────────────────────────────────────
+
+    /**
+     * 결품 종결 — <b>시킨 만큼 실물이 없어 끝내 못 집은 잔량을 결품으로 닫고, 그만큼의 예약을 푼다.</b>
+     *
+     * <p>이 경로가 없으면 「30 지시 / 25 집품 / 5는 영영 안 나옴」이 빠져나갈 문이 하나도 없다 —
+     * 지시는 {@code cmpl != drct}라 DONE이 못 되고, 실적이 있어 취소도 안 되고, 할당해제는
+     * {@code pikng_qty = 0}만 열리고, 재고조사는 예약을 먼저 풀라고 하고, 주문은 전 할당이
+     * 소진되지 않아 PICKED가 못 된다. 실물 없는 예약이 영구히 남아 다른 주문도 그 재고를 못 쓴다.
+     *
+     * <p>한 트랜잭션에서 네 곳이 함께 움직인다 — {@code inv.aloc_qty} 반환 ·
+     * {@code outb_alloc.aloc_qty} 하향 · {@code pikng_task.drct_qty} 하향 + DONE ·
+     * 주문 상태 재산출. 항등식({@code drct_qty = aloc_qty} / {@code cmpl_qty = pikng_qty})은
+     * 양쪽을 같은 값으로 낮추므로 그대로 유지된다.
+     *
+     * <p><b>실물 없는 장부 수량은 여기서 건드리지 않는다.</b> 예약이 풀리면 가용이 그만큼 늘어
+     * 다음 할당이 그 수량을 다시 집어갈 수 있지만, 장부 수량을 줄이는 경로는 재고조사 하나라는
+     * 원칙을 여기서 열지 않는다 — 종결로 예약이 풀린 시점부터 그 재고조사가 정상 동작한다
+     * (실사 확정의 {@code 실사수량 >= aloc + hld} 검사를 막고 있던 것이 바로 이 예약이었다).
+     */
+    @Transactional
+    public PikngCloseShortResponse closeShort(PikngCloseShortRequest request) {
+        Map<Long, PikngCloseShortRequest.Item> itemByTaskId = validatedCloseShort(request);
+
+        // ① 웨이브 행 락 — 피킹 실행과 같은 순서(웨이브 오름차순 → 재고 키 오름차순)로 잡는다.
+        //    InvMovService의 취소가 재고를 먼저 잠그는 것과 갈리는 지점이고, 이유는 출고에는
+        //    문서 헤더(웨이브)가 있어 전역 락 계층의 앞자리를 웨이브가 차지하기 때문이다
+        pikngTaskRepository.findWaveIdsByTaskIds(itemByTaskId.keySet()).stream().sorted()
+                .forEach(this::lockWave);
+
+        // ② 지시 로드 + 상태 검증. 실적 0은 이 경로가 아니라 웨이브 단위 지시취소가 덮는다
+        List<PikngTask> tasks = pikngTaskRepository.findAllWithDetailsByIds(itemByTaskId.keySet());
+        if (tasks.size() != itemByTaskId.size()) {
+            throw new IllegalArgumentException("존재하지 않는 지시가 포함돼 있습니다.");
+        }
+        for (PikngTask task : tasks) {
+            if (task.getStatus() != PikngTaskStatus.DIRECTED) {
+                throw new IllegalArgumentException("취소되었거나 완료된 지시입니다 ("
+                        + task.getStatus().getLabel() + "): " + rowName(task));
+            }
+            if (task.getCmplQty() == 0L) {
+                throw new IllegalArgumentException("피킹 실적이 없는 지시입니다 — 웨이브 지시취소로 되돌리세요: "
+                        + rowName(task));
+            }
+        }
+
+        // ③ 재고 락 — 예약을 되돌릴 행이다. 실행과 같은 창구로 잠가 순서가 하나로 유지된다
+        Set<Long> invIds = new LinkedHashSet<>();
+        tasks.forEach(task -> invIds.add(task.getOutbAlloc().getInv().getId()));
+        Map<Long, Inv> locked = invStore.lockAllByIds(invIds);
+
+        // ④ 종결 — 예약 반환 + 지시·할당 하향
+        Map<Long, OutbStatus> beforeByOrder = new HashMap<>();
+        Set<OutbOrder> touched = new LinkedHashSet<>();
+        long totalShotge = 0;
+        for (PikngTask task : tasks) {
+            PikngCloseShortRequest.Item item = itemByTaskId.get(task.getId());
+            String rsnDscr = rsnValidator.validate(SHOTGE_RSN_GRP_CD, "결품사유",
+                    item.getRsnCd(), item.getRsnDscr());
+            OutbAlloc alloc = task.getOutbAlloc();
+            OutbOrder order = alloc.getOutbLine().getOutbOrder();
+            long remaining = task.remainingQty();
+
+            Inv inv = locked.get(alloc.getInv().getId());
+            if (inv == null) {
+                throw new IllegalStateException("결품 종결할 재고가 없습니다 (할당 예약과 재고가 어긋났습니다): "
+                        + rowName(task));
+            }
+            if (inv.getAlocQty() < remaining) {
+                throw new IllegalStateException("예약 잔량보다 재고의 예약 수량이 적습니다 (정합성 오류 — 예약 "
+                        + inv.getAlocQty() + " / 잔여 " + remaining + "): " + rowName(task));
+            }
+
+            beforeByOrder.putIfAbsent(order.getId(), order.getStatus());
+            invStore.release(inv, remaining);
+            task.closeShort(item.getRsnCd(), rsnDscr);
+            alloc.closeShort();
+            touched.add(order);
+            totalShotge += remaining;
+        }
+
+        // ⑤ 주문 상태 재산출 — 실행 ⑤와 같은 판정이다. startPicking()은 부르지 않는다:
+        //    실적이 있어야 여는 경로라 주문은 이미 PICKING이다
+        List<PikngExecuteResponse.OrderChange> changes = new ArrayList<>();
+        for (OutbOrder order : touched) {
+            if (outbAllocRepository.countUnpickedByOrderId(order.getId()) == 0) {
+                order.completePicking();
+            }
+            if (order.getStatus() != beforeByOrder.get(order.getId())) {
+                changes.add(new PikngExecuteResponse.OrderChange(order.getOutbNo(),
+                        order.getStatus().name(), order.getStatus().getLabel()));
+            }
+        }
+        return new PikngCloseShortResponse(tasks.size(), totalShotge, changes);
+    }
+
+    /** 결품 종결 요청 검증 — 지시 지정·중복 없음. 사유코드는 그룹 대조가 필요해 본 처리에서 본다 */
+    private static Map<Long, PikngCloseShortRequest.Item> validatedCloseShort(PikngCloseShortRequest request) {
+        List<PikngCloseShortRequest.Item> items = request.getItems();
+        if (items == null || items.isEmpty()) {
+            throw new IllegalArgumentException("결품 종결할 지시를 선택하세요.");
+        }
+        Map<Long, PikngCloseShortRequest.Item> itemByTaskId = new LinkedHashMap<>();
+        for (PikngCloseShortRequest.Item item : items) {
+            if (item.getPikngTaskId() == null) {
+                throw new IllegalArgumentException("결품 종결할 지시를 지정하세요.");
+            }
+            if (itemByTaskId.putIfAbsent(item.getPikngTaskId(), item) != null) {
+                throw new IllegalArgumentException("같은 지시가 중복으로 지정됐습니다: " + item.getPikngTaskId());
+            }
+        }
+        return itemByTaskId;
     }
 
     /** 요청 형식 검증 — 지시 지정·수량 1 이상·중복 없음. 순서를 지키는 맵으로 돌려준다 */
