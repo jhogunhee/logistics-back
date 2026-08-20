@@ -52,6 +52,13 @@ public class OutbWaveService {
     public void addOrders(Long wavId, OutbWaveOrdersRequest req) {
         OutbWave wave = lockWave(wavId);
         wave.assertPlanned();
+        long started = outbOrderRepository.findByWaveId(wavId).stream()
+                .filter(o -> o.getStatus() != OutbStatus.CREATED)
+                .count();
+        if (started > 0) {
+            throw new IllegalArgumentException(
+                    "할당이 시작된 주문이 " + started + "건 있어 주문을 추가할 수 없습니다 — 할당을 먼저 해제하세요: " + wave.getWavNo());
+        }
         assignOrders(wave, req.getOrderIds());
     }
 
