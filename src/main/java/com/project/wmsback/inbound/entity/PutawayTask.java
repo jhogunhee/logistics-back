@@ -27,9 +27,10 @@ import java.time.LocalDateTime;
  * 실적 테이블은 따로 없다 — 부분 실행 실적은 inv_hist에 실행 횟수만큼 쌓인다 (rfn_doc_no = 입고번호).
  * from_loc은 항상 RCV-STAGE라 컬럼으로 두지 않는다.
  * <p>
- * 지시는 권고가 아니라 명령: 지시 TO와 다른 로케이션으로 적치할 수 없고, 다른 곳에 두려면 취소 후 재지시한다.
- * 이동지시(InvMovTask)와 달리 <b>잔량 취소가 없다</b> — 실행 실적이 하나라도 있으면 취소 자체를 막는다
- * (docs/design.md 「적치 지시」: cmpl_qty = 0인 지시만 취소 가능).
+ * 지시는 권고가 아니라 명령: 지시 TO와 다른 로케이션으로 적치할 수 없고, 다른 곳에 두려면
+ * 지시의 로케이션을 변경하거나(미실행 전량) 잔여를 분할해(일부 수량·부분 실행 후) 새 지시로 떼어낸다.
+ * 이동지시(InvMovTask)와 달리 <b>잔량 취소가 없다</b> — 실행 실적이 하나라도 있으면 취소 자체를 막고,
+ * 잔여분은 분할 변경으로만 빠져나간다 (docs/design.md 「적치 지시」: cmpl_qty = 0인 지시만 취소 가능).
  */
 @Entity
 @Table(name = "putaway_task")
@@ -89,6 +90,23 @@ public class PutawayTask extends BaseEntity {
     /** 실행 반영 (부분 허용, 잔여수량 검증은 서비스가 먼저 한다). 전량 도달 시 DONE 전이 */
     public void execute(long qty) {
         this.cmplQty += qty;
+        if (cmplQty.equals(drctQty)) {
+            this.status = PutawayTaskStatus.DONE;
+            this.cmplDt = LocalDateTime.now();
+        }
+    }
+
+    /** 지시 로케이션 변경 (상태·실적·목적지 검증은 서비스가 먼저 한다) */
+    public void changeToLoc(Loc toLoc) {
+        this.toLoc = toLoc;
+    }
+
+    /**
+     * 잔여 분할 — qty만큼 새 지시로 떼어내며 지시수량을 줄인다 (수량 검증은 서비스가 먼저 한다).
+     * 실행분만 남으면 완료로 전이한다 — 남은 몫이 0인 지시를 DIRECTED로 두면 실행 대기 목록에 유령이 남는다.
+     */
+    public void split(long qty) {
+        this.drctQty -= qty;
         if (cmplQty.equals(drctQty)) {
             this.status = PutawayTaskStatus.DONE;
             this.cmplDt = LocalDateTime.now();

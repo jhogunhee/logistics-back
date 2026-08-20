@@ -29,7 +29,8 @@ import java.util.Map;
  * 적치 실행 — 발행된 적치지시를 실물 MOVE로 소진한다 (스테이징 → 지시받은 보관 로케이션).
  * <p>
  * 지시가 이미 (라인, Lot, 로케이션, 수량)을 확정해 놨으므로 실행은 수량만 받는다(부분 실행 허용).
- * 지시는 권고가 아니라 명령이라 다른 로케이션으로는 실행할 수 없다 — 다른 곳에 두려면 취소 후 재지시한다.
+ * 지시는 권고가 아니라 명령이라 다른 로케이션으로는 실행할 수 없다 — 다른 곳에 두려면
+ * 지시의 로케이션을 먼저 변경한다 ({@link PutawayTaskService#changeLoc}).
  * 한 트랜잭션에서 예약 소진 · 스냅샷 갱신 · 이력 2행 · 지시 누계를 함께 처리한다
  * (불변식: inv_hist 합계 = inv 스냅샷).
  */
@@ -96,6 +97,15 @@ public class PutawayService {
         }
 
         IbLine ibLine = task.getIbLine();
+        // 라인 상한 선검증 — 정상 데이터에선 지시 예약이 미적치(검수 − 적치누계)를 넘을 수 없어
+        // 여기 걸리면 라인 카운터와 재고가 어긋난 것이다. DB CHECK(ck_ib_line_qty)에 맡기면
+        // 「허용 범위를 벗어난 값」이라는 읽히지 않는 메시지가 나가서 원인을 먼저 말해준다
+        long lineRemaining = ibLine.getRcvdQty() - ibLine.getPtawyQty();
+        if (qty > lineRemaining) {
+            throw new IllegalStateException("검수수량을 초과해 적치할 수 없습니다 (정합성 오류 — 검수 "
+                    + ibLine.getRcvdQty() + " / 적치 완료 " + ibLine.getPtawyQty()
+                    + " / 미적치 " + lineRemaining + "): " + ibLine.getProd().getProdCd());
+        }
         Prod prod = ibLine.getProd();
         Lot lot = task.getLot();
         Loc target = task.getToLoc();
