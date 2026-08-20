@@ -64,7 +64,7 @@ public class OutbAllocRepositoryImpl implements OutbAllocRepositoryCustom {
     public List<AllocWaveResponse> searchTargetWaves(AllocTargetSearchCond cond) {
         List<Tuple> waveRows = queryFactory
                 .select(outbWave.id, outbWave.wavNo, outbWave.wavStgyId, outbWave.createdAt,
-                        outbOrder.id.countDistinct(), outbLine.odrQty.sum())
+                        outbOrder.expctDe.min(), outbOrder.id.countDistinct(), outbLine.odrQty.sum())
                 .from(outbLine)
                 .join(outbLine.outbOrder, outbOrder)
                 .join(outbOrder.wave, outbWave)
@@ -92,7 +92,8 @@ public class OutbAllocRepositoryImpl implements OutbAllocRepositoryCustom {
                 continue;
             }
             result.add(AllocWaveResponse.of(wavId, row.get(outbWave.wavNo),
-                    row.get(outbWave.wavStgyId), row.get(outbWave.createdAt),
+                    row.get(outbWave.wavStgyId), row.get(outbOrder.expctDe.min()),
+                    row.get(outbWave.createdAt),
                     orZero(row.get(outbOrder.id.countDistinct())), odrQty, alocQty));
         }
         return result;

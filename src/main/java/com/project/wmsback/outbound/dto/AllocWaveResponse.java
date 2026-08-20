@@ -1,5 +1,6 @@
 package com.project.wmsback.outbound.dto;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -13,15 +14,17 @@ public record AllocWaveResponse(
         Long wavId,
         String wavNo,
         Long wavStgyId,
+        /** 웨이브의 출고예정일 — 편성 가드가 소속 주문의 출고예정일을 하나로 강제하므로 어느 주문의 값이든 같다 */
+        LocalDate expctDe,
         LocalDateTime createdAt,
         long orderCount,
         long odrQty,
         long alocQty,
         long remainQty
 ) {
-    public static AllocWaveResponse of(Long wavId, String wavNo, Long wavStgyId, LocalDateTime createdAt,
-                                       long orderCount, long odrQty, long alocQty) {
-        return new AllocWaveResponse(wavId, wavNo, wavStgyId, createdAt,
+    public static AllocWaveResponse of(Long wavId, String wavNo, Long wavStgyId, LocalDate expctDe,
+                                       LocalDateTime createdAt, long orderCount, long odrQty, long alocQty) {
+        return new AllocWaveResponse(wavId, wavNo, wavStgyId, expctDe, createdAt,
                 orderCount, odrQty, alocQty, odrQty - alocQty);
     }
 }
