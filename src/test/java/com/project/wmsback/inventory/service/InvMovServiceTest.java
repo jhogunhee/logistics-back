@@ -232,7 +232,7 @@ class InvMovServiceTest {
     // ---------- 확정 (실물 MOVE) ----------
 
     @Test
-    @DisplayName("확정: 재고이동 유형이 아닌 지시(적치·피킹)는 이 경로에서 거부")
+    @DisplayName("확정: 재고이동 유형이 아닌 지시(적치)는 이 경로에서 거부")
     void confirm_rejectsNonInvMovDvsn() {
         when(invMovTaskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(task(6L, InvMovDvsn.PTAWY)));
         assertThrows(IllegalArgumentException.class, () -> invMovService.confirm(confirmRequest(1L, 1L)));
@@ -240,9 +240,9 @@ class InvMovServiceTest {
     }
 
     @Test
-    @DisplayName("취소: 재고이동 유형이 아닌 지시(적치·피킹)는 이 경로에서 거부")
+    @DisplayName("취소: 재고이동 유형이 아닌 지시(적치)는 이 경로에서 거부")
     void cancel_rejectsNonInvMovDvsn() {
-        when(invMovTaskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(task(6L, InvMovDvsn.PIKNG)));
+        when(invMovTaskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(task(6L, InvMovDvsn.PTAWY)));
         assertThrows(IllegalArgumentException.class, () -> invMovService.cancel(1L));
     }
 

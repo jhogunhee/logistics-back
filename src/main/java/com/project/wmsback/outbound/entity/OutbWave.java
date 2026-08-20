@@ -82,4 +82,25 @@ public class OutbWave extends BaseEntity {
             throw new IllegalStateException("이미 피킹지시가 발행된 웨이브는 편성을 변경할 수 없습니다: " + wavNo);
         }
     }
+
+    /** 피킹지시 발행 — PLANNED → ISSUED. 지시 행(pikng_task) 생성은 서비스가 함께 한다 */
+    public void issue() {
+        if (status != WaveStatus.PLANNED) {
+            throw new IllegalStateException("이미 피킹지시가 발행된 웨이브입니다: " + wavNo);
+        }
+        this.status = WaveStatus.ISSUED;
+        this.issuedDt = LocalDateTime.now();
+    }
+
+    /**
+     * 지시취소 — ISSUED → PLANNED 복귀. 실적이 0인지(웨이브의 살아 있는 지시 전량)는
+     * 서비스가 먼저 검증한다 — 지시 행이 이 엔티티에 매달려 있지 않아 스스로 셀 수 없다.
+     */
+    public void cancelIssue() {
+        if (status != WaveStatus.ISSUED) {
+            throw new IllegalStateException("피킹지시가 발행되지 않은 웨이브입니다: " + wavNo);
+        }
+        this.status = WaveStatus.PLANNED;
+        this.issuedDt = null;
+    }
 }

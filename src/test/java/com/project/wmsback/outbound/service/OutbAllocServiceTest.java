@@ -20,6 +20,7 @@ import com.project.wmsback.outbound.entity.WavRegTyp;
 import com.project.wmsback.outbound.repository.OutbAllocRepository;
 import com.project.wmsback.outbound.repository.OutbLineRepository;
 import com.project.wmsback.outbound.repository.OutbWaveRepository;
+import com.project.wmsback.outbound.repository.PikngTaskRepository;
 import com.project.wmsback.strategy.allocation.repository.AlocQueryRepository;
 import com.project.wmsback.strategy.allocation.service.AlocStgyService;
 import com.project.wmsback.strategy.core.service.StgyExecLogService;
@@ -68,6 +69,7 @@ class OutbAllocServiceTest {
     @Mock OutbAllocRepository outbAllocRepository;
     @Mock OutbWaveRepository outbWaveRepository;
     @Mock OutbLineRepository outbLineRepository;
+    @Mock PikngTaskRepository pikngTaskRepository;
     @Mock InvRepository invRepository;
     @Mock InvHistRepository invHistRepository; // 예약·해제는 이력을 남기지 않는다 — InvStore 생성에만 필요
     // 이 테스트는 전부 「전략 미설정」 상태를 본다 — 산정기의 기본 동작(FEFO · 점포 잔여수명 ·
@@ -90,8 +92,10 @@ class OutbAllocServiceTest {
     @BeforeEach
     void setUp() {
         outbAllocService = new OutbAllocService(outbAllocRepository, outbWaveRepository, outbLineRepository,
-                new InvStore(invRepository, invHistRepository),
+                pikngTaskRepository, new InvStore(invRepository, invHistRepository),
                 alocStgyService, alocQueryRepository, stgyExecLogService);
+        // 지시 발행 가드 — 기본은 「발행된 지시 없음」. 가드 테스트가 개별로 덮어쓴다
+        when(pikngTaskRepository.findByOutbAllocIdInAndStatusNot(any(), any())).thenReturn(List.of());
 
         invById.clear();
         seq = 0;

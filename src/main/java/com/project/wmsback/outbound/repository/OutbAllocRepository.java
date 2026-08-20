@@ -27,4 +27,15 @@ public interface OutbAllocRepository extends JpaRepository<OutbAlloc, Long>, Out
     /** 해제 대상 조회 — 라인·주문까지 함께 읽어 상태 복귀 판정에 재조회가 없게 한다 */
     @Query("select a from OutbAlloc a join fetch a.outbLine l join fetch l.outbOrder where a.id in :ids")
     List<OutbAlloc> findAllWithLineByIds(@Param("ids") List<Long> ids);
+
+    /**
+     * 피킹지시 발행 대상 — 웨이브의 할당 전량을 스냅샷 재료(재고 키)와 주문까지 함께 읽는다.
+     * 발행 시점의 웨이브는 PLANNED라 전 할당의 피킹수량이 0이고 예약이 살아 있어
+     * inv 행이 반드시 존재한다 (inner join fetch가 안전한 이유).
+     */
+    @Query("select a from OutbAlloc a"
+            + " join fetch a.outbLine l join fetch l.outbOrder o"
+            + " join fetch l.prod join fetch a.inv i join fetch i.loc join fetch i.lot"
+            + " where o.wave.id = :wavId")
+    List<OutbAlloc> findAllWithDetailsByWaveId(@Param("wavId") Long wavId);
 }

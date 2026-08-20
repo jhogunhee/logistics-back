@@ -15,9 +15,12 @@ import com.project.wmsback.outbound.entity.OutbAlloc;
 import com.project.wmsback.outbound.entity.OutbLine;
 import com.project.wmsback.outbound.entity.OutbOrder;
 import com.project.wmsback.outbound.entity.OutbWave;
+import com.project.wmsback.outbound.entity.PikngTask;
+import com.project.wmsback.outbound.entity.PikngTaskStatus;
 import com.project.wmsback.outbound.repository.OutbAllocRepository;
 import com.project.wmsback.outbound.repository.OutbLineRepository;
 import com.project.wmsback.outbound.repository.OutbWaveRepository;
+import com.project.wmsback.outbound.repository.PikngTaskRepository;
 import com.project.wmsback.strategy.allocation.component.AlocRstrct;
 import com.project.wmsback.strategy.allocation.dto.AlocDecisionTrace;
 import com.project.wmsback.strategy.allocation.dto.AlocStgyResponse;
@@ -80,6 +83,7 @@ public class OutbAllocService {
     private final OutbAllocRepository outbAllocRepository;
     private final OutbWaveRepository outbWaveRepository;
     private final OutbLineRepository outbLineRepository;
+    private final PikngTaskRepository pikngTaskRepository;
     private final InvStore invStore;
     private final AlocStgyService alocStgyService;
     private final AlocQueryRepository alocQueryRepository;
@@ -435,6 +439,9 @@ public class OutbAllocService {
      * <p>주문에 할당이 한 건도 남지 않으면 {@code ALLOCATED → CREATED}로 되돌린다.
      * 그게 없으면 상태는 ALLOCATED인데 할당이 0건인 주문이 남아 확정취소도 웨이브 빼기도
      * 영영 열리지 않는다.
+     *
+     * <p><b>피킹지시가 발행된 할당은 실적이 0이어도 해제할 수 없다</b> — 지시 행(pikng_task)이
+     * 할당과 1:1이라, 해제하면 지시가 삭제된 할당을 가리키는 미아가 된다. 지시취소가 먼저다.
      */
     @Transactional
     public void release(AllocReleaseRequest request) {
@@ -451,6 +458,24 @@ public class OutbAllocService {
                 throw new IllegalArgumentException("피킹이 시작된 할당은 해제할 수 없습니다 (피킹 "
                         + alloc.getPikngQty() + "): " + alloc.getOutbLine().getOutbOrder().getOutbNo());
             }
+        }
+
+        // 웨이브 행 락 — 지시 발행(pikng_task 생성)과의 직렬화. 락 없이 발행과 해제가 겹치면
+        // 발행이 방금 지워진 할당의 지시를 만든다. 순서는 웨이브(오름차순) → 재고 한 방향이다
+        allocs.stream()
+                .map(alloc -> alloc.getOutbLine().getOutbOrder().getWave())
+                .filter(Objects::nonNull)
+                .map(OutbWave::getId)
+                .distinct().sorted()
+                .forEach(this::lockWave);
+
+        // 지시 발행 가드 — 웨이브 락 뒤에 조회해야 발행 중인 트랜잭션과 어긋나지 않는다
+        List<PikngTask> issued = pikngTaskRepository
+                .findByOutbAllocIdInAndStatusNot(allocIds, PikngTaskStatus.CANCELLED);
+        if (!issued.isEmpty()) {
+            throw new IllegalArgumentException("피킹지시가 발행된 웨이브의 할당은 해제할 수 없습니다"
+                    + " (지시취소가 먼저입니다): "
+                    + issued.get(0).getOutbAlloc().getOutbLine().getOutbOrder().getOutbNo());
         }
 
         // 예약 복원도 할당과 같은 창구로 잠근다 — 해제와 할당이 동시에 돌아도 순서가 하나다

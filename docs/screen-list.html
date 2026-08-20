@@ -244,9 +244,11 @@
 </tr>
 <tr>
   <td class="name">피킹지시</td>
-  <td><strong>웨이브 단위로 일괄 발행.</strong> 웨이브 소속 주문들의 할당 레코드를 모아 <strong>로케이션 순으로 정렬한 지시</strong>를 생성. 지시 목록 조회 / 취소. 할당이 안 된 주문이 섞여 있을 때의 처리(제외 / 발행 차단)는 결정 필요 — <strong>할당이 웨이브 단위가 되면서 증상은 줄었지만 사라지지 않았다</strong>(부분할당은 여전히 가능). 판정 재료는 라인의 미할당 잔량이고 할당 API가 그 값을 이미 내려준다</td>
-  <td class="st"><span class="badge todo">미구현</span></td>
-  <td>신규 — 지시 엔티티 필요 (적치지시와 대칭)</td>
+  <td><strong>웨이브 단위로 일괄 발행.</strong> 웨이브 소속 주문들의 할당 레코드를 <strong>로케이션 순(<code>pikng_prty → loc_cd</code>)으로 정렬해 지시(<code>pikng_task</code>, 할당과 1:1)로 발행</strong> — 순서·재고 키는 발행 시점 스냅샷(<code>srt_seq</code>). 지시 문서는 적치지시·이동지시와 <strong>동등한 위치</strong>(지시/완료 수량·상태 보유, 2026-08-20 확정). 발행은 재고 무변동(예약은 할당이 이미 잡음), 웨이브 <code>PLANNED → ISSUED</code>.
+  <br><strong>미할당 주문 섞임 — 확정:</strong> 할당 <strong>0건 주문이 있으면 웨이브째 발행 차단</strong>(하단에 사유 배너), 부분할당은 발행 허용 — 잔량은 부족 출고로 진행(발행 확인 모달이 경고). 발행 후 그 웨이브의 재할당·할당해제 잠김.
+  <br><strong>발행취소:</strong> 웨이브 단위 · 피킹 실적 0일 때만. 삭제가 아니라 <code>CANCELLED</code> 전이(행 보존) — 웨이브는 <code>PLANNED</code> 복귀, 재발행은 새 행</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>GET /outbound/picking-tasks/waves</code><br><code>GET /outbound/waves/{wavId}/picking-tasks</code><br><code>POST /outbound/picking-tasks/issue</code><br><code>POST /outbound/picking-tasks/cancel</code><br><code>/outbound/pick-order</code></td>
 </tr>
 <tr>
   <td class="name">피킹</td>
@@ -380,7 +382,7 @@
 <tr><td class="name" rowspan="6">출고</td><td>출고예정 관리</td><td><code>/outbound/order</code></td><td><code>pages/outbound/OutbOrderList.jsx</code> — 헤더–라인 2단 조회 전용. 입고예정(<code>AsnList.jsx</code>)과 같은 구조에 웨이브 편성 여부와 할당 진행이 더 붙는다</td></tr>
 <tr><td>웨이브 편성</td><td><code>/outbound/wave</code></td><td><code>pages/outbound/Wave.jsx</code> — 웨이브 목록 + 미편성/소속 주문 2단, 담기·빼기·해체, 전략 선택·자동 실행과 미리보기</td></tr>
 <tr><td>할당</td><td><code>/outbound/allocation</code></td><td><code>pages/outbound/Allocation.jsx</code> — 대상 웨이브 + 라인·할당내역 2단, 자동할당·수동할당(<code>components/outbound/AllocCandidateModal.jsx</code>)·해제. 자동할당은 <strong>할당 전략(SC-04)</strong>을 적용하고, 전략이 없으면 기본 동작(FEFO·점포 잔여수명·순차 소진)으로 실행된다 — 실행 결과에 적용 전략명·리비전이 표시되고 할당내역에 전략/수동 출처가 구분된다</td></tr>
-<tr><td>피킹지시</td><td><code>/outbound/pick-order</code></td><td>Placeholder</td></tr>
+<tr><td>피킹지시</td><td><code>/outbound/pick-order</code></td><td><code>pages/outbound/PickOrder.jsx</code> — 웨이브(편성중·발행) + 지시 대상/내역 2단, 발행·발행취소. 발행 전 하단 목록이 발행될 순서 그대로라 그 자체가 발행 미리보기, 할당 0건 주문은 배너로 차단 사유 표시</td></tr>
 <tr><td>피킹</td><td><code>/outbound/picking</code></td><td>Placeholder</td></tr>
 <tr><td>출고확정</td><td><code>/outbound/shipping</code></td><td>Placeholder</td></tr>
 
