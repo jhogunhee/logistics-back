@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -129,6 +130,19 @@ class AlocPlannerTest {
         assertEquals(10, assignments.get(0).qty());     // 피킹존 먼저 비운다
         assertEquals(1L, assignments.get(0).invId());
         assertEquals(20, assignments.get(1).qty());
+    }
+
+    @Test
+    @DisplayName("계층 판정 — 첫 번째로 맞는 계층의 순번, 어디에도 안 맞으면 null, 계층이 없으면 1")
+    void tierSeqMatchesFirstTierOrNull() {
+        List<AlocStgyDefinition.SlotDef> tiers = List.of(
+                slot(AlocSlotTyp.INVN_FLTR, 1, null, Map.of(),
+                        List.of(new FieldCondition("BIZ_DVSN", ConditionOperator.IN, List.of("PIKNG")))));
+
+        assertEquals(1, AlocPlanner.tierSeq(tiers, candidate(1L, 10, "PIKNG")));
+        // 보관존 재고는 어느 계층에도 안 맞는다 — 자동할당은 건드리지 않고, 화면이 그것을 표시해야 한다
+        assertNull(AlocPlanner.tierSeq(tiers, candidate(2L, 100, "STRG")));
+        assertEquals(1, AlocPlanner.tierSeq(List.of(), candidate(2L, 100, "STRG")));
     }
 
     // ── 제약 ─────────────────────────────────────────────────────────────────

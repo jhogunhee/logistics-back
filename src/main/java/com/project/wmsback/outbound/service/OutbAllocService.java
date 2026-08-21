@@ -119,27 +119,44 @@ public class OutbAllocService {
         // 전략도 실행과 같은 창구로 고른다. 다만 선택 규칙이 「대상 라인 전부 만족」이라,
         // 대상이 이 라인 하나인 여기서는 웨이브 전체로 고른 전략과 다를 수 있다
         AlocStgy stgy = alocStgyService.select(List.of(target)).orElse(null);
-        List<AlocStgyDefinition.SlotDef> rstrctSlots = stgy != null
-                ? AlocStgyResponse.from(stgy).toDefinition().slotsOf(AlocSlotTyp.RSTRCT)
-                : List.of();
+        AlocStgyDefinition def = stgy != null ? AlocStgyResponse.from(stgy).toDefinition() : null;
+        List<AlocStgyDefinition.SlotDef> rstrctSlots = def != null ? def.slotsOf(AlocSlotTyp.RSTRCT) : List.of();
+        // 계층(재고위치) 축도 자동할당과 같은 판정을 내린다 — 제약만 보여 주면 「잔여수명은 초록인데
+        // 자동할당은 절대 안 건드리는」 재고가 화면에서 구분되지 않는다
+        List<AlocStgyDefinition.SlotDef> tiers = def != null ? def.slotsOf(AlocSlotTyp.INVN_FLTR) : List.of();
+        Map<Long, String> bizDvsnByZon = alocQueryRepository.bizDvsnByZon();
 
         List<AllocCandidateResponse> result = new ArrayList<>();
         for (Inv candidate : outbAllocRepository.findCandidates(line.getProd().getId())) {
             if (expired(candidate.getLot(), target.expctDe())) {
                 continue;
             }
-            AlocInvnCandidate snapshot = AlocInvnCandidate.of(candidate, null);
+            AlocInvnCandidate snapshot = AlocInvnCandidate.of(candidate,
+                    bizDvsnByZon.get(candidate.getLoc().getZon().getId()));
             BigDecimal rate = AlocRstrct.lifeRate(snapshot, target);
             String rjctRsn = AlocPlanner.rstrctReason(rstrctSlots, snapshot, target);
+            Integer tierSeq = AlocPlanner.tierSeq(tiers, snapshot);
             result.add(new AllocCandidateResponse(
                     candidate.getId(),
                     candidate.getLoc().getId(), candidate.getLoc().getLocCd(),
                     candidate.getLot().getId(), candidate.getLot().getLotNo(),
                     candidate.getLot().getMfgDt(), candidate.getLot().getExpiryDt(),
                     candidate.getOnHandQty(), candidate.avalQty(),
-                    rate, rjctRsn == null, rjctRsn));
+                    rate, rjctRsn == null, rjctRsn,
+                    tierSeq, tierCondOf(tiers, tierSeq)));
         }
         return result;
+    }
+
+    /** 속한 계층의 조건 한 줄. 계층 정의가 없으면 "전체", 어느 계층에도 안 속하면 null */
+    private static String tierCondOf(List<AlocStgyDefinition.SlotDef> tiers, Integer tierSeq) {
+        if (tierSeq == null) {
+            return null;
+        }
+        if (tiers.isEmpty()) {
+            return "전체";
+        }
+        return AlocPlanner.describeCond(tiers.get(tierSeq - 1).condOrEmpty());
     }
 
     // ── 자동할당 ──────────────────────────────────────────────────────────────

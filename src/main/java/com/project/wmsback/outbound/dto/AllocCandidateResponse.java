@@ -30,6 +30,14 @@ public record AllocCandidateResponse(
          */
         boolean lifePass,
         /** 미달 사유 (예: {@code 잔여수명 40.0% < 기준 60%}). 통과면 null — 화면이 적용된 기준을 그대로 보여준다 */
-        String lifeRjctRsn
+        String lifeRjctRsn,
+        /**
+         * 자동할당에서 이 재고가 속하는 재고위치 계층 순번. 전략에 계층이 없으면 1(전체가 한 계층),
+         * <b>어느 계층에도 맞지 않으면 null</b> — 자동할당은 이 재고를 배정하지 않는다. 잔여수명과 별개의
+         * 축이라 따로 내린다: 잔여수명은 초록인데 계층에 안 속하는 재고가 있다(「피킹존만」 계층 등).
+         */
+        Integer tierSeq,
+        /** 속한 계층의 조건 한 줄 (예: {@code BIZ_DVSN IN [PIKNG]}). 계층이 없으면 "전체", 안 속하면 null */
+        String tierCond
 ) {
 }

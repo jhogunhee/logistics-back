@@ -424,8 +424,28 @@ public final class AlocPlanner {
                         candidate.lotNo(), reason));
     }
 
+    /**
+     * 이 재고가 속하는 계층 — <b>수동할당 후보 화면이 같은 판정을 표시</b>하므로 static으로 연다.
+     * 계층이 없으면 전체가 한 계층(1)이고, 어느 계층에도 맞지 않으면 null — 자동할당은 그 재고를
+     * 끝까지 배정하지 않는다({@link #runTier}가 계층별로 후보를 추리기 때문). 화면이 이것을 모르면
+     * 잔여수명은 초록인데 자동할당은 절대 안 건드리는 재고가 생긴다.
+     */
+    public static Integer tierSeq(List<AlocStgyDefinition.SlotDef> tiers, AlocInvnCandidate candidate) {
+        if (tiers.isEmpty()) {
+            return 1;
+        }
+        int seq = 1;
+        for (AlocStgyDefinition.SlotDef tier : tiers) {
+            if (ConditionEvaluator.matchesAll(tier.condOrEmpty(), AlocInvnField.BY_CODE, candidate)) {
+                return seq;
+            }
+            seq++;
+        }
+        return null;
+    }
+
     /** 조건 목록을 화면에 그대로 쓸 한 줄로 */
-    private static String describeCond(List<FieldCondition> conds) {
+    public static String describeCond(List<FieldCondition> conds) {
         if (conds == null || conds.isEmpty()) {
             return "조건 없음";
         }
