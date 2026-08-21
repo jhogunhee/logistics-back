@@ -20,6 +20,23 @@ public interface PikngTaskRepository extends JpaRepository<PikngTask, Long>, Pik
      */
     List<PikngTask> findByOutbAllocIdInAndStatusNot(Collection<Long> outbAllocIds, PikngTaskStatus status);
 
+    /**
+     * 대상 라인들의 할당 중 <b>살아 있는 지시가 붙은 것</b>의 할당 id — 할당 합산 제외 목록.
+     * 여기에 합산하면 aloc_qty만 커지고 지시의 drct_qty는 그대로라 항등식이 조용히 깨지고,
+     * 그 할당에 새 지시를 만들려 하면 uq_pikng_task_alloc에 걸린다.
+     */
+    @Query("select distinct t.outbAlloc.id from PikngTask t"
+            + " where t.outbAlloc.outbLine.id in :lineIds and t.status <> :status")
+    List<Long> findLiveAllocIdsByLineIds(@Param("lineIds") Collection<Long> lineIds,
+                                         @Param("status") PikngTaskStatus status);
+
+    /**
+     * 웨이브의 마지막 집품 순번 — 추가 발행이 여기서 이어붙인다(「1차 동선을 다 돈 뒤 추가분」).
+     * 취소된 지시도 자기 번호를 들고 남으므로 번호는 건너뛰지만 겹치지 않는다.
+     */
+    @Query("select coalesce(max(t.srtSeq), 0) from PikngTask t where t.wave.id = :wavId")
+    int findMaxSrtSeqByWaveId(@Param("wavId") Long wavId);
+
     /** 실행 대상 지시의 웨이브 — 웨이브 행 락을 재고 락보다 먼저 잡기 위한 선조회 */
     @Query("select distinct t.wave.id from PikngTask t where t.id in :ids")
     List<Long> findWaveIdsByTaskIds(@Param("ids") Collection<Long> ids);

@@ -50,6 +50,15 @@ public class PikngTaskController {
     }
 
     /**
+     * 추가 발행 — 이미 발행된 웨이브에 나중에 붙은 할당의 지시를 낸다. 웨이브 상태는 ISSUED
+     * 그대로이고 집품 순번은 기존 뒤에 이어붙는다. 발행 가드(할당 0건 주문 차단)는 같다.
+     */
+    @PostMapping("/outbound/picking-tasks/issue-additional")
+    public PikngIssueResponse issueAdditional(@RequestBody PikngIssueRequest request) {
+        return pikngTaskService.issueAdditional(request);
+    }
+
+    /**
      * 지시취소 — {@code wavIds}(웨이브 단위) 또는 {@code taskIds}(지시 단위) 중 하나로 보낸다.
      * 웨이브 단위는 발행의 역조작이라 웨이브에 실적이 있으면 거부하고, 지시 단위는 대상 지시
      * 자신의 실적만 본다. 웨이브는 살아 있는 지시가 남지 않을 때 PLANNED로 복귀한다.

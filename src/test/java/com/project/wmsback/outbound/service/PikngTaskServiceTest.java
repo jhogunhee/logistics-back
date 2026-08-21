@@ -35,6 +35,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -99,7 +100,8 @@ class PikngTaskServiceTest {
         OutbAlloc first = alloc(1L, order, 10, loc(2L, 1, "B-01"));   // 우선순위 1 → 첫 번째
         OutbAlloc second = alloc(2L, order, 20, loc(3L, 5, "A-01"));  // 우선순위 5 → 두 번째
         when(outbOrderRepository.findByWaveId(100L)).thenReturn(List.of(order));
-        when(outbAllocRepository.findAllWithDetailsByWaveId(100L)).thenReturn(List.of(second, first));
+        when(outbAllocRepository.findIssuableByWaveId(100L, PikngTaskStatus.CANCELLED)).thenReturn(List.of(second, first));
+        when(outbAllocRepository.findAllocatedOrderIdsByWaveId(100L)).thenReturn(List.of(order.getId()));
 
         PikngIssueResponse response = pikngTaskService.issue(issue(100L));
 
@@ -125,7 +127,8 @@ class PikngTaskServiceTest {
         OutbOrder empty = order("OB-002");
         OutbAlloc alloc = alloc(1L, allocated, 10, loc(2L, 1, "B-01"));
         when(outbOrderRepository.findByWaveId(100L)).thenReturn(List.of(allocated, empty));
-        when(outbAllocRepository.findAllWithDetailsByWaveId(100L)).thenReturn(List.of(alloc));
+        when(outbAllocRepository.findIssuableByWaveId(100L, PikngTaskStatus.CANCELLED)).thenReturn(List.of(alloc));
+        when(outbAllocRepository.findAllocatedOrderIdsByWaveId(100L)).thenReturn(List.of(allocated.getId()));
 
         IllegalStateException e = assertThrows(IllegalStateException.class,
                 () -> pikngTaskService.issue(issue(100L)));
@@ -187,6 +190,76 @@ class PikngTaskServiceTest {
     @DisplayName("발행되지 않은 웨이브의 취소는 거부한다")
     void cancelRejectsPlannedWave() {
         assertThrows(IllegalStateException.class, () -> pikngTaskService.cancel(cancel(100L)));
+    }
+
+    // ── 추가 발행 ────────────────────────────────────────────────────────────
+
+    /**
+     * 결품 종결이 잔량을 사후에 키우거나 재할당이 들어오면 발행된 웨이브에 「지시 없는 할당」이
+     * 생긴다. 그것을 현장에 내보내는 유일한 문이 추가 발행이고, 순번은 <b>기존 뒤에</b> 붙는다 —
+     * 1차 동선을 다 돈 뒤의 추가분이라 현장과 맞는다.
+     */
+    @Test
+    @DisplayName("추가 발행은 집품 순번을 기존 뒤에 이어붙이고 웨이브 상태는 건드리지 않는다")
+    void issueAdditionalAppendsAfterExistingSeq() {
+        wave.issue();
+        LocalDateTime issuedAt = wave.getIssuedDt();
+        OutbOrder order = order("OB-001");
+        OutbAlloc added = alloc(3L, order, 15, loc(4L, 2, "C-01"));
+        when(outbOrderRepository.findByWaveId(100L)).thenReturn(List.of(order));
+        when(outbAllocRepository.findIssuableByWaveId(100L, PikngTaskStatus.CANCELLED)).thenReturn(List.of(added));
+        when(outbAllocRepository.findAllocatedOrderIdsByWaveId(100L)).thenReturn(List.of(order.getId()));
+        when(pikngTaskRepository.findMaxSrtSeqByWaveId(100L)).thenReturn(7);
+
+        PikngIssueResponse response = pikngTaskService.issueAdditional(issue(100L));
+
+        ArgumentCaptor<List<PikngTask>> captor = ArgumentCaptor.captor();
+        verify(pikngTaskRepository).saveAll(captor.capture());
+        assertEquals(8, captor.getValue().get(0).getSrtSeq());
+        assertEquals(1, response.taskCount());
+        assertEquals(WaveStatus.ISSUED, wave.getStatus());
+        assertEquals(issuedAt, wave.getIssuedDt());   // 최초 발행 시각을 덮어쓰지 않는다
+    }
+
+    @Test
+    @DisplayName("할당 0건 주문이 남아 있으면 추가 발행도 거부한다 — 입구 가드가 출구에도 선다")
+    void issueAdditionalRejectsWaveWithNoAllocOrder() {
+        wave.issue();
+        OutbOrder allocated = order("OB-001");
+        OutbOrder trapped = order("OB-002");
+        OutbAlloc added = alloc(3L, allocated, 15, loc(4L, 2, "C-01"));
+        when(outbOrderRepository.findByWaveId(100L)).thenReturn(List.of(allocated, trapped));
+        when(outbAllocRepository.findIssuableByWaveId(100L, PikngTaskStatus.CANCELLED)).thenReturn(List.of(added));
+        when(outbAllocRepository.findAllocatedOrderIdsByWaveId(100L)).thenReturn(List.of(allocated.getId()));
+
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> pikngTaskService.issueAdditional(issue(100L)));
+
+        assertTrue(e.getMessage().contains("OB-002"));
+        verify(pikngTaskRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    @DisplayName("나갈 할당이 없으면 추가 발행을 거부한다")
+    void issueAdditionalRejectsWhenNothingPending() {
+        wave.issue();
+        OutbOrder order = order("OB-001");
+        when(outbOrderRepository.findByWaveId(100L)).thenReturn(List.of(order));
+        when(outbAllocRepository.findIssuableByWaveId(100L, PikngTaskStatus.CANCELLED)).thenReturn(List.of());
+
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> pikngTaskService.issueAdditional(issue(100L)));
+
+        assertTrue(e.getMessage().contains("추가로 발행할 할당이 없습니다"));
+    }
+
+    @Test
+    @DisplayName("두 진입은 서로의 자리를 침범하지 않는다 — 최초는 PLANNED만, 추가는 ISSUED만")
+    void issueEntriesGuardEachOther() {
+        assertThrows(IllegalStateException.class, () -> pikngTaskService.issueAdditional(issue(100L)));
+
+        wave.issue();
+        assertThrows(IllegalStateException.class, () -> pikngTaskService.issue(issue(100L)));
     }
 
     // ── 지시 단위 취소 ────────────────────────────────────────────────────────

@@ -5,6 +5,7 @@ import com.project.wmsback.outbound.dto.PikngCancelRequest;
 import com.project.wmsback.outbound.dto.PikngCancelResponse;
 import com.project.wmsback.outbound.dto.PikngIssueRequest;
 import com.project.wmsback.outbound.dto.PikngIssueResponse;
+import com.project.wmsback.outbound.dto.PikngRowResponse;
 import com.project.wmsback.outbound.dto.PikngTaskSearchCond;
 import com.project.wmsback.outbound.dto.PikngWaveDetailResponse;
 import com.project.wmsback.outbound.dto.PikngWaveResponse;
@@ -69,13 +70,21 @@ public class PikngTaskService {
      * 웨이브 상세. 발행 전(PLANNED)에는 할당 행을 발행 순서 그대로 보여주고(발행 미리보기),
      * 발행 후(ISSUED)에는 지시 스냅샷을 보여준다 — 완료된 지시는 재고 행이 삭제됐을 수 있어
      * alloc → inv 조인으로는 표시할 수 없다.
+     *
+     * <p><b>미발행 할당({@code pendingRows})은 발행 후에만, 할당 0건 주문은 상태와 무관하게 내려보낸다.</b>
+     * 발행 전에는 미발행 할당이 곧 {@code rows}라 같은 목록을 두 번 보내지 않는다. 발행 후에도 할당이
+     * 붙을 수 있고(결품 종결이 잔량을 키우거나 재할당이 들어온다), 지시취소 뒤 할당해제로 할당이
+     * 0건이 된 주문이 생길 수 있다. 예전에는 ISSUED에서 둘 다 빈 목록으로 내려 그 주문이 화면
+     * 어디에도 드러나지 않았다.
      */
     public PikngWaveDetailResponse detail(Long wavId) {
         OutbWave wave = findWave(wavId);
         boolean issued = wave.getStatus() == WaveStatus.ISSUED;
+        List<PikngRowResponse> pending = pikngTaskRepository.allocRowsForIssue(wavId);
         return new PikngWaveDetailResponse(wave.getId(), wave.getWavNo(), wave.getStatus(),
-                issued ? pikngTaskRepository.taskRows(wavId) : pikngTaskRepository.allocRowsForIssue(wavId),
-                issued ? List.of() : pikngTaskRepository.noAllocOrders(wavId));
+                issued ? pikngTaskRepository.taskRows(wavId) : pending,
+                issued ? pending : List.of(),
+                pikngTaskRepository.noAllocOrders(wavId));
     }
 
     /** 지시의 실행 실적 로그 (실적 내역 모달) */
@@ -97,6 +106,23 @@ public class PikngTaskService {
      */
     @Transactional
     public PikngIssueResponse issue(PikngIssueRequest request) {
+        return issue(request, false);
+    }
+
+    /**
+     * 추가 발행 — 이미 발행된 웨이브에 <b>나중에 붙은 할당</b>의 지시를 낸다. 웨이브 상태는
+     * 그대로 ISSUED이고 집품 순번은 기존 뒤에 이어붙는다.
+     *
+     * <p>여는 이유는 둘이다. ① 결품 종결이 {@code aloc_qty}를 낮춰 잔량을 사후에 키운다
+     * ② 지시 단위 취소 뒤 할당해제를 하면 그 주문의 할당이 0건이 되는데, 웨이브가 ISSUED로
+     * 남아 있으면 재할당·재발행이 전부 막혀 주문이 갇힌다. 그 둘의 출구가 여기다.
+     */
+    @Transactional
+    public PikngIssueResponse issueAdditional(PikngIssueRequest request) {
+        return issue(request, true);
+    }
+
+    private PikngIssueResponse issue(PikngIssueRequest request, boolean additional) {
         List<Long> wavIds = distinct(request.getWavIds());
         if (wavIds.isEmpty()) {
             throw new IllegalArgumentException("발행할 웨이브를 선택하세요.");
@@ -107,19 +133,24 @@ public class PikngTaskService {
             // 웨이브 행 락 — 할당 실행·해제, 편성 변경, 취소, 피킹 실행과의 직렬화 지점.
             // 락 순서는 웨이브(오름차순) → 재고 한 방향이고, 발행은 재고를 건드리지 않아 앞 단계뿐이다.
             OutbWave wave = lockWave(wavId);
-            if (wave.getStatus() != WaveStatus.PLANNED) {
-                throw new IllegalStateException("이미 피킹지시가 발행된 웨이브입니다: " + wave.getWavNo());
-            }
+            requireIssuable(wave, additional);
 
             List<OutbOrder> orders = outbOrderRepository.findByWaveId(wavId);
             if (orders.isEmpty()) {
                 throw new IllegalArgumentException("웨이브에 편성된 주문이 없습니다: " + wave.getWavNo());
             }
-            List<OutbAlloc> allocs = outbAllocRepository.findAllWithDetailsByWaveId(wavId);
+            List<OutbAlloc> allocs = outbAllocRepository
+                    .findIssuableByWaveId(wavId, PikngTaskStatus.CANCELLED);
+            if (allocs.isEmpty()) {
+                throw new IllegalStateException(additional
+                        ? "추가로 발행할 할당이 없습니다 — 먼저 할당하세요: " + wave.getWavNo()
+                        : "발행할 할당이 없습니다: " + wave.getWavNo());
+            }
 
-            // 발행 가드 — 할당 0건 주문이 있으면 웨이브째 차단. 부분할당(라인 잔량)은 막지 않는다
-            Set<Long> allocOrderIds = new HashSet<>();
-            allocs.forEach(alloc -> allocOrderIds.add(alloc.getOutbLine().getOutbOrder().getId()));
+            // 발행 가드 — 할당 0건 주문이 있으면 웨이브째 차단. 부분할당(라인 잔량)은 막지 않는다.
+            // 판정 재료는 발행 대상이 아니라 웨이브의 전 할당이다 — 추가 발행에서 이미 지시가 나간
+            // 주문을 「할당 0건」으로 오판하지 않기 위해서다.
+            Set<Long> allocOrderIds = new HashSet<>(outbAllocRepository.findAllocatedOrderIdsByWaveId(wavId));
             List<String> noAllocOutbNos = orders.stream()
                     .filter(order -> !allocOrderIds.contains(order.getId()))
                     .map(OutbOrder::getOutbNo)
@@ -137,8 +168,9 @@ public class PikngTaskService {
                     .thenComparing(alloc -> alloc.getInv().getLoc().getLocCd())
                     .thenComparing(OutbAlloc::getId));
 
+            // 추가분은 기존 순번 뒤에 붙는다 — 「1차 동선을 다 돈 뒤 추가분」이라 현장 동선과 맞는다
+            int seq = additional ? pikngTaskRepository.findMaxSrtSeqByWaveId(wavId) : 0;
             List<PikngTask> tasks = new ArrayList<>(sorted.size());
-            int seq = 0;
             for (OutbAlloc alloc : sorted) {
                 // 재고 키는 발행 시점 스냅샷으로 지시에 남긴다 — inv 행은 전량 피킹 후 삭제될 수 있다
                 tasks.add(PikngTask.builder()
@@ -151,12 +183,30 @@ public class PikngTaskService {
                         .build());
             }
             pikngTaskRepository.saveAll(tasks);
-            wave.issue();
+            if (!additional) {
+                wave.issue();
+            }
 
             results.add(new PikngIssueResponse.WaveResult(wave.getWavNo(), tasks.size()));
             total += tasks.size();
         }
         return new PikngIssueResponse(results.size(), total, results);
+    }
+
+    /**
+     * 최초 발행은 PLANNED에서만, 추가 발행은 ISSUED에서만. 두 진입이 서로의 자리를 침범하지
+     * 않게 반대 방향으로 잠근다 — 「발행이 두 번 일어나는 것」과 「추가분이 최초 발행을 대신하는 것」은
+     * 다른 조작이고, 웨이브 상태 전이(PLANNED → ISSUED)는 여전히 최초 발행 한 번뿐이다.
+     */
+    private static void requireIssuable(OutbWave wave, boolean additional) {
+        if (additional && wave.getStatus() != WaveStatus.ISSUED) {
+            throw new IllegalStateException("아직 피킹지시가 발행되지 않은 웨이브입니다 — 먼저 발행하세요: "
+                    + wave.getWavNo());
+        }
+        if (!additional && wave.getStatus() != WaveStatus.PLANNED) {
+            throw new IllegalStateException("이미 피킹지시가 발행된 웨이브입니다 — 추가 발행을 쓰세요: "
+                    + wave.getWavNo());
+        }
     }
 
     // ── 지시취소 ──────────────────────────────────────────────────────────────

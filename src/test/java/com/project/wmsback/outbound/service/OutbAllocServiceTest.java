@@ -16,6 +16,7 @@ import com.project.wmsback.outbound.entity.OutbLine;
 import com.project.wmsback.outbound.entity.OutbOrder;
 import com.project.wmsback.outbound.entity.OutbStatus;
 import com.project.wmsback.outbound.entity.OutbWave;
+import com.project.wmsback.outbound.entity.WaveStatus;
 import com.project.wmsback.outbound.entity.WavRegTyp;
 import com.project.wmsback.outbound.repository.OutbAllocRepository;
 import com.project.wmsback.outbound.repository.OutbLineRepository;
@@ -256,6 +257,64 @@ class OutbAllocServiceTest {
 
         assertEquals(30, existing.getAlocQty());
         verify(outbAllocRepository, never()).save(any(OutbAlloc.class));
+    }
+
+    /**
+     * 살아 있는 지시가 붙은 할당에 합산하면 {@code aloc_qty}만 커지고 지시의 {@code drct_qty}는
+     * 그대로라 항등식이 조용히 깨진다 — DB 제약이 없는 축이라 아무도 알려주지 않는다. 게다가
+     * 그 할당에는 부분 유니크 때문에 새 지시를 만들 수도 없다. 그래서 새 행으로 간다.
+     */
+    @Test
+    @DisplayName("지시가 나간 할당에는 합산하지 않고 새 행을 만든다 — 판정은 할당 단위다")
+    void createsNewRowWhenExistingAllocHasLiveTask() {
+        Inv only = inv(1L, 100, LocalDate.of(2026, 12, 31));
+        candidates(only);
+        OutbLine line = line(1L, 30);
+        targetLines(line);
+        OutbAlloc issued = OutbAlloc.builder().outbLine(line).inv(only).alocQty(20L).build();
+        setId(issued, 500L);
+        when(outbAllocRepository.sumAlocQtyByLineIds(anyList())).thenReturn(Map.of(1L, 20L));
+        when(outbAllocRepository.findByOutbLineIdIn(anyList())).thenReturn(List.of(issued));
+        when(pikngTaskRepository.findLiveAllocIdsByLineIds(any(), any())).thenReturn(List.of(500L));
+
+        execute();
+
+        assertEquals(20, issued.getAlocQty());   // 기존 행은 그대로 — 지시와 짝이 맞은 채 남는다
+        verify(outbAllocRepository).save(any(OutbAlloc.class));
+    }
+
+    @Test
+    @DisplayName("지시가 취소된 할당에는 합산한다 — CANCELLED는 살아 있는 지시가 아니다")
+    void mergesWhenExistingAllocsTaskIsCancelled() {
+        Inv only = inv(1L, 100, LocalDate.of(2026, 12, 31));
+        candidates(only);
+        OutbLine line = line(1L, 30);
+        targetLines(line);
+        OutbAlloc cancelled = OutbAlloc.builder().outbLine(line).inv(only).alocQty(20L).build();
+        setId(cancelled, 500L);
+        when(outbAllocRepository.sumAlocQtyByLineIds(anyList())).thenReturn(Map.of(1L, 20L));
+        when(outbAllocRepository.findByOutbLineIdIn(anyList())).thenReturn(List.of(cancelled));
+        when(pikngTaskRepository.findLiveAllocIdsByLineIds(any(), any())).thenReturn(List.of());
+
+        execute();
+
+        assertEquals(30, cancelled.getAlocQty());
+        verify(outbAllocRepository, never()).save(any(OutbAlloc.class));
+    }
+
+    @Test
+    @DisplayName("피킹지시가 발행된 웨이브에도 할당한다 — 잔량이 남으면 대상이다")
+    void executeAllowsIssuedWave() {
+        wave.issue();
+        Inv only = inv(1L, 100, LocalDate.of(2026, 12, 31));
+        candidates(only);
+        OutbLine line = line(1L, 30);
+        targetLines(line);
+
+        AllocExecuteResponse result = execute();
+
+        assertEquals(30, result.alocQty());
+        assertEquals(WaveStatus.ISSUED, wave.getStatus());   // 발행 상태는 건드리지 않는다
     }
 
     // ── 잔여수명 필터 ─────────────────────────────────────────────────────────

@@ -24,12 +24,19 @@ public record PikngWaveResponse(
         /** 미할당 잔량 (odrQty − alocQty). 발행을 막지는 않지만(주문 단위 가드만 있다) 부족 출고의 예고다 */
         long remainQty,
         /** 피킹 완료 수량 합 — 발행 후 진행 확인용 */
-        long pikngQty
+        long pikngQty,
+        /**
+         * 아직 지시가 나가지 않은 할당 건수 — <b>0이 아니면 화면이 무조건 강조한다.</b>
+         * 「할당은 됐는데 지시가 안 나갔다」는 정상 중간 상태지만 잊히면 그 주문이 피킹중에
+         * 머문다. 강제 관문 대신 상시 노출로 덮는다 — 시간 임계를 두면 임계 미만 구간이
+         * 조용해지는데 잊히는 일은 정확히 그 구간에서 시작한다.
+         */
+        long pendingAllocCount
 ) {
     public static PikngWaveResponse of(Long wavId, String wavNo, WaveStatus status, LocalDate expctDe,
                                        LocalDateTime issuedDt, long orderCount, long odrQty,
-                                       long alocQty, long pikngQty) {
+                                       long alocQty, long pikngQty, long pendingAllocCount) {
         return new PikngWaveResponse(wavId, wavNo, status, expctDe, issuedDt,
-                orderCount, odrQty, alocQty, odrQty - alocQty, pikngQty);
+                orderCount, odrQty, alocQty, odrQty - alocQty, pikngQty, pendingAllocCount);
     }
 }

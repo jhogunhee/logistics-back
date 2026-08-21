@@ -31,17 +31,33 @@ public interface OutbAllocRepository extends JpaRepository<OutbAlloc, Long>, Out
     List<OutbAlloc> findAllWithLineByIds(@Param("ids") List<Long> ids);
 
     /**
-     * 피킹지시 발행 대상 — 웨이브의 할당 전량을 스냅샷 재료(재고 키)와 주문까지 함께 읽는다.
-     * 발행 시점의 웨이브는 PLANNED라 전 할당의 피킹수량이 0이고 예약이 살아 있어
-     * inv 행이 반드시 존재한다 (inner join fetch가 안전한 이유).
+     * 피킹지시 발행 대상 — 웨이브의 할당 중 <b>살아 있는 지시가 없는 것</b>을 스냅샷 재료(재고 키)와
+     * 주문까지 함께 읽는다. 최초 발행과 추가 발행이 같은 이 창구를 쓴다.
+     *
+     * <p><b>「살아 있는 지시가 없다」가 inner join fetch를 안전하게 만든다.</b> 그런 할당은
+     * {@code ck_aloc_qty(aloc_qty > 0)} 때문에 예약이 반드시 살아 있고, 따라서 {@code inv} 행도
+     * 반드시 있다. 웨이브의 할당을 통째로 읽으면 전량 집품돼 {@code inv} 행이 삭제된 할당을
+     * 조용히 떨어뜨린다 — 최초 발행(PLANNED)에서는 드러나지 않지만 추가 발행에서는 드러난다.
      */
     @Query("select a from OutbAlloc a"
             + " join fetch a.outbLine l join fetch l.outbOrder o"
             + " join fetch l.prod join fetch a.inv i join fetch i.loc join fetch i.lot"
-            + " where o.wave.id = :wavId")
-    List<OutbAlloc> findAllWithDetailsByWaveId(@Param("wavId") Long wavId);
+            + " where o.wave.id = :wavId"
+            + " and not exists (select 1 from PikngTask t"
+            + "                  where t.outbAlloc = a and t.status <> :cancelled)")
+    List<OutbAlloc> findIssuableByWaveId(@Param("wavId") Long wavId,
+                                         @Param("cancelled") PikngTaskStatus cancelled);
 
-    /** 주문에 소진되지 않은 할당이 남았는지 — 0이면 전 할당 소진 = PICKED 전이 (OutbOrder.completePicking) */
+    /**
+     * 웨이브 안에서 할당을 가진 주문 id — 발행 가드(할당 0건 주문 차단)의 재료.
+     * 발행 대상 조회와 갈라 두는 이유는 <b>이미 지시가 나간 할당도 세어야</b> 하기 때문이다 —
+     * 추가 발행에서 발행 대상만 보고 판정하면 진행 중인 주문이 「할당 0건」으로 오판된다.
+     */
+    @Query("select distinct a.outbLine.outbOrder.id from OutbAlloc a"
+            + " where a.outbLine.outbOrder.wave.id = :wavId")
+    List<Long> findAllocatedOrderIdsByWaveId(@Param("wavId") Long wavId);
+
+    /** 주문에 소진되지 않은 할당이 남았는지 — 0이면 전 할당 소진 (OutbOrder.recalcStatus) */
     @Query("select count(a) from OutbAlloc a where a.outbLine.outbOrder.id = :outbOrderId and a.pikngQty < a.alocQty")
     long countUnpickedByOrderId(@Param("outbOrderId") Long outbOrderId);
 

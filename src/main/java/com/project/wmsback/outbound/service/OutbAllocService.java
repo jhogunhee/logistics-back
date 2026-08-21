@@ -160,9 +160,10 @@ public class OutbAllocService {
             // 재고 락보다 먼저 읽으므로, 이 락이 없으면 동시 실행 둘이 같은 잔여요청을 보고 각자
             // 예약해 라인 과할당(SUM(aloc_qty) > odr_qty)이 난다. distinct()가 wavId를 오름차순으로
             // 정렬해 주므로 다건 실행끼리도 교착이 없다.
+            // 웨이브 상태는 보지 않는다 — 발행된 웨이브도 잔량이 남으면 할당 대상이다.
+            // 「지시 없는 할당」은 금지가 아니라 정상 상태이고(추가 발행이 소진한다),
+            // 「할당 없는 지시」는 할당해제 가드가 여전히 막는다
             OutbWave wave = lockWave(wavId);
-            // 피킹지시가 발행된(ISSUED) 웨이브에 더 할당하면 지시 없는 할당이 남는다
-            wave.assertPlanned();
             wavNos.add(wave.getWavNo());
         }
 
@@ -354,8 +355,9 @@ public class OutbAllocService {
         if (items == null || items.isEmpty()) {
             throw new IllegalArgumentException("할당할 대상이 없습니다.");
         }
-        // 웨이브 행 락 — 라인 잔여 검증(②)이 재고 락보다 먼저라, 자동할당과 같은 이유로 잠근다
-        lockWave(wavId).assertPlanned();
+        // 웨이브 행 락 — 라인 잔여 검증(②)이 재고 락보다 먼저라, 자동할당과 같은 이유로 잠근다.
+        // 상태는 보지 않는다(자동할당과 같다 — 발행된 웨이브도 잔량이 남으면 대상이다)
+        lockWave(wavId);
 
         // ① 라인·재고를 모으고 요청 자체의 형식을 본다
         Map<Long, Long> reqByLine = new LinkedHashMap<>();
@@ -549,12 +551,31 @@ public class OutbAllocService {
 
     // ── 공통 ─────────────────────────────────────────────────────────────────
 
+    /**
+     * 합산 대상이 되는 기존 할당 — (라인, 재고) 키 맵. 같은 조합이 다시 할당되면 새 행 대신
+     * 여기에 합산해 화면과 해제 단위가 불필요하게 쪼개지지 않게 한다.
+     *
+     * <p><b>살아 있는 지시가 붙은 할당은 빼고 돌려준다.</b> 거기에 합산하면 {@code aloc_qty}만
+     * 커지고 지시의 {@code drct_qty}는 그대로라 항등식이 조용히 깨지며(DB 제약이 없는 축이라
+     * 아무도 알려주지 않는다), 그 할당에 새 지시를 만들려 하면 {@code uq_pikng_task_alloc}에
+     * 걸린다. 빠진 조합은 새 행이 되어 「재할당은 행이 하나 더 생기는 것으로 누적된다」가 그대로
+     * 성립하고, 결품 종결로 닫힌 할당의 사유·수량도 덮이지 않고 남는다.
+     *
+     * <p>판정 축은 웨이브 상태가 아니라 <b>할당 단위</b>다(할당해제와 같다) — 취소된 지시만 붙은
+     * 할당은 합산해도 안전하다. 부분 유니크가 CANCELLED를 세지 않아 새 지시를 만들 수 있고,
+     * 그 지시의 {@code drct_qty}는 합산 후 {@code aloc_qty}와 같다.
+     */
     private Map<String, OutbAlloc> existingAllocMap(List<Long> lineIds) {
         Map<String, OutbAlloc> map = new HashMap<>();
         if (lineIds.isEmpty()) {
             return map;
         }
+        Set<Long> issued = new HashSet<>(pikngTaskRepository
+                .findLiveAllocIdsByLineIds(lineIds, PikngTaskStatus.CANCELLED));
         for (OutbAlloc alloc : outbAllocRepository.findByOutbLineIdIn(lineIds)) {
+            if (issued.contains(alloc.getId())) {
+                continue;
+            }
             map.put(allocKey(alloc.getOutbLine().getId(), alloc.getInv().getId()), alloc);
         }
         return map;

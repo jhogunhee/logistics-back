@@ -1,5 +1,7 @@
 package com.project.wmsback.outbound.dto;
 
+import com.project.wmsback.outbound.entity.WaveStatus;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -13,6 +15,12 @@ import java.time.LocalDateTime;
 public record AllocWaveResponse(
         Long wavId,
         String wavNo,
+        /**
+         * 웨이브 상태. ISSUED도 대상에 오른다 — 결품 종결이 잔량을 사후에 키우거나, 지시취소 후
+         * 할당해제로 할당이 0건이 된 주문이 있으면 그 웨이브를 다시 채워야 하기 때문이다.
+         * 추가 할당분은 <b>지시를 다시 발행해야</b> 현장에 나가므로 화면이 이 값으로 구분해 안내한다.
+         */
+        WaveStatus status,
         Long wavStgyId,
         /** 웨이브의 출고예정일 — 편성 가드가 소속 주문의 출고예정일을 하나로 강제하므로 어느 주문의 값이든 같다 */
         LocalDate expctDe,
@@ -22,9 +30,10 @@ public record AllocWaveResponse(
         long alocQty,
         long remainQty
 ) {
-    public static AllocWaveResponse of(Long wavId, String wavNo, Long wavStgyId, LocalDate expctDe,
-                                       LocalDateTime createdAt, long orderCount, long odrQty, long alocQty) {
-        return new AllocWaveResponse(wavId, wavNo, wavStgyId, expctDe, createdAt,
+    public static AllocWaveResponse of(Long wavId, String wavNo, WaveStatus status, Long wavStgyId,
+                                       LocalDate expctDe, LocalDateTime createdAt,
+                                       long orderCount, long odrQty, long alocQty) {
+        return new AllocWaveResponse(wavId, wavNo, status, wavStgyId, expctDe, createdAt,
                 orderCount, odrQty, alocQty, odrQty - alocQty);
     }
 }

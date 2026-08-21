@@ -61,6 +61,7 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
 
         List<Long> wavIds = waveRows.stream().map(row -> row.get(outbWave.id)).toList();
         Map<Long, long[]> allocSums = sumAllocByWaveIds(wavIds);
+        Map<Long, Long> pendingAllocs = countPendingAllocsByWaveIds(wavIds);
 
         List<PikngWaveResponse> result = new ArrayList<>(waveRows.size());
         for (Tuple row : waveRows) {
@@ -75,9 +76,46 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
             result.add(PikngWaveResponse.of(wavId, row.get(outbWave.wavNo), status,
                     row.get(outbOrder.expctDe.min()), row.get(outbWave.issuedDt),
                     orZero(row.get(outbOrder.id.countDistinct())), orZero(row.get(outbLine.odrQty.sum())),
-                    sums[0], sums[1]));
+                    sums[0], sums[1], pendingAllocs.getOrDefault(wavId, 0L)));
         }
         return result;
+    }
+
+    /**
+     * 웨이브별 <b>아직 지시가 나가지 않은 할당</b> 건수. 발행 전이면 전 할당이 여기 세어지고,
+     * 발행 후에 0이 아니면 「할당은 됐는데 지시가 안 나간 것」이 남아 있다는 뜻이다 —
+     * 화면이 그것을 무조건 강조한다(추가 발행 대상).
+     */
+    private Map<Long, Long> countPendingAllocsByWaveIds(List<Long> wavIds) {
+        if (wavIds.isEmpty()) {
+            return Map.of();
+        }
+        List<Tuple> rows = queryFactory
+                .select(outbOrder.wave.id, outbAlloc.count())
+                .from(outbAlloc)
+                .join(outbAlloc.outbLine, outbLine)
+                .join(outbLine.outbOrder, outbOrder)
+                .where(outbOrder.wave.id.in(wavIds), liveTaskAbsent())
+                .groupBy(outbOrder.wave.id)
+                .fetch();
+
+        Map<Long, Long> map = new HashMap<>();
+        for (Tuple row : rows) {
+            map.put(row.get(outbOrder.wave.id), orZero(row.get(outbAlloc.count())));
+        }
+        return map;
+    }
+
+    /**
+     * 이 할당에 살아 있는 지시가 없다 — 「미발행 할당」의 정의이자 추가 발행의 대상 조건.
+     * 취소된 지시는 세지 않는다(부분 유니크 {@code uq_pikng_task_alloc}와 같은 기준).
+     */
+    private static BooleanExpression liveTaskAbsent() {
+        return JPAExpressions.selectOne()
+                .from(pikngTask)
+                .where(pikngTask.outbAlloc.eq(outbAlloc),
+                        pikngTask.status.ne(PikngTaskStatus.CANCELLED))
+                .exists().not();
     }
 
     /** 웨이브별 [할당수량 합, 피킹수량 합] */
@@ -112,7 +150,9 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
                 .join(outbAlloc.outbLine, outbLine)
                 .join(outbLine.outbOrder, outbOrder)
                 .join(outbAlloc.inv, inv)
-                .where(outbOrder.wave.id.eq(wavId))
+                // 살아 있는 지시가 붙은 할당은 뺀다 — 이 목록의 뜻이 「아직 안 나간 것」이다.
+                // 발행 전에는 전 할당이 여기 오고(발행 미리보기), 발행 후에는 추가 발행 대상이 온다
+                .where(outbOrder.wave.id.eq(wavId), liveTaskAbsent())
                 // 발행 시 부여될 순서 그대로 정렬한다 — 이 목록이 곧 발행 미리보기다 (PikngTaskService.issue와 한 쌍)
                 .orderBy(inv.loc.pikngPrty.asc(), inv.loc.locCd.asc(), outbAlloc.id.asc())
                 .fetch();

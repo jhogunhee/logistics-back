@@ -6,7 +6,7 @@ import com.project.wmsback.outbound.dto.AllocRowResponse;
 import com.project.wmsback.outbound.dto.AllocTargetSearchCond;
 import com.project.wmsback.outbound.dto.AllocWaveResponse;
 import com.project.wmsback.outbound.entity.OutbLine;
-import com.project.wmsback.outbound.entity.WaveStatus;
+import com.project.wmsback.outbound.entity.OutbStatus;
 import com.project.wmsback.warehouse.entity.LocTyp;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.OrderSpecifier;
@@ -63,18 +63,22 @@ public class OutbAllocRepositoryImpl implements OutbAllocRepositoryCustom {
     @Override
     public List<AllocWaveResponse> searchTargetWaves(AllocTargetSearchCond cond) {
         List<Tuple> waveRows = queryFactory
-                .select(outbWave.id, outbWave.wavNo, outbWave.wavStgyId, outbWave.createdAt,
+                .select(outbWave.id, outbWave.wavNo, outbWave.status, outbWave.wavStgyId, outbWave.createdAt,
                         outbOrder.expctDe.min(), outbOrder.id.countDistinct(), outbLine.odrQty.sum())
                 .from(outbLine)
                 .join(outbLine.outbOrder, outbOrder)
                 .join(outbOrder.wave, outbWave)
                 .where(
-                        // ISSUED 웨이브는 피킹지시가 이미 나갔다 — 추가 할당은 지시 없는 할당을 만든다
-                        outbWave.status.eq(WaveStatus.PLANNED),
+                        // 웨이브 상태로 거르지 않는다 — ISSUED 웨이브도 잔량이 남으면 대상이다.
+                        // 결품 종결이 잔량을 사후에 키우고, 지시취소 후 할당해제가 할당 0건 주문을
+                        // 남기는데, 그 둘의 출구가 여기다. 늘어난 몫은 새 할당 행 + 새 지시 행으로 간다
+                        // 출고확정된 주문은 집계에서도 뺀다 — findTargetLines가 거르는 것과 한 쌍이라,
+                        // 안 빼면 잔량이 그 주문에만 남은 웨이브가 목록에 올라 실행하면 0건이 된다
+                        outbOrder.status.ne(OutbStatus.SHIPPED),
                         waveNoContains(cond.getWavNo()),
                         matchingLineExists(cond)
                 )
-                .groupBy(outbWave.id, outbWave.wavNo, outbWave.wavStgyId, outbWave.createdAt)
+                .groupBy(outbWave.id, outbWave.wavNo, outbWave.status, outbWave.wavStgyId, outbWave.createdAt)
                 .orderBy(outbWave.id.desc())
                 .fetch();
 
@@ -92,6 +96,7 @@ public class OutbAllocRepositoryImpl implements OutbAllocRepositoryCustom {
                 continue;
             }
             result.add(AllocWaveResponse.of(wavId, row.get(outbWave.wavNo),
+                    row.get(outbWave.status),
                     row.get(outbWave.wavStgyId), row.get(outbOrder.expctDe.min()),
                     row.get(outbWave.createdAt),
                     orZero(row.get(outbOrder.id.countDistinct())), odrQty, alocQty));
@@ -185,6 +190,9 @@ public class OutbAllocRepositoryImpl implements OutbAllocRepositoryCustom {
                 .join(outbOrder.store, store).fetchJoin()
                 .where(
                         outbOrder.wave.id.in(wavIds),
+                        // 출고확정된 주문은 잔량이 남아 있어도 대상이 아니다 — 부족 출고로 닫힌
+                        // 몫을 뒤늦게 채우면 확정을 무르는 셈이 된다 (recalcStatus의 SHIPPED 예외와 한 쌍)
+                        outbOrder.status.ne(OutbStatus.SHIPPED),
                         outbLine.odrQty.gt(alocQtyOf(outbLine))
                 )
                 .orderBy(prod.id.asc(), outbOrder.expctDe.asc(),
