@@ -1,6 +1,7 @@
 package com.project.wmsback.warehouse.repository;
 
 import com.project.wmsback.warehouse.dto.LocSearchCond;
+import com.project.wmsback.warehouse.entity.BizDvsn;
 import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.LocTyp;
 import com.querydsl.core.types.dsl.BooleanExpression;
@@ -27,7 +28,8 @@ public class LocRepositoryImpl implements LocRepositoryCustom {
                 .where(
                         locCdContains(cond.getLocCd()),
                         zonCdEq(cond.getZonCd()),
-                        locTypEq(cond.getLocTyp())
+                        locTypEq(cond.getLocTyp()),
+                        bizDvsnEq(cond.getBizDvsn())
                 )
                 .orderBy(zon.zonCd.asc(), loc.locCd.asc())
                 .fetch();
@@ -45,5 +47,9 @@ public class LocRepositoryImpl implements LocRepositoryCustom {
 
     private BooleanExpression locTypEq(LocTyp locTyp) {
         return locTyp != null ? loc.locTyp.eq(locTyp) : null;
+    }
+
+    private BooleanExpression bizDvsnEq(BizDvsn bizDvsn) {
+        return bizDvsn != null ? zon.bizDvsn.eq(bizDvsn) : null;
     }
 }
