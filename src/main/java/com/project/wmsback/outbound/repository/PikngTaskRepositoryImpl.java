@@ -6,6 +6,7 @@ import com.project.wmsback.outbound.dto.PikngRowResponse;
 import com.project.wmsback.outbound.dto.PikngTaskSearchCond;
 import com.project.wmsback.outbound.dto.PikngWaveDetailResponse;
 import com.project.wmsback.outbound.dto.PikngWaveResponse;
+import com.project.wmsback.outbound.entity.OutbStatus;
 import com.project.wmsback.outbound.entity.PikngTaskStatus;
 import com.project.wmsback.outbound.entity.WaveStatus;
 import com.querydsl.core.Tuple;
@@ -204,6 +205,8 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
                 .from(outbOrder)
                 .where(
                         outbOrder.wave.id.eq(wavId),
+                        // 전량 미출고로 확정된 주문은 할당 0건인 채 SHIPPED다 — 발행을 막는 주문이 아니다
+                        outbOrder.status.ne(OutbStatus.SHIPPED),
                         JPAExpressions.selectOne()
                                 .from(outbAlloc)
                                 .join(outbAlloc.outbLine, outbLine)

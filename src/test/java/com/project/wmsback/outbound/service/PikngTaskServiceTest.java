@@ -240,6 +240,24 @@ class PikngTaskServiceTest {
     }
 
     @Test
+    @DisplayName("전량 미출고로 확정된(SHIPPED · 할당 0건) 주문은 발행 가드에서 빠진다 — 추가 발행을 막지 않는다")
+    void issueAdditionalIgnoresShippedNoAllocOrder() {
+        wave.issue();
+        OutbOrder allocated = order("OB-001");
+        OutbOrder shipped = order("OB-002");
+        shipped.ship();   // CREATED + 웨이브 편성 상태라 전량 미출고 확정이 통과한다
+        OutbAlloc added = alloc(3L, allocated, 15, loc(4L, 2, "C-01"));
+        when(outbOrderRepository.findByWaveId(100L)).thenReturn(List.of(allocated, shipped));
+        when(outbAllocRepository.findIssuableByWaveId(100L, PikngTaskStatus.CANCELLED)).thenReturn(List.of(added));
+        when(outbAllocRepository.findAllocatedOrderIdsByWaveId(100L)).thenReturn(List.of(allocated.getId()));
+        when(pikngTaskRepository.findMaxSrtSeqByWaveId(100L)).thenReturn(2);
+
+        PikngIssueResponse response = pikngTaskService.issueAdditional(issue(100L));
+
+        assertEquals(1, response.taskCount());
+    }
+
+    @Test
     @DisplayName("나갈 할당이 없으면 추가 발행을 거부한다")
     void issueAdditionalRejectsWhenNothingPending() {
         wave.issue();

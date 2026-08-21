@@ -11,6 +11,7 @@ import com.project.wmsback.outbound.dto.PikngWaveDetailResponse;
 import com.project.wmsback.outbound.dto.PikngWaveResponse;
 import com.project.wmsback.outbound.entity.OutbAlloc;
 import com.project.wmsback.outbound.entity.OutbOrder;
+import com.project.wmsback.outbound.entity.OutbStatus;
 import com.project.wmsback.outbound.entity.OutbWave;
 import com.project.wmsback.outbound.entity.PikngTask;
 import com.project.wmsback.outbound.entity.PikngTaskStatus;
@@ -135,7 +136,11 @@ public class PikngTaskService {
             OutbWave wave = lockWave(wavId);
             requireIssuable(wave, additional);
 
-            List<OutbOrder> orders = outbOrderRepository.findByWaveId(wavId);
+            // 출고확정된 주문은 빼고 본다 — 전량 미출고로 확정된 주문은 할당 0건인 채 SHIPPED라,
+            // 안 빼면 그 웨이브의 추가 발행이 「할당 0건 주문」에 영영 막힌다
+            List<OutbOrder> orders = outbOrderRepository.findByWaveId(wavId).stream()
+                    .filter(order -> order.getStatus() != OutbStatus.SHIPPED)
+                    .toList();
             if (orders.isEmpty()) {
                 throw new IllegalArgumentException("웨이브에 편성된 주문이 없습니다: " + wave.getWavNo());
             }
