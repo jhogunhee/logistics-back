@@ -186,6 +186,10 @@ public class PikngService {
     @Transactional
     public PikngCloseShortResponse closeShort(PikngCloseShortRequest request) {
         Map<Long, PikngCloseShortRequest.Item> itemByTaskId = validatedCloseShort(request);
+        // 사유코드도 락 전에 본다 — 사유 미선택 하나로 잡아 둔 락을 들고 롤백할 일이 아니다
+        Map<Long, String> rsnDscrByTaskId = new HashMap<>();
+        itemByTaskId.forEach((taskId, item) -> rsnDscrByTaskId.put(taskId,
+                rsnValidator.validate(SHOTGE_RSN_GRP_CD, "결품사유", item.getRsnCd(), item.getRsnDscr())));
 
         // ① 웨이브 행 락 — 피킹 실행과 같은 순서(웨이브 오름차순 → 재고 키 오름차순)로 잡는다.
         //    InvMovService의 취소가 재고를 먼저 잠그는 것과 갈리는 지점이고, 이유는 출고에는
@@ -220,8 +224,7 @@ public class PikngService {
         long totalShotge = 0;
         for (PikngTask task : tasks) {
             PikngCloseShortRequest.Item item = itemByTaskId.get(task.getId());
-            String rsnDscr = rsnValidator.validate(SHOTGE_RSN_GRP_CD, "결품사유",
-                    item.getRsnCd(), item.getRsnDscr());
+            String rsnDscr = rsnDscrByTaskId.get(task.getId());
             OutbAlloc alloc = task.getOutbAlloc();
             OutbOrder order = alloc.getOutbLine().getOutbOrder();
             long remaining = task.remainingQty();
@@ -256,7 +259,7 @@ public class PikngService {
         return new PikngCloseShortResponse(tasks.size(), totalShotge, changes);
     }
 
-    /** 결품 종결 요청 검증 — 지시 지정·중복 없음. 사유코드는 그룹 대조가 필요해 본 처리에서 본다 */
+    /** 결품 종결 요청 검증 — 지시 지정·중복 없음. 사유코드는 그룹 대조가 필요해 {@link #closeShort}가 락 전에 본다 */
     private static Map<Long, PikngCloseShortRequest.Item> validatedCloseShort(PikngCloseShortRequest request) {
         List<PikngCloseShortRequest.Item> items = request.getItems();
         if (items == null || items.isEmpty()) {
