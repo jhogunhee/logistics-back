@@ -248,7 +248,7 @@ public class PikngTaskService {
         for (Long wavId : wavIds) {
             OutbWave wave = lockWave(wavId);
             requireIssued(wave);
-            List<PikngTask> live = liveTasks(wavId);
+            List<PikngTask> live = uncancelledTasks(wavId);
             if (live.isEmpty()) {
                 throw new IllegalStateException("취소할 지시가 없습니다: " + wave.getWavNo());
             }
@@ -269,8 +269,9 @@ public class PikngTaskService {
 
     /**
      * 지시 단위 — 실적 판정은 {@link PikngTask#cancel()}이 대상 지시 자신에 대해 한다.
-     * 취소 후 살아 있는 지시가 0건인 웨이브만 PLANNED로 돌린다(완료 지시가 남으면 그대로 ISSUED) —
-     * 「살아 있는 지시 없는 ISSUED 웨이브」를 만들지 않는 것은 두 진입의 공통 책임이다.
+     * 취소 후 취소되지 않은 지시가 0건인 웨이브만 PLANNED로 돌린다. 완료(DONE) 지시가 남으면 그대로
+     * ISSUED다 — 그 웨이브는 할 일이 남은 것이 아니라 출고확정 대기다. 「지시 없는 ISSUED 웨이브」를
+     * 만들지 않는 것은 두 진입의 공통 책임이다.
      */
     private PikngCancelResponse cancelTasks(List<Long> taskIds) {
         // ① 웨이브 행 락을 지시보다 먼저 잡는다 — 순서(웨이브 오름차순)뿐 아니라 「락 뒤에 읽는다」가
@@ -299,7 +300,7 @@ public class PikngTaskService {
         List<PikngCancelResponse.WaveResult> results = new ArrayList<>();
         for (Map.Entry<Long, OutbWave> entry : waves.entrySet()) {
             OutbWave wave = entry.getValue();
-            if (liveTasks(entry.getKey()).isEmpty()) {
+            if (uncancelledTasks(entry.getKey()).isEmpty()) {
                 wave.cancelIssue();
             }
             results.add(new PikngCancelResponse.WaveResult(
@@ -308,7 +309,8 @@ public class PikngTaskService {
         return new PikngCancelResponse(results.size(), taskIds.size(), results);
     }
 
-    private List<PikngTask> liveTasks(Long wavId) {
+    /** 취소되지 않은 지시 — DIRECTED와 DONE 둘 다. 「할 일이 남았나」가 아니라 「지시가 나가 있나」다 */
+    private List<PikngTask> uncancelledTasks(Long wavId) {
         return pikngTaskRepository.findByWaveIdAndStatusNot(wavId, PikngTaskStatus.CANCELLED);
     }
 

@@ -96,7 +96,7 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
                 .from(outbAlloc)
                 .join(outbAlloc.outbLine, outbLine)
                 .join(outbLine.outbOrder, outbOrder)
-                .where(outbOrder.wave.id.in(wavIds), liveTaskAbsent())
+                .where(outbOrder.wave.id.in(wavIds), noUncancelledTask())
                 .groupBy(outbOrder.wave.id)
                 .fetch();
 
@@ -108,10 +108,11 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
     }
 
     /**
-     * 이 할당에 살아 있는 지시가 없다 — 「미발행 할당」의 정의이자 추가 발행의 대상 조건.
-     * 취소된 지시는 세지 않는다(부분 유니크 {@code uq_pikng_task_alloc}와 같은 기준).
+     * 이 할당에 취소되지 않은 지시가 없다 — 「미발행 할당」의 정의이자 추가 발행의 대상 조건.
+     * 완료(DONE) 지시도 할당을 차지한 것으로 센다 — 그 할당에 다시 지시를 낼 수는 없다.
+     * 취소된 지시만 세지 않는다(부분 유니크 {@code uq_pikng_task_alloc}와 같은 기준).
      */
-    private static BooleanExpression liveTaskAbsent() {
+    private static BooleanExpression noUncancelledTask() {
         return JPAExpressions.selectOne()
                 .from(pikngTask)
                 .where(pikngTask.outbAlloc.eq(outbAlloc),
@@ -151,9 +152,9 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
                 .join(outbAlloc.outbLine, outbLine)
                 .join(outbLine.outbOrder, outbOrder)
                 .join(outbAlloc.inv, inv)
-                // 살아 있는 지시가 붙은 할당은 뺀다 — 이 목록의 뜻이 「아직 안 나간 것」이다.
+                // 취소되지 않은 지시가 붙은 할당은 뺀다 — 이 목록의 뜻이 「아직 안 나간 것」이다.
                 // 발행 전에는 전 할당이 여기 오고(발행 미리보기), 발행 후에는 추가 발행 대상이 온다
-                .where(outbOrder.wave.id.eq(wavId), liveTaskAbsent())
+                .where(outbOrder.wave.id.eq(wavId), noUncancelledTask())
                 // 발행 시 부여될 순서 그대로 정렬한다 — 이 목록이 곧 발행 미리보기다 (PikngTaskService.issue와 한 쌍)
                 .orderBy(inv.loc.pikngPrty.asc(), inv.loc.locCd.asc(), outbAlloc.id.asc())
                 .fetch();

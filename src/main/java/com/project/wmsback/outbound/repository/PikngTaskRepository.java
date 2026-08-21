@@ -11,7 +11,7 @@ import java.util.List;
 
 public interface PikngTaskRepository extends JpaRepository<PikngTask, Long>, PikngTaskRepositoryCustom {
 
-    /** 웨이브의 살아 있는 지시 (CANCELLED 제외) — 지시취소의 대상·실적 0 검증의 재료 */
+    /** 웨이브의 취소되지 않은 지시 (DIRECTED·DONE) — 지시취소의 대상·실적 0 검증·「지시가 남았나」의 재료 */
     List<PikngTask> findByWaveIdAndStatusNot(Long wavId, PikngTaskStatus status);
 
     /**
