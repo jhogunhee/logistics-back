@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -38,4 +39,8 @@ public interface OutbOrderRepository extends JpaRepository<OutbOrder, Long>, Out
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select o from OutbOrder o where o.omsOutbOrderId = :omsOutbOrderId")
     Optional<OutbOrder> findByOmsOutbOrderIdForUpdate(@Param("omsOutbOrderId") Long omsOutbOrderId);
+
+    /** 출고확정 대상 주문 — 웨이브까지 함께 읽는다(웨이브 락 순서 결정과 가드에 쓴다) */
+    @Query("select o from OutbOrder o left join fetch o.wave where o.id in :ids")
+    List<OutbOrder> findAllWithWaveByIds(@Param("ids") Collection<Long> ids);
 }

@@ -21,7 +21,7 @@ import java.util.List;
 
 /**
  * 출고 웨이브. <b>피킹지시의 발행 단위</b> — 여러 주문의 집품을 한 번에 지시하기 위한 그룹이다.
- * 지시 발행 이후 진행(피킹/확정)은 주문 단위라 웨이브는 여기서 역할이 끝난다.
+ * 지시 발행 이후 진행(피킹/확정)은 주문 단위이고, 소속 주문이 전부 출고확정되면 웨이브도 종료된다.
  *
  * <p>할당은 웨이브를 <b>대상으로 실행</b>하지만(design.md 「웨이브」절) 웨이브는 실행 파라미터일 뿐,
  * 할당 결과는 전부 주문 상태·라인 수량·재고 예약에 남는다. 그래서 이 엔티티에는 할당과 관련된
@@ -53,6 +53,10 @@ public class OutbWave extends BaseEntity {
     /** 피킹지시 발행 시각. 사전의 일시 접미는 _dt다 — _at은 감사 컬럼 4종 전용 */
     @Column(name = "issued_dt")
     private LocalDateTime issuedDt;
+
+    /** 종료 시각 — 소속 주문이 전부 출고확정된 시점. 사전 「마감 CLOS」 + 일시 DT */
+    @Column(name = "clos_dt")
+    private LocalDateTime closDt;
 
     /**
      * 이 웨이브를 만든 웨이브 전략 (느슨한 참조 — FK 없음). NULL = 화면에서 수동 생성.
@@ -106,5 +110,19 @@ public class OutbWave extends BaseEntity {
         }
         this.status = WaveStatus.PLANNED;
         this.issuedDt = null;
+    }
+
+    /**
+     * 종료 — ISSUED → CLOSED. <b>호출 근거는 「소속 주문이 전부 SHIPPED」</b>이고 그것을 세는 것은
+     * 출고확정 서비스다(주문은 이 엔티티에 읽기 전용으로만 매달려 있어 갱신 중 상태를 믿을 수 없다).
+     * 되돌리는 전이는 없다 — 출고확정 취소가 없기 때문이다.
+     */
+    public void close() {
+        if (status != WaveStatus.ISSUED) {
+            throw new IllegalStateException("피킹지시가 발행된 웨이브만 종료할 수 있습니다 ("
+                    + status.getLabel() + "): " + wavNo);
+        }
+        this.status = WaveStatus.CLOSED;
+        this.closDt = LocalDateTime.now();
     }
 }

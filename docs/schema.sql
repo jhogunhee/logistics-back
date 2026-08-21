@@ -738,7 +738,7 @@ CREATE TABLE inv (
 
 COMMENT ON TABLE  inv IS '현재고 스냅샷. 키: 상품+Loc+Lot. 재고수량(on_hand) = 가용 + 예약(aloc) + 보류(hld). 가용재고 = on_hand - aloc - hld (파생값, 컬럼 아님)';
 COMMENT ON COLUMN inv.on_hand_qty IS '실물 보유 수량. 물리 변동(RECEIVE/MOVE/ADJUST/PICK 등) 시에만 증감';
-COMMENT ON COLUMN inv.aloc_qty   IS '예약 수량 — 출고 할당 전용이 아니라 예약수량 일반. 출고 할당(outb_alloc)과 이동지시(inv_mov_task)가 같은 컬럼으로 선점하고, 실행(피킹/이동확정)이 on_hand와 함께 소진. 물리 이동이 아니므로 이력에 기록하지 않음. 항등식: aloc_qty = 원천별 미소진 잔량 합 (대사 대상)';
+COMMENT ON COLUMN inv.aloc_qty   IS '예약 수량 — 출고 할당 전용이 아니라 예약수량 일반. 원천 셋: 출고 할당(outb_alloc, 보관) · 이동지시(inv_mov_task, 보관) · 피킹된 물량(SHIP-STAGE). 피킹은 예약을 출발지에서 소진하고 도착지에 다시 잡으며(from 예약 → to 예약), 이동확정·출고확정이 on_hand와 함께 소진. 물리 이동이 아니므로 이력에 기록하지 않음. 항등식: aloc_qty = 원천별 미소진 잔량 합 — 스테이징에서는 주문이 SHIPPED가 아닌 outb_alloc.pikng_qty의 합 (대사 대상)';
 COMMENT ON COLUMN inv.hld_qty     IS '보류 수량 — 가용재고에서 뺀다(예약과 배타: 가용에서만 잡고, 예약분은 보류 불가). 물리 이동이 아니므로 이력에 기록하지 않고, 원장은 inv_hld/inv_hld_acrst/inv_hld_rlz_acrst가 담당. 항등식: hld_qty = SUM(HELD 건의 hld_qty - rlz_qty) (대사 대상)';
 COMMENT ON COLUMN inv.version     IS '낙관적 락 버전 (@Version). 비관적 락과의 비교 실험 대상';
 
@@ -768,7 +768,7 @@ CREATE TABLE inv_hist (
 );
 
 COMMENT ON TABLE  inv_hist IS '재고 이력 (append-only 원장). 모든 물리 변동을 ±수량으로 기록. 스냅샷과 한 트랜잭션에서 갱신. MOVE는 출발지(-)/도착지(+) 2건으로 기록';
-COMMENT ON COLUMN inv_hist.tx_typ      IS 'RECEIVE 입고 / MOVE 이동(적치 포함) / ADJUST 조정 / PICK 피킹 / SHIP 출고확정';
+COMMENT ON COLUMN inv_hist.tx_typ      IS 'RECEIVE 입고 / MOVE 이동(적치 포함) / ADJUST 조정 / PICK 피킹(보관→SHIP-STAGE, 2행) / SHIP 출고확정(SHIP-STAGE 반출, 1행 — 실물과 예약을 함께 소진, 도착지 없음)';
 COMMENT ON COLUMN inv_hist.qty          IS '변동 수량 (증가 +, 감소 -). 0 금지';
 COMMENT ON COLUMN inv_hist.rfn_doc_typ IS '참조 문서 유형 (INBOUND / OUTBOUND / INV_MOV 이동지시 / INV_STKTK 재고조사 / LOT_CHNG 재고 로트변경 / 수동조정 시 NULL)';
 COMMENT ON COLUMN inv_hist.rfn_doc_no   IS '참조 문서 번호 (입고번호/출고번호). 이력 → 원인 문서 추적용';
@@ -1099,6 +1099,7 @@ CREATE TABLE outb_wave (
     wav_no      VARCHAR(30)    NOT NULL,
     status       VARCHAR(15)    NOT NULL,
     issued_dt    TIMESTAMP,
+    clos_dt      TIMESTAMP,
     wav_stgy_id  BIGINT,
     rvsn_no      BIGINT,
     created_at   TIMESTAMP      DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -1106,15 +1107,16 @@ CREATE TABLE outb_wave (
     updated_at   TIMESTAMP,
     updated_by   VARCHAR(30),
     CONSTRAINT uq_wav_no UNIQUE (wav_no),
-    CONSTRAINT ck_outb_wave_status CHECK (status IN ('PLANNED', 'ISSUED')),
+    CONSTRAINT ck_outb_wave_status CHECK (status IN ('PLANNED', 'ISSUED', 'CLOSED')),
     -- 전략 컬럼은 전략이 실제로 실행해 만든 행에만 채운다 — "전략 id 있음 = 전략이 실행함"이 성립해야 한다
     CONSTRAINT ck_outb_wave_stgy CHECK ((wav_stgy_id IS NULL) = (rvsn_no IS NULL))
 );
 
 COMMENT ON TABLE  outb_wave IS '출고 웨이브. 피킹지시의 발행 단위 — 여러 주문의 집품을 한 번에 지시하기 위한 그룹. 발행 이후 진행(피킹/확정)은 주문 단위라 웨이브는 여기서 역할이 끝난다. 할당도 이 단위로 실행하지만(2026-08-03 번복 — 피킹지시가 웨이브 단위라 할당만 주문 단위면 흐름 중간에서 단위가 어긋난다) 계산·결과는 라인 단위이고 웨이브 상태는 할당으로 바뀌지 않는다';
 COMMENT ON COLUMN outb_wave.wav_no     IS '웨이브 번호 (업무 식별자, 예: WV-20260718-001)';
-COMMENT ON COLUMN outb_wave.status      IS 'PLANNED 편성중(주문 담기 가능) / ISSUED 피킹지시 발행 완료. RELEASED를 쓰지 않는 것은 inv_hld의 RELEASED(보류 해제)와 한 토큰이 두 뜻이 되기 때문';
+COMMENT ON COLUMN outb_wave.status      IS 'PLANNED 편성중(주문 담기 가능) / ISSUED 지시가 나가 있다(작업중 또는 확정 대기) / CLOSED 종료(소속 주문이 전부 출고확정). 종료로 가는 길은 출고확정 하나이고 되돌아오는 길은 없다. RELEASED를 쓰지 않는 것은 inv_hld의 RELEASED(보류 해제)와 한 토큰이 두 뜻이 되기 때문';
 COMMENT ON COLUMN outb_wave.issued_dt   IS '피킹지시 발행 시각. 미발행이면 NULL — 지시취소(실적 0일 때만)가 다시 NULL로 되돌린다';
+COMMENT ON COLUMN outb_wave.clos_dt     IS '종료 시각 — 소속 주문이 전부 출고확정된 시점. 사전 「마감 CLOS」 + 일시 DT. ib_order가 clos_dt → cfm_dt로 개명한 것은 그 사건이 확정이어서이고, 웨이브의 사건은 확정이 아니라 종료(확정의 결과)라 clos_dt가 맞다';
 COMMENT ON COLUMN outb_wave.wav_stgy_id IS '이 웨이브를 만든 웨이브 전략 (느슨한 참조, FK 없음). NULL = 화면에서 수동 생성';
 COMMENT ON COLUMN outb_wave.rvsn_no     IS '생성에 사용된 전략 리비전. stgy_rvsn과 조합해 "그때의 조건"을 재구성한다 (P5)';
 
@@ -1156,6 +1158,7 @@ COMMENT ON COLUMN outb_order.store_id IS '출고처 점포. 할당 시 이 점�
 COMMENT ON COLUMN outb_order.wav_id  IS '편성된 출고 웨이브. NULL = 아직 미편성. 주문은 웨이브에 편성돼야 피킹지시를 받는다(주문 1건짜리 웨이브도 허용)';
 COMMENT ON COLUMN outb_order.wav_reg_typ IS '웨이브 편입 출처. STGY 전략 실행 / MANUAL 화면 수동 편성. NULL = 미편성. 수동 편성을 금지하지 않고 가시화한다 — 전략 조건과 안 맞는 주문이 웨이브에 있는 상황을 화면이 구분 표시';
 COMMENT ON COLUMN outb_order.odr_de IS '주문일 = 상위 OMS 출고주문이 등록된 날. 확정 시 복사되며 이후 바뀌지 않는다 — 「언제 들어온 주문인가」를 보는 값이다';
+COMMENT ON COLUMN outb_order.shmt_dt  IS '출고 확정 시각 — 재고가 창고를 떠난 것으로 확정된 시점. SHIPPED와 짝. 출고실적은 별도 테이블이 아니라 이 값 + inv_hist의 SHIP 행(rfn_doc_no = 출고번호)이다';
 COMMENT ON COLUMN outb_order.expct_de IS '출고 예정일. 출고번호 채번(OB-YYYYMMDD-NNN) 기준일이자 웨이브 편성 대상 기간의 기준이다 — 웨이브는 「같은 날 나갈 주문」을 묶는 단위라 주문일이 아니라 이쪽을 본다';
 
 CREATE INDEX ix_outb_order_wav ON outb_order (wav_id);
@@ -1207,7 +1210,7 @@ COMMENT ON TABLE  outb_alloc IS '재고 할당 레코드. 어떤 주문라인이
 COMMENT ON COLUMN outb_alloc.aloc_qty  IS '할당 수량 (부분할당 허용: 라인 order_qty보다 합계가 작을 수 있음)';
 COMMENT ON COLUMN outb_alloc.aloc_stgy_id IS '이 할당을 만든 할당 전략 (느슨한 참조, FK 없음). NULL = 수동할당 또는 전략 미설정 기간의 기본 동작 할당. 같은 (라인,재고)에 합산될 때는 처음 값을 유지한다 — 나중 실행의 전략으로 덮어쓰면 이미 기록된 수량의 근거가 바뀐다';
 COMMENT ON COLUMN outb_alloc.rvsn_no      IS '할당에 사용된 전략 리비전. stgy_rvsn과 조합해 "그때의 정의"를 재구성한다 (P5)';
-COMMENT ON COLUMN outb_alloc.pikng_qty IS '피킹 완료 수량. 피킹 시 보관→SHIP-STAGE MOVE(tx PICK)와 함께 누적되고, 이때 보관 inv.aloc_qty도 소진된다(실물 반출). 항등식: pikng_qty = pikng_task.cmpl_qty = SUM(pikng_acrst.pikng_qty) — 주문 도메인의 진행 / 지시 문서의 진행 / 실행 원장이 같은 사실의 세 관점이다';
+COMMENT ON COLUMN outb_alloc.pikng_qty IS '피킹 완료 수량. 피킹 시 보관→SHIP-STAGE MOVE(tx PICK)와 함께 누적되고, 이때 보관 inv.aloc_qty가 소진되며 SHIP-STAGE inv.aloc_qty가 같은 만큼 잡힌다(예약 이전). 출고확정이 그 예약과 실물을 함께 소진. 항등식: pikng_qty = pikng_task.cmpl_qty = SUM(pikng_acrst.pikng_qty)';
 
 CREATE INDEX ix_alloc_line ON outb_alloc (outb_line_id);
 CREATE INDEX ix_alloc_inv ON outb_alloc (inv_id);

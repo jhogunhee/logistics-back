@@ -97,7 +97,7 @@ public class OutbOrder extends BaseEntity {
     @Column(name = "expct_de", nullable = false)
     private LocalDate expctDe;
 
-    /** 출고 확정 시각 */
+    /** 출고 확정 시각 — 재고가 창고를 떠난 것으로 확정된 시점. SHIPPED와 짝이다 */
     @Column(name = "shmt_dt")
     private LocalDateTime shmtDt;
 
@@ -219,6 +219,37 @@ public class OutbOrder extends BaseEntity {
             throw new IllegalStateException(
                     "웨이브에 편성된 출고주문은 취소할 수 없습니다. 웨이브에서 먼저 빼세요: " + outbNo);
         }
+    }
+
+    /**
+     * 출고확정 — 유일한 종결 전이. 들어올 수 있는 상태는 둘뿐이다.
+     * <ul>
+     *   <li><b>PICKED</b> — 정상 확정. 할당 전량이 집품돼 SHIP-STAGE에 있다. 재고 반출은 서비스가
+     *       할당마다 한다(이 엔티티는 할당을 모른다).</li>
+     *   <li><b>CREATED</b> — 전량 미출고 확정. 할당이 0건이라 선점한 재고가 없다 — 지시취소 → 할당해제로
+     *       비워졌거나 재고가 없어 한 번도 할당되지 못한 주문이다. 웨이브에서 빼지 않고도 닫히는
+     *       유일한 문이라, 발행된 웨이브에 갇힌 주문의 마지막 출구다.</li>
+     * </ul>
+     * ALLOCATED · PICKING은 「출고작업중」이라 거부한다 — 집품을 끝내거나(피킹 · 결품 종결) 포기하려면
+     * 지시취소 → 할당해제로 CREATED에 보낸 뒤 다시 와야 한다. 입고의 {@code IbOrder#confirm()}과
+     * 같은 자리(사람이 눌러 닫는 종결, 자동 전이 없음)다.
+     *
+     * <p>웨이브 밖의 주문은 거부한다 — 그쪽의 출구는 OMS 확정취소이고, 웨이브 종료 판정이 이 전이를
+     * 따라오기 때문이다.
+     */
+    public void ship() {
+        if (wave == null) {
+            throw new IllegalStateException("웨이브에 편성되지 않은 주문은 출고확정할 수 없습니다: " + outbNo);
+        }
+        if (status == OutbStatus.SHIPPED) {
+            throw new IllegalStateException("이미 출고확정된 주문입니다: " + outbNo);
+        }
+        if (status != OutbStatus.PICKED && status != OutbStatus.CREATED) {
+            throw new IllegalStateException("출고작업중인 주문은 출고확정할 수 없습니다 ("
+                    + status.getLabel() + ") — 집품을 끝내거나, 포기하려면 지시취소 후 할당해제하세요: " + outbNo);
+        }
+        this.status = OutbStatus.SHIPPED;
+        this.shmtDt = LocalDateTime.now();
     }
 
     // 취소(cancel) 메서드는 없다. 없앨 출고주문은 상위 OMS 주문의 확정취소가 행째로 지운다 —
