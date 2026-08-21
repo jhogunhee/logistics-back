@@ -170,7 +170,9 @@ public class OmsOutbOrderService {
     public void cancelConfirm(Long omsOutbOrderId) {
         OmsOutbOrder order = findOrder(omsOutbOrderId);
 
-        OutbOrder wmsOrder = outbOrderRepository.findByOmsOutbOrderId(omsOutbOrderId)
+        // 행 락 위에서 읽는다 — 판정과 삭제 사이에 웨이브 편입·할당이 커밋되면 그 할당이
+        // 삭제된 라인을 가리키는 고아가 되고(FK 없음), 예약을 되돌릴 경로가 함께 죽는다
+        OutbOrder wmsOrder = outbOrderRepository.findByOmsOutbOrderIdForUpdate(omsOutbOrderId)
                 .orElseThrow(() -> new IllegalStateException(
                         "확정취소할 출고주문이 없습니다: " + order.getOmsOutbNo()));
 

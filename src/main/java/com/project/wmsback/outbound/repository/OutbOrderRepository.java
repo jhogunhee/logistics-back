@@ -25,8 +25,17 @@ public interface OutbOrderRepository extends JpaRepository<OutbOrder, Long>, Out
     Optional<OutbOrder> findByIdForUpdate(@Param("id") Long id);
 
     /**
-     * 상위 OMS 출고주문으로 창고 문서 찾기 (확정취소 경로). 주문당 한 건임을 uq_outb_order_oms가
-     * 보증하므로 Optional이다.
+     * 상위 OMS 출고주문으로 창고 문서 찾기. 주문당 한 건임을 uq_outb_order_oms가 보증하므로 Optional이다.
      */
     Optional<OutbOrder> findByOmsOutbOrderId(Long omsOutbOrderId);
+
+    /**
+     * 확정취소용 행 락 — {@code requireRevertible()}이 신선한 행 위에서 판정되게 한다.
+     * 판정과 삭제 사이에 편입·할당이 커밋되면 cascade로 지워진 라인을 가리키는 고아 할당이 남고
+     * ({@code outb_alloc.outb_line_id}에 FK가 없다), 할당해제가 그 라인을 조인해 예약을 되돌리는
+     * 구조라 예약 회수 경로가 함께 죽는다. {@code @Version}도 없어 편입/할당과 같은 이 행 락이 유일한 방어다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select o from OutbOrder o where o.omsOutbOrderId = :omsOutbOrderId")
+    Optional<OutbOrder> findByOmsOutbOrderIdForUpdate(@Param("omsOutbOrderId") Long omsOutbOrderId);
 }

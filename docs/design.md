@@ -116,6 +116,8 @@ flowchart TD
 
 **④ 확정취소를 막는 지점이 「검수 시작」이 아니라 「웨이브 편성」이다.** `OutbOrder.requireRevertible()`은 `CREATED`이면서 웨이브에 담기지 않은 문서만 통과시킨다. 편성된 주문을 지우면 그 웨이브의 피킹지시와 전략 실행 로그가 존재하지 않는 주문을 가리키게 된다 — 되돌리려면 웨이브에서 빼는 것이 먼저다.
 
+  - **그 판정은 `outb_order` 행 락 위에서 해야 한다 (2026-08-21).** 확정취소가 락 없이 읽으면 「판정 → 삭제」 사이에 웨이브 편입·할당이 커밋될 수 있다. `outb_line`은 cascade + orphanRemoval로 함께 삭제되는데 **`outb_alloc.outb_line_id`에 FK가 없어** 그 할당이 존재하지 않는 라인을 가리키는 고아로 남고, 할당해제가 `outb_alloc → outb_line → outb_order`를 조인해 예약을 되돌리는 구조라 **예약을 회수할 경로 자체가 죽는다.** 동시에 OMS 주문은 `CREATED`로 돌아가 재확정이 열리므로 같은 물량이 두 번 잡힌다. `outb_order`에는 `@Version`이 없어 낙관적 잠금 방어도 없으니, **편입·할당과 같은 행 락**이 유일한 방어다 — `findByOmsOutbOrderIdForUpdate`(PESSIMISTIC_WRITE)가 편성용 `findByIdForUpdate`와 같은 자리를 맡는다.
+
 **출고예정일(`expct_de`)을 새로 두고, 웨이브 편성 대상 기간의 기준을 주문일에서 이쪽으로 옮겼다.** 그전에는 `outb_order.odr_de` 하나가 「들어온 날」과 「나갈 날」을 겸했다. 주문 원장이 생기면서 둘이 갈라졌고, 웨이브는 정의상 *같은 날 나갈 주문*을 묶는 단위라 기간 필터가 출고예정일을 봐야 한다(`OutbOrderSearchCond.dateFrom/To` · `WaveStgyExecRequest.expctDeFrom/To`). `odr_de`는 주문이 등록된 날로 남아 확정 시 복사된다.
 
 **창고 쪽 취소(`outb_order.CANCELLED`)를 폐지하고 확정취소 하나로 모았다.** 같은 「없앤다」를 두 조작이 다르게 처리하고 있었다 — 취소는 행을 `CANCELLED`로 눕히고 주문을 확정으로 두었고, 확정취소는 행을 지우고 주문을 작성으로 되돌렸다. 화면에서는 무엇을 눌러야 하는지가 매번 애매했고 목록·집계에는 취소분을 빼는 필터가 따라붙는다. ASN이 같은 이유로 `CANCELLED`를 폐지한 선례를 따랐다(위 「입고주문 (OMS)」 절). `POST /outbound/orders/{id}/cancel`은 제거됐다(`migration-drop-outb-cancelled.sql`).
