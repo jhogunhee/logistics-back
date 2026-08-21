@@ -416,6 +416,8 @@ stateDiagram-v2
 
 재고 키: **상품 + Location + Lot**
 
+- **`inv.aloc_qty`는 원장이 없다 — 대사는 원천을 다시 합산해서 한다** (2026-08-21). 예약은 물리 이동이 아니라 `inv_hist`에 남기지 않으므로(`on_hand_qty`는 이력 합계, `hld_qty`는 `inv_hld`와 대사되지만) 잔류·누락을 감지할 상대가 없었다. `GET /inventory/stock/aloc-reconciliation`(`InvAlocRecRepository`)이 원천 셋 — 출고 할당 미소진분(`outb_alloc.aloc_qty − pikng_qty`) · 이동·적치지시 미소진분(`inv_mov_task`, DIRECTED) · 피킹된 물량(`pikng_task.cmpl_qty`, 살아 있는 지시 · 주문 미확정 → SHIP-STAGE) — 을 재고 키로 합산해 `aloc_qty`와 나란히 놓고, 재고 행과 FULL OUTER JOIN해 「예약은 남았는데 행이 없다」도 잡는다. 배치·알림은 두지 않는다 — 현재고 화면의 「예약 대사」가 눌러서 보는 진단이고, 0이 아닌 차이는 코드 결함이지 운영 상태가 아니다(예약을 만들고 푸는 경로가 전부 한 트랜잭션 안에서 짝으로 움직이기 때문).
+
 두 테이블을 함께 운용한다:
 
 | 테이블 | 역할 |
