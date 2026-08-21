@@ -22,6 +22,7 @@ import com.project.wmsback.outbound.repository.PikngAcrstRepository;
 import com.project.wmsback.outbound.repository.PikngTaskRepository;
 import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.Lot;
+import com.project.wmsback.warehouse.repository.LocRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -66,6 +67,7 @@ class PikngTaskServiceTest {
     @Mock OutbAllocRepository outbAllocRepository;
     @Mock OutbOrderRepository outbOrderRepository;
     @Mock OutbWaveRepository outbWaveRepository;
+    @Mock LocRepository locRepository;
 
     @InjectMocks PikngTaskService pikngTaskService;
 
@@ -89,6 +91,18 @@ class PikngTaskServiceTest {
         when(outbWaveRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(wave));
         when(pikngTaskRepository.saveAll(anyList())).thenAnswer(i -> i.getArgument(0));
         when(pikngTaskRepository.findWaveIdsByTaskIds(anyCollection())).thenReturn(List.of(100L));
+        when(locRepository.findByLocCd("SHIP-STAGE")).thenReturn(Optional.of(mock(Loc.class)));
+    }
+
+    @Test
+    @DisplayName("SHIP-STAGE가 없으면 발행 자체를 거부한다 — 실행에서 처음 알면 창고를 다 돈 뒤 롤백된다")
+    void issueRejectsWhenShipStageMissing() {
+        when(locRepository.findByLocCd("SHIP-STAGE")).thenReturn(Optional.empty());
+
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> pikngTaskService.issue(issue(100L)));
+        assertTrue(e.getMessage().contains("SHIP-STAGE"));
+        verify(pikngTaskRepository, never()).saveAll(anyList());
     }
 
     // ── 발행 ─────────────────────────────────────────────────────────────────

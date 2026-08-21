@@ -21,6 +21,7 @@ import com.project.wmsback.outbound.repository.OutbOrderRepository;
 import com.project.wmsback.outbound.repository.PikngAcrstRepository;
 import com.project.wmsback.outbound.repository.PikngTaskRepository;
 import com.project.wmsback.outbound.repository.OutbWaveRepository;
+import com.project.wmsback.warehouse.repository.LocRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -60,6 +61,10 @@ public class PikngTaskService {
     private final OutbAllocRepository outbAllocRepository;
     private final OutbOrderRepository outbOrderRepository;
     private final OutbWaveRepository outbWaveRepository;
+    private final LocRepository locRepository;
+
+    /** 피킹 도착지. 실행(PikngService)·출고확정(OutbShmtService)과 같은 값 — 여기서는 존재만 확인한다 */
+    private static final String SHIP_STAGING_LOC_CD = "SHIP-STAGE";
 
     // ── 조회 ─────────────────────────────────────────────────────────────────
 
@@ -127,6 +132,10 @@ public class PikngTaskService {
         List<Long> wavIds = distinct(request.getWavIds());
         if (wavIds.isEmpty()) {
             throw new IllegalArgumentException("발행할 웨이브를 선택하세요.");
+        }
+        // 도착지는 발행에서 한 번 확인한다 — 실행 시점에 처음 찾으면 작업자가 창고를 다 돈 뒤에야 롤백된다
+        if (locRepository.findByLocCd(SHIP_STAGING_LOC_CD).isEmpty()) {
+            throw new IllegalStateException("출고 스테이징 로케이션(SHIP-STAGE)이 없어 피킹지시를 발행할 수 없습니다 — 로케이션을 먼저 등록하세요.");
         }
         List<PikngIssueResponse.WaveResult> results = new ArrayList<>();
         int total = 0;

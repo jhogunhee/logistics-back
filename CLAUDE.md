@@ -70,7 +70,7 @@ common  ← mdm ← wmsback ← omsback
 - **수량이 모두 0이 된 `inv` 행은 삭제한다** — 재고 테이블엔 실물 · 예약 · 보류가 있는 행만 남긴다(이력 SUM=0 ↔ 행 없음). 판정은 `Inv#isEmpty()` 하나뿐이고 보유 · 예약 · 보류를 **모두** 본다. `ck_inv_qty`로 커밋 시점엔 보유수량 하나와 동치지만 그 제약은 flush 때만 평가되므로, 트랜잭션 중간 상태에서 예약이 남은 행을 지우지 않으려면 셋을 다 봐야 한다.
 - `MOVE`는 **`inv_hist` 2행**이다(출발지 −, 도착지 +). 두 행 모두 같은 `from_loc_id`/`to_loc_id`를 가져서 한 행만 봐도 이동 전체를 알 수 있다.
 - 정정은 append-only다 — 검수 취소는 원본을 지우지 않고 `ADJUST(-수량)` 행을 추가한다.
-- `RCV-STAGE`는 입고 스테이징 로케이션이다. 코드값이 `IbLineRepositoryImpl` · `ReceivingService` · `PutawayService` · `PutawayTaskService` 네 곳에 private 상수로 중복돼 있으니 바꿀 때 넷을 같이 고칠 것. 거울상인 출고 스테이징 `SHIP-STAGE`는 `PikngService`(쌓는 쪽)와 `OutbShmtService`(비우는 쪽) 두 곳에 있다 — 같은 성격의 상수라 바꿀 때 함께 볼 것.
+- `RCV-STAGE`는 입고 스테이징 로케이션이다. 코드값이 `IbLineRepositoryImpl` · `ReceivingService` · `PutawayService` · `PutawayTaskService` 네 곳에 private 상수로 중복돼 있으니 바꿀 때 넷을 같이 고칠 것. 거울상인 출고 스테이징 `SHIP-STAGE`는 `PikngTaskService`(발행 시 존재 확인)·`PikngService`(쌓는 쪽)·`OutbShmtService`(비우는 쪽) 세 곳에 있다 — 같은 성격의 상수라 바꿀 때 함께 볼 것.
 
 ### 상태와 수량의 분담
 
