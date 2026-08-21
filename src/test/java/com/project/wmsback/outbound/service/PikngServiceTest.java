@@ -149,7 +149,7 @@ class PikngServiceTest {
     }
 
     @Test
-    @DisplayName("피킹은 실물과 예약을 함께 소진하고 SHIP-STAGE를 늘린다 — 지시·할당·실적 세 곳 동시 갱신")
+    @DisplayName("피킹은 출발지의 실물·예약을 함께 소진하고 SHIP-STAGE에 실물·예약을 함께 쌓는다 — 지시·할당·실적 세 곳 동시 갱신")
     void executeMovesStockAndKeepsIdentity() {
         PikngTask task = task(1L, 30, 100);
         Inv storage = task.getOutbAlloc().getInv();
@@ -160,9 +160,11 @@ class PikngServiceTest {
         // 출발지: 실물 −30, 예약 −30 (aloc ≤ on_hand 불변식 유지)
         assertEquals(70, storage.getOnHandQty());
         assertEquals(0, storage.getAlocQty());
-        // 도착지(SHIP-STAGE): 실물 +30
+        // 도착지(SHIP-STAGE): 실물 +30, 예약 +30 — 예약이 실물을 따라간다 (스테이징 가용 0)
         assertEquals(1, createdInvs.size());
         assertEquals(30, createdInvs.get(0).getOnHandQty());
+        assertEquals(30, createdInvs.get(0).getAlocQty());
+        assertEquals(0, createdInvs.get(0).avalQty());
         // 항등식 — 지시 cmpl = 할당 pikng = 실적 합
         assertEquals(30, task.getCmplQty());
         assertEquals(PikngTaskStatus.DONE, task.getStatus());

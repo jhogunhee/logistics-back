@@ -156,13 +156,19 @@ public class InvStore {
     }
 
     /**
-     * 피킹 — 보관 → 출고 스테이징 실물 이동 + <b>예약 소진</b> + 이력 PICK 2행 + 출발 빈 행 정리.
-     * {@link #move}와 골격이 같고 둘이 다르다: 이력이 {@code PICK}이고, 출발지에서
-     * {@code on_hand}와 함께 {@code aloc}을 소진한다 — 실물이 나가므로 할당이 잡아둔 예약도
-     * 함께 줄어야 {@code aloc + hld <= on_hand} 불변식이 유지된다.
+     * 피킹 — 보관 → 출고 스테이징 실물 이동 + <b>예약 이전</b> + 이력 PICK 2행 + 출발 빈 행 정리.
+     * {@link #move}와 골격이 같고 둘이 다르다: 이력이 {@code PICK}이고, 예약이 실물을 따라간다 —
+     * 출발지에서 {@code on_hand}와 함께 {@code aloc}을 소진하고 <b>도착지에서 {@code aloc}을
+     * 다시 잡는다</b> (2026-08-21 — 「도착지는 실물만 늘린다」 번복).
      *
-     * <p>서비스에서 release + decrease + move 조합으로 풀지 않고 한 메서드로 두는 이유:
-     * 조합하면 이력이 PICK이 아니라 MOVE로 남거나 예약 소진이 빠지는 경로가 생길 수 있다 —
+     * <p>피킹된 물량은 특정 주문의 것이라 누구도 다시 집어갈 수 없다. 도착지 예약이 없으면
+     * 스테이징 재고가 전량 가용으로 계산되고 재할당을 막는 것은 후보 조회의 로케이션 유형 필터
+     * 하나뿐이었다. 예약으로 잡아 두면 그 사실이 장부에 그대로 적히고, 출고확정({@link #ship})이
+     * 실물과 예약을 함께 소진하는 것으로 닫힌다. 스테이징 행의 {@code aloc_qty}는
+     * 「주문이 SHIPPED가 아닌 {@code outb_alloc.pikng_qty}의 합」과 같다 (대사 축).
+     *
+     * <p>서비스에서 release + decrease + move + reserve 조합으로 풀지 않고 한 메서드로 두는 이유:
+     * 조합하면 이력이 PICK이 아니라 MOVE로 남거나 예약 소진·재예약이 빠지는 경로가 생길 수 있다 —
      * 짝을 묶는 것이 이 포트의 존재 이유다.
      *
      * @return 도착지(출고 스테이징) 스냅샷
@@ -175,15 +181,32 @@ public class InvStore {
         // 도착지 조회를 출발지 변경보다 먼저 한다 — move()와 같은 함정 (조회의 auto-flush)
         Inv toInv = findOrCreate(prod, toLoc, lot);
         // 예약 소진을 감소보다 먼저 — 반대 순서면 aloc + hld <= on_hand 를 위반하는 중간 상태가
-        // 이후 조회의 auto-flush 에 실려 DB에 닿을 수 있다
+        // 이후 조회의 auto-flush 에 실려 DB에 닿을 수 있다. 도착지는 반대로 증가 뒤 예약이다
         fromInv.release(qty);
         fromInv.decreaseOnHand(qty);
         toInv.increaseOnHand(qty);
+        toInv.reserve(qty);
 
         saveHist(TxTyp.PICK, prod, fromLoc, lot, -qty, ref, fromLoc.getId(), toLoc.getId());
         saveHist(TxTyp.PICK, prod, toLoc, lot, qty, ref, fromLoc.getId(), toLoc.getId());
         purgeIfEmpty(fromInv);
         return toInv;
+    }
+
+    /**
+     * 출고확정 — 출고 스테이징에서 반출. <b>실물과 예약을 함께 소진</b>(피킹이 도착지에 잡아 둔
+     * 예약이 여기서 풀린다) + 이력 SHIP 1행(−) + 빈 행 정리. 도착지가 없는 유일한 물리 감소다 —
+     * 창고 밖으로 나간다.
+     *
+     * <p>{@link #decrease}를 쓰지 않는 이유: 그쪽은 예약을 건드리지 않는다. 예약 소진이 빠지면
+     * 실물 0에 예약만 남아 {@code ck_inv_qty}에 걸리거나, 걸리기 전에 빈 행 판정
+     * ({@link Inv#isEmpty})이 행을 못 지워 유령 예약이 남는다.
+     */
+    public void ship(Inv stagingInv, long qty, InvDocRef ref) {
+        stagingInv.release(qty);
+        stagingInv.decreaseOnHand(qty);
+        saveHist(TxTyp.SHIP, stagingInv.getProd(), stagingInv.getLoc(), stagingInv.getLot(), -qty, ref, null, null);
+        purgeIfEmpty(stagingInv);
     }
 
     /** 예약 (출고 할당·이동지시 등록). 물리 이동이 아니므로 이력에 남기지 않는다 */
