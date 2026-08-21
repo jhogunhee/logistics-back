@@ -35,6 +35,8 @@ public class OutbWaveResponse {
     private final LocalDate expctDe;
     /** 피킹지시 발행 시각. 미발행(PLANNED)이면 NULL */
     private final LocalDateTime issuedDt;
+    /** 종료 시각 — 소속 주문이 전부 출고확정된 순간. 미종료면 NULL */
+    private final LocalDateTime closDt;
     /** 이 웨이브를 만든 전략 (NULL = 수동 생성) */
     private final Long wavStgyId;
     private final Long rvsnNo;
@@ -50,6 +52,7 @@ public class OutbWaveResponse {
         this.expctDe = wave.getOrders().stream()
                 .map(OutbOrder::getExpctDe).findFirst().orElse(null);
         this.issuedDt = wave.getIssuedDt();
+        this.closDt = wave.getClosDt();
         this.wavStgyId = wave.getWavStgyId();
         this.rvsnNo = wave.getRvsnNo();
         this.createdAt = wave.getCreatedAt();
