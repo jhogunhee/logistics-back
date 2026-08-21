@@ -77,6 +77,14 @@ class AlocStgyServiceValidateTest {
     }
 
     @Test
+    @DisplayName("계층이 조건 있는 것으로 끝나면 거부 — 어느 계층에도 안 맞는 재고는 자동할당이 영영 쓰지 않는다")
+    void tiersMustEndOpen() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> service.validate(def(List.of(tier(bizDvsnCond())))));
+        assertEquals(true, e.getMessage().contains("마지막 재고위치 계층"));
+    }
+
+    @Test
     @DisplayName("단일 슬롯을 2건 등록하면 거부")
     void singleSlotRejectsSecond() {
         assertThrows(IllegalArgumentException.class, () -> service.validate(def(List.of(
