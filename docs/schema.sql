@@ -1243,15 +1243,15 @@ CREATE TABLE pikng_task (
                                            AND (shotge_qty IS NULL OR shotge_qty > 0))
 );
 
-COMMENT ON TABLE  pikng_task IS '피킹 지시. putaway_task·inv_mov_task와 동등한 위치의 작업지시 문서 — 웨이브 발행 시 outb_alloc과 1:1로 생성된다(상품별 집약 없음). 등록은 예약을 만들지 않는다 — 예약은 할당이 이미 잡았고 실행(PICK)이 소진한다. 발행·취소는 웨이브 단위(웨이브가 발행 문서)';
+COMMENT ON TABLE  pikng_task IS '피킹 지시. putaway_task·inv_mov_task와 동등한 위치의 작업지시 문서 — 웨이브 발행 시 outb_alloc과 1:1로 생성된다(상품별 집약 없음). 등록은 예약을 만들지 않는다 — 예약은 할당이 이미 잡았고 실행(PICK)이 소진한다. 발행은 웨이브 단위(웨이브가 발행 문서)이고, 취소는 웨이브 단위와 지시 단위 둘 다 — 다른 것은 실적 판정 범위뿐이다';
 COMMENT ON COLUMN pikng_task.outb_wave_id  IS '발행 웨이브 (느슨한 참조, FK 없음). 발행·취소·피킹 화면의 조회 단위';
 COMMENT ON COLUMN pikng_task.outb_alloc_id IS '지시의 근거 할당 — 1:1 (uq_pikng_task_alloc). 주문 도메인 카운터(outb_alloc.pikng_qty)·할당해제 가드가 이 참조를 지난다';
 COMMENT ON COLUMN pikng_task.prod_id       IS '재고 키 스냅샷. alloc → inv 조인으로도 얻지만 inv 행은 수량 0이 되면 삭제된다 — 완료된 지시의 표시를 위해 직접 담는다 (inv_hist·inv_mov_task와 같은 형태)';
 COMMENT ON COLUMN pikng_task.from_loc_id   IS '집품 로케이션 = 할당된 재고의 로케이션 스냅샷. TO는 SHIP-STAGE 고정이라 컬럼으로 두지 않는다 (putaway_task가 FROM을 두지 않는 것의 거울상)';
 COMMENT ON COLUMN pikng_task.lot_id        IS '집품 Lot 스냅샷 (Lot 행은 삭제되지 않는다)';
-COMMENT ON COLUMN pikng_task.drct_qty      IS '지시 수량 = 발행 시점의 aloc_qty. 발행 후 재할당·해제가 막혀 항등식 drct_qty = aloc_qty가 유지된다. 결품 종결은 이 값과 outb_alloc.aloc_qty를 같이 cmpl_qty까지 낮추므로 항등식이 그대로 성립한다';
+COMMENT ON COLUMN pikng_task.drct_qty      IS '지시 수량 = 발행 시점의 aloc_qty. 발행 후 재할당이 막히고 해제는 살아 있는 지시가 있는 할당을 거부하므로 항등식 drct_qty = aloc_qty가 유지된다. 결품 종결은 이 값과 outb_alloc.aloc_qty를 같이 cmpl_qty까지 낮추므로 항등식이 그대로 성립한다';
 COMMENT ON COLUMN pikng_task.cmpl_qty      IS '실행(PICK) 완료 수량 누계. 부분 피킹 허용 — drct_qty에 도달하면 DONE. 항등식: cmpl_qty = outb_alloc.pikng_qty = SUM(pikng_acrst.pikng_qty)';
-COMMENT ON COLUMN pikng_task.status        IS 'DIRECTED 지시(부분 실행 포함) / DONE 완료 — 전량 집품 또는 결품 종결(shotge_rsn_cd로 구분) / CANCELLED 취소(웨이브 단위 지시취소, cmpl_qty=0일 때만). 「진행」 같은 부분 상태는 두지 않는다 — 진행도는 수량 파생';
+COMMENT ON COLUMN pikng_task.status        IS 'DIRECTED 지시(부분 실행 포함) / DONE 완료 — 전량 집품 또는 결품 종결(shotge_rsn_cd로 구분) / CANCELLED 취소(웨이브 단위·지시 단위 둘 다, 그 지시 자신의 cmpl_qty=0일 때만). 「진행」 같은 부분 상태는 두지 않는다 — 진행도는 수량 파생';
 COMMENT ON COLUMN pikng_task.srt_seq       IS '집품 순서 (웨이브 내 1..N). 발행 시점에 loc.pikng_prty → loc_cd → outb_alloc_id 순으로 고정한 스냅샷 — 작업 중 마스터가 바뀌어도 리스트 순서가 흔들리지 않는다';
 COMMENT ON COLUMN pikng_task.cmpl_dt       IS '지시 완료 시각 (DONE 전이 시점)';
 COMMENT ON COLUMN pikng_task.shotge_qty      IS '결품 수량 — 결품 종결(closeShort)이 포기한 잔량. 종결이 drct_qty를 cmpl_qty까지 낮추므로 종결 후에는 원래 지시수량이 남지 않아 파생시킬 수 없다. DONE 이후 값이 바뀌지 않는 사실 컬럼이다';

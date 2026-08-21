@@ -273,7 +273,7 @@ public class InvStktkService {
                     throw new IllegalArgumentException("실사수량이 예약·보류 잔량보다 적습니다 (예약 " + inv.getAlocQty()
                             + " / 보류 " + inv.getHldQty() + " / 실사 " + ln.getStktkQty() + "): "
                             + prod.getProdCd() + " @ " + loc.getLocCd()
-                            + " — 할당 해제·이동지시 취소·보류 해제로 먼저 정리한 뒤 확정하세요.");
+                            + " — 할당 해제·피킹 지시취소·결품 종결·이동지시 취소·보류 해제로 먼저 정리한 뒤 확정하세요.");
                 }
                 invStore.decrease(inv, -adjQty, TxTyp.ADJUST, ref);
             } else {
