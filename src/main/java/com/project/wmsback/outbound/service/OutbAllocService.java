@@ -1,6 +1,5 @@
 package com.project.wmsback.outbound.service;
 
-import com.project.mdm.store.entity.Store;
 import com.project.wmsback.inventory.entity.Inv;
 import com.project.wmsback.inventory.service.InvStore;
 import com.project.wmsback.outbound.dto.AllocCandidateResponse;
@@ -26,6 +25,7 @@ import com.project.wmsback.strategy.allocation.dto.AlocDecisionTrace;
 import com.project.wmsback.strategy.allocation.dto.AlocStgyResponse;
 import com.project.wmsback.strategy.allocation.dto.AlocStgyDefinition;
 import com.project.wmsback.strategy.allocation.dto.AlocGroupPlan;
+import com.project.wmsback.strategy.allocation.entity.AlocSlotTyp;
 import com.project.wmsback.strategy.allocation.entity.AlocStgy;
 import com.project.wmsback.strategy.allocation.field.AlocInvnCandidate;
 import com.project.wmsback.strategy.allocation.field.AlocLineTarget;
@@ -106,27 +106,36 @@ public class OutbAllocService {
      * 수동할당의 존재 이유가 예외 처리라 사람이 보고 판단해야 한다.
      * 기한이 지난 Lot만은 여기서도 뺀다(비율과 무관한 하드 가드).
      *
-     * <p>비율 계산은 자동할당의 제약 구현체({@link AlocRstrct#lifeRate})를 그대로 쓴다 —
-     * 화면에 보이는 비율과 자동할당이 거르는 비율이 다르면 화면을 믿을 수 없게 된다.
+     * <p>비율 계산({@link AlocRstrct#lifeRate})도 <b>통과 판정</b>({@link AlocPlanner#rstrctReason})도
+     * 자동할당이 쓰는 것을 그대로 쓴다 — 화면에 보이는 기준과 자동할당이 거르는 기준이 다르면
+     * 화면을 믿을 수 없게 된다(전략이 고정 기준값을 쓰면 화면도 그 값으로 판정한다).
      */
     public List<AllocCandidateResponse> candidates(Long outbLineId) {
         OutbLine line = findLine(outbLineId);
-        Store store = line.getOutbOrder().getStore();
         AlocLineTarget target = AlocLineTarget.of(line, 0L);
+
+        // 전략도 실행과 같은 창구로 고른다. 다만 선택 규칙이 「대상 라인 전부 만족」이라,
+        // 대상이 이 라인 하나인 여기서는 웨이브 전체로 고른 전략과 다를 수 있다
+        AlocStgy stgy = alocStgyService.select(List.of(target)).orElse(null);
+        List<AlocStgyDefinition.SlotDef> rstrctSlots = stgy != null
+                ? AlocStgyResponse.from(stgy).toDefinition().slotsOf(AlocSlotTyp.RSTRCT)
+                : List.of();
 
         List<AllocCandidateResponse> result = new ArrayList<>();
         for (Inv candidate : outbAllocRepository.findCandidates(line.getProd().getId())) {
             if (expired(candidate.getLot(), target.expctDe())) {
                 continue;
             }
-            BigDecimal rate = AlocRstrct.lifeRate(AlocInvnCandidate.of(candidate, null), target);
+            AlocInvnCandidate snapshot = AlocInvnCandidate.of(candidate, null);
+            BigDecimal rate = AlocRstrct.lifeRate(snapshot, target);
+            String rjctRsn = AlocPlanner.rstrctReason(rstrctSlots, snapshot, target);
             result.add(new AllocCandidateResponse(
                     candidate.getId(),
                     candidate.getLoc().getId(), candidate.getLoc().getLocCd(),
                     candidate.getLot().getId(), candidate.getLot().getLotNo(),
                     candidate.getLot().getMfgDt(), candidate.getLot().getExpiryDt(),
                     candidate.getOnHandQty(), candidate.avalQty(),
-                    rate, lifePass(rate, store)));
+                    rate, rjctRsn == null, rjctRsn));
         }
         return result;
     }
@@ -511,11 +520,6 @@ public class OutbAllocService {
 
     private boolean expired(Lot lot, LocalDate baseDe) {
         return lot.getExpiryDt() != null && lot.getExpiryDt().isBefore(baseDe);
-    }
-
-    /** 미관리 Lot(rate == null)은 필터 대상이 아니므로 통과로 본다 */
-    private boolean lifePass(BigDecimal rate, Store store) {
-        return rate == null || rate.compareTo(BigDecimal.valueOf(store.getOutbLifeRate())) >= 0;
     }
 
     /**

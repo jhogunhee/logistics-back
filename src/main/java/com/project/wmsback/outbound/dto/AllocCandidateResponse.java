@@ -8,7 +8,7 @@ import java.time.LocalDate;
  * <b>잔여수명 미달을 걸러내지 않고 표시만 한다</b>는 점이다.
  *
  * <p>수동할당의 존재 이유가 예외 처리라 기준 미달 Lot도 고를 수 있어야 한다 —
- * 화면이 {@code lifeRate}·{@code lifePass}로 경고를 띄우고 판단은 사람이 한다.
+ * 화면이 {@code lifeRate}·{@code lifePass}·{@code lifeRjctRsn}으로 경고를 띄우고 판단은 사람이 한다.
  * 다만 <b>기한이 지난 Lot은 여기에 오지 않는다</b>(서비스가 제외 — 비율과 무관한 하드 가드).
  */
 public record AllocCandidateResponse(
@@ -23,7 +23,13 @@ public record AllocCandidateResponse(
         long avalQty,
         /** 출고예정일 기준 잔여수명 비율(%). 유통기한 미관리 Lot이면 NULL */
         BigDecimal lifeRate,
-        /** 점포 기준({@code store.outb_life_rate}) 통과 여부. 미관리 Lot은 대상이 아니므로 true */
-        boolean lifePass
+        /**
+         * 잔여수명 판정 통과 여부 — <b>자동할당과 같은 기준</b>이다. 전략에 제약 슬롯이 있으면 그
+         * 정의로, 없으면 점포 기준({@code store.outb_life_rate})으로 판정한다.
+         * 미관리 Lot은 대상이 아니므로 true.
+         */
+        boolean lifePass,
+        /** 미달 사유 (예: {@code 잔여수명 40.0% < 기준 60%}). 통과면 null — 화면이 적용된 기준을 그대로 보여준다 */
+        String lifeRjctRsn
 ) {
 }

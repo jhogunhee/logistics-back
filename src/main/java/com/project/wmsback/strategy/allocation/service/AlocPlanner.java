@@ -321,6 +321,18 @@ public final class AlocPlanner {
             // 비율과 무관한 하드 가드 — 기준이 0%인 점포에도 기한 지난 Lot을 줄 수는 없다
             return "유통기한 경과 (" + candidate.expiryDt() + ")";
         }
+        return rstrctReason(rstrctSlots, candidate, line);
+    }
+
+    /**
+     * 제약 슬롯 판정 — <b>수동할당 후보 화면이 같은 판정을 표시</b>하므로 static으로 연다.
+     * 화면이 점포 기준으로만 판정하면 전략이 고정 기준값을 쓸 때 「화면엔 통과, 자동할당은 거름」이
+     * 생겨 화면을 믿을 수 없게 된다 ({@link AlocRstrct#lifeRate}를 public으로 둔 것과 같은 이유).
+     *
+     * <p>유통기한 경과 하드 가드는 여기 없다 — 호출부가 각자 먼저 건다(수동 후보는 아예 목록에서 뺀다).
+     */
+    public static String rstrctReason(List<AlocStgyDefinition.SlotDef> rstrctSlots,
+                                      AlocInvnCandidate candidate, AlocLineTarget line) {
         if (rstrctSlots.isEmpty()) {
             return AlocRstrct.SHELF_LIFE_PCT.reject(candidate, line, Map.of()).orElse(null);
         }
