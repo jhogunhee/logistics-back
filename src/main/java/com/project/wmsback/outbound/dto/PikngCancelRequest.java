@@ -7,14 +7,16 @@ import lombok.Setter;
 import java.util.List;
 
 /**
- * 피킹지시 취소 요청 — <b>웨이브 단위 · 실적 0일 때만.</b> 지시 행 단위 취소는 없다 —
- * 발행이 웨이브 단위 원자 조작이므로 취소도 그 역이고, 일부만 물리고 싶으면
- * 전량 취소 → PLANNED에서 편성 변경 → 재발행 경로를 쓴다.
+ * 피킹지시 취소 요청 — 취소 단위 둘이 한 조작으로 모인다. <b>둘 중 하나만 채워 보낸다.</b>
  */
 @Getter
 @Setter
 @NoArgsConstructor
 public class PikngCancelRequest {
 
+    /** 발행을 통째로 무른다 — 웨이브에 실적이 하나라도 있으면 거부된다 */
     private List<Long> wavIds;
+
+    /** 지정한 지시만 무른다 — 판정은 그 지시 자신의 실적뿐이다 */
+    private List<Long> taskIds;
 }

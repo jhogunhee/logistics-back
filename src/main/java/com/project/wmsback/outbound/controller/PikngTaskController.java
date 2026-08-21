@@ -49,7 +49,11 @@ public class PikngTaskController {
         return pikngTaskService.issue(request);
     }
 
-    /** 지시취소 — 웨이브 단위, 실적 0일 때만. 웨이브는 PLANNED로 복귀한다 */
+    /**
+     * 지시취소 — {@code wavIds}(웨이브 단위) 또는 {@code taskIds}(지시 단위) 중 하나로 보낸다.
+     * 웨이브 단위는 발행의 역조작이라 웨이브에 실적이 있으면 거부하고, 지시 단위는 대상 지시
+     * 자신의 실적만 본다. 웨이브는 살아 있는 지시가 남지 않을 때 PLANNED로 복귀한다.
+     */
     @PostMapping("/outbound/picking-tasks/cancel")
     public PikngCancelResponse cancel(@RequestBody PikngCancelRequest request) {
         return pikngTaskService.cancel(request);

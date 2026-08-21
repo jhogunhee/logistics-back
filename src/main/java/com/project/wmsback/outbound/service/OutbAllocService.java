@@ -442,6 +442,8 @@ public class OutbAllocService {
      *
      * <p><b>피킹지시가 발행된 할당은 실적이 0이어도 해제할 수 없다</b> — 지시 행(pikng_task)이
      * 할당과 1:1이라, 해제하면 지시가 삭제된 할당을 가리키는 미아가 된다. 지시취소가 먼저다.
+     * 판정은 <b>할당 단위</b>다(웨이브 단위가 아니다) — 같은 웨이브의 다른 할당에 지시가 있어도
+     * 이 할당의 지시가 취소됐다면 해제할 수 있다.
      */
     @Transactional
     public void release(AllocReleaseRequest request) {
@@ -463,9 +465,7 @@ public class OutbAllocService {
         // 웨이브 행 락 — 지시 발행(pikng_task 생성)과의 직렬화. 락 없이 발행과 해제가 겹치면
         // 발행이 방금 지워진 할당의 지시를 만든다. 순서는 웨이브(오름차순) → 재고 한 방향이다
         allocs.stream()
-                .map(alloc -> alloc.getOutbLine().getOutbOrder().getWave())
-                .filter(Objects::nonNull)
-                .map(OutbWave::getId)
+                .map(alloc -> waveOf(alloc).getId())
                 .distinct().sorted()
                 .forEach(this::lockWave);
 
@@ -473,8 +473,8 @@ public class OutbAllocService {
         List<PikngTask> issued = pikngTaskRepository
                 .findByOutbAllocIdInAndStatusNot(allocIds, PikngTaskStatus.CANCELLED);
         if (!issued.isEmpty()) {
-            throw new IllegalArgumentException("피킹지시가 발행된 웨이브의 할당은 해제할 수 없습니다"
-                    + " (지시취소가 먼저입니다): "
+            throw new IllegalArgumentException("피킹지시가 발행된 할당은 해제할 수 없습니다"
+                    + " (그 지시의 취소가 먼저입니다): "
                     + issued.get(0).getOutbAlloc().getOutbLine().getOutbOrder().getOutbNo());
         }
 
@@ -516,6 +516,19 @@ public class OutbAllocService {
     /** 미관리 Lot(rate == null)은 필터 대상이 아니므로 통과로 본다 */
     private boolean lifePass(BigDecimal rate, Store store) {
         return rate == null || rate.compareTo(BigDecimal.valueOf(store.getOutbLifeRate())) >= 0;
+    }
+
+    /**
+     * 할당이 속한 웨이브. 미편성 주문의 할당은 도달 불가지만(할당 대상 조회가 웨이브에서 출발한다),
+     * null을 조용히 건너뛰면 그 불변식이 깨진 날 아무 신호 없이 락이 사라진다.
+     */
+    private static OutbWave waveOf(OutbAlloc alloc) {
+        OutbOrder order = alloc.getOutbLine().getOutbOrder();
+        if (order.getWave() == null) {
+            throw new IllegalStateException("웨이브에 편성되지 않은 주문의 할당입니다 (정합성 오류): "
+                    + order.getOutbNo());
+        }
+        return order.getWave();
     }
 
     // ── 공통 ─────────────────────────────────────────────────────────────────

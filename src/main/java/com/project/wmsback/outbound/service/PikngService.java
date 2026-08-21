@@ -197,7 +197,7 @@ public class PikngService {
         pikngTaskRepository.findWaveIdsByTaskIds(itemByTaskId.keySet()).stream().sorted()
                 .forEach(this::lockWave);
 
-        // ② 지시 로드 + 상태 검증. 실적 0은 이 경로가 아니라 웨이브 단위 지시취소가 덮는다
+        // ② 지시 로드 + 상태 검증. 실적 0은 이 경로가 아니라 지시 단위 취소가 덮는다
         List<PikngTask> tasks = pikngTaskRepository.findAllWithDetailsByIds(itemByTaskId.keySet());
         if (tasks.size() != itemByTaskId.size()) {
             throw new IllegalArgumentException("존재하지 않는 지시가 포함돼 있습니다.");
@@ -208,7 +208,7 @@ public class PikngService {
                         + task.getStatus().getLabel() + "): " + rowName(task));
             }
             if (task.getCmplQty() == 0L) {
-                throw new IllegalArgumentException("피킹 실적이 없는 지시입니다 — 웨이브 지시취소로 되돌리세요: "
+                throw new IllegalArgumentException("피킹 실적이 없는 지시입니다 — 피킹지시 화면의 지시취소로 되돌리세요: "
                         + rowName(task));
             }
         }

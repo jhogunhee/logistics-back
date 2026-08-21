@@ -148,9 +148,10 @@ public class PikngTask extends BaseEntity {
      * 잔량을 끝내 집을 수 없을 때의 유일한 출구다. {@code InvMovTask.cancelRemainder()}의
      * 부분확정 분기와 같은 조작이고, 예약 해제는 서비스가 함께 한다.
      *
-     * <p><b>실적이 있을 때만 연다</b>({@code cmplQty > 0}). 실적 0인 지시는 웨이브 단위
-     * {@link #cancel()}이 이미 덮으므로 여기서 또 열면 살아 있는 지시가 없는 ISSUED 웨이브가
-     * 남고, 주문도 아직 ALLOCATED라 피킹완료 전이가 성립하지 않는다.
+     * <p><b>실적이 있을 때만 연다</b>({@code cmplQty > 0}). 실적 0인 지시는 {@link #cancel()}이
+     * 덮는다 — 여기서 또 열어도 성립하지 않는다: 짝으로 도는 {@code OutbAlloc.closeShort()}가
+     * {@code aloc_qty}를 0으로 낮춰 {@code ck_aloc_qty(aloc_qty > 0)}를 깨고, 실적이 하나도 없는
+     * 주문은 아직 ALLOCATED라 피킹완료 전이도 성립하지 않는다.
      *
      * <p>결품사유는 필수다 — 잔량을 없앤 근거가 이 컬럼 말고는 어디에도 남지 않는다.
      */
@@ -170,9 +171,13 @@ public class PikngTask extends BaseEntity {
     }
 
     /**
-     * 지시 취소 (행 보존 — CANCELLED 전이). 웨이브 단위 지시취소가 웨이브의 살아 있는 지시
-     * 전량에 대해 호출한다. 실행 실적이 있으면 취소하지 않는다 — 실적이 남은 지시를 닫는 것은
-     * {@link #closeShort}의 몫이다(취소가 아니라 결품 종결).
+     * 지시 취소 (행 보존 — CANCELLED 전이). 웨이브 단위 취소가 살아 있는 지시 전량에 대해,
+     * 지시 단위 취소가 지정된 지시에 대해 호출한다. 실행 실적이 있으면 취소하지 않는다 —
+     * 실적이 남은 지시를 닫는 것은 {@link #closeShort}의 몫이다(취소가 아니라 결품 종결).
+     *
+     * <p><b>실적 판정이 이 지시 자신에 대해서만 이뤄지는 것이 핵심이다</b> — 같은 웨이브의 다른
+     * 지시가 집혔다는 이유로 이 지시가 닫히지 못하면, 실적 0이라 결품 종결도 열리지 않아
+     * 예약이 회수 불능이 된다.
      */
     public void cancel() {
         if (status != PikngTaskStatus.DIRECTED) {

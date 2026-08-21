@@ -26,7 +26,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -40,9 +42,11 @@ import java.util.Set;
  * 그대로 발행하면 그 주문(CREATED)이 ISSUED 웨이브에 갇혀 편성 변경도 할당도 영영 못 받는다.
  * 부분할당 주문은 발행을 막지 않는다 — 미할당 잔량은 부족 출고로 정상 진행한다(백오더 없음).
  *
- * <p><b>지시취소는 웨이브 단위 · 실적 0일 때만.</b> 취소는 삭제가 아니라 CANCELLED 전이(행 보존)다 —
- * putaway_task·inv_mov_task와 같은 상태 기계. 재발행은 새 행을 만들고, 살아 있는 지시의
- * 유일성은 부분 유니크(uq_pikng_task_alloc)가 지킨다.
+ * <p><b>지시취소는 웨이브 단위 또는 지시 단위이고, 실적 0인 것만 취소한다.</b> 두 진입의 차이는
+ * 실적 판정 범위뿐이다 — 웨이브 단위는 발행의 역조작이라 웨이브 전체를, 지시 단위는 대상 지시
+ * 자신만 본다. 취소는 삭제가 아니라 CANCELLED 전이(행 보존)다 — putaway_task·inv_mov_task와
+ * 같은 상태 기계. 재발행은 새 행을 만들고, 살아 있는 지시의 유일성은 부분
+ * 유니크(uq_pikng_task_alloc)가 지킨다.
  */
 @Service
 @RequiredArgsConstructor
@@ -157,28 +161,38 @@ public class PikngTaskService {
 
     // ── 지시취소 ──────────────────────────────────────────────────────────────
 
-    /** 지시취소 — 웨이브 단위, 실적 0일 때만. 재고 무변동 (발행이 재고에 손대지 않았으므로) */
+    /**
+     * 지시취소 — 재고 무변동(발행이 재고에 손대지 않았으므로)이고 삭제가 아니라 CANCELLED 전이다.
+     * 요청이 채운 쪽으로 갈린다: {@code wavIds}면 웨이브 단위, {@code taskIds}면 지시 단위.
+     */
     @Transactional
     public PikngCancelResponse cancel(PikngCancelRequest request) {
         List<Long> wavIds = distinct(request.getWavIds());
-        if (wavIds.isEmpty()) {
-            throw new IllegalArgumentException("취소할 웨이브를 선택하세요.");
+        List<Long> taskIds = distinct(request.getTaskIds());
+        if (wavIds.isEmpty() == taskIds.isEmpty()) {
+            throw new IllegalArgumentException(wavIds.isEmpty()
+                    ? "취소할 웨이브 또는 지시를 선택하세요."
+                    : "웨이브와 지시를 함께 지정할 수 없습니다 — 취소 단위를 하나만 고르세요.");
         }
+        return wavIds.isEmpty() ? cancelTasks(taskIds) : cancelWaves(wavIds);
+    }
+
+    /** 웨이브 단위 — 발행의 역조작이라 전부-아니면-전무다. 실적이 하나라도 있으면 지시 단위로 보낸다 */
+    private PikngCancelResponse cancelWaves(List<Long> wavIds) {
         List<PikngCancelResponse.WaveResult> results = new ArrayList<>();
         int total = 0;
         for (Long wavId : wavIds) {
             OutbWave wave = lockWave(wavId);
-            if (wave.getStatus() != WaveStatus.ISSUED) {
-                throw new IllegalStateException("피킹지시가 발행되지 않은 웨이브입니다: " + wave.getWavNo());
-            }
-            List<PikngTask> live = pikngTaskRepository.findByWaveIdAndStatusNot(wavId, PikngTaskStatus.CANCELLED);
+            requireIssued(wave);
+            List<PikngTask> live = liveTasks(wavId);
             if (live.isEmpty()) {
                 throw new IllegalStateException("취소할 지시가 없습니다: " + wave.getWavNo());
             }
             long picked = live.stream().mapToLong(PikngTask::getCmplQty).sum();
             if (picked > 0) {
-                throw new IllegalStateException("피킹이 시작된 웨이브는 지시를 취소할 수 없습니다"
-                        + " (피킹 " + picked + "): " + wave.getWavNo());
+                throw new IllegalStateException("피킹이 시작된 웨이브는 발행을 통째로 취소할 수 없습니다"
+                        + " (피킹 " + picked + ") — 아직 한 개도 집지 않은 지시만 골라 취소하세요: "
+                        + wave.getWavNo());
             }
             live.forEach(PikngTask::cancel);
             wave.cancelIssue();
@@ -187,6 +201,57 @@ public class PikngTaskService {
             total += live.size();
         }
         return new PikngCancelResponse(results.size(), total, results);
+    }
+
+    /**
+     * 지시 단위 — 실적 판정은 {@link PikngTask#cancel()}이 대상 지시 자신에 대해 한다.
+     * 취소 후 살아 있는 지시가 0건인 웨이브만 PLANNED로 돌린다(완료 지시가 남으면 그대로 ISSUED) —
+     * 「살아 있는 지시 없는 ISSUED 웨이브」를 만들지 않는 것은 두 진입의 공통 책임이다.
+     */
+    private PikngCancelResponse cancelTasks(List<Long> taskIds) {
+        // ① 웨이브 행 락을 지시보다 먼저 잡는다 — 순서(웨이브 오름차순)뿐 아니라 「락 뒤에 읽는다」가
+        //    함께 필요하다. 먼저 읽으면 락 대기 중 커밋된 실적이 반영되지 않아 낡은 cmplQty 0이
+        //    취소 가드를 통과하고, flush가 그 0을 되써서 항등식이 깨진다 (실행·결품 종결과 같은 순서)
+        Map<Long, OutbWave> waves = new LinkedHashMap<>();
+        for (Long wavId : pikngTaskRepository.findWaveIdsByTaskIds(taskIds).stream().sorted().toList()) {
+            OutbWave wave = lockWave(wavId);
+            requireIssued(wave);
+            waves.put(wavId, wave);
+        }
+
+        List<PikngTask> tasks = pikngTaskRepository.findAllWithDetailsByIds(taskIds);
+        if (tasks.size() != taskIds.size()) {
+            throw new IllegalArgumentException("존재하지 않는 지시가 포함돼 있습니다.");
+        }
+        Map<Long, Integer> cancelledByWave = new LinkedHashMap<>();
+        for (PikngTask task : tasks) {
+            task.cancel();
+            cancelledByWave.merge(task.getWave().getId(), 1, Integer::sum);
+        }
+
+        // ② 남은 지시를 세기 전에 전이를 반영한다 — 안 하면 방금 취소한 행까지 살아 있는 것으로 센다
+        pikngTaskRepository.flush();
+
+        List<PikngCancelResponse.WaveResult> results = new ArrayList<>();
+        for (Map.Entry<Long, OutbWave> entry : waves.entrySet()) {
+            OutbWave wave = entry.getValue();
+            if (liveTasks(entry.getKey()).isEmpty()) {
+                wave.cancelIssue();
+            }
+            results.add(new PikngCancelResponse.WaveResult(
+                    wave.getWavNo(), cancelledByWave.get(entry.getKey())));
+        }
+        return new PikngCancelResponse(results.size(), taskIds.size(), results);
+    }
+
+    private List<PikngTask> liveTasks(Long wavId) {
+        return pikngTaskRepository.findByWaveIdAndStatusNot(wavId, PikngTaskStatus.CANCELLED);
+    }
+
+    private static void requireIssued(OutbWave wave) {
+        if (wave.getStatus() != WaveStatus.ISSUED) {
+            throw new IllegalStateException("피킹지시가 발행되지 않은 웨이브입니다: " + wave.getWavNo());
+        }
     }
 
     // ── 공통 ─────────────────────────────────────────────────────────────────

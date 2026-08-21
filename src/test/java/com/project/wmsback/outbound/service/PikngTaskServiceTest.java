@@ -4,6 +4,7 @@ import com.project.mdm.prod.entity.Prod;
 import com.project.mdm.store.entity.Store;
 import com.project.wmsback.inventory.entity.Inv;
 import com.project.wmsback.outbound.dto.PikngCancelRequest;
+import com.project.wmsback.outbound.dto.PikngCancelResponse;
 import com.project.wmsback.outbound.dto.PikngIssueRequest;
 import com.project.wmsback.outbound.dto.PikngIssueResponse;
 import com.project.wmsback.outbound.entity.OutbAlloc;
@@ -26,6 +27,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -42,7 +44,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -83,6 +87,7 @@ class PikngTaskServiceTest {
         when(outbWaveRepository.findById(100L)).thenReturn(Optional.of(wave));
         when(outbWaveRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(wave));
         when(pikngTaskRepository.saveAll(anyList())).thenAnswer(i -> i.getArgument(0));
+        when(pikngTaskRepository.findWaveIdsByTaskIds(anyCollection())).thenReturn(List.of(100L));
     }
 
     // ── 발행 ─────────────────────────────────────────────────────────────────
@@ -162,7 +167,7 @@ class PikngTaskServiceTest {
     }
 
     @Test
-    @DisplayName("피킹이 시작된 웨이브는 지시를 취소할 수 없다")
+    @DisplayName("피킹이 시작된 웨이브는 발행을 통째로 취소할 수 없다 — 지시 단위로 유도한다")
     void cancelRejectsPickedWave() {
         wave.issue();
         PikngTask task = task(alloc(1L, order("OB-001"), 10, loc(2L, 1, "B-01")), 10);
@@ -174,6 +179,7 @@ class PikngTaskServiceTest {
                 () -> pikngTaskService.cancel(cancel(100L)));
 
         assertTrue(e.getMessage().contains("피킹이 시작된"));
+        assertTrue(e.getMessage().contains("골라 취소"));
         assertEquals(WaveStatus.ISSUED, wave.getStatus());
     }
 
@@ -181,6 +187,109 @@ class PikngTaskServiceTest {
     @DisplayName("발행되지 않은 웨이브의 취소는 거부한다")
     void cancelRejectsPlannedWave() {
         assertThrows(IllegalStateException.class, () -> pikngTaskService.cancel(cancel(100L)));
+    }
+
+    // ── 지시 단위 취소 ────────────────────────────────────────────────────────
+
+    /**
+     * 실적이 섞인 웨이브에서 실적 0인 지시가 닫히는지 — 지시 단위 취소가 없으면
+     * 이 지시는 웨이브 단위 취소(다른 지시의 실적에 막힘)에도, 결품 종결(실적 0이라 안 열림)에도
+     * 걸리지 않아 그 예약이 영구히 묶인다.
+     */
+    @Test
+    @DisplayName("같은 웨이브에 실적이 있어도 실적 0인 지시는 단독으로 취소된다")
+    void cancelTaskIsNotHostageToAnotherTasksPicking() {
+        wave.issue();
+        PikngTask picked = task(alloc(1L, order("OB-001"), 10, loc(2L, 1, "B-01")), 10);
+        picked.execute(10);
+        PikngTask untouched = task(alloc(2L, order("OB-002"), 30, loc(3L, 2, "B-02")), 30);
+        setId(untouched, 900L);
+        when(pikngTaskRepository.findAllWithDetailsByIds(List.of(900L))).thenReturn(List.of(untouched));
+        when(pikngTaskRepository.findByWaveIdAndStatusNot(100L, PikngTaskStatus.CANCELLED))
+                .thenReturn(List.of(picked));   // 취소 후 남는 살아 있는 지시 = 집힌 쪽
+
+        PikngCancelResponse response = pikngTaskService.cancel(cancelTasks(900L));
+
+        assertEquals(PikngTaskStatus.CANCELLED, untouched.getStatus());
+        assertEquals(PikngTaskStatus.DONE, picked.getStatus());
+        assertEquals(1, response.cancelledCount());
+        // 살아 있는 지시가 남았으므로 웨이브는 그대로 ISSUED다
+        assertEquals(WaveStatus.ISSUED, wave.getStatus());
+    }
+
+    @Test
+    @DisplayName("취소로 살아 있는 지시가 하나도 남지 않으면 웨이브도 PLANNED로 돌아간다")
+    void cancelTaskRestoresWaveWhenNoLiveTaskRemains() {
+        wave.issue();
+        PikngTask only = task(alloc(1L, order("OB-001"), 10, loc(2L, 1, "B-01")), 10);
+        setId(only, 900L);
+        when(pikngTaskRepository.findAllWithDetailsByIds(List.of(900L))).thenReturn(List.of(only));
+        when(pikngTaskRepository.findByWaveIdAndStatusNot(100L, PikngTaskStatus.CANCELLED))
+                .thenReturn(List.of());
+
+        pikngTaskService.cancel(cancelTasks(900L));
+
+        assertEquals(PikngTaskStatus.CANCELLED, only.getStatus());
+        assertEquals(WaveStatus.PLANNED, wave.getStatus());
+        assertNull(wave.getIssuedDt());
+    }
+
+    @Test
+    @DisplayName("실적이 있는 지시는 지시 단위로도 취소할 수 없다 — 결품 종결의 몫이다")
+    void cancelTaskRejectsPickedTask() {
+        wave.issue();
+        PikngTask partial = task(alloc(1L, order("OB-001"), 10, loc(2L, 1, "B-01")), 10);
+        partial.execute(4);
+        setId(partial, 900L);
+        when(pikngTaskRepository.findAllWithDetailsByIds(List.of(900L))).thenReturn(List.of(partial));
+
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> pikngTaskService.cancel(cancelTasks(900L)));
+
+        assertTrue(e.getMessage().contains("이미 피킹된 수량"));
+        assertEquals(WaveStatus.ISSUED, wave.getStatus());
+    }
+
+    @Test
+    @DisplayName("웨이브와 지시를 함께 지정하거나 둘 다 비우면 거부한다 — 취소 단위는 하나다")
+    void cancelRequiresExactlyOneScope() {
+        PikngCancelRequest both = new PikngCancelRequest();
+        both.setWavIds(List.of(100L));
+        both.setTaskIds(List.of(900L));
+        assertThrows(IllegalArgumentException.class, () -> pikngTaskService.cancel(both));
+        assertThrows(IllegalArgumentException.class,
+                () -> pikngTaskService.cancel(new PikngCancelRequest()));
+    }
+
+    /**
+     * 락을 먼저 잡고 지시를 나중에 읽어야 한다. 뒤집히면 락을 기다리는 동안 커밋된 피킹 실행이
+     * 영속성 컨텍스트에 반영되지 않아, 낡은 {@code cmplQty 0}이 취소 가드를 통과하고 flush가
+     * 그 0을 되써서 항등식(cmpl_qty = pikng_qty = SUM(acrst))이 조용히 깨진다.
+     */
+    @Test
+    @DisplayName("지시를 읽기 전에 웨이브 락을 잡는다 — 실행·결품 종결과 같은 순서")
+    void cancelTaskLocksWaveBeforeReadingTasks() {
+        wave.issue();
+        PikngTask only = task(alloc(1L, order("OB-001"), 10, loc(2L, 1, "B-01")), 10);
+        setId(only, 900L);
+        when(pikngTaskRepository.findAllWithDetailsByIds(List.of(900L))).thenReturn(List.of(only));
+        when(pikngTaskRepository.findByWaveIdAndStatusNot(100L, PikngTaskStatus.CANCELLED))
+                .thenReturn(List.of());
+
+        pikngTaskService.cancel(cancelTasks(900L));
+
+        InOrder order = inOrder(pikngTaskRepository, outbWaveRepository);
+        order.verify(pikngTaskRepository).findWaveIdsByTaskIds(List.of(900L));
+        order.verify(outbWaveRepository).findByIdForUpdate(100L);
+        order.verify(pikngTaskRepository).findAllWithDetailsByIds(List.of(900L));
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 지시가 섞이면 전량 거부한다")
+    void cancelTaskRejectsUnknownTask() {
+        wave.issue();
+        when(pikngTaskRepository.findAllWithDetailsByIds(List.of(900L))).thenReturn(List.of());
+        assertThrows(IllegalArgumentException.class, () -> pikngTaskService.cancel(cancelTasks(900L)));
     }
 
     // ── 픽스처 ───────────────────────────────────────────────────────────────
@@ -232,6 +341,12 @@ class PikngTaskServiceTest {
     private PikngCancelRequest cancel(Long... wavIds) {
         PikngCancelRequest request = new PikngCancelRequest();
         request.setWavIds(List.of(wavIds));
+        return request;
+    }
+
+    private PikngCancelRequest cancelTasks(Long... taskIds) {
+        PikngCancelRequest request = new PikngCancelRequest();
+        request.setTaskIds(List.of(taskIds));
         return request;
     }
 
