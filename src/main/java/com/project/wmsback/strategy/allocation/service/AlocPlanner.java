@@ -19,6 +19,7 @@ import com.project.wmsback.strategy.core.condition.SortCriterion;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -317,11 +318,18 @@ public final class AlocPlanner {
      * 기본값을 대체한다(고정 기준값으로 바꾸는 등).
      */
     private String rejectReason(AlocInvnCandidate candidate, AlocLineTarget line) {
-        if (candidate.expiryDt() != null && candidate.expiryDt().isBefore(line.expctDe())) {
-            // 비율과 무관한 하드 가드 — 기준이 0%인 점포에도 기한 지난 Lot을 줄 수는 없다
+        if (expired(candidate.expiryDt(), line.expctDe())) {
             return "유통기한 경과 (" + candidate.expiryDt() + ")";
         }
         return rstrctReason(rstrctSlots, candidate, line);
+    }
+
+    /**
+     * 유통기한 경과 — 비율과 무관한 하드 가드. 기준이 0%인 점포에도 기한 지난 Lot을 줄 수는 없다.
+     * 자동할당 · 수동할당 후보 화면 · 수동할당 실행이 전부 이 한 판정을 쓴다.
+     */
+    public static boolean expired(LocalDate expiryDt, LocalDate baseDe) {
+        return expiryDt != null && expiryDt.isBefore(baseDe);
     }
 
     /**

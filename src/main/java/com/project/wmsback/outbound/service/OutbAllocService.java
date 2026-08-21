@@ -37,13 +37,11 @@ import com.project.wmsback.strategy.core.entity.StgyTyp;
 import com.project.wmsback.strategy.core.entity.TrgrTyp;
 import com.project.wmsback.strategy.core.service.StgyExecLogService;
 import com.project.wmsback.warehouse.entity.LocTyp;
-import com.project.wmsback.warehouse.entity.Lot;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -128,7 +126,7 @@ public class OutbAllocService {
 
         List<AllocCandidateResponse> result = new ArrayList<>();
         for (Inv candidate : outbAllocRepository.findCandidates(line.getProd().getId())) {
-            if (expired(candidate.getLot(), target.expctDe())) {
+            if (AlocPlanner.expired(candidate.getLot().getExpiryDt(), target.expctDe())) {
                 continue;
             }
             AlocInvnCandidate snapshot = AlocInvnCandidate.of(candidate,
@@ -449,7 +447,7 @@ public class OutbAllocService {
                 throw new IllegalArgumentException("라인의 상품과 다른 재고입니다: "
                         + candidate.getProd().getProdCd() + " ≠ " + line.getProd().getProdCd());
             }
-            if (expired(candidate.getLot(), line.getOutbOrder().getExpctDe())) {
+            if (AlocPlanner.expired(candidate.getLot().getExpiryDt(), line.getOutbOrder().getExpctDe())) {
                 throw new IllegalArgumentException("유통기한이 지난 Lot은 할당할 수 없습니다: "
                         + candidate.getLot().getLotNo());
             }
@@ -545,12 +543,6 @@ public class OutbAllocService {
         // 남은 할당이 없으면 CREATED로, 남은 것이 전부 소진됐으면 PICKED로 — 「0건이 됐나」만
         // 묻던 옛 판정이 실적 있는 할당 하나만 남은 주문을 PICKING에 고이게 했다
         orders.forEach(outbAllocRepository::recalcStatus);
-    }
-
-    // ── 잔여수명 (수동할당 화면 표시용) ────────────────────────────────────────
-
-    private boolean expired(Lot lot, LocalDate baseDe) {
-        return lot.getExpiryDt() != null && lot.getExpiryDt().isBefore(baseDe);
     }
 
     /**
