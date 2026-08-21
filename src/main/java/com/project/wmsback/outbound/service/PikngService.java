@@ -154,11 +154,7 @@ public class PikngService {
         //    PICKED가 되고 미할당 잔량은 부족 출고로 진행한다 (백오더 없음)
         List<PikngExecuteResponse.OrderChange> changes = new ArrayList<>();
         for (OutbOrder order : touched) {
-            order.startPicking();
-            // 집계 전 flush는 JPQL 실행이 스스로 한다 — 방금 누적한 pikng_qty가 count에 반영된다
-            if (outbAllocRepository.countUnpickedByOrderId(order.getId()) == 0) {
-                order.completePicking();
-            }
+            outbAllocRepository.recalcStatus(order);
             if (order.getStatus() != beforeByOrder.get(order.getId())) {
                 changes.add(new PikngExecuteResponse.OrderChange(order.getOutbNo(),
                         order.getStatus().name(), order.getStatus().getLabel()));
@@ -248,13 +244,10 @@ public class PikngService {
             totalShotge += remaining;
         }
 
-        // ⑤ 주문 상태 재산출 — 실행 ⑤와 같은 판정이다. startPicking()은 부르지 않는다:
-        //    실적이 있어야 여는 경로라 주문은 이미 PICKING이다
+        // ⑤ 주문 상태 재산출 — 실행 ⑤와 같은 함수를 같은 재료로 부른다
         List<PikngExecuteResponse.OrderChange> changes = new ArrayList<>();
         for (OutbOrder order : touched) {
-            if (outbAllocRepository.countUnpickedByOrderId(order.getId()) == 0) {
-                order.completePicking();
-            }
+            outbAllocRepository.recalcStatus(order);
             if (order.getStatus() != beforeByOrder.get(order.getId())) {
                 changes.add(new PikngExecuteResponse.OrderChange(order.getOutbNo(),
                         order.getStatus().name(), order.getStatus().getLabel()));

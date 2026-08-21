@@ -42,54 +42,102 @@ class OutbOrderTest {
     }
 
     @Nested
-    @DisplayName("allocate()")
-    class Allocate {
+    @DisplayName("recalcStatus() — 사실에서 상태를 다시 계산한다")
+    class RecalcStatus {
 
         @Test
-        @DisplayName("첫 할당이 CREATED를 ALLOCATED로 옮긴다")
-        void transitions() {
+        @DisplayName("첫 할당이 CREATED를 ALLOCATED로 옮긴다 — 실적 0이면 아직 집히지 않은 것이다")
+        void firstAllocation() {
             OutbOrder order = order();
             assertEquals(OutbStatus.CREATED, order.getStatus());
 
-            order.allocate();
+            order.recalcStatus(1, 1, 0);
 
             assertEquals(OutbStatus.ALLOCATED, order.getStatus());
         }
 
         @Test
-        @DisplayName("이미 ALLOCATED면 여러 번 불러도 그대로다 — 부분할당 뒤 재할당이 같은 경로를 탄다")
+        @DisplayName("같은 사실로 여러 번 불러도 상태가 흔들리지 않는다 — 부분할당 뒤 재할당이 같은 경로다")
         void idempotent() {
             OutbOrder order = order();
-            order.allocate();
+            order.recalcStatus(1, 1, 0);
 
-            assertDoesNotThrow(order::allocate);
-            assertDoesNotThrow(order::allocate);
+            assertDoesNotThrow(() -> order.recalcStatus(2, 2, 0));
+            assertDoesNotThrow(() -> order.recalcStatus(2, 2, 0));
 
             assertEquals(OutbStatus.ALLOCATED, order.getStatus());
         }
-    }
 
-    @Nested
-    @DisplayName("revertToCreated()")
-    class RevertToCreated {
+        @Test
+        @DisplayName("실적이 붙으면 PICKING — 과거 상태가 아니라 실적 있는 할당 수가 가른다")
+        void picking() {
+            OutbOrder order = order();
+
+            order.recalcStatus(2, 1, 1);
+
+            assertEquals(OutbStatus.PICKING, order.getStatus());
+        }
+
+        @Test
+        @DisplayName("전 할당이 소진되면 PICKED")
+        void picked() {
+            OutbOrder order = order();
+
+            order.recalcStatus(2, 0, 2);
+
+            assertEquals(OutbStatus.PICKED, order.getStatus());
+        }
+
+        /**
+         * 치명적이었던 빈 칸 — 할당 둘 중 하나는 집품 완료, 다른 하나는 지시취소 후 해제되면
+         * 남은 할당은 이미 소진됐는데 집을 것도 결품 종결할 것도 없다. 「0건이 됐나」만 묻던
+         * 옛 판정은 여기서 아무 일도 하지 않아 주문을 PICKING에 영구히 고이게 했다.
+         */
+        @Test
+        @DisplayName("소진된 할당만 남으면 PICKED로 닫힌다 — 해제가 남긴 고임을 막는다")
+        void closesWhenOnlyPickedAllocsRemain() {
+            OutbOrder order = order();
+            order.recalcStatus(2, 1, 1);
+            assertEquals(OutbStatus.PICKING, order.getStatus());
+
+            order.recalcStatus(1, 0, 1);
+
+            assertEquals(OutbStatus.PICKED, order.getStatus());
+        }
+
+        /**
+         * 결품 종결이 잔량을 사후에 키우고 그 잔량이 재할당되면, PICKED의 전제(전 할당 소진)가
+         * 실제로 거짓이 된다. 되돌림은 새 규칙이 아니라 재산출의 자연스러운 답이다.
+         */
+        @Test
+        @DisplayName("PICKED 주문에 할당이 붙으면 PICKING으로 되돌아온다")
+        void reopensWhenAllocationIsAddedAfterPicked() {
+            OutbOrder order = order();
+            order.recalcStatus(1, 0, 1);
+            assertEquals(OutbStatus.PICKED, order.getStatus());
+
+            order.recalcStatus(2, 1, 1);
+
+            assertEquals(OutbStatus.PICKING, order.getStatus());
+        }
 
         @Test
         @DisplayName("할당이 0건이 되면 CREATED로 돌아간다")
-        void reverts() {
+        void revertsToCreated() {
             OutbOrder order = order();
-            order.allocate();
+            order.recalcStatus(1, 1, 0);
 
-            order.revertToCreated();
+            order.recalcStatus(0, 0, 0);
 
             assertEquals(OutbStatus.CREATED, order.getStatus());
         }
 
         @Test
         @DisplayName("이미 CREATED면 아무 일도 하지 않는다 — 해제 때마다 부르는 자리라 조건을 밖에 두지 않는다")
-        void idempotent() {
+        void revertIdempotent() {
             OutbOrder order = order();
 
-            assertDoesNotThrow(order::revertToCreated);
+            assertDoesNotThrow(() -> order.recalcStatus(0, 0, 0));
 
             assertEquals(OutbStatus.CREATED, order.getStatus());
         }
@@ -103,10 +151,10 @@ class OutbOrderTest {
         @DisplayName("전량 해제하면 확정취소가 다시 가능해진다")
         void revertibleAgain() {
             OutbOrder order = order();
-            order.allocate();
+            order.recalcStatus(1, 1, 0);
             assertThrows(IllegalStateException.class, order::requireRevertible);
 
-            order.revertToCreated();
+            order.recalcStatus(0, 0, 0);
 
             assertDoesNotThrow(order::requireRevertible);
         }
@@ -116,10 +164,10 @@ class OutbOrderTest {
         void unassignableAgain() {
             OutbOrder order = order();
             order.assignWave(plannedWave(), WavRegTyp.MANUAL);
-            order.allocate();
+            order.recalcStatus(1, 1, 0);
             assertThrows(IllegalStateException.class, order::unassignWave);
 
-            order.revertToCreated();
+            order.recalcStatus(0, 0, 0);
             order.unassignWave();
 
             assertNull(order.getWave());
@@ -135,7 +183,7 @@ class OutbOrderTest {
         @DisplayName("확정취소가 막힌다 — 할당 해제가 먼저다")
         void cannotRevert() {
             OutbOrder order = order();
-            order.allocate();
+            order.recalcStatus(1, 1, 0);
 
             assertThrows(IllegalStateException.class, order::requireRevertible);
         }
@@ -145,7 +193,7 @@ class OutbOrderTest {
         void cannotUnassign() {
             OutbOrder order = order();
             order.assignWave(plannedWave(), WavRegTyp.MANUAL);
-            order.allocate();
+            order.recalcStatus(1, 1, 0);
 
             assertThrows(IllegalStateException.class, order::unassignWave);
         }
@@ -154,7 +202,7 @@ class OutbOrderTest {
         @DisplayName("웨이브에 담을 수도 없다 — 할당은 편성된 뒤에만 일어나므로 이 순서 자체가 없다")
         void cannotAssign() {
             OutbOrder order = order();
-            order.allocate();
+            order.recalcStatus(1, 1, 0);
 
             assertThrows(IllegalStateException.class,
                     () -> order.assignWave(plannedWave(), WavRegTyp.MANUAL));

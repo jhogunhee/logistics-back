@@ -157,79 +157,51 @@ public class OutbOrder extends BaseEntity {
     }
 
     /**
-     * 첫 할당 시 CREATED → ALLOCATED 전이. 이미 ALLOCATED면 그대로 둔다 —
-     * 부분할당 뒤 재할당이 같은 메서드를 여러 번 호출하기 때문이다.
+     * 주문 상태 재산출 — <b>사실에서 상태를 다시 계산한다.</b> 전이 메서드 넷(첫 할당 · 첫 실적 ·
+     * 전량 소진 · 전 할당 해제)이 나눠 하던 일을 한 자리로 모은 것이다 (2026-08-21).
      *
-     * <p><b>부분할당도 ALLOCATED다.</b> 헤더 상태는 워크플로 단계만 표현하고, 부분인지 전량인지는
-     * {@code odr_qty} 와 할당 합계 비교로 파생시킨다 — {@code PARTIALLY_*} 를 두지 않는 원칙
-     * (「상태와 수량의 분담」). 그래서 이 메서드는 수량을 보지 않는다.
+     * <p>넷으로 흩어져 있을 때 생긴 문제는 <b>「없애는 쪽」의 물음이 반쪽이었다</b>는 것이다 —
+     * 할당해제가 「0건이 됐나」만 묻고 「남은 것이 다 집혔나」는 묻지 않아, 집품 완료된 할당 하나만
+     * 남은 주문이 PICKING에 영구히 고였다(집을 것도 결품 종결할 것도 없다). 자리를 하나 더
+     * 늘리는 대신 물음을 하나로 모은다.
+     *
+     * <p><b>판정 재료 셋은 전부 사실이고 현재 상태를 쓰지 않는다.</b> 실적이 붙은 할당 수가
+     * 「집히기 시작했나」를 답하므로 ALLOCATED와 PICKING을 가르는 데 과거 상태가 필요 없고,
+     * {@code ck_aloc_qty(aloc_qty > 0)} 덕에 「수량 0짜리 할당」이 없어 {@code unpickedCount == 0}이
+     * 곧 전량 소진을 뜻한다. 판정 기준이 주문수량({@code odr_qty})이 아니라 <b>할당수량</b>인 것은
+     * 그대로다 — 부분할당 주문은 할당분만 집품되면 PICKED가 되고 미할당 잔량은 부족 출고로 간다
+     * (백오더 없음).
+     *
+     * <p><b>재료는 서비스가 집계해 넘긴다</b> — {@code outb_line}에 할당 수량 컬럼이 없어
+     * ({@code outb_alloc} 집계로 파생시킨다) 엔티티 안에서는 셀 수 없다. 입고의
+     * {@code IbOrder#confirm()}이 라인 수량으로 스스로 판정하는 것과 갈리는 지점이고,
+     * 이유는 그쪽엔 수량 컬럼이 라인에 있기 때문이다.
+     *
+     * <p>부르는 자리는 <b>할당이 바뀌는 곳 전부</b>다 — 자동할당 · 수동할당 · 피킹 실행 ·
+     * 결품 종결 · 할당해제. 지시취소는 할당을 건드리지 않으므로 부르지 않는다.
+     *
+     * <p><b>SHIPPED는 재산출하지 않는다.</b> 출고확정된 주문의 상태를 사실로 되계산하면 확정을
+     * 무르는 셈이 된다. 재할당 진입이 SHIPPED 주문 라인을 먼저 걸러야 하고, 이 예외는 최후 방어다.
+     *
+     * @param allocCount    이 주문의 할당 건수
+     * @param unpickedCount 그중 아직 소진되지 않은 것 ({@code pikng_qty < aloc_qty})
+     * @param pickedCount   그중 실적이 붙은 것 ({@code pikng_qty > 0})
      */
-    public void allocate() {
-        if (status == OutbStatus.CREATED) {
+    public void recalcStatus(long allocCount, long unpickedCount, long pickedCount) {
+        if (status == OutbStatus.SHIPPED) {
+            throw new IllegalStateException("출고확정된 주문의 상태는 되돌릴 수 없습니다: " + outbNo);
+        }
+        if (allocCount == 0) {
+            // 할당 0건이면 되돌릴 수 있는 구간(확정취소 · 웨이브 빼기)이 다시 열려야 한다.
+            // 실적이 붙은 할당은 해제가 막으므로 여기에 PICKING 이상이 올 수 없다.
+            this.status = OutbStatus.CREATED;
+        } else if (pickedCount == 0) {
             this.status = OutbStatus.ALLOCATED;
-            return;
-        }
-        if (status != OutbStatus.ALLOCATED) {
-            throw new IllegalStateException("할당할 수 없는 상태입니다 (" + status.getLabel() + "): " + outbNo);
-        }
-    }
-
-    /**
-     * 할당이 한 건도 남지 않았을 때 ALLOCATED → CREATED 복귀. 이미 CREATED면 그대로 둔다.
-     *
-     * <p>이 복귀가 없으면 <b>상태는 ALLOCATED인데 할당 레코드가 0건인 주문</b>이 남는다.
-     * 그러면 {@link #requireRevertible()}(확정취소)도 {@link #unassignWave()}(웨이브에서 빼기)도
-     * 영영 열리지 않아, 되돌릴 방법이 없는 상태로 고착된다.
-     *
-     * <p><b>할당 잔존 여부는 서비스가 판단해 호출한다</b> — {@code outb_line} 에 할당 수량 컬럼이
-     * 없어서(할당은 {@code outb_alloc} 집계로 파생시킨다) 엔티티 안에서는 셀 수 없다.
-     * 입고의 {@code IbOrder#confirm()} 이 라인 수량({@code ib_line.ptawy_qty})으로 스스로
-     * 전제조건을 판정하는 것과 갈리는 지점이고, 이유는 그쪽엔 수량 컬럼이 라인에 있기 때문이다.
-     */
-    public void revertToCreated() {
-        if (status == OutbStatus.CREATED) {
-            return;
-        }
-        if (status != OutbStatus.ALLOCATED) {
-            throw new IllegalStateException(
-                    "피킹이 시작된 출고주문은 할당 이전으로 되돌릴 수 없습니다 ("
-                            + status.getLabel() + "): " + outbNo);
-        }
-        this.status = OutbStatus.CREATED;
-    }
-
-    /**
-     * 첫 피킹 실적 시 ALLOCATED → PICKING 전이. 이미 PICKING이면 그대로 둔다 —
-     * 부분 피킹의 반복 실행이 같은 메서드를 여러 번 호출하기 때문이다 ({@link #allocate()}와 같은 형태).
-     *
-     * <p>전이 시점은 피킹지시 발행이 아니라 <b>첫 실적</b>이다 — 발행은 재고도 실물도 움직이지
-     * 않는 문서 조작이라 주문 상태를 바꾸지 않는다 (웨이브 상태만 ISSUED로 바뀐다).
-     */
-    public void startPicking() {
-        if (status == OutbStatus.ALLOCATED) {
+        } else if (unpickedCount > 0) {
             this.status = OutbStatus.PICKING;
-            return;
+        } else {
+            this.status = OutbStatus.PICKED;
         }
-        if (status != OutbStatus.PICKING) {
-            throw new IllegalStateException("피킹할 수 없는 상태입니다 (" + status.getLabel() + "): " + outbNo);
-        }
-    }
-
-    /**
-     * 전 할당 소진 시 PICKING → PICKED 전이. <b>판정 재료(전 할당의 pikng_qty == aloc_qty)는
-     * 서비스가 집계해 호출한다</b> — 라인에 수량 컬럼이 없어({@code outb_alloc} 집계로 파생)
-     * 엔티티 안에서는 셀 수 없다 ({@link #revertToCreated()}와 같은 이유).
-     *
-     * <p>판정 기준이 주문수량({@code odr_qty})이 아니라 <b>할당수량</b>인 것에 주의 —
-     * 부분할당 주문은 할당분만 집품되면 PICKED가 되고, 미할당 잔량은 부족 출고로 진행된다
-     * (백오더 없음 원칙의 연장).
-     */
-    public void completePicking() {
-        if (status != OutbStatus.PICKING) {
-            throw new IllegalStateException("피킹 중이 아닌 주문은 피킹완료로 전이할 수 없습니다 ("
-                    + status.getLabel() + "): " + outbNo);
-        }
-        this.status = OutbStatus.PICKED;
     }
 
     /**

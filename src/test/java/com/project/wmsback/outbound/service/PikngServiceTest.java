@@ -58,6 +58,7 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.when;
 
 /**
@@ -90,6 +91,8 @@ class PikngServiceTest {
 
     @BeforeEach
     void setUp() {
+        // recalcStatus는 레포의 default 메서드 — mock이 비우지 않게 실제 몸체를 타게 한다
+        doCallRealMethod().when(outbAllocRepository).recalcStatus(any());
         pikngService = new PikngService(pikngTaskRepository, pikngAcrstRepository, outbAllocRepository,
                 outbWaveRepository, locRepository, new InvStore(invRepository, invHistRepository),
                 new RsnValidator(codeDetailRepository));
@@ -97,6 +100,11 @@ class PikngServiceTest {
         invById.clear();
         createdInvs.clear();
         seq = 0;
+
+        // 주문 상태 재산출의 재료 — 이 테스트들은 전부 피킹이 일어난 뒤를 본다(실적 있는 할당 1건).
+        // 소진 여부(countUnpickedByOrderId)만 각 테스트가 덮어 PICKING/PICKED를 가른다
+        when(outbAllocRepository.countByOutbOrderId(anyLong())).thenReturn(1L);
+        when(outbAllocRepository.countPickedByOrderId(anyLong())).thenReturn(1L);
 
         wave = OutbWave.builder().wavNo("WV-20260820-001").build();
         setId(wave, 100L);
@@ -299,7 +307,7 @@ class PikngServiceTest {
         setId(line, id);
         order.addLine(line);
         order.assignWave(wave, WavRegTyp.MANUAL);
-        order.allocate();
+        order.recalcStatus(1, 1, 0);
 
         Lot lot = mock(Lot.class);
         when(lot.getId()).thenReturn(id);

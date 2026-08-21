@@ -12,6 +12,7 @@ import com.project.wmsback.outbound.dto.AllocWaveResponse;
 import com.project.wmsback.outbound.dto.ManualAllocRequest;
 import com.project.wmsback.outbound.entity.OutbAlloc;
 import com.project.wmsback.outbound.entity.OutbLine;
+import com.project.wmsback.outbound.entity.OutbStatus;
 import com.project.wmsback.outbound.entity.OutbOrder;
 import com.project.wmsback.outbound.entity.OutbWave;
 import com.project.wmsback.outbound.entity.PikngTask;
@@ -48,6 +49,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -203,6 +205,7 @@ public class OutbAllocService {
         List<AllocExecuteResponse.LineResult> results = new ArrayList<>();
         List<AlocDecisionTrace> groupTraces = new ArrayList<>();
         Set<Long> touchedWaves = new HashSet<>();
+        Set<OutbOrder> touchedOrders = new LinkedHashSet<>();
         long totalReq = 0;
         long totalAloc = 0;
 
@@ -231,7 +234,7 @@ public class OutbAllocService {
                             existingAllocs, stgyId, rvsnNo);
                 }
                 if (linePlan.asgnQty() > 0) {
-                    line.getOutbOrder().allocate();
+                    touchedOrders.add(line.getOutbOrder());
                 }
                 OutbWave wave = line.getOutbOrder().getWave();
                 if (wave != null) {
@@ -242,6 +245,9 @@ public class OutbAllocService {
                 results.add(toLineResult(linePlan));
             }
         }
+
+        // 주문 상태 재산출 — 라인마다가 아니라 주문마다 한 번
+        touchedOrders.forEach(outbAllocRepository::recalcStatus);
 
         if (stgy != null) {
             stgyExecLogService.log(StgyTyp.ALOC, stgyId, rvsnNo, TrgrTyp.MANUAL, tgtRef(wavNos),
@@ -374,6 +380,12 @@ public class OutbAllocService {
             if (wave == null || !wave.getId().equals(wavId)) {
                 throw new IllegalArgumentException("이 웨이브에 편성된 주문의 라인이 아닙니다: " + line.getOutbOrder().getOutbNo());
             }
+            // 자동할당은 findTargetLines가 같은 주문을 조용히 걸러낸다 — 여기서는 사람이 고른
+            // 라인이라 이유를 말해 준다 (recalcStatus의 SHIPPED 예외와 한 쌍)
+            if (line.getOutbOrder().getStatus() == OutbStatus.SHIPPED) {
+                throw new IllegalArgumentException("출고확정된 주문에는 할당할 수 없습니다: "
+                        + line.getOutbOrder().getOutbNo());
+            }
             long remain = line.getOdrQty() - alreadyByLine.getOrDefault(line.getId(), 0L);
             if (entry.getValue() > remain) {
                 throw new IllegalArgumentException("주문수량을 초과했습니다 (잔여 " + Math.max(remain, 0)
@@ -429,14 +441,16 @@ public class OutbAllocService {
         }
 
         long totalReq = 0;
+        Set<OutbOrder> touchedOrders = new LinkedHashSet<>();
         for (OutbLine line : lines.values()) {
             long qty = reqByLine.get(line.getId());
             totalReq += qty;
-            line.getOutbOrder().allocate();
+            touchedOrders.add(line.getOutbOrder());
             results.add(new AllocExecuteResponse.LineResult(line.getId(),
                     line.getOutbOrder().getOutbNo(), line.getProd().getProdCd(),
                     qty, qty, 0, assignedByLine.getOrDefault(line.getId(), List.of()), List.of()));
         }
+        touchedOrders.forEach(outbAllocRepository::recalcStatus);
         return AllocExecuteResponse.of(1, results.size(), totalReq, totalReq, results);
     }
 
@@ -509,11 +523,9 @@ public class OutbAllocService {
         // 남은 건수를 세기 전에 삭제를 반영한다 — 안 하면 방금 지운 행까지 세어 복귀가 일어나지 않는다
         outbAllocRepository.flush();
 
-        for (OutbOrder order : orders) {
-            if (outbAllocRepository.countByOutbOrderId(order.getId()) == 0) {
-                order.revertToCreated();
-            }
-        }
+        // 남은 할당이 없으면 CREATED로, 남은 것이 전부 소진됐으면 PICKED로 — 「0건이 됐나」만
+        // 묻던 옛 판정이 실적 있는 할당 하나만 남은 주문을 PICKING에 고이게 했다
+        orders.forEach(outbAllocRepository::recalcStatus);
     }
 
     // ── 잔여수명 (수동할당 화면 표시용) ────────────────────────────────────────

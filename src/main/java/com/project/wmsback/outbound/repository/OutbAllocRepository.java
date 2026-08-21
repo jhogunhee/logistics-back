@@ -1,6 +1,8 @@
 package com.project.wmsback.outbound.repository;
 
 import com.project.wmsback.outbound.entity.OutbAlloc;
+import com.project.wmsback.outbound.entity.OutbOrder;
+import com.project.wmsback.outbound.entity.PikngTaskStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -42,4 +44,23 @@ public interface OutbAllocRepository extends JpaRepository<OutbAlloc, Long>, Out
     /** 주문에 소진되지 않은 할당이 남았는지 — 0이면 전 할당 소진 = PICKED 전이 (OutbOrder.completePicking) */
     @Query("select count(a) from OutbAlloc a where a.outbLine.outbOrder.id = :outbOrderId and a.pikngQty < a.alocQty")
     long countUnpickedByOrderId(@Param("outbOrderId") Long outbOrderId);
+
+    /**
+     * 주문에 실적이 붙은 할당 건수 — 「이 주문이 집히기 시작했나」를 사실로 답한다.
+     * 이것이 있어 {@code recalcStatus}가 ALLOCATED와 PICKING을 가르는 데 과거 상태를 쓰지 않는다.
+     */
+    @Query("select count(a) from OutbAlloc a where a.outbLine.outbOrder.id = :outbOrderId and a.pikngQty > 0")
+    long countPickedByOrderId(@Param("outbOrderId") Long outbOrderId);
+
+    /**
+     * 주문 상태 재산출 — 세 집계를 모아 {@link OutbOrder#recalcStatus}에 넘긴다. 할당이 바뀌는 자리
+     * 전부(자동할당 · 수동할당 · 할당해제 · 피킹 실행 · 결품 종결)가 이 문 하나를 지난다. 재료가 전부
+     * 이 레포의 집계라 여기 둔다. 집계 전 flush는 JPQL 실행이 스스로 하므로 방금 저장·누적한
+     * 할당·{@code pikng_qty}가 그대로 세어진다.
+     */
+    default void recalcStatus(OutbOrder order) {
+        order.recalcStatus(countByOutbOrderId(order.getId()),
+                countUnpickedByOrderId(order.getId()),
+                countPickedByOrderId(order.getId()));
+    }
 }

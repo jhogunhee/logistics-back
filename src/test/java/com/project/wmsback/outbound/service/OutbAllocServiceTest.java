@@ -53,6 +53,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.when;
 
 /**
@@ -91,11 +92,19 @@ class OutbAllocServiceTest {
 
     @BeforeEach
     void setUp() {
+        // recalcStatus는 레포의 default 메서드 — mock이 비우지 않게 실제 몸체를 타게 한다
+        doCallRealMethod().when(outbAllocRepository).recalcStatus(any());
         outbAllocService = new OutbAllocService(outbAllocRepository, outbWaveRepository, outbLineRepository,
                 pikngTaskRepository, new InvStore(invRepository, invHistRepository),
                 alocStgyService, alocQueryRepository, stgyExecLogService);
         // 지시 발행 가드 — 기본은 「발행된 지시 없음」. 가드 테스트가 개별로 덮어쓴다
         when(pikngTaskRepository.findByOutbAllocIdInAndStatusNot(any(), any())).thenReturn(List.of());
+        when(pikngTaskRepository.findLiveAllocIdsByLineIds(any(), any())).thenReturn(List.of());
+        // 주문 상태 재산출의 재료 — 기본은 「할당 1건 · 아직 안 집힘」이라 ALLOCATED가 된다.
+        // 해제 테스트가 countByOutbOrderId를 0으로 덮어 CREATED 복귀를 검증한다
+        when(outbAllocRepository.countByOutbOrderId(any())).thenReturn(1L);
+        when(outbAllocRepository.countUnpickedByOrderId(any())).thenReturn(1L);
+        when(outbAllocRepository.countPickedByOrderId(any())).thenReturn(0L);
 
         invById.clear();
         seq = 0;
@@ -318,6 +327,25 @@ class OutbAllocServiceTest {
         assertEquals(10, aged.getAlocQty());
     }
 
+    /**
+     * 출고확정된 주문은 부족 출고로 닫힌 것이라 잔량이 남아 있을 수 있다. 뒤늦게 채우면 확정을
+     * 무르는 셈이 된다 — 자동할당은 {@code findTargetLines}가 조용히 걸러내고, 사람이 고른
+     * 수동할당은 이유를 말해 준다.
+     */
+    @Test
+    @DisplayName("출고확정된 주문에는 수동할당도 막는다")
+    void manualRejectsShippedOrder() {
+        inv(1L, 100, LocalDate.of(2026, 12, 31));
+        OutbLine line = line(1L, 10);
+        setStatus(line.getOutbOrder(), OutbStatus.SHIPPED);
+        when(outbLineRepository.findById(1L)).thenReturn(Optional.of(line));
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> outbAllocService.allocateManual(100L, manual(1L, 1L, 10L)));
+
+        assertTrue(e.getMessage().contains("출고확정된 주문"));
+    }
+
     @Test
     @DisplayName("여러 행의 합계로 과할당을 판정한다 — 첫 행만 보지 않는다")
     void manualValidatesAllRowsForOverAllocation() {
@@ -376,7 +404,7 @@ class OutbAllocServiceTest {
         Inv target = inv(1L, 100, LocalDate.of(2026, 12, 31));
         target.reserve(30);
         OutbLine line = line(1L, 30);
-        line.getOutbOrder().allocate();
+        line.getOutbOrder().recalcStatus(1, 1, 0);
         OutbAlloc alloc = OutbAlloc.builder().outbLine(line).inv(target).alocQty(30L).build();
         setId(alloc, 500L);
         when(outbAllocRepository.findAllWithLineByIds(List.of(500L))).thenReturn(List.of(alloc));
@@ -396,7 +424,7 @@ class OutbAllocServiceTest {
         Inv target = inv(1L, 100, LocalDate.of(2026, 12, 31));
         target.reserve(30);
         OutbLine line = line(1L, 50);
-        line.getOutbOrder().allocate();
+        line.getOutbOrder().recalcStatus(1, 1, 0);
         OutbAlloc alloc = OutbAlloc.builder().outbLine(line).inv(target).alocQty(10L).build();
         setId(alloc, 500L);
         when(outbAllocRepository.findAllWithLineByIds(List.of(500L))).thenReturn(List.of(alloc));
@@ -532,6 +560,17 @@ class OutbAllocServiceTest {
         AllocReleaseRequest request = new AllocReleaseRequest();
         request.setAllocIds(List.of(allocIds));
         return request;
+    }
+
+    /** 출고확정으로 보내는 전이가 아직 없어(출고확정 미개발) 상태도 리플렉션으로 넣는다 */
+    private static void setStatus(OutbOrder order, OutbStatus status) {
+        try {
+            var field = OutbOrder.class.getDeclaredField("status");
+            field.setAccessible(true);
+            field.set(order, status);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     /** 엔티티 id는 DB가 채우므로 테스트에서는 리플렉션으로 넣는다 (기존 테스트들과 같은 방식) */
