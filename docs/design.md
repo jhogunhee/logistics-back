@@ -563,6 +563,8 @@ Lot의 **제조일자·유통기한 오입력**을 정정한다. 구현은 `LotA
   prod 락(id 오름차순)이 먼저 직렬화하고, 스테이징 행을 같이 만지는 다른 경로(적치·검수취소)는
   단건 락이라 순환에 못 낀다.
 
+**락 대기 상한 (2026-08-21).** Supabase 기본은 `lock_timeout = 0`(무한), `statement_timeout = 2min`(postgres 역할)이라 락 대기는 2분에서 끊기되 원인 없는 오류로 보였다. `ALTER ROLE postgres SET lock_timeout = '10s'`로 **역할 단위**에 건다(`docs/migration-lock-timeout.sql`) — 세션 `SET`은 transaction 풀링으로 바뀌는 순간 백엔드마다 흩어져 거짓이 되므로, 지금 직결(session 모드)이어도 접속 방식에 기대지 않는 자리에 둔다. 앱은 아무 설정도 들지 않고 `GlobalExceptionHandler`가 락 대기 실패를 409(「다른 작업이 같은 대상을 처리 중」), 문장 상한을 503으로 돌려준다. 10초는 사람이 기다릴 수 있는 시간 기준이며, 웨이브 생성 전략 실행이 이를 자주 넘기면(주의 D 실측) 값을 올린다. `statement_timeout`은 건드리지 않는다.
+
 ## 진행 순서
 
 1. ~~상태 전이 설계~~ (이 문서)

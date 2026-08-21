@@ -3,6 +3,8 @@ package com.project.common.exception;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -73,6 +75,26 @@ public class GlobalExceptionHandler {
             case "23514" -> "허용 범위를 벗어난 값입니다.";
             default -> "데이터 제약 조건을 위반해 처리할 수 없습니다.";
         };
+    }
+
+    /**
+     * 락 대기 상한(lock_timeout, 역할 단위 10s — docs/migration-lock-timeout.sql) 초과.
+     * CannotAcquireLockException 이 이 타입의 하위라 함께 잡힌다. 데이터는 멀쩡하고 다시 시도하면 된다.
+     */
+    @ExceptionHandler(PessimisticLockingFailureException.class)
+    public ResponseEntity<Map<String, Object>> handlePessimisticLockingFailureException(PessimisticLockingFailureException e) {
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(Map.of("message", "다른 작업이 같은 대상을 처리 중입니다 — 잠시 후 다시 시도하세요."));
+    }
+
+    /** 문장 상한(statement_timeout, Supabase 기본 2min) 초과. 락 대기가 아니라 처리 자체가 길었던 경우다 */
+    @ExceptionHandler(QueryTimeoutException.class)
+    public ResponseEntity<Map<String, Object>> handleQueryTimeoutException(QueryTimeoutException e) {
+        log.error("문장 시간 상한 초과", e);
+        return ResponseEntity
+                .status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(Map.of("message", "처리가 너무 오래 걸려 중단했습니다 — 대상을 줄여 다시 시도하세요."));
     }
 
     /** 없는 경로 호출. Exception 핸들러가 삼켜 500으로 응답하지 않도록 분리 */
