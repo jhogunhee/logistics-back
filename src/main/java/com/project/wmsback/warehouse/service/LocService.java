@@ -3,6 +3,7 @@ package com.project.wmsback.warehouse.service;
 import com.project.wmsback.warehouse.dto.LocResponse;
 import com.project.wmsback.warehouse.dto.LocSaveRequest;
 import com.project.wmsback.warehouse.dto.LocSearchCond;
+import com.project.wmsback.warehouse.entity.FxngLoc;
 import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.Zon;
 import com.project.wmsback.inventory.repository.LocCapacityQueryRepository;
@@ -15,6 +16,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -28,8 +32,13 @@ public class LocService {
     private final FxngLocRepository fxngLocRepository;
 
     public List<LocResponse> list(LocSearchCond cond) {
-        return locRepository.search(cond).stream()
-                .map(LocResponse::from)
+        List<Loc> locs = locRepository.search(cond);
+        // 고정 상품명은 로케이션당 ≤1건(uq_fxng_loc) — 한 번에 조회해 행별 지연 로딩을 막는다
+        Map<Long, FxngLoc> fxngByLocId = locs.isEmpty() ? Map.of()
+                : fxngLocRepository.findAllWithProdByLocIn(locs).stream()
+                        .collect(Collectors.toMap(f -> f.getLoc().getId(), Function.identity()));
+        return locs.stream()
+                .map(loc -> LocResponse.from(loc, fxngByLocId.get(loc.getId())))
                 .toList();
     }
 

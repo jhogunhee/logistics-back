@@ -1,5 +1,6 @@
 package com.project.wmsback.warehouse.dto;
 
+import com.project.wmsback.warehouse.entity.FxngLoc;
 import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.LocTyp;
 import com.project.mdm.prod.entity.TmpZon;
@@ -18,12 +19,14 @@ public class LocResponse {
     private final Integer pikngPrty;
     private final Integer ptawyPrty;
     private final Long maxQty;
+    /** 이 로케이션에 고정된 상품명 (fxng_loc). null = 고정 없음 — 여부 겸 표시 */
+    private final String fxngProdNm;
     private final String createdBy;
     private final LocalDateTime createdAt;
     private final String updatedBy;
     private final LocalDateTime updatedAt;
 
-    private LocResponse(Loc loc) {
+    private LocResponse(Loc loc, FxngLoc fxngLoc) {
         this.locId = loc.getId();
         this.locCd = loc.getLocCd();
         this.zonCd = loc.getZon().getZonCd();
@@ -32,13 +35,18 @@ public class LocResponse {
         this.pikngPrty = loc.getPikngPrty();
         this.ptawyPrty = loc.getPtawyPrty();
         this.maxQty = loc.getMaxQty();
+        this.fxngProdNm = fxngLoc != null ? fxngLoc.getProd().getProdNm() : null;
         this.createdBy = loc.getCreatedBy();
         this.createdAt = loc.getCreatedAt();
         this.updatedBy = loc.getUpdatedBy();
         this.updatedAt = loc.getUpdatedAt();
     }
 
+    public static LocResponse from(Loc loc, FxngLoc fxngLoc) {
+        return new LocResponse(loc, fxngLoc);
+    }
+
     public static LocResponse from(Loc loc) {
-        return new LocResponse(loc);
+        return new LocResponse(loc, null);
     }
 }
