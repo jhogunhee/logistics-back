@@ -10,6 +10,8 @@ import com.project.wmsback.outbound.entity.PikngTaskStatus;
 import com.project.wmsback.outbound.entity.WaveStatus;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.CaseBuilder;
+import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
@@ -188,9 +190,11 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
      */
     @Override
     public List<PickingWaveResponse> searchPickingWaves(PickingSearchCond cond) {
+        NumberExpression<Long> openTaskCount = openTaskCount();
         List<Tuple> rows = queryFactory
                 .select(outbWave.id, outbWave.wavNo, outbWave.issuedDt,
-                        outbOrder.expctDe.min(), pikngTask.drctQty.sum(), pikngTask.cmplQty.sum())
+                        outbOrder.expctDe.min(), pikngTask.drctQty.sum(), pikngTask.cmplQty.sum(),
+                        openTaskCount)
                 .from(pikngTask)
                 .join(pikngTask.wave, outbWave)
                 .join(pikngTask.outbAlloc, outbAlloc)
@@ -212,9 +216,22 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
         for (Tuple row : rows) {
             result.add(PickingWaveResponse.of(row.get(outbWave.id), row.get(outbWave.wavNo),
                     row.get(outbOrder.expctDe.min()), row.get(outbWave.issuedDt),
-                    orZero(row.get(pikngTask.drctQty.sum())), orZero(row.get(pikngTask.cmplQty.sum()))));
+                    orZero(row.get(pikngTask.drctQty.sum())), orZero(row.get(pikngTask.cmplQty.sum())),
+                    orZero(row.get(openTaskCount))));
         }
         return result;
+    }
+
+    /**
+     * 아직 닫히지 않은 지시 건수 — 집을 것이 남았거나 결품 종결이 필요한 지시다.
+     * 결품 종결을 강제하는 마감·배치가 없어, 이 값이 「잊힌 잔량」의 유일한 신호다.
+     */
+    private static NumberExpression<Long> openTaskCount() {
+        return new CaseBuilder()
+                .when(pikngTask.status.eq(PikngTaskStatus.DIRECTED)
+                        .and(pikngTask.cmplQty.lt(pikngTask.drctQty)))
+                .then(1L).otherwise(0L)
+                .sum();
     }
 
     // ── 검색 조건 ────────────────────────────────────────────────────────────

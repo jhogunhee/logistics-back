@@ -14,10 +14,18 @@ public record PickingWaveResponse(
         LocalDateTime issuedDt,
         long drctQty,
         long cmplQty,
-        long remainQty
+        long remainQty,
+        /**
+         * 아직 닫히지 않은 지시 건수(DIRECTED이면서 실적이 지시수량에 못 미치는 것) —
+         * <b>0이 아니면 화면이 무조건 강조한다.</b> 결품 종결을 강제하는 마감·배치가 없어
+         * 잊히면 예약이 무기한 남고 주문이 피킹중에 머문다. 강제 관문 대신 상시 노출로 덮는다.
+         */
+        long openTaskCount
 ) {
     public static PickingWaveResponse of(Long wavId, String wavNo, LocalDate expctDe,
-                                         LocalDateTime issuedDt, long drctQty, long cmplQty) {
-        return new PickingWaveResponse(wavId, wavNo, expctDe, issuedDt, drctQty, cmplQty, drctQty - cmplQty);
+                                         LocalDateTime issuedDt, long drctQty, long cmplQty,
+                                         long openTaskCount) {
+        return new PickingWaveResponse(wavId, wavNo, expctDe, issuedDt,
+                drctQty, cmplQty, drctQty - cmplQty, openTaskCount);
     }
 }
