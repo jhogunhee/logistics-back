@@ -16,7 +16,8 @@ import java.util.List;
  * <ul>
  *   <li>출고 할당 — {@code outb_alloc.aloc_qty − pikng_qty}, 키는 할당이 가리키는 {@code inv} 행.
  *       미소진분이 남은 할당은 보관 행이 살아 있다(예약이 행을 지키므로 join으로 충분).</li>
- *   <li>이동·적치지시 — {@code inv_mov_task.drct_qty − cmpl_qty} (DIRECTED), 키는 지시의 출발지 스냅샷.</li>
+ *   <li>이동·적치지시 — {@code inv_mov_task.drct_qty − cmpl_qty} (DIRECTED), 키는 지시의 출발지 스냅샷.
+ *       수시보충(RPLN)은 뺀다 — 예약의 주인이 할당이라 할당 항이 이미 센다.</li>
  *   <li>피킹된 물량 — {@code pikng_task.cmpl_qty} (살아 있는 지시 · 주문 미확정), 키는 지시의 상품·Lot 스냅샷
  *       + SHIP-STAGE. 피킹이 예약을 도착지로 옮기므로 이 몫이 스테이징 행의 {@code aloc_qty}여야 한다.</li>
  * </ul>
@@ -39,7 +40,7 @@ public class InvAlocRecRepository {
                 SELECT t.prod_id, t.from_loc_id, t.lot_id,
                        0, SUM(t.drct_qty - t.cmpl_qty), 0
                   FROM inv_mov_task t
-                 WHERE t.status = 'DIRECTED' AND t.drct_qty > t.cmpl_qty
+                 WHERE t.status = 'DIRECTED' AND t.drct_qty > t.cmpl_qty AND t.mov_dvsn <> 'RPLN'
                  GROUP BY t.prod_id, t.from_loc_id, t.lot_id
                 UNION ALL
                 SELECT p.prod_id, s.loc_id, p.lot_id,

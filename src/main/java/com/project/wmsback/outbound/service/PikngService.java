@@ -1,7 +1,10 @@
 package com.project.wmsback.outbound.service;
 
 import com.project.wmsback.inventory.entity.Inv;
+import com.project.wmsback.inventory.entity.InvMovStatus;
+import com.project.wmsback.inventory.entity.InvMovTask;
 import com.project.wmsback.inventory.entity.RefDocTyp;
+import com.project.wmsback.inventory.repository.InvMovTaskRepository;
 import com.project.wmsback.inventory.service.InvDocRef;
 import com.project.wmsback.inventory.service.InvStore;
 import com.project.wmsback.inventory.service.RsnValidator;
@@ -73,6 +76,7 @@ public class PikngService {
     private final LocRepository locRepository;
     private final InvStore invStore;
     private final RsnValidator rsnValidator;
+    private final InvMovTaskRepository invMovTaskRepository;
 
     // ── 조회 ─────────────────────────────────────────────────────────────────
 
@@ -97,6 +101,12 @@ public class PikngService {
         if (tasks.size() != qtyByTaskId.size()) {
             throw new IllegalArgumentException("존재하지 않는 지시가 포함돼 있습니다.");
         }
+        // 짝 보충지시가 있으면 확정(DONE)된 뒤에야 집을 수 있다 — 그 전에는 실물이 아직 보관존에 있고
+        // 지시의 from(피킹존)에는 없다. 웨이브 락 뒤에 읽으므로 보충 확정과 직렬화된다
+        Map<Long, InvMovTask> rplnByTask = new HashMap<>();
+        for (InvMovTask rpln : invMovTaskRepository.findByPikngTaskIdInAndStatusNot(qtyByTaskId.keySet(), InvMovStatus.CANCELLED)) {
+            rplnByTask.put(rpln.getPikngTaskId(), rpln);
+        }
         for (PikngTask task : tasks) {
             long qty = qtyByTaskId.get(task.getId());
             if (task.getStatus() != PikngTaskStatus.DIRECTED) {
@@ -106,6 +116,11 @@ public class PikngService {
             if (qty > task.remainingQty()) {
                 throw new IllegalArgumentException("지시 잔량을 초과했습니다 (잔량 " + task.remainingQty()
                         + ", 요청 " + qty + "): " + rowName(task));
+            }
+            InvMovTask rpln = rplnByTask.get(task.getId());
+            if (rpln != null && rpln.getStatus() != InvMovStatus.DONE) {
+                throw new IllegalStateException("보충이 끝나지 않은 지시입니다 — 보충 확정 후 집품하세요 (보충 "
+                        + rpln.getInvMovNo() + "): " + rowName(task));
             }
         }
 

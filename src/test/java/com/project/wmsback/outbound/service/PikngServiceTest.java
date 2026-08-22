@@ -33,6 +33,9 @@ import com.project.wmsback.warehouse.entity.Lot;
 import com.project.wmsback.warehouse.repository.LocRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import com.project.wmsback.inventory.entity.InvMovStatus;
+import com.project.wmsback.inventory.entity.InvMovTask;
+import com.project.wmsback.inventory.repository.InvMovTaskRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -78,6 +81,7 @@ class PikngServiceTest {
     @Mock InvRepository invRepository;
     @Mock InvHistRepository invHistRepository;
     @Mock CodeDetailRepository codeDetailRepository;
+    @Mock InvMovTaskRepository invMovTaskRepository;
 
     // 재고 쓰기 포트는 목이 아니라 실물을 쓴다 — 예약 소진·실물 이동이 검증 대상이기 때문
     private PikngService pikngService;
@@ -95,7 +99,7 @@ class PikngServiceTest {
         doCallRealMethod().when(outbAllocRepository).recalcStatus(any());
         pikngService = new PikngService(pikngTaskRepository, pikngAcrstRepository, outbAllocRepository,
                 outbWaveRepository, locRepository, new InvStore(invRepository, invHistRepository),
-                new RsnValidator(codeDetailRepository));
+                new RsnValidator(codeDetailRepository), invMovTaskRepository);
 
         invById.clear();
         createdInvs.clear();
@@ -146,6 +150,29 @@ class PikngServiceTest {
                                 && candidate.getLoc().getId().equals(i.getArgument(1))
                                 && candidate.getLot().getId().equals(i.getArgument(2)))
                         .findFirst());
+    }
+
+    @Test
+    @DisplayName("짝 보충지시가 확정되기 전에는 집을 수 없다 — 실물이 아직 보관존에 있고 지시의 from에는 없다")
+    void executeRejectsBeforeReplenishmentDone() {
+        PikngTask task = task(1L, 30, 100);
+        InvMovTask rpln = mock(InvMovTask.class);
+        when(rpln.getPikngTaskId()).thenReturn(1L);
+        when(rpln.getStatus()).thenReturn(InvMovStatus.DIRECTED);
+        when(rpln.getInvMovNo()).thenReturn("MV-001");
+        when(invMovTaskRepository.findByPikngTaskIdInAndStatusNot(any(), any())).thenReturn(List.of(rpln));
+
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> pikngService.execute(execute(item(1L, 30L))));
+        assertTrue(e.getMessage().contains("보충"));
+        assertEquals(100, task.getOutbAlloc().getInv().getOnHandQty());
+        assertEquals(0, task.getCmplQty());
+
+        // 보충이 끝나면 집는다
+        when(rpln.getStatus()).thenReturn(InvMovStatus.DONE);
+        when(outbAllocRepository.countUnpickedByOrderId(anyLong())).thenReturn(0L);
+        pikngService.execute(execute(item(1L, 30L)));
+        assertEquals(30, task.getCmplQty());
     }
 
     @Test

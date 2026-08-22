@@ -1,5 +1,6 @@
 package com.project.wmsback.outbound.repository;
 
+import com.project.wmsback.inventory.entity.InvMovStatus;
 import com.project.wmsback.outbound.dto.PickingSearchCond;
 import com.project.wmsback.outbound.dto.PickingWaveResponse;
 import com.project.wmsback.outbound.dto.PikngRowResponse;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 import static com.project.wmsback.inventory.entity.QInv.inv;
+import static com.project.wmsback.inventory.entity.QInvMovTask.invMovTask;
 import static com.project.wmsback.outbound.entity.QOutbAlloc.outbAlloc;
 import static com.project.wmsback.outbound.entity.QOutbLine.outbLine;
 import static com.project.wmsback.outbound.entity.QOutbOrder.outbOrder;
@@ -165,7 +167,7 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
                     row.get(outbOrder.outbNo), row.get(outbOrder.store.storeNm),
                     row.get(outbLine.prod.prodCd), row.get(outbLine.prod.prodNm),
                     row.get(inv.loc.locCd), row.get(inv.lot.lotNo), row.get(inv.lot.expiryDt),
-                    orZero(row.get(outbAlloc.alocQty)), orZero(row.get(outbAlloc.pikngQty)), null, null, null));
+                    orZero(row.get(outbAlloc.alocQty)), orZero(row.get(outbAlloc.pikngQty)), null, null, null, null, null));
         }
         return result;
     }
@@ -177,11 +179,15 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
                         outbOrder.outbNo, outbOrder.store.storeNm,
                         pikngTask.prod.prodCd, pikngTask.prod.prodNm,
                         pikngTask.fromLoc.locCd, pikngTask.lot.lotNo, pikngTask.lot.expiryDt,
-                        pikngTask.drctQty, pikngTask.cmplQty, pikngTask.status, pikngTask.shotgeQty, pikngTask.shotgeRsnCd)
+                        pikngTask.drctQty, pikngTask.cmplQty, pikngTask.status, pikngTask.shotgeQty, pikngTask.shotgeRsnCd,
+                        invMovTask.status, invMovTask.invMovNo)
                 .from(pikngTask)
                 .join(pikngTask.outbAlloc, outbAlloc)
                 .join(outbAlloc.outbLine, outbLine)
                 .join(outbLine.outbOrder, outbOrder)
+                // 짝 보충지시 — 살아 있는 것은 피킹지시당 하나(부분 유니크)라 행이 늘지 않는다
+                .leftJoin(invMovTask).on(invMovTask.pikngTaskId.eq(pikngTask.id),
+                        invMovTask.status.ne(InvMovStatus.CANCELLED))
                 .where(pikngTask.wave.id.eq(wavId), pikngTask.status.ne(PikngTaskStatus.CANCELLED))
                 .orderBy(pikngTask.srtSeq.asc())
                 .fetch();
@@ -194,7 +200,8 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
                     row.get(pikngTask.prod.prodCd), row.get(pikngTask.prod.prodNm),
                     row.get(pikngTask.fromLoc.locCd), row.get(pikngTask.lot.lotNo), row.get(pikngTask.lot.expiryDt),
                     orZero(row.get(pikngTask.drctQty)), orZero(row.get(pikngTask.cmplQty)),
-                    row.get(pikngTask.status), row.get(pikngTask.shotgeQty), row.get(pikngTask.shotgeRsnCd)));
+                    row.get(pikngTask.status), row.get(pikngTask.shotgeQty), row.get(pikngTask.shotgeRsnCd),
+                    row.get(invMovTask.status), row.get(invMovTask.invMovNo)));
         }
         return result;
     }
