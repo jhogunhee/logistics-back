@@ -194,6 +194,31 @@ public class InvStore {
     }
 
     /**
+     * 수시보충 확정 — 보관존 → 피킹존 실물 이동 + <b>예약 동행</b>(출발지 예약 소진 · 도착지 재예약)
+     * + 이력 RPLN 2행 + 출발 빈 행 정리. 모양은 {@link #pick}과 같고 도착지가 스테이징이 아니라
+     * 피킹존 보관 로케이션이라는 점만 다르다. 보충지시는 예약을 따로 잡지 않으므로(할당이 든다)
+     * 여기서 옮기는 예약은 할당의 것이고, 호출자가 할당의 재고 행도 도착지로 바꿔 준다.
+     *
+     * @return 도착지(피킹존) 스냅샷 — 할당이 새로 가리킬 행
+     */
+    public Inv replenish(Inv fromInv, Loc toLoc, long qty, InvDocRef ref) {
+        Prod prod = fromInv.getProd();
+        Lot lot = fromInv.getLot();
+        Loc fromLoc = fromInv.getLoc();
+
+        Inv toInv = findOrCreate(prod, toLoc, lot);
+        fromInv.release(qty);
+        fromInv.decreaseOnHand(qty);
+        toInv.increaseOnHand(qty);
+        toInv.reserve(qty);
+
+        saveHist(TxTyp.RPLN, prod, fromLoc, lot, -qty, ref, fromLoc.getId(), toLoc.getId());
+        saveHist(TxTyp.RPLN, prod, toLoc, lot, qty, ref, fromLoc.getId(), toLoc.getId());
+        purgeIfEmpty(fromInv);
+        return toInv;
+    }
+
+    /**
      * 출고확정 — 출고 스테이징에서 반출. <b>실물과 예약을 함께 소진</b>(피킹이 도착지에 잡아 둔
      * 예약이 여기서 풀린다) + 이력 SHIP 1행(−) + 빈 행 정리. 도착지가 없는 유일한 물리 감소다 —
      * 창고 밖으로 나간다.

@@ -82,8 +82,17 @@ public class InvMovTask extends BaseEntity {
     @Column(name = "cmpl_dt")
     private LocalDateTime cmplDt;
 
+    /**
+     * 짝 피킹지시 (RPLN만, 느슨한 참조). 보충은 피킹지시에 매달린 지시라 주인은 피킹지시 쪽이고,
+     * 피킹 실행이 「짝 보충이 끝났나」를 이 값으로 찾는다. 살아 있는 보충은 피킹지시당 하나(부분 유니크)
+     */
+    @Column(name = "pikng_task_id")
+    private Long pikngTaskId;
+
     @Builder
-    private InvMovTask(String invMovNo, InvMovDvsn movDvsn, Prod prod, Lot lot, Loc fromLoc, Loc toLoc, Long drctQty) {
+    private InvMovTask(String invMovNo, InvMovDvsn movDvsn, Prod prod, Lot lot, Loc fromLoc, Loc toLoc, Long drctQty,
+                       Long pikngTaskId) {
+        this.pikngTaskId = pikngTaskId;
         this.invMovNo = invMovNo;
         this.movDvsn = movDvsn;
         this.prod = prod;
