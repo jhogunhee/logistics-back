@@ -160,7 +160,7 @@ class PikngServiceTest {
         when(rpln.getPikngTaskId()).thenReturn(1L);
         when(rpln.getStatus()).thenReturn(InvMovStatus.DIRECTED);
         when(rpln.getInvMovNo()).thenReturn("MV-001");
-        when(invMovTaskRepository.findByPikngTaskIdInAndStatusNot(any(), any())).thenReturn(List.of(rpln));
+        when(invMovTaskRepository.findByPikngTaskIdIn(any())).thenReturn(List.of(rpln));
 
         IllegalStateException e = assertThrows(IllegalStateException.class,
                 () -> pikngService.execute(execute(item(1L, 30L))));
@@ -173,6 +173,23 @@ class PikngServiceTest {
         when(outbAllocRepository.countUnpickedByOrderId(anyLong())).thenReturn(0L);
         pikngService.execute(execute(item(1L, 30L)));
         assertEquals(30, task.getCmplQty());
+    }
+
+    @Test
+    @DisplayName("짝 보충이 취소된 지시도 집을 수 없다 — 취소된 짝을 빼고 읽으면 「짝이 없는 지시」로 통과한다")
+    void executeRejectsWhenPairedReplenishmentCancelled() {
+        PikngTask task = task(1L, 30, 100);
+        InvMovTask rpln = mock(InvMovTask.class);
+        when(rpln.getPikngTaskId()).thenReturn(1L);
+        when(rpln.getStatus()).thenReturn(InvMovStatus.CANCELLED);
+        when(rpln.getInvMovNo()).thenReturn("MV-001");
+        when(invMovTaskRepository.findByPikngTaskIdIn(any())).thenReturn(List.of(rpln));
+
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> pikngService.execute(execute(item(1L, 30L))));
+        assertTrue(e.getMessage().contains("보충"));
+        assertEquals(100, task.getOutbAlloc().getInv().getOnHandQty());
+        assertEquals(0, task.getCmplQty());
     }
 
     @Test

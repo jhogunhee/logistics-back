@@ -16,8 +16,10 @@ import com.project.wmsback.outbound.dto.RplnSearchCond;
 import com.project.wmsback.outbound.dto.RplnTaskRequest;
 import com.project.wmsback.outbound.dto.RplnWaveResponse;
 import com.project.wmsback.outbound.entity.OutbAlloc;
+import com.project.wmsback.outbound.entity.OutbWave;
 import com.project.wmsback.outbound.entity.PikngTask;
 import com.project.wmsback.outbound.entity.PikngTaskStatus;
+import com.project.wmsback.outbound.entity.WaveStatus;
 import com.project.wmsback.outbound.repository.OutbWaveRepository;
 import com.project.wmsback.outbound.repository.PikngTaskRepository;
 import com.project.wmsback.outbound.repository.RplnQueryRepository;
@@ -27,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -39,7 +42,8 @@ import java.util.TreeSet;
  *
  * <p><b>보충지시는 예약을 들지 않는다.</b> 예약의 주인은 할당이고, 확정이 그 예약을 실물과 함께
  * 도착지(피킹존)로 옮긴 뒤 할당이 가리키는 재고 행을 도착지 행으로 바꾼다({@link InvStore#replenish}
- * + {@link OutbAlloc#relocate}). 그래서 취소는 예약을 건드리지 않고 지시만 CANCELLED다.
+ * + {@link OutbAlloc#relocate}). 그래서 취소는 예약을 건드리지 않고 상태 전이로만 끝난다 —
+ * 보충지시와 짝 피킹지시가 함께 CANCELLED가 되고 할당은 그대로 남는다(재발행 대상).
  * 이동확정({@code InvMovService.confirm})과 갈리는 지점이 이것이라 경로를 따로 둔다.
  *
  * <p><b>전량 확정만</b> — 할당 행 하나는 재고 행 하나를 가리키므로 반만 옮기면 할당이 둘에 걸친다.
@@ -113,17 +117,44 @@ public class RplnService {
         return new RplnActionResponse(invMovNos.size(), invMovNos);
     }
 
-    /** 보충 취소 — 실물 이동 전이라 예약 변화가 없다. 짝 피킹지시는 그대로 둔다(실행 가드가 막는다) */
+    /**
+     * 보충 취소 — 실물 이동 전이라 예약 변화가 없다. <b>짝 피킹지시도 함께 취소한다</b>
+     * (지시취소가 짝 보충을 함께 취소하는 것의 반대 방향 — {@code PikngTaskService.cancelTasks}).
+     *
+     * <p>보충만 취소하고 지시를 DIRECTED로 남기면 실행 가드가 뚫린다. 가드는 취소되지 않은 보충만
+     * 읽으므로({@code findByPikngTaskIdInAndStatusNot}) 취소된 짝은 「짝이 없는 지시」로 보여 그대로
+     * 통과하고, 실물은 아직 보관존에 있는데 지시의 from은 피킹존이라 집품 실적이 실물과 어긋난다.
+     *
+     * <p>지시를 남길 이유도 없다 — from은 이번 발행에서 정한 도착지로 굳어 있어, 도착지를 다시 정하려면
+     * 어차피 재발행이 필요하다. 「보충지시 단독 재발행은 없다 — 피킹지시 취소 → 추가 발행으로 갈음」이
+     * 그대로 적용된다.
+     */
     @Transactional
     public RplnActionResponse cancel(RplnTaskRequest request) {
         List<Long> taskIds = validated(request);
-        lockWavesAndKeys(taskIds);
+        Map<Long, OutbWave> waves = lockWaves(taskIds);
 
         List<String> invMovNos = new ArrayList<>();
         for (Long taskId : new TreeSet<>(taskIds)) {
             InvMovTask task = lockRpln(taskId);
+            PikngTask pikngTask = pikngTaskRepository.findById(task.getPikngTaskId())
+                    .orElseThrow(() -> new IllegalStateException("짝 피킹지시가 없습니다 (정합성 오류): " + task.getInvMovNo()));
             task.cancelRemainder();
+            // DIRECTED일 때만 — 지시가 이미 취소돼 있어도 남은 보충은 정리돼야 한다 (지시취소 쪽 짝 처리와 대칭)
+            if (pikngTask.getStatus() == PikngTaskStatus.DIRECTED) {
+                pikngTask.cancel();
+            }
             invMovNos.add(task.getInvMovNo());
+        }
+
+        // 살아 있는 지시가 0건이 된 웨이브는 PLANNED로 돌린다 — 「지시 없는 ISSUED 웨이브」를 만들지 않는
+        // 것은 지시를 취소하는 모든 진입의 공통 책임이다. 세기 전에 방금 한 전이를 반영한다
+        pikngTaskRepository.flush();
+        for (OutbWave wave : waves.values()) {
+            if (wave.getStatus() == WaveStatus.ISSUED
+                    && pikngTaskRepository.findByWaveIdAndStatusNot(wave.getId(), PikngTaskStatus.CANCELLED).isEmpty()) {
+                wave.cancelIssue();
+            }
         }
         return new RplnActionResponse(invMovNos.size(), invMovNos);
     }
@@ -140,12 +171,25 @@ public class RplnService {
         if (keyByTaskId.size() != taskIds.size()) {
             throw new IllegalArgumentException("존재하지 않는 보충지시가 포함돼 있습니다.");
         }
-        List<Long> pikngTaskIds = invMovTaskRepository.findPikngTaskIdsByIdIn(taskIds);
-        for (Long wavId : new TreeSet<>(pikngTaskRepository.findWaveIdsByTaskIds(pikngTaskIds))) {
-            outbWaveRepository.findByIdForUpdate(wavId)
-                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 웨이브입니다: " + wavId));
-        }
+        lockWaves(taskIds);
         return keyByTaskId;
+    }
+
+    /**
+     * 짝 피킹지시가 속한 웨이브를 id 오름차순으로 잠근다 — 전 조작의 첫 락이다. 웨이브 id는 짝
+     * 피킹지시에서 스칼라로 얻는다(엔티티로 먼저 읽으면 뒤에 거는 락이 낡은 인스턴스를 돌려준다).
+     */
+    private Map<Long, OutbWave> lockWaves(List<Long> taskIds) {
+        Map<Long, OutbWave> waves = new LinkedHashMap<>();
+        List<Long> pikngTaskIds = invMovTaskRepository.findPikngTaskIdsByIdIn(taskIds);
+        if (pikngTaskIds.isEmpty()) {
+            return waves;
+        }
+        for (Long wavId : new TreeSet<>(pikngTaskRepository.findWaveIdsByTaskIds(pikngTaskIds))) {
+            waves.put(wavId, outbWaveRepository.findByIdForUpdate(wavId)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 웨이브입니다: " + wavId)));
+        }
+        return waves;
     }
 
     private InvMovTask lockRpln(Long taskId) {

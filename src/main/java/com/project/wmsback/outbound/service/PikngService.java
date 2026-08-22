@@ -102,9 +102,12 @@ public class PikngService {
             throw new IllegalArgumentException("존재하지 않는 지시가 포함돼 있습니다.");
         }
         // 짝 보충지시가 있으면 확정(DONE)된 뒤에야 집을 수 있다 — 그 전에는 실물이 아직 보관존에 있고
-        // 지시의 from(피킹존)에는 없다. 웨이브 락 뒤에 읽으므로 보충 확정과 직렬화된다
+        // 지시의 from(피킹존)에는 없다. 웨이브 락 뒤에 읽으므로 보충 확정과 직렬화된다.
+        // 상태를 가리지 않고 읽는다 — 취소된 짝을 빼고 읽으면 「짝이 없는 지시」로 보여 그대로 통과한다.
+        // 보충 취소가 짝 지시도 함께 취소하므로 정상 경로에서는 여기 걸리지 않지만, 가드가 두 서비스에
+        // 걸친 약속에 기대지 않고 스스로 성립해야 한다
         Map<Long, InvMovTask> rplnByTask = new HashMap<>();
-        for (InvMovTask rpln : invMovTaskRepository.findByPikngTaskIdInAndStatusNot(qtyByTaskId.keySet(), InvMovStatus.CANCELLED)) {
+        for (InvMovTask rpln : invMovTaskRepository.findByPikngTaskIdIn(qtyByTaskId.keySet())) {
             rplnByTask.put(rpln.getPikngTaskId(), rpln);
         }
         for (PikngTask task : tasks) {
@@ -118,6 +121,12 @@ public class PikngService {
                         + ", 요청 " + qty + "): " + rowName(task));
             }
             InvMovTask rpln = rplnByTask.get(task.getId());
+            if (rpln != null && rpln.getStatus() == InvMovStatus.CANCELLED) {
+                // 보충 취소가 짝 지시도 취소하므로 여기 오는 것은 정합성 오류다 — 실물이 보관존에 있는 채로
+                // 피킹존에서 집으라는 지시가 살아 있다는 뜻이라 집품을 통과시킬 수 없다
+                throw new IllegalStateException("보충이 취소된 지시입니다 (정합성 오류) — 이 지시를 취소하고"
+                        + " 다시 발행하세요 (보충 " + rpln.getInvMovNo() + "): " + rowName(task));
+            }
             if (rpln != null && rpln.getStatus() != InvMovStatus.DONE) {
                 throw new IllegalStateException("보충이 끝나지 않은 지시입니다 — 보충 확정 후 집품하세요 (보충 "
                         + rpln.getInvMovNo() + "): " + rowName(task));

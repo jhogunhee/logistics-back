@@ -19,6 +19,7 @@ import com.project.wmsback.outbound.entity.OutbLine;
 import com.project.wmsback.outbound.entity.OutbWave;
 import com.project.wmsback.outbound.entity.PikngTask;
 import com.project.wmsback.outbound.entity.PikngTaskStatus;
+import com.project.wmsback.outbound.entity.WaveStatus;
 import com.project.wmsback.outbound.repository.OutbWaveRepository;
 import com.project.wmsback.outbound.repository.PikngTaskRepository;
 import com.project.wmsback.outbound.repository.RplnQueryRepository;
@@ -74,6 +75,7 @@ class RplnServiceTest {
     private Loc picking;
     private Inv fromInv;
     private OutbAlloc alloc;
+    private OutbWave wave;
     private PikngTask pikngTask;
     private InvMovTask rpln;
     private final List<Inv> createdInvs = new ArrayList<>();
@@ -105,8 +107,10 @@ class RplnServiceTest {
         alloc = OutbAlloc.builder().outbLine(line).inv(fromInv).alocQty(30L).build();
         setId(alloc, 1L);
 
-        OutbWave wave = OutbWave.builder().wavNo("WV-20260822-001").build();
+        // 보충지시는 피킹지시 발행이 만든다 — 살아 있는 보충의 웨이브는 항상 ISSUED다
+        wave = OutbWave.builder().wavNo("WV-20260822-001").build();
         setId(wave, 100L);
+        wave.issue();
         pikngTask = PikngTask.builder().wave(wave).outbAlloc(alloc).prod(prod)
                 .fromLoc(picking).lot(lot).drctQty(30L).srtSeq(1).build();
         setId(pikngTask, 900L);
@@ -201,9 +205,46 @@ class RplnServiceTest {
         assertEquals(100, fromInv.getOnHandQty());
         assertEquals(30, fromInv.getAlocQty());
         assertSame(fromInv, alloc.getInv());
-        assertEquals(PikngTaskStatus.DIRECTED, pikngTask.getStatus());
         assertEquals(1, response.count());
         verify(invHistRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("취소는 짝 피킹지시도 함께 취소한다 — 남겨 두면 실행 가드가 뚫린다")
+    void cancelAlsoCancelsPairedPikngTask() {
+        rplnService.cancel(request(10L));
+
+        assertEquals(PikngTaskStatus.CANCELLED, pikngTask.getStatus());
+    }
+
+    @Test
+    @DisplayName("살아 있는 지시가 0건이 된 웨이브는 PLANNED로 돌아간다")
+    void cancelRevertsWaveWhenNoLiveTaskRemains() {
+        rplnService.cancel(request(10L));
+
+        assertEquals(WaveStatus.PLANNED, wave.getStatus());
+    }
+
+    @Test
+    @DisplayName("다른 지시가 남아 있으면 웨이브는 ISSUED에 머문다")
+    void cancelKeepsWaveIssuedWhileOtherTasksRemain() {
+        when(pikngTaskRepository.findByWaveIdAndStatusNot(100L, PikngTaskStatus.CANCELLED))
+                .thenReturn(List.of(pikngTask));
+
+        rplnService.cancel(request(10L));
+
+        assertEquals(WaveStatus.ISSUED, wave.getStatus());
+    }
+
+    @Test
+    @DisplayName("짝 피킹지시가 이미 취소돼 있으면 보충만 정리한다")
+    void cancelSkipsAlreadyCancelledPikngTask() {
+        pikngTask.cancel();
+
+        rplnService.cancel(request(10L));
+
+        assertEquals(InvMovStatus.CANCELLED, rpln.getStatus());
+        assertEquals(PikngTaskStatus.CANCELLED, pikngTask.getStatus());
     }
 
     @Test
