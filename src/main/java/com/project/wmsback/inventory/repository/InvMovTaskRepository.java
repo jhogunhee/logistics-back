@@ -1,5 +1,6 @@
 package com.project.wmsback.inventory.repository;
 
+import com.project.wmsback.inventory.entity.InvMovStatus;
 import com.project.wmsback.inventory.entity.InvMovTask;
 import com.project.wmsback.inventory.service.InvMovLockKey;
 import jakarta.persistence.LockModeType;
@@ -26,6 +27,16 @@ public interface InvMovTaskRepository extends JpaRepository<InvMovTask, Long>, I
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select t from InvMovTask t where t.id = :id")
     Optional<InvMovTask> findByIdForUpdate(@Param("id") Long id);
+
+    /** 피킹지시들의 살아 있는 보충지시 (RPLN, CANCELLED 제외) — 피킹 실행 가드 · 지시취소의 짝 처리 */
+    List<InvMovTask> findByPikngTaskIdInAndStatusNot(Collection<Long> pikngTaskIds, InvMovStatus status);
+
+    /** 보충지시 → 짝 피킹지시 id. 확정·취소가 웨이브 락을 잡기 전에 읽는 스칼라 — 엔티티로 먼저 읽으면 뒤에 거는 락이 낡은 인스턴스를 돌려준다 */
+    @Query("select t.pikngTaskId from InvMovTask t where t.id in :ids and t.pikngTaskId is not null")
+    List<Long> findPikngTaskIdsByIdIn(@Param("ids") Collection<Long> ids);
+
+    /** 피킹지시들 중 보충이 확정된 건수 — 웨이브 통째 취소 가드 (보충 DONE 은 실적과 같다) */
+    long countByPikngTaskIdInAndStatus(Collection<Long> pikngTaskIds, InvMovStatus status);
 
     /** 다건 확정이 잠글 재고 행(FROM·TO)을 고르기 위한 사전 조회. 엔티티가 아니라 프로젝션인 이유는 InvLockKey 참고 */
     @Query("select new com.project.wmsback.inventory.service.InvMovLockKey("

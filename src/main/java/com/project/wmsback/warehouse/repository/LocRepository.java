@@ -1,5 +1,6 @@
 package com.project.wmsback.warehouse.repository;
 
+import com.project.wmsback.warehouse.entity.BizDvsn;
 import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.LocTyp;
 import com.project.wmsback.warehouse.entity.Zon;
@@ -34,6 +35,23 @@ public interface LocRepository extends JpaRepository<Loc, Long>, LocRepositoryCu
     boolean existsByZonAndLocTyp(Zon zon, LocTyp locTyp);
 
     Optional<Loc> findByLocCd(String locCd);
+
+    /** 수시보충 도착지 2순위 — 같은 상품이 이미 있는 피킹존 보관 로케이션 */
+    @Query("select distinct i.loc from Inv i join i.loc l join l.zon z"
+            + " where i.prod.id = :prodId and i.onHandQty > 0"
+            + " and l.locTyp = :storage and z.bizDvsn = :pikng")
+    List<Loc> findPikngLocsHoldingProd(@Param("prodId") Long prodId,
+                                       @Param("storage") LocTyp storage, @Param("pikng") BizDvsn pikng);
+
+    /** 수시보충 도착지 3순위 — 재고가 없고 어느 상품의 고정 로케이션도 아닌 피킹존 보관 로케이션 (온도대 일치) */
+    @Query("select l from Loc l join l.zon z"
+            + " where l.locTyp = :storage and z.bizDvsn = :pikng"
+            + " and l.tmpZon = :tmpZon"
+            + " and not exists (select 1 from Inv i where i.loc = l and i.onHandQty > 0)"
+            + " and not exists (select 1 from FxngLoc f where f.loc = l)"
+            + " order by l.pikngPrty asc, l.locCd asc")
+    List<Loc> findEmptyPikngLocs(@Param("tmpZon") TmpZon tmpZon,
+                                 @Param("storage") LocTyp storage, @Param("pikng") BizDvsn pikng);
 
     /** 적치 대상 로케이션 후보 (상품 온도대와 일치하는 STORAGE, 적치 우선순위 오름차순 추천) */
     List<Loc> findAllByTmpZonAndLocTypOrderByPtawyPrtyAsc(TmpZon tmpZon, LocTyp locTyp);

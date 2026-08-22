@@ -16,6 +16,10 @@ public interface FxngLocRepository extends JpaRepository<FxngLoc, Long>, FxngLoc
     @Query("select f from FxngLoc f join fetch f.prod where f.loc in :locs")
     List<FxngLoc> findAllWithProdByLocIn(@Param("locs") Collection<Loc> locs);
 
+    /** 수시보충 도착지 1순위 — 상품의 고정 로케이션 (로케이션을 함께 가져온다) */
+    @Query("select f from FxngLoc f join fetch f.loc where f.prod.id = :prodId")
+    List<FxngLoc> findAllWithLocByProdId(@Param("prodId") Long prodId);
+
     /** 로케이션 중복 가드 — uq_fxng_loc(한 로케이션 = 한 상품 전용)를 커밋 전에 사용자 메시지로 돌려준다 */
     Optional<FxngLoc> findByLoc(Loc loc);
 
