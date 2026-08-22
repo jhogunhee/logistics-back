@@ -35,7 +35,16 @@ public interface OutbOrderRepository extends JpaRepository<OutbOrder, Long>, Out
     @Query("select o from OutbOrder o where o.omsOutbOrderId = :omsOutbOrderId")
     Optional<OutbOrder> findByOmsOutbOrderIdForUpdate(@Param("omsOutbOrderId") Long omsOutbOrderId);
 
-    /** 출고확정 대상 주문 — 웨이브까지 함께 읽는다(웨이브 락 순서 결정과 가드에 쓴다) */
+    /**
+     * 출고확정 대상 주문의 웨이브 id — 웨이브 락을 <b>주문을 읽기 전에</b> 잡기 위한 스칼라 선조회.
+     * 주문을 엔티티로 먼저 읽으면 뒤에 거는 웨이브 락이 영속성 컨텍스트의 낡은 인스턴스를 돌려주고,
+     * 락을 얻고도 확정 직전의 옛 상태(PICKED · ISSUED)를 보고 통과한다
+     * ({@link com.project.wmsback.inventory.repository.InvMovTaskRepository#findPikngTaskIdsByIdIn}과 같은 이유).
+     */
+    @Query("select distinct o.wave.id from OutbOrder o where o.id in :ids and o.wave is not null")
+    List<Long> findWaveIdsByOrderIds(@Param("ids") Collection<Long> ids);
+
+    /** 출고확정 대상 주문 — 웨이브까지 함께 읽는다(가드와 웨이브 종료 판정에 쓴다). 웨이브 락 뒤에 부른다 */
     @Query("select o from OutbOrder o left join fetch o.wave where o.id in :ids")
     List<OutbOrder> findAllWithWaveByIds(@Param("ids") Collection<Long> ids);
 }

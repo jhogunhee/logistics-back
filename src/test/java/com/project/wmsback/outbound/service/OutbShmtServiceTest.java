@@ -30,6 +30,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -47,6 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -107,6 +109,12 @@ class OutbShmtServiceTest {
 
         when(outbWaveRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(wave));
         when(locRepository.findByLocCd("SHIP-STAGE")).thenReturn(Optional.of(shipStage));
+        // 웨이브 id는 주문을 엔티티로 읽기 전에 스칼라로 먼저 나간다 (락이 낡은 인스턴스를 돌려주지 않도록)
+        when(outbOrderRepository.findWaveIdsByOrderIds(anyCollection()))
+                .thenAnswer(i -> waveOrders.stream()
+                        .filter(o -> i.<java.util.Collection<Long>>getArgument(0).contains(o.getId()))
+                        .filter(o -> o.getWave() != null)
+                        .map(o -> o.getWave().getId()).distinct().toList());
         when(outbOrderRepository.findAllWithWaveByIds(anyCollection()))
                 .thenAnswer(i -> waveOrders.stream()
                         .filter(o -> i.<java.util.Collection<Long>>getArgument(0).contains(o.getId())).toList());
@@ -194,6 +202,19 @@ class OutbShmtServiceTest {
         outbShmtService.confirm(request(1L));
 
         assertThrows(IllegalStateException.class, () -> outbShmtService.confirm(request(1L)));
+    }
+
+    @Test
+    @DisplayName("웨이브 락을 주문 로드보다 먼저 잡는다 — 순서가 뒤집히면 락이 낡은 인스턴스를 돌려준다")
+    void locksWaveBeforeLoadingOrders() {
+        pickedOrder(1L, 30);
+
+        outbShmtService.confirm(request(1L));
+
+        InOrder order = inOrder(outbOrderRepository, outbWaveRepository);
+        order.verify(outbOrderRepository).findWaveIdsByOrderIds(anyCollection());
+        order.verify(outbWaveRepository).findByIdForUpdate(100L);
+        order.verify(outbOrderRepository).findAllWithWaveByIds(anyCollection());
     }
 
     @Test

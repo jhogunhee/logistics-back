@@ -85,15 +85,14 @@ public class OutbShmtService {
             throw new IllegalArgumentException("출고확정할 주문을 선택하세요.");
         }
 
-        // ① 주문 로드(웨이브 포함) → 웨이브 행 락. 주문을 바꾸는 모든 조작(할당·발행·피킹·종결·해제)이
-        //    웨이브 락을 첫 락으로 잡으므로 주문 행 락은 따로 잡지 않는다. 락 순서는
-        //    웨이브(오름차순) → 재고(재고 키 오름차순, InvStore) 한 방향 — 기존 계층 그대로다
-        List<OutbOrder> orders = outbOrderRepository.findAllWithWaveByIds(orderIds);
-        if (orders.size() != orderIds.size()) {
-            throw new IllegalArgumentException("존재하지 않는 주문이 포함돼 있습니다.");
-        }
+        // ① 웨이브 행 락 → 주문 로드. 이 순서는 뒤집을 수 없다 — 주문을 엔티티로 먼저 읽으면 뒤에 거는
+        //    웨이브 락이 영속성 컨텍스트의 낡은 인스턴스를 돌려주고(fetch join으로 딸려온 웨이브도 같다),
+        //    락을 얻고도 옛 상태(PICKED · ISSUED)를 보고 가드를 통과해 이미 확정된 주문이 다시 확정된다.
+        //    그래서 웨이브 id는 스칼라로 먼저 읽는다 (findWaveIdsByOrderIds).
+        //    주문을 바꾸는 모든 조작(할당·발행·피킹·종결·해제)이 웨이브 락을 첫 락으로 잡으므로 주문 행 락은
+        //    따로 잡지 않는다. 락 순서는 웨이브(오름차순) → 재고(재고 키 오름차순, InvStore) 한 방향이다
         Map<Long, OutbWave> waves = new LinkedHashMap<>();
-        for (Long wavId : waveIdsAscending(orders)) {
+        for (Long wavId : new TreeSet<>(outbOrderRepository.findWaveIdsByOrderIds(orderIds))) {
             OutbWave wave = outbWaveRepository.findByIdForUpdate(wavId)
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 웨이브입니다: " + wavId));
             if (wave.getStatus() != WaveStatus.ISSUED) {
@@ -101,6 +100,12 @@ public class OutbShmtService {
                         + wave.getStatus().getLabel() + "): " + wave.getWavNo());
             }
             waves.put(wavId, wave);
+        }
+
+        // 웨이브에 편성되지 않은 주문은 여기서 걸러지지 않는다 — 그 가드는 order.ship()이 갖고 있다
+        List<OutbOrder> orders = outbOrderRepository.findAllWithWaveByIds(orderIds);
+        if (orders.size() != orderIds.size()) {
+            throw new IllegalArgumentException("존재하지 않는 주문이 포함돼 있습니다.");
         }
 
         // ② PICKED 주문의 살아 있는 지시 → 스테이징 키(상품 · SHIP-STAGE · Lot) → 재고 락.
@@ -176,16 +181,6 @@ public class OutbShmtService {
 
     private static OutbOrder orderOf(PikngTask task) {
         return task.getOutbAlloc().getOutbLine().getOutbOrder();
-    }
-
-    private static Set<Long> waveIdsAscending(List<OutbOrder> orders) {
-        Set<Long> ids = new TreeSet<>();
-        for (OutbOrder order : orders) {
-            if (order.getWave() != null) {
-                ids.add(order.getWave().getId());
-            }
-        }
-        return ids;
     }
 
     private static String rowName(PikngTask task) {
