@@ -193,6 +193,19 @@ class PikngServiceTest {
     }
 
     @Test
+    @DisplayName("실물이 예약보다 적으면 읽을 수 있는 메시지로 막는다 — DB CHECK 위반을 원문으로 노출하지 않는다")
+    void executeRejectsWhenStockBelowRequestedQty() {
+        // 장부가 어긋난 상태 — 예약 30인데 실물은 10뿐이다
+        PikngTask task = task(1L, 30, 10);
+
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> pikngService.execute(execute(item(1L, 30L))));
+        assertTrue(e.getMessage().contains("실물"));
+        assertEquals(10, task.getOutbAlloc().getInv().getOnHandQty());
+        assertEquals(0, task.getCmplQty());
+    }
+
+    @Test
     @DisplayName("피킹은 출발지의 실물·예약을 함께 소진하고 SHIP-STAGE에 실물·예약을 함께 쌓는다 — 지시·할당·실적 세 곳 동시 갱신")
     void executeMovesStockAndKeepsIdentity() {
         PikngTask task = task(1L, 30, 100);

@@ -158,8 +158,16 @@ public class PikngService {
             OutbOrder order = alloc.getOutbLine().getOutbOrder();
             beforeByOrder.putIfAbsent(order.getId(), order.getStatus());
 
-            invStore.pick(locked.get(alloc.getInv().getId()), shipStage, qty,
-                    InvDocRef.of(RefDocTyp.OUTBOUND, order.getOutbNo()));
+            // 실물·예약을 명시적으로 본다 — 없으면 ck_inv_qty 위반이 원문 그대로 노출된다.
+            // 결품 종결 ④ · 보충 확정 · 출고확정이 같은 자리에서 하는 검사와 같은 형태다.
+            // 같은 재고 행을 여러 지시가 나눠 집을 수 있어 앞 지시가 소진한 뒤의 현재 값으로 판정한다
+            Inv inv = locked.get(alloc.getInv().getId());
+            if (inv.getOnHandQty() < qty || inv.getAlocQty() < qty) {
+                throw new IllegalStateException("집품할 실물·예약이 요청 수량보다 적습니다 (정합성 오류 — 실물 "
+                        + inv.getOnHandQty() + " / 예약 " + inv.getAlocQty() + " / 집품 " + qty + "): " + rowName(task));
+            }
+
+            invStore.pick(inv, shipStage, qty, InvDocRef.of(RefDocTyp.OUTBOUND, order.getOutbNo()));
             task.execute(qty);
             alloc.addPikngQty(qty);
             pikngAcrstRepository.save(PikngAcrst.builder()
