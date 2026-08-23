@@ -19,12 +19,14 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 /**
- * 로케이션 점유 맵 병합 명세 — 로케이션 기본행에 재고 합과 고정상품 현재고를 어떻게 얹는지 본다.
- * 점유율·보충 미달 판정은 프론트 파생이라 여기 없다.
+ * 로케이션 점유 맵 병합 명세 — 로케이션 기본행에 재고 합과 고정상품 현재고·유입·미달 판정을 어떻게 얹는지 본다.
+ * 점유율은 프론트 파생이지만 보충 미달 판정은 서버가 한다 — 정기보충 산정(SpmtService.plan)과 같은 식이어야 해서.
  */
 @ExtendWith(MockitoExtension.class)
 class InvServiceTest {
@@ -32,17 +34,20 @@ class InvServiceTest {
     @Mock InvRepository invRepository;
     @Mock LocMapQueryRepository locMapQueryRepository;
     @Mock InvAlocRecRepository invAlocRecRepository;
+    @Mock LocCapacityService locCapacityService;
 
     private InvService service;
 
     @BeforeEach
     void setUp() {
-        service = new InvService(invRepository, locMapQueryRepository, invAlocRecRepository);
+        service = new InvService(invRepository, locMapQueryRepository, invAlocRecRepository, locCapacityService);
+        when(locCapacityService.openInflowQtyByProdLoc()).thenReturn(Map.of());
     }
 
+    /** 고정 자리는 지정 상품 id 10 */
     private LocRow row(Long locId, String locCd, String fxngProdCd, Long fxngMinQty) {
         return new LocRow(locId, locCd, "DRY", "상온 보관존", BizDvsn.STRG, TmpZon.DRY, 1000L,
-                fxngProdCd, fxngProdCd != null ? "상품명" : null,
+                fxngProdCd != null ? 10L : null, fxngProdCd, fxngProdCd != null ? "상품명" : null,
                 fxngProdCd != null ? "https://example.supabase.co/storage/v1/object/public/prod-img/x.png" : null,
                 fxngMinQty);
     }
@@ -64,6 +69,8 @@ class InvServiceTest {
         assertEquals(0L, res.hldQty());
         assertNull(res.fxngProdCd());
         assertNull(res.fxngOnHandQty());
+        assertNull(res.fxngInflowQty());
+        assertNull(res.fxngShort());
     }
 
     @Test
@@ -81,6 +88,7 @@ class InvServiceTest {
         assertEquals("PROD-0001", res.fxngProdCd());
         assertEquals(50L, res.fxngMinQty());
         assertEquals(100L, res.fxngOnHandQty());
+        assertFalse(res.fxngShort());
     }
 
     @Test
@@ -95,5 +103,27 @@ class InvServiceTest {
 
         assertEquals(80L, res.onHandQty());
         assertEquals(0L, res.fxngOnHandQty());
+        assertTrue(res.fxngShort());
+    }
+
+    @Test
+    @DisplayName("미달 판정은 현재고+지정 상품 유입 < min — 보충지시가 이미 떠 있는 자리는 미달로 칠하지 않는다 (산정과 같은 식)")
+    void locMap_shortCountsProdInflow() {
+        when(locMapQueryRepository.locRows()).thenReturn(List.of(
+                row(1L, "PIK-DRY-01-01", "PROD-0001", 50L),
+                row(2L, "PIK-DRY-01-02", "PROD-0001", 50L)));
+        when(locMapQueryRepository.qtySumsByLoc()).thenReturn(Map.of());
+        when(locMapQueryRepository.fxngOnHandByLoc()).thenReturn(Map.of(1L, 20L, 2L, 20L));
+        // 1번엔 지정 상품 30 유입 → 20+30 = 50 ≥ min, 2번엔 타상품 유입뿐 → 여전히 미달
+        when(locCapacityService.openInflowQtyByProdLoc()).thenReturn(Map.of(
+                new ProdLocKey(10L, 1L), 30L,
+                new ProdLocKey(99L, 2L), 30L));
+
+        List<LocMapResponse> result = service.locMap();
+
+        assertEquals(30L, result.get(0).fxngInflowQty());
+        assertFalse(result.get(0).fxngShort());
+        assertEquals(0L, result.get(1).fxngInflowQty());
+        assertTrue(result.get(1).fxngShort());
     }
 }

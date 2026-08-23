@@ -39,7 +39,7 @@ public class InvLotChngQueryRepository {
     private final JPAQueryFactory queryFactory;
 
     public List<InvLotChngTargetResponse> searchTargets(InvLotChngTargetSearchCond cond) {
-        NumberExpression<Long> avalQty = inv.onHandQty.subtract(inv.alocQty).subtract(inv.hldQty);
+        NumberExpression<Long> avalQty = InvQueryExpressions.avalQty();
 
         return queryFactory
                 .select(Projections.constructor(InvLotChngTargetResponse.class,

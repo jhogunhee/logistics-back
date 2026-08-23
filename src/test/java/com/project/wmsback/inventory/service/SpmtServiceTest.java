@@ -28,6 +28,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static com.project.mdm.prod.entity.TmpZon.DRY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -64,6 +65,7 @@ class SpmtServiceTest {
         service = new SpmtService(spmtQueryRepository, locCapacityService, invMovService,
                 fxngLocRepository, locRepository, invRepository);
         when(locCapacityService.openInflowQtyByProdLoc()).thenReturn(Map.of());
+        when(locCapacityService.openInflowQtyByLoc()).thenReturn(Map.of());
         when(spmtQueryRepository.sources(anyCollection())).thenReturn(List.of());
     }
 
@@ -71,9 +73,15 @@ class SpmtServiceTest {
         return new ProdLocKey(prodId, locId);
     }
 
+    /** 물리 용량이 넉넉한 대상 (loc.max_qty 1000, 자리엔 지정 상품만 있음) */
     private TargetRow target(long locId, String locCd, long prodId, long min, long max, long onHand) {
+        return target(locId, locCd, prodId, min, max, onHand, 1000L, onHand);
+    }
+
+    private TargetRow target(long locId, String locCd, long prodId, long min, long max, long onHand,
+                             Long locMaxQty, long locOnHandQty) {
         return new TargetRow(locId * 10, locId, locCd, "PIKNG", prodId, "PROD-" + prodId, "상품" + prodId,
-                DRY, min, max, onHand);
+                DRY, min, max, onHand, locMaxQty, locOnHandQty);
     }
 
     private SourceRow source(long prodId, long invId, String locCd, String lotNo, LocalDate expiry, long aval) {
@@ -199,6 +207,40 @@ class SpmtServiceTest {
         assertEquals(20, result.get(1).assignments().get(0).qty()); // 60 - 40 남은 만큼만
     }
 
+    @Test
+    @DisplayName("물리 적재가능(loc.max − 전상품 현재고 − 전상품 유입)이 부족량보다 작으면 배정을 거기까지만 — 발행 창구의 용량 검증에 걸릴 추천을 내지 않는다")
+    void assignmentCappedByPhysicalCapacity() {
+        // 고정 부족 90 (max 100 − 10), 그러나 자리엔 타상품 60이 섞여 있고(전상품 70) 전상품 유입 10 → 물리 여유 20
+        when(spmtQueryRepository.targets(any())).thenReturn(List.of(
+                target(1, "P-01", 10, 20, 100, 10, 100L, 70)
+        ));
+        when(locCapacityService.openInflowQtyByLoc()).thenReturn(Map.of(1L, 10L));
+        when(spmtQueryRepository.sources(anyCollection())).thenReturn(List.of(
+                source(10, 101, "S-01", "LOT-1", LocalDate.of(2026, 9, 1), 60)
+        ));
+
+        SpmtTargetResponse result = service.plan(new SpmtTargetSearchCond()).get(0);
+
+        assertEquals(90, result.shortQty()); // 부족량 표시는 고정 기준 그대로
+        assertEquals(1, result.assignments().size());
+        assertEquals(20, result.assignments().get(0).qty());
+    }
+
+    @Test
+    @DisplayName("loc.max_qty가 없는 옛 행은 물리 상한 없음 — 부족량만큼 배정")
+    void noPhysicalCapWhenLocMaxQtyNull() {
+        when(spmtQueryRepository.targets(any())).thenReturn(List.of(
+                target(1, "P-01", 10, 20, 100, 10, null, 10)
+        ));
+        when(spmtQueryRepository.sources(anyCollection())).thenReturn(List.of(
+                source(10, 101, "S-01", "LOT-1", LocalDate.of(2026, 9, 1), 100)
+        ));
+
+        SpmtTargetResponse result = service.plan(new SpmtTargetSearchCond()).get(0);
+
+        assertEquals(90, result.assignments().get(0).qty());
+    }
+
     // ── 발행 (issue) ─────────────────────────────────────────────
 
     private Loc toLoc;
@@ -221,10 +263,11 @@ class SpmtServiceTest {
 
         // 원천 재고 101 = 상품 10 @ 보관 로케이션 5, Lot 7 — 락 전 선조회는 스칼라 키뿐이다
         when(invRepository.findLockKeysByIdIn(any())).thenReturn(List.of(new InvLockKey(101L, 10L, 5L, 7L)));
+        when(fxngLocRepository.findLocIdsByLocIdIn(any())).thenReturn(Set.of());
 
         when(spmtQueryRepository.prodOnHandQty(10L, 1L)).thenReturn(onHand);
         when(locCapacityService.openInflowQty(10L, 1L)).thenReturn(inflow);
-        when(invMovService.register(any(), eq(InvMovDvsn.SPMT), eq("SPMT_NO")))
+        when(invMovService.register(any(), eq(InvMovDvsn.SPMT)))
                 .thenReturn(List.of("SP-20260821-001"));
     }
 
@@ -247,7 +290,7 @@ class SpmtServiceTest {
 
         assertEquals(List.of("SP-20260821-001"), movNos);
         ArgumentCaptor<InvMovRegisterRequest> captor = ArgumentCaptor.forClass(InvMovRegisterRequest.class);
-        verify(invMovService).register(captor.capture(), eq(InvMovDvsn.SPMT), eq("SPMT_NO"));
+        verify(invMovService).register(captor.capture(), eq(InvMovDvsn.SPMT));
         InvMovRegisterRequest.Item delegated = captor.getValue().getItems().get(0);
         assertEquals(101L, delegated.getInvId());
         assertEquals(1L, delegated.getToLocId());
@@ -284,6 +327,18 @@ class SpmtServiceTest {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> service.issue(issueRequest(10)));
         assertTrue(e.getMessage().contains("상품"));
+    }
+
+    @Test
+    @DisplayName("고정로케이션에 등재된 자리의 재고는 원천이 될 수 없다 — 다른 피킹면을 헐어 채우면 그 자리가 곧 보충 대상이 된다")
+    void issueRejectsSourceOnFxngLoc() {
+        stubIssueBase(100, 10, 0);
+        when(fxngLocRepository.findLocIdsByLocIdIn(any())).thenReturn(Set.of(5L)); // 원천 로케이션 5가 고정 등재
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> service.issue(issueRequest(10)));
+        assertTrue(e.getMessage().contains("고정"));
+        verify(invMovService, never()).register(any(), any());
     }
 
     @Test

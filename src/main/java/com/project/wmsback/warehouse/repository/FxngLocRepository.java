@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public interface FxngLocRepository extends JpaRepository<FxngLoc, Long>, FxngLocRepositoryCustom {
 
@@ -25,4 +26,8 @@ public interface FxngLocRepository extends JpaRepository<FxngLoc, Long>, FxngLoc
 
     /** 로케이션 수정 가드 — 고정이 걸린 로케이션은 유형·온도대 변경과 max_qty 하향에 제약이 생긴다 */
     boolean existsByLoc(Loc loc);
+
+    /** 주어진 로케이션 중 고정 등재된 것의 id — 정기보충 발행이 원천을 거를 때 쓴다 (스칼라라 엔티티를 올리지 않는다) */
+    @Query("select f.loc.id from FxngLoc f where f.loc.id in :locIds")
+    Set<Long> findLocIdsByLocIdIn(@Param("locIds") Collection<Long> locIds);
 }

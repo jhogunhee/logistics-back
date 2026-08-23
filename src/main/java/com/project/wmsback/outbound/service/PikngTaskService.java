@@ -74,9 +74,6 @@ public class PikngTaskService {
     private final NbrService nbrService;
     private final RplnDestinationResolver rplnDestinationResolver;
 
-    /** 보충지시 번호 — 이동지시와 같은 채번 규칙(InvMovService.MOV_NO_RULE_CD와 같은 값) */
-    private static final String MOV_NO_RULE_CD = "INV_MOV_NO";
-
     /** 피킹 도착지. 실행(PikngService)·출고확정(OutbShmtService)과 같은 값 — 여기서는 존재만 확인한다 */
     private static final String SHIP_STAGING_LOC_CD = "SHIP-STAGE";
 
@@ -254,7 +251,7 @@ public class PikngTaskService {
                 continue;
             }
             rplns.add(InvMovTask.builder()
-                    .invMovNo(nbrService.issue(MOV_NO_RULE_CD, LocalDate.now()))
+                    .invMovNo(nbrService.issue(InvMovDvsn.RPLN.getNoRuleCd(), LocalDate.now()))
                     .movDvsn(InvMovDvsn.RPLN)
                     .prod(alloc.getInv().getProd()).lot(alloc.getInv().getLot())
                     .fromLoc(alloc.getInv().getLoc()).toLoc(dest)

@@ -32,7 +32,7 @@ public class InvRepositoryImpl implements InvRepositoryCustom {
                         loc.locCd, loc.zon.zonCd, loc.locTyp,
                         lot.lotNo, lot.expiryDt,
                         inv.onHandQty, inv.alocQty, inv.hldQty,
-                        inv.onHandQty.subtract(inv.alocQty).subtract(inv.hldQty)))
+                        InvQueryExpressions.avalQty()))
                 .from(inv)
                 .innerJoin(inv.prod, prod)
                 .innerJoin(inv.loc, loc)

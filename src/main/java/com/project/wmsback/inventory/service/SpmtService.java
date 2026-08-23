@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -40,8 +41,6 @@ import java.util.TreeSet;
 @Transactional(readOnly = true)
 public class SpmtService {
 
-    private static final String SPMT_NO_RULE_CD = "SPMT_NO";
-
     private final SpmtQueryRepository spmtQueryRepository;
     private final LocCapacityService locCapacityService;
     private final InvMovService invMovService;
@@ -59,6 +58,8 @@ public class SpmtService {
         List<TargetRow> rows = spmtQueryRepository.targets(cond);
         // 유입도 현재고처럼 고정 상품만 — 전용 자리로 오는 타상품 지시까지 얹으면 진짜 부족한 자리가 가려진다
         Map<ProdLocKey, Long> inflowByProdLoc = locCapacityService.openInflowQtyByProdLoc();
+        // 물리 적재가능은 전 상품 기준(등록 창구의 용량 검증과 같은 식) — 배정을 여기까지로 잘라 발행에서 걸릴 추천을 내지 않는다
+        Map<Long, Long> inflowByLoc = locCapacityService.openInflowQtyByLoc();
 
         List<TargetRow> shorts = new ArrayList<>();
         Set<Long> prodIds = new LinkedHashSet<>();
@@ -84,6 +85,10 @@ public class SpmtService {
 
             List<SpmtTargetResponse.Assignment> assignments = new ArrayList<>();
             long need = shortQty;
+            if (row.locMaxQty() != null) { // null = max_qty 미설정(옛 행) → 물리 상한 없음 (LocCapacityService와 같은 해석)
+                long physicalRoom = row.locMaxQty() - row.locOnHandQty() - inflowByLoc.getOrDefault(row.locId(), 0L);
+                need = Math.max(0, Math.min(need, physicalRoom));
+            }
             for (SourceRow source : sources) { // FEFO 순 — 쿼리가 정렬해 온다
                 if (need == 0) {
                     break;
@@ -164,12 +169,24 @@ public class SpmtService {
         for (InvLockKey row : invRepository.findLockKeysByIdIn(invIds)) {
             keyByInvId.put(row.id(), row.key());
         }
+        // 원천 제외 — 고정 등재 자리의 재고는 상품 불문 원천이 아니다 (산정의 제외 규칙을 발행이 다시 본다).
+        // 화면이 원천 보정을 허용하므로 다른 피킹면을 헐어 채우는 요청이 올 수 있고, 통과시키면 그 자리가 다음 주기 대상이 된다
+        Set<Long> sourceLocIds = new HashSet<>();
+        keyByInvId.values().forEach(key -> sourceLocIds.add(key.locId()));
+        Set<Long> fxngSourceLocIds = sourceLocIds.isEmpty()
+                ? Set.of() : fxngLocRepository.findLocIdsByLocIdIn(sourceLocIds);
+
         Map<Long, Long> qtyByLocId = new HashMap<>();
         for (SpmtIssueRequest.Item item : request.getItems()) {
             FxngLoc fxng = fxngByLocId.get(item.getToLocId());
             InvKey key = keyByInvId.get(item.getInvId());
             if (key == null) {
                 throw new IllegalArgumentException("존재하지 않는 재고입니다: " + item.getInvId());
+            }
+            if (fxngSourceLocIds.contains(key.locId())) {
+                String locCd = locRepository.findById(key.locId()).map(Loc::getLocCd).orElse("#" + key.locId());
+                throw new IllegalArgumentException("고정로케이션에 등재된 자리의 재고는 보충 원천이 될 수 없습니다 (재고 #"
+                        + item.getInvId() + " @ " + locCd + ")");
             }
             if (!key.prodId().equals(fxng.getProd().getId())) {
                 throw new IllegalArgumentException("고정 상품과 다른 상품의 재고입니다 (고정 "
@@ -199,6 +216,6 @@ public class SpmtService {
             moved.setQty(item.getQty());
             return moved;
         }).toList());
-        return invMovService.register(delegate, InvMovDvsn.SPMT, SPMT_NO_RULE_CD);
+        return invMovService.register(delegate, InvMovDvsn.SPMT);
     }
 }

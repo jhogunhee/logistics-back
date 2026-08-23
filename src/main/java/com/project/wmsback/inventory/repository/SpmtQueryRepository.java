@@ -4,6 +4,7 @@ import com.project.mdm.prod.entity.TmpZon;
 import com.project.wmsback.warehouse.entity.LocTyp;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -19,6 +20,8 @@ import java.util.Objects;
 
 import static com.project.mdm.prod.entity.QProd.prod;
 import static com.project.wmsback.inventory.entity.QInv.inv;
+import static com.project.wmsback.inventory.repository.InvQueryExpressions.avalQty;
+import static com.project.wmsback.inventory.repository.InvQueryExpressions.fefoOrder;
 import static com.project.wmsback.warehouse.entity.QFxngLoc.fxngLoc;
 import static com.project.wmsback.warehouse.entity.QLoc.loc;
 import static com.project.wmsback.warehouse.entity.QLot.lot;
@@ -34,10 +37,15 @@ public class SpmtQueryRepository {
 
     private final JPAQueryFactory queryFactory;
 
-    /** 대상 후보 1건 — 고정로케이션과 그 자리의 지정 상품 현재고 합 (min 미달 판정은 서비스가 유입을 얹어 한다) */
+    /**
+     * 대상 후보 1건 — 고정로케이션과 그 자리의 지정 상품 현재고 합 (min 미달 판정은 서비스가 유입을 얹어 한다).
+     * locMaxQty·locOnHandQty는 물리 적재가능 계산용(전 상품 기준, max_qty 없으면 null) — 추천이 발행 창구의
+     * 용량 검증에 걸리지 않게 배정을 자르는 데 쓴다
+     */
     public record TargetRow(Long fxngLocId, Long locId, String locCd, String zonCd,
                             Long prodId, String prodCd, String prodNm, TmpZon tmpZon,
-                            long minQty, long maxQty, long onHandQty) {
+                            long minQty, long maxQty, long onHandQty,
+                            Long locMaxQty, long locOnHandQty) {
     }
 
     /** 원천 후보 1건 (FEFO 순 정렬 완료). avalQty = 보유 − 예약 − 보류 */
@@ -50,21 +58,27 @@ public class SpmtQueryRepository {
      * 전용 자리의 타상품 재고는 오염이지 보충 판정의 재고가 아니다 (uq_fxng_loc라 join 곱셈 오염 없음).
      */
     public List<TargetRow> targets(SpmtTargetSearchCond cond) {
-        NumberExpression<Long> onHand = inv.onHandQty.sum().coalesce(0L);
+        // inv는 로케이션 기준으로 붙이고 지정 상품 현재고는 CASE로 가른다 — 전상품 점유(물리 용량)와 한 번에 읽으려고
+        // (PutawayQueryRepository.storageStocks와 같은 꼴)
+        NumberExpression<Long> locOnHand = inv.onHandQty.sum().coalesce(0L);
+        NumberExpression<Long> prodOnHand = new CaseBuilder()
+                .when(inv.prod.id.eq(prod.id)).then(inv.onHandQty)
+                .otherwise(0L)
+                .sum().coalesce(0L);
 
         List<Tuple> rows = queryFactory
                 .select(fxngLoc.id, loc.id, loc.locCd, zon.zonCd,
                         prod.id, prod.prodCd, prod.prodNm, prod.tmpZon,
-                        fxngLoc.minQty, fxngLoc.maxQty, onHand)
+                        fxngLoc.minQty, fxngLoc.maxQty, prodOnHand, loc.maxQty, locOnHand)
                 .from(fxngLoc)
                 .join(fxngLoc.loc, loc)
                 .leftJoin(loc.zon, zon)
                 .join(fxngLoc.prod, prod)
-                .leftJoin(inv).on(inv.loc.eq(loc).and(inv.prod.eq(prod)))
+                .leftJoin(inv).on(inv.loc.eq(loc))
                 .where(zonCdEq(cond), prodCdContains(cond), prodNmContains(cond), locCdContains(cond))
                 .groupBy(fxngLoc.id, loc.id, loc.locCd, zon.zonCd,
                         prod.id, prod.prodCd, prod.prodNm, prod.tmpZon,
-                        fxngLoc.minQty, fxngLoc.maxQty)
+                        fxngLoc.minQty, fxngLoc.maxQty, loc.maxQty)
                 .orderBy(loc.locCd.asc())
                 .fetch();
 
@@ -74,7 +88,9 @@ public class SpmtQueryRepository {
                         row.get(prod.id), row.get(prod.prodCd), row.get(prod.prodNm), row.get(prod.tmpZon),
                         Objects.requireNonNullElse(row.get(fxngLoc.minQty), 0L),
                         Objects.requireNonNullElse(row.get(fxngLoc.maxQty), 0L),
-                        Objects.requireNonNullElse(row.get(onHand), 0L)))
+                        Objects.requireNonNullElse(row.get(prodOnHand), 0L),
+                        row.get(loc.maxQty),
+                        Objects.requireNonNullElse(row.get(locOnHand), 0L)))
                 .toList();
     }
 
@@ -87,7 +103,7 @@ public class SpmtQueryRepository {
         if (prodIds.isEmpty()) {
             return List.of();
         }
-        NumberExpression<Long> aval = inv.onHandQty.subtract(inv.alocQty).subtract(inv.hldQty);
+        NumberExpression<Long> aval = avalQty();
 
         List<Tuple> rows = queryFactory
                 .select(inv.prod.id, inv.id, loc.locCd, lot.lotNo, lot.expiryDt, aval)
@@ -100,7 +116,7 @@ public class SpmtQueryRepository {
                         aval.gt(0L),
                         loc.id.notIn(JPAExpressions.select(fxngLoc.loc.id).from(fxngLoc))
                 )
-                .orderBy(lot.expiryDt.asc().nullsLast(), loc.pikngPrty.asc(), loc.locCd.asc(), inv.id.asc())
+                .orderBy(fefoOrder(lot, loc))
                 .fetch();
 
         return rows.stream()

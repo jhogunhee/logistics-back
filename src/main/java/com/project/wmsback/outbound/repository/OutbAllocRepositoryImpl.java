@@ -26,6 +26,8 @@ import java.util.Map;
 import static com.project.mdm.prod.entity.QProd.prod;
 import static com.project.mdm.store.entity.QStore.store;
 import static com.project.wmsback.inventory.entity.QInv.inv;
+import static com.project.wmsback.inventory.repository.InvQueryExpressions.avalQty;
+import static com.project.wmsback.inventory.repository.InvQueryExpressions.fefoOrder;
 import static com.project.wmsback.outbound.entity.QOutbAlloc.outbAlloc;
 import static com.project.wmsback.outbound.entity.QOutbLine.outbLine;
 import static com.project.wmsback.outbound.entity.QOutbOrder.outbOrder;
@@ -226,7 +228,7 @@ public class OutbAllocRepositoryImpl implements OutbAllocRepositoryCustom {
                 .join(inv.loc).fetchJoin()
                 .join(inv.lot).fetchJoin()
                 .where(candidatePredicates(prodId))
-                .orderBy(fefoOrder())
+                .orderBy(fefoOrder(inv.lot, inv.loc))
                 .fetch();
     }
 
@@ -238,7 +240,7 @@ public class OutbAllocRepositoryImpl implements OutbAllocRepositoryCustom {
                 .join(inv.loc)
                 .join(inv.lot)
                 .where(candidatePredicates(prodId))
-                .orderBy(fefoOrder())
+                .orderBy(fefoOrder(inv.lot, inv.loc))
                 .fetch();
     }
 
@@ -248,18 +250,8 @@ public class OutbAllocRepositoryImpl implements OutbAllocRepositoryCustom {
                 // 스테이징 재고는 후보가 아니다 — 피킹이 「보관 → SHIP-STAGE」라
                 // 스테이징을 할당하면 피킹이 성립하지 않는다
                 inv.loc.locTyp.eq(LocTyp.STORAGE),
-                // 가용 = 보유 − 예약 − 보류. 보류분이 여기서 빠진다
-                inv.onHandQty.subtract(inv.alocQty).subtract(inv.hldQty).gt(0L)
-        };
-    }
-
-    /** FEFO — 유통기한 ASC(NULL 맨 뒤) → 피킹순위 → 로케이션코드 → id(결정성) */
-    private OrderSpecifier<?>[] fefoOrder() {
-        return new OrderSpecifier<?>[]{
-                inv.lot.expiryDt.asc().nullsLast(),
-                inv.loc.pikngPrty.asc(),
-                inv.loc.locCd.asc(),
-                inv.id.asc()
+                // 가용 = 보유 − 예약 − 보류. 보류분이 여기서 빠진다 (정의는 InvQueryExpressions 한 곳)
+                avalQty().gt(0L)
         };
     }
 

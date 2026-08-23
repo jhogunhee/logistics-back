@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 import static com.project.wmsback.inventory.entity.QInv.inv;
+import static com.project.wmsback.inventory.repository.InvQueryExpressions.avalQty;
 import static com.project.wmsback.warehouse.entity.QLoc.loc;
 import static com.project.wmsback.warehouse.entity.QLot.lot;
 import static com.project.wmsback.warehouse.entity.QZon.zon;
@@ -44,7 +45,7 @@ public class AlocQueryRepository {
         if (prodIds == null || prodIds.isEmpty()) {
             return result;
         }
-        NumberExpression<Long> aval = inv.onHandQty.subtract(inv.alocQty).subtract(inv.hldQty);
+        NumberExpression<Long> aval = avalQty();
 
         List<Tuple> rows = queryFactory
                 .select(inv.prod.id, inv.id,

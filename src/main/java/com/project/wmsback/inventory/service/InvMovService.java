@@ -46,8 +46,6 @@ import java.util.TreeSet;
 @Transactional(readOnly = true)
 public class InvMovService {
 
-    private static final String MOV_NO_RULE_CD = "INV_MOV_NO";
-
     private final InvRepository invRepository;
     private final InvStore invStore;
     private final InvMovTaskRepository invMovTaskRepository;
@@ -70,15 +68,15 @@ public class InvMovService {
      */
     @Transactional
     public List<String> register(InvMovRegisterRequest request) {
-        return register(request, InvMovDvsn.INV_MOV, MOV_NO_RULE_CD);
+        return register(request, InvMovDvsn.INV_MOV);
     }
 
     /**
-     * 이동구분·채번규칙을 지정하는 등록 — 보충(SPMT) 발행이 자기 검증을 마친 뒤 이 창구로 위임한다.
-     * 락 순서·검증·예약이 유형과 무관하게 동일해 경로를 복제하지 않는다.
+     * 이동구분을 지정하는 등록 — 정기보충(SPMT) 발행이 자기 검증을 마친 뒤 이 창구로 위임한다.
+     * 락 순서·검증·예약이 유형과 무관하게 동일해 경로를 복제하지 않는다. 채번규칙은 구분값이 든다.
      */
     @Transactional
-    public List<String> register(InvMovRegisterRequest request, InvMovDvsn movDvsn, String noRuleCd) {
+    public List<String> register(InvMovRegisterRequest request, InvMovDvsn movDvsn) {
         if (request.getItems() == null || request.getItems().isEmpty()) {
             throw new IllegalArgumentException("이동지시 대상이 없습니다.");
         }
@@ -113,13 +111,12 @@ public class InvMovService {
             if (fromInv == null) {
                 throw new IllegalArgumentException("존재하지 않는 재고입니다: " + item.getInvId());
             }
-            movNos.add(registerOne(item, fromInv, lockedToLocs.get(item.getToLocId()), movDvsn, noRuleCd));
+            movNos.add(registerOne(item, fromInv, lockedToLocs.get(item.getToLocId()), movDvsn));
         }
         return movNos;
     }
 
-    private String registerOne(InvMovRegisterRequest.Item item, Inv fromInv, Loc to,
-                               InvMovDvsn movDvsn, String noRuleCd) {
+    private String registerOne(InvMovRegisterRequest.Item item, Inv fromInv, Loc to, InvMovDvsn movDvsn) {
         if (item.getQty() == null || item.getQty() < 1) {
             throw new IllegalArgumentException("이동수량은 1 이상이어야 합니다.");
         }
@@ -155,7 +152,7 @@ public class InvMovService {
 
         invStore.reserve(fromInv, item.getQty());
         InvMovTask task = InvMovTask.builder()
-                .invMovNo(nbrService.issue(noRuleCd, LocalDate.now()))
+                .invMovNo(nbrService.issue(movDvsn.getNoRuleCd(), LocalDate.now()))
                 .movDvsn(movDvsn)
                 .prod(prodEntity).lot(lotEntity)
                 .fromLoc(from).toLoc(to)
@@ -225,10 +222,11 @@ public class InvMovService {
         }
         InvMovTask task = invMovTaskRepository.findByIdForUpdate(item.getTaskId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 이동지시입니다: " + item.getTaskId()));
-        // 재고이동·정기보충만 이 경로에서 확정 가능 — 둘 다 예약을 들어 실물을 옮기는 동일 작업이다.
-        // 수시보충(RPLN)은 예약을 들지 않아 확정이 할당 재배치까지 해야 하므로 RplnService가 전담한다
-        if (task.getMovDvsn() == InvMovDvsn.RPLN) {
-            throw new IllegalArgumentException("수시보충 지시는 이 화면에서 확정할 수 없습니다 (이동구분 " + task.getMovDvsn().getLabel() + "): " + task.getInvMovNo());
+        // 예약을 드는 구분(재고이동·정기보충)만 이 경로에서 확정 가능 — 실물을 옮기며 예약을 소진하는 동일 작업이다.
+        // 수시보충(RPLN)은 예약을 들지 않아 확정이 할당 재배치까지 해야 하므로 RplnService가 전담한다.
+        // 허용 여부는 구분값의 속성으로 판정한다 — 값 비교 차단목록이면 새 구분이 기본 허용으로 열린다
+        if (!task.getMovDvsn().isReserving()) {
+            throw new IllegalArgumentException(task.getMovDvsn().getLabel() + " 지시는 이 화면에서 확정할 수 없습니다 (예약을 들지 않는 이동구분): " + task.getInvMovNo());
         }
         if (task.getStatus() != InvMovStatus.DIRECTED) {
             throw new IllegalArgumentException("지시 상태의 이동지시만 확정할 수 있습니다 (현재 " + task.getStatus().getLabel() + "): " + task.getInvMovNo());
@@ -278,9 +276,9 @@ public class InvMovService {
 
         InvMovTask task = invMovTaskRepository.findByIdForUpdate(taskId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 이동지시입니다: " + taskId));
-        // 재고이동·정기보충만 이 경로에서 취소 가능 (확정과 같은 방어)
-        if (task.getMovDvsn() == InvMovDvsn.RPLN) {
-            throw new IllegalArgumentException("수시보충 지시는 이 화면에서 취소할 수 없습니다 (이동구분 " + task.getMovDvsn().getLabel() + "): " + task.getInvMovNo());
+        // 예약을 드는 구분만 이 경로에서 취소 가능 (확정과 같은 방어)
+        if (!task.getMovDvsn().isReserving()) {
+            throw new IllegalArgumentException(task.getMovDvsn().getLabel() + " 지시는 이 화면에서 취소할 수 없습니다 (예약을 들지 않는 이동구분): " + task.getInvMovNo());
         }
         if (task.getStatus() != InvMovStatus.DIRECTED) {
             throw new IllegalArgumentException("지시 상태의 이동지시만 취소할 수 있습니다 (현재 " + task.getStatus().getLabel() + "): " + task.getInvMovNo());

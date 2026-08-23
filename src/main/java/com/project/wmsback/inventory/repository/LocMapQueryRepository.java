@@ -32,7 +32,8 @@ public class LocMapQueryRepository {
     /** 맵 1칸의 기본 정보 — 로케이션·존·고정상품(미지정이면 fxng* null) */
     public record LocRow(Long locId, String locCd, String zonCd, String zonNm,
                          BizDvsn bizDvsn, TmpZon tmpZon, Long maxQty,
-                         String fxngProdCd, String fxngProdNm, String fxngProdImgUrl, Long fxngMinQty) {
+                         Long fxngProdId, String fxngProdCd, String fxngProdNm, String fxngProdImgUrl,
+                         Long fxngMinQty) {
     }
 
     /** 로케이션의 전 상품 재고 합 */
@@ -43,7 +44,7 @@ public class LocMapQueryRepository {
     public List<LocRow> locRows() {
         List<Tuple> rows = queryFactory
                 .select(loc.id, loc.locCd, zon.zonCd, zon.zonNm, zon.bizDvsn, loc.tmpZon, loc.maxQty,
-                        prod.prodCd, prod.prodNm, prod.imgUrl, fxngLoc.minQty)
+                        prod.id, prod.prodCd, prod.prodNm, prod.imgUrl, fxngLoc.minQty)
                 .from(loc)
                 .join(loc.zon, zon)
                 .leftJoin(fxngLoc).on(fxngLoc.loc.eq(loc))
@@ -56,7 +57,8 @@ public class LocMapQueryRepository {
                 .map(row -> new LocRow(
                         row.get(loc.id), row.get(loc.locCd), row.get(zon.zonCd), row.get(zon.zonNm),
                         row.get(zon.bizDvsn), row.get(loc.tmpZon), row.get(loc.maxQty),
-                        row.get(prod.prodCd), row.get(prod.prodNm), row.get(prod.imgUrl), row.get(fxngLoc.minQty)))
+                        row.get(prod.id), row.get(prod.prodCd), row.get(prod.prodNm), row.get(prod.imgUrl),
+                        row.get(fxngLoc.minQty)))
                 .toList();
     }
 

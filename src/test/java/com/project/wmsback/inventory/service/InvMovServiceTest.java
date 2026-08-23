@@ -256,11 +256,11 @@ class InvMovServiceTest {
     }
 
     @Test
-    @DisplayName("등록 오버로드: 보충(SPMT) 유형·전용 채번규칙으로 등록된다")
+    @DisplayName("등록 오버로드: 보충(SPMT) 유형이면 채번규칙도 구분값에 붙은 SPMT_NO를 쓴다 — 따로 넘길 수 없다")
     void register_overloadCarriesSpmtDvsnAndRule() {
         when(nbrService.issue("SPMT_NO", LocalDate.now())).thenReturn("SP-20260821-001");
 
-        List<String> movNos = invMovService.register(request(100L, 20L, 6L), InvMovDvsn.SPMT, "SPMT_NO");
+        List<String> movNos = invMovService.register(request(100L, 20L, 6L), InvMovDvsn.SPMT);
 
         assertEquals(List.of("SP-20260821-001"), movNos);
         ArgumentCaptor<InvMovTask> captor = ArgumentCaptor.forClass(InvMovTask.class);
