@@ -9,6 +9,7 @@ import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
@@ -140,6 +141,67 @@ class OutbOrderTest {
             assertDoesNotThrow(() -> order.recalcStatus(0, 0, 0));
 
             assertEquals(OutbStatus.CREATED, order.getStatus());
+        }
+    }
+
+    @Nested
+    @DisplayName("ship() — 출고확정은 PICKED와 CREATED(할당 0건)만 통과한다")
+    class Ship {
+
+        @Test
+        @DisplayName("피킹완료 주문이 SHIPPED가 되고 확정 시각이 남는다")
+        void shipsPickedOrder() {
+            OutbOrder order = order();
+            order.assignWave(plannedWave(), WavRegTyp.MANUAL);
+            order.recalcStatus(1, 0, 1);
+
+            order.ship();
+
+            assertEquals(OutbStatus.SHIPPED, order.getStatus());
+            assertNotNull(order.getShmtDt());
+        }
+
+        @Test
+        @DisplayName("할당 0건(CREATED) 주문도 닫힌다 — 전량 미출고 확정, 갇힌 주문의 출구")
+        void shipsCreatedOrderInWave() {
+            OutbOrder order = order();
+            order.assignWave(plannedWave(), WavRegTyp.MANUAL);
+
+            order.ship();
+
+            assertEquals(OutbStatus.SHIPPED, order.getStatus());
+        }
+
+        @Test
+        @DisplayName("작업중(ALLOCATED · PICKING)은 거부한다")
+        void rejectsWorking() {
+            OutbOrder allocated = order();
+            allocated.assignWave(plannedWave(), WavRegTyp.MANUAL);
+            allocated.recalcStatus(1, 1, 0);
+            assertThrows(IllegalStateException.class, allocated::ship);
+
+            OutbOrder picking = order();
+            picking.assignWave(plannedWave(), WavRegTyp.MANUAL);
+            picking.recalcStatus(2, 1, 1);
+            assertThrows(IllegalStateException.class, picking::ship);
+        }
+
+        @Test
+        @DisplayName("웨이브 밖의 주문은 거부한다 — 그쪽의 출구는 OMS 확정취소다")
+        void rejectsUnwaved() {
+            assertThrows(IllegalStateException.class, order()::ship);
+        }
+
+        @Test
+        @DisplayName("확정된 주문은 재산출도 재확정도 막힌다")
+        void shippedIsFinal() {
+            OutbOrder order = order();
+            order.assignWave(plannedWave(), WavRegTyp.MANUAL);
+            order.recalcStatus(1, 0, 1);
+            order.ship();
+
+            assertThrows(IllegalStateException.class, order::ship);
+            assertThrows(IllegalStateException.class, () -> order.recalcStatus(1, 0, 1));
         }
     }
 

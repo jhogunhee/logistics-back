@@ -1,5 +1,10 @@
 package com.project.wmsback.outbound.service;
 
+import com.project.mdm.nbr.service.NbrService;
+import com.project.wmsback.inventory.entity.InvMovDvsn;
+import com.project.wmsback.inventory.entity.InvMovStatus;
+import com.project.wmsback.inventory.entity.InvMovTask;
+import com.project.wmsback.inventory.repository.InvMovTaskRepository;
 import com.project.wmsback.outbound.dto.PikngAcrstResponse;
 import com.project.wmsback.outbound.dto.PikngCancelRequest;
 import com.project.wmsback.outbound.dto.PikngCancelResponse;
@@ -11,6 +16,7 @@ import com.project.wmsback.outbound.dto.PikngWaveDetailResponse;
 import com.project.wmsback.outbound.dto.PikngWaveResponse;
 import com.project.wmsback.outbound.entity.OutbAlloc;
 import com.project.wmsback.outbound.entity.OutbOrder;
+import com.project.wmsback.outbound.entity.OutbStatus;
 import com.project.wmsback.outbound.entity.OutbWave;
 import com.project.wmsback.outbound.entity.PikngTask;
 import com.project.wmsback.outbound.entity.PikngTaskStatus;
@@ -20,10 +26,14 @@ import com.project.wmsback.outbound.repository.OutbOrderRepository;
 import com.project.wmsback.outbound.repository.PikngAcrstRepository;
 import com.project.wmsback.outbound.repository.PikngTaskRepository;
 import com.project.wmsback.outbound.repository.OutbWaveRepository;
+import com.project.wmsback.outbound.service.RplnDestinationResolver.Destinations;
+import com.project.wmsback.warehouse.entity.Loc;
+import com.project.wmsback.warehouse.repository.LocRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -59,6 +69,16 @@ public class PikngTaskService {
     private final OutbAllocRepository outbAllocRepository;
     private final OutbOrderRepository outbOrderRepository;
     private final OutbWaveRepository outbWaveRepository;
+    private final LocRepository locRepository;
+    private final InvMovTaskRepository invMovTaskRepository;
+    private final NbrService nbrService;
+    private final RplnDestinationResolver rplnDestinationResolver;
+
+    /** 보충지시 번호 — 이동지시와 같은 채번 규칙(InvMovService.MOV_NO_RULE_CD와 같은 값) */
+    private static final String MOV_NO_RULE_CD = "INV_MOV_NO";
+
+    /** 피킹 도착지. 실행(PikngService)·출고확정(OutbShmtService)과 같은 값 — 여기서는 존재만 확인한다 */
+    private static final String SHIP_STAGING_LOC_CD = "SHIP-STAGE";
 
     // ── 조회 ─────────────────────────────────────────────────────────────────
 
@@ -127,15 +147,25 @@ public class PikngTaskService {
         if (wavIds.isEmpty()) {
             throw new IllegalArgumentException("발행할 웨이브를 선택하세요.");
         }
+        // 도착지는 발행에서 한 번 확인한다 — 실행 시점에 처음 찾으면 작업자가 창고를 다 돈 뒤에야 롤백된다
+        if (locRepository.findByLocCd(SHIP_STAGING_LOC_CD).isEmpty()) {
+            throw new IllegalStateException("출고 스테이징 로케이션(SHIP-STAGE)이 없어 피킹지시를 발행할 수 없습니다 — 로케이션을 먼저 등록하세요.");
+        }
         List<PikngIssueResponse.WaveResult> results = new ArrayList<>();
         int total = 0;
+        int totalRpln = 0;
         for (Long wavId : wavIds) {
             // 웨이브 행 락 — 할당 실행·해제, 편성 변경, 취소, 피킹 실행과의 직렬화 지점.
-            // 락 순서는 웨이브(오름차순) → 재고 한 방향이고, 발행은 재고를 건드리지 않아 앞 단계뿐이다.
+            // 락 순서는 웨이브(오름차순) → loc(보충 도착지, RplnDestinationResolver) 한 방향이고,
+            // 발행은 재고를 건드리지 않는다.
             OutbWave wave = lockWave(wavId);
             requireIssuable(wave, additional);
 
-            List<OutbOrder> orders = outbOrderRepository.findByWaveId(wavId);
+            // 출고확정된 주문은 빼고 본다 — 전량 미출고로 확정된 주문은 할당 0건인 채 SHIPPED라,
+            // 안 빼면 그 웨이브의 추가 발행이 「할당 0건 주문」에 영영 막힌다
+            List<OutbOrder> orders = outbOrderRepository.findByWaveId(wavId).stream()
+                    .filter(order -> order.getStatus() != OutbStatus.SHIPPED)
+                    .toList();
             if (orders.isEmpty()) {
                 throw new IllegalArgumentException("웨이브에 편성된 주문이 없습니다: " + wave.getWavNo());
             }
@@ -160,37 +190,83 @@ public class PikngTaskService {
                         + " (웨이브에서 빼거나 할당 후 다시 시도하세요): " + String.join(", ", noAllocOutbNos));
             }
 
-            // 집품 순서를 발행 시점에 고정한다 — 조회 시 정렬이면 작업 중 마스터 변경(pikng_prty)이
-            // 리스트 순서를 흔든다. 끝에 할당 id를 붙여 결정적으로 만든다 (allocRowsForIssue와 한 쌍).
-            List<OutbAlloc> sorted = new ArrayList<>(allocs);
-            sorted.sort(Comparator
-                    .comparing((OutbAlloc alloc) -> alloc.getInv().getLoc().getPikngPrty())
-                    .thenComparing(alloc -> alloc.getInv().getLoc().getLocCd())
-                    .thenComparing(OutbAlloc::getId));
+            // 피킹은 피킹존에서만 한다 — 보관존에 잡힌 할당분은 도착지(피킹존)를 정해 거기서 집는 지시를 내고,
+            // 보충지시를 짝으로 낸다. 도착지가 없는 할당은 이번 발행에서 뺀다 — 웨이브 통째를 세우지 않는다
+            // (가드가 읽는 범위 = 조작 범위). 빠진 것은 화면 「미발행」에 남아 추가 발행으로 나간다
+            Destinations destinations = rplnDestinationResolver.resolve(allocs);
+            List<String> noDestination = allocs.stream().filter(destinations::unresolved).map(PikngTaskService::rowName).toList();
+            List<OutbAlloc> issuable = allocs.stream().filter(alloc -> !destinations.unresolved(alloc)).toList();
+            if (issuable.isEmpty()) {
+                throw new IllegalStateException("피킹 로케이션이 없어 발행할 지시가 없습니다"
+                        + " (고정 로케이션을 등록하거나 피킹존 자리를 비우세요): " + String.join(", ", noDestination));
+            }
 
             // 추가분은 기존 순번 뒤에 붙는다 — 「1차 동선을 다 돈 뒤 추가분」이라 현장 동선과 맞는다
-            int seq = additional ? pikngTaskRepository.findMaxSrtSeqByWaveId(wavId) : 0;
-            List<PikngTask> tasks = new ArrayList<>(sorted.size());
-            for (OutbAlloc alloc : sorted) {
-                // 재고 키는 발행 시점 스냅샷으로 지시에 남긴다 — inv 행은 전량 피킹 후 삭제될 수 있다
-                tasks.add(PikngTask.builder()
-                        .wave(wave).outbAlloc(alloc)
-                        .prod(alloc.getInv().getProd())
-                        .fromLoc(alloc.getInv().getLoc())
-                        .lot(alloc.getInv().getLot())
-                        .drctQty(alloc.getAlocQty())
-                        .srtSeq(++seq)
-                        .build());
-            }
-            pikngTaskRepository.saveAll(tasks);
+            int firstSeq = additional ? pikngTaskRepository.findMaxSrtSeqByWaveId(wavId) : 0;
+            List<PikngTask> tasks = pikngTaskRepository.saveAll(createTasks(wave, issuable, destinations, firstSeq));
+            List<InvMovTask> rplns = invMovTaskRepository.saveAll(createReplenishments(tasks, destinations));
             if (!additional) {
                 wave.issue();
             }
 
-            results.add(new PikngIssueResponse.WaveResult(wave.getWavNo(), tasks.size()));
+            results.add(new PikngIssueResponse.WaveResult(wave.getWavNo(), tasks.size(), rplns.size(), noDestination));
             total += tasks.size();
+            totalRpln += rplns.size();
         }
-        return new PikngIssueResponse(results.size(), total, results);
+        return new PikngIssueResponse(results.size(), total, totalRpln, results);
+    }
+
+    /**
+     * 집품 순서를 발행 시점에 고정한다 — 조회 시 정렬이면 작업 중 마스터 변경(pikng_prty)이 리스트 순서를
+     * 흔든다. 끝에 할당 id를 붙여 결정적으로 만든다 (allocRowsForIssue와 한 쌍). 기준 자리는 작업자가
+     * 실제로 가는 곳이다 — 보충분은 도착지, 피킹존 할당은 그 자리.
+     */
+    private static List<PikngTask> createTasks(OutbWave wave, List<OutbAlloc> allocs, Destinations destinations, int firstSeq) {
+        List<OutbAlloc> sorted = new ArrayList<>(allocs);
+        sorted.sort(Comparator
+                .comparing((OutbAlloc alloc) -> destinations.pickLocOf(alloc).getPikngPrty())
+                .thenComparing(alloc -> destinations.pickLocOf(alloc).getLocCd())
+                .thenComparing(OutbAlloc::getId));
+
+        int seq = firstSeq;
+        List<PikngTask> tasks = new ArrayList<>(sorted.size());
+        for (OutbAlloc alloc : sorted) {
+            // 재고 키는 발행 시점 스냅샷으로 지시에 남긴다 — inv 행은 전량 피킹 후 삭제될 수 있다
+            tasks.add(PikngTask.builder()
+                    .wave(wave).outbAlloc(alloc)
+                    .prod(alloc.getInv().getProd())
+                    .fromLoc(destinations.pickLocOf(alloc))
+                    .lot(alloc.getInv().getLot())
+                    .drctQty(alloc.getAlocQty())
+                    .srtSeq(++seq)
+                    .build());
+        }
+        return tasks;
+    }
+
+    /** 보충지시 — 보관존 할당분의 피킹지시마다 하나. 예약은 잡지 않는다(할당이 든다) — 확정이 그 예약을 도착지로 옮긴다 */
+    private List<InvMovTask> createReplenishments(List<PikngTask> tasks, Destinations destinations) {
+        List<InvMovTask> rplns = new ArrayList<>();
+        for (PikngTask task : tasks) {
+            OutbAlloc alloc = task.getOutbAlloc();
+            Loc dest = destinations.replenishTo(alloc);
+            if (dest == null) {
+                continue;
+            }
+            rplns.add(InvMovTask.builder()
+                    .invMovNo(nbrService.issue(MOV_NO_RULE_CD, LocalDate.now()))
+                    .movDvsn(InvMovDvsn.RPLN)
+                    .prod(alloc.getInv().getProd()).lot(alloc.getInv().getLot())
+                    .fromLoc(alloc.getInv().getLoc()).toLoc(dest)
+                    .drctQty(task.getDrctQty())
+                    .pikngTaskId(task.getId())
+                    .build());
+        }
+        return rplns;
+    }
+
+    private static String rowName(OutbAlloc alloc) {
+        return alloc.getOutbLine().getOutbOrder().getOutbNo() + "/" + alloc.getOutbLine().getProd().getProdCd();
     }
 
     /**
@@ -234,7 +310,7 @@ public class PikngTaskService {
         for (Long wavId : wavIds) {
             OutbWave wave = lockWave(wavId);
             requireIssued(wave);
-            List<PikngTask> live = liveTasks(wavId);
+            List<PikngTask> live = uncancelledTasks(wavId);
             if (live.isEmpty()) {
                 throw new IllegalStateException("취소할 지시가 없습니다: " + wave.getWavNo());
             }
@@ -244,6 +320,15 @@ public class PikngTaskService {
                         + " (피킹 " + picked + ") — 아직 한 개도 집지 않은 지시만 골라 취소하세요: "
                         + wave.getWavNo());
             }
+            // 보충이 확정된 것은 실물이 이미 피킹존으로 옮겨진 실적이다 — 피킹 실적과 같이 통째 취소를 막는다
+            List<Long> liveIds = live.stream().map(PikngTask::getId).toList();
+            long replenished = invMovTaskRepository.countByPikngTaskIdInAndStatus(liveIds, InvMovStatus.DONE);
+            if (replenished > 0) {
+                throw new IllegalStateException("보충이 확정된 지시가 있어 발행을 통째로 취소할 수 없습니다"
+                        + " (보충 확정 " + replenished + "건) — 지시 단위로 취소하세요: " + wave.getWavNo());
+            }
+            invMovTaskRepository.findByPikngTaskIdInAndStatusNot(liveIds, InvMovStatus.CANCELLED)
+                    .forEach(InvMovTask::cancelRemainder);
             live.forEach(PikngTask::cancel);
             wave.cancelIssue();
 
@@ -255,8 +340,9 @@ public class PikngTaskService {
 
     /**
      * 지시 단위 — 실적 판정은 {@link PikngTask#cancel()}이 대상 지시 자신에 대해 한다.
-     * 취소 후 살아 있는 지시가 0건인 웨이브만 PLANNED로 돌린다(완료 지시가 남으면 그대로 ISSUED) —
-     * 「살아 있는 지시 없는 ISSUED 웨이브」를 만들지 않는 것은 두 진입의 공통 책임이다.
+     * 취소 후 취소되지 않은 지시가 0건인 웨이브만 PLANNED로 돌린다. 완료(DONE) 지시가 남으면 그대로
+     * ISSUED다 — 그 웨이브는 할 일이 남은 것이 아니라 출고확정 대기다. 「지시 없는 ISSUED 웨이브」를
+     * 만들지 않는 것은 두 진입의 공통 책임이다.
      */
     private PikngCancelResponse cancelTasks(List<Long> taskIds) {
         // ① 웨이브 행 락을 지시보다 먼저 잡는다 — 순서(웨이브 오름차순)뿐 아니라 「락 뒤에 읽는다」가
@@ -278,6 +364,13 @@ public class PikngTaskService {
             task.cancel();
             cancelledByWave.merge(task.getWave().getId(), 1, Integer::sum);
         }
+        // 짝 보충지시 — 아직 DIRECTED면 함께 취소한다(둘 다 아무 일도 안 했다). DONE이면 그대로 둔다 —
+        // 실물은 이미 피킹존에 있고 할당도 그 행을 가리키므로 할당해제가 거기서 푼다
+        for (InvMovTask rpln : invMovTaskRepository.findByPikngTaskIdInAndStatusNot(taskIds, InvMovStatus.CANCELLED)) {
+            if (rpln.getStatus() == InvMovStatus.DIRECTED) {
+                rpln.cancelRemainder();
+            }
+        }
 
         // ② 남은 지시를 세기 전에 전이를 반영한다 — 안 하면 방금 취소한 행까지 살아 있는 것으로 센다
         pikngTaskRepository.flush();
@@ -285,7 +378,7 @@ public class PikngTaskService {
         List<PikngCancelResponse.WaveResult> results = new ArrayList<>();
         for (Map.Entry<Long, OutbWave> entry : waves.entrySet()) {
             OutbWave wave = entry.getValue();
-            if (liveTasks(entry.getKey()).isEmpty()) {
+            if (uncancelledTasks(entry.getKey()).isEmpty()) {
                 wave.cancelIssue();
             }
             results.add(new PikngCancelResponse.WaveResult(
@@ -294,7 +387,8 @@ public class PikngTaskService {
         return new PikngCancelResponse(results.size(), taskIds.size(), results);
     }
 
-    private List<PikngTask> liveTasks(Long wavId) {
+    /** 취소되지 않은 지시 — DIRECTED와 DONE 둘 다. 「할 일이 남았나」가 아니라 「지시가 나가 있나」다 */
+    private List<PikngTask> uncancelledTasks(Long wavId) {
         return pikngTaskRepository.findByWaveIdAndStatusNot(wavId, PikngTaskStatus.CANCELLED);
     }
 

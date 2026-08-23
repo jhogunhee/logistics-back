@@ -41,7 +41,7 @@ public interface OutbAllocRepository extends JpaRepository<OutbAlloc, Long>, Out
      */
     @Query("select a from OutbAlloc a"
             + " join fetch a.outbLine l join fetch l.outbOrder o"
-            + " join fetch l.prod join fetch a.inv i join fetch i.loc join fetch i.lot"
+            + " join fetch l.prod join fetch a.inv i join fetch i.loc lc left join fetch lc.zon join fetch i.lot"
             + " where o.wave.id = :wavId"
             + " and not exists (select 1 from PikngTask t"
             + "                  where t.outbAlloc = a and t.status <> :cancelled)")

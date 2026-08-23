@@ -174,7 +174,7 @@ public class AlocStgyService {
             validateLastDstrbOpen(normalized);
         }
         if (slotTyp == AlocSlotTyp.INVN_FLTR) {
-            validateOpenTierIsLast(normalized);
+            validateTiersEndOpen(normalized);
         }
         return normalized;
     }
@@ -278,15 +278,22 @@ public class AlocStgyService {
     }
 
     /**
-     * 조건 없는 계층은 마지막에만 올 수 있다. 조건 없는 계층은 후보 전체를 가져가므로,
-     * 그 뒤에 계층을 두면 뒤 계층은 앞 계층이 쓰고 남긴 것만 보게 되어 계층으로서 의미가 없다.
+     * 계층은 조건 없는 계층으로 끝나야 하고, 조건 없는 계층은 거기에만 올 수 있다.
+     * 앞에 두면 후보 전체를 가져가 뒤 계층이 죽고, 끝에 없으면 어느 계층에도 맞지 않는 재고를
+     * 자동할당이 영영 쓰지 않는다 — 보충 이동이 없는 이 창고에서 그 물량은 곧 결품이다.
+     * 마지막 분배가 조건 없이 끝나야 하는 것과 같은 규칙이다.
      */
-    private void validateOpenTierIsLast(List<AlocStgyDefinition.SlotDef> slots) {
+    private void validateTiersEndOpen(List<AlocStgyDefinition.SlotDef> slots) {
         for (int i = 0; i < slots.size() - 1; i++) {
             if (slots.get(i).condOrEmpty().isEmpty()) {
                 throw new IllegalArgumentException((i + 1) + "번 재고위치 계층에 조건이 없습니다 — "
                         + "조건 없는 계층은 후보 전체를 가져가므로 마지막에만 둘 수 있습니다.");
             }
+        }
+        if (!slots.get(slots.size() - 1).condOrEmpty().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "마지막 재고위치 계층은 조건 없이 남은 후보 전체를 받아야 합니다 — "
+                            + "어느 계층에도 맞지 않는 재고는 자동할당이 쓰지 않아 그만큼 결품이 됩니다.");
         }
     }
 

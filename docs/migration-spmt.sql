@@ -13,6 +13,8 @@
 DO $mig$
 BEGIN
     -- 1. ck_inv_mov_dvsn 재정의 — SPMT 허용 ---------------------------------
+    --    migration-rpln.sql 이 (INV_MOV, RPLN)으로 좁혀 둔 상태에 SPMT를 더한다.
+    --    PTAWY는 적치가 putaway_task로 확정되며 제거됐으므로 되살리지 않는다.
     IF EXISTS (
         SELECT 1 FROM pg_constraint
          WHERE conname = 'ck_inv_mov_dvsn'
@@ -20,7 +22,7 @@ BEGIN
     ) THEN
         ALTER TABLE inv_mov_task DROP CONSTRAINT ck_inv_mov_dvsn;
         ALTER TABLE inv_mov_task ADD CONSTRAINT ck_inv_mov_dvsn
-            CHECK (mov_dvsn IN ('INV_MOV', 'PTAWY', 'SPMT'));
+            CHECK (mov_dvsn IN ('INV_MOV', 'RPLN', 'SPMT'));
         RAISE NOTICE 'ck_inv_mov_dvsn 재정의 (SPMT 추가)';
     ELSE
         RAISE NOTICE 'ck_inv_mov_dvsn 이미 SPMT 포함 — 건너뜀';

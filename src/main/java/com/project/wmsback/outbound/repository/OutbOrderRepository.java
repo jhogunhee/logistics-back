@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,11 +26,6 @@ public interface OutbOrderRepository extends JpaRepository<OutbOrder, Long>, Out
     Optional<OutbOrder> findByIdForUpdate(@Param("id") Long id);
 
     /**
-     * 상위 OMS 출고주문으로 창고 문서 찾기. 주문당 한 건임을 uq_outb_order_oms가 보증하므로 Optional이다.
-     */
-    Optional<OutbOrder> findByOmsOutbOrderId(Long omsOutbOrderId);
-
-    /**
      * 확정취소용 행 락 — {@code requireRevertible()}이 신선한 행 위에서 판정되게 한다.
      * 판정과 삭제 사이에 편입·할당이 커밋되면 cascade로 지워진 라인을 가리키는 고아 할당이 남고
      * ({@code outb_alloc.outb_line_id}에 FK가 없다), 할당해제가 그 라인을 조인해 예약을 되돌리는
@@ -38,4 +34,17 @@ public interface OutbOrderRepository extends JpaRepository<OutbOrder, Long>, Out
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select o from OutbOrder o where o.omsOutbOrderId = :omsOutbOrderId")
     Optional<OutbOrder> findByOmsOutbOrderIdForUpdate(@Param("omsOutbOrderId") Long omsOutbOrderId);
+
+    /**
+     * 출고확정 대상 주문의 웨이브 id — 웨이브 락을 <b>주문을 읽기 전에</b> 잡기 위한 스칼라 선조회.
+     * 주문을 엔티티로 먼저 읽으면 뒤에 거는 웨이브 락이 영속성 컨텍스트의 낡은 인스턴스를 돌려주고,
+     * 락을 얻고도 확정 직전의 옛 상태(PICKED · ISSUED)를 보고 통과한다
+     * ({@link com.project.wmsback.inventory.repository.InvMovTaskRepository#findPikngTaskIdsByIdIn}과 같은 이유).
+     */
+    @Query("select distinct o.wave.id from OutbOrder o where o.id in :ids and o.wave is not null")
+    List<Long> findWaveIdsByOrderIds(@Param("ids") Collection<Long> ids);
+
+    /** 출고확정 대상 주문 — 웨이브까지 함께 읽는다(가드와 웨이브 종료 판정에 쓴다). 웨이브 락 뒤에 부른다 */
+    @Query("select o from OutbOrder o left join fetch o.wave where o.id in :ids")
+    List<OutbOrder> findAllWithWaveByIds(@Param("ids") Collection<Long> ids);
 }

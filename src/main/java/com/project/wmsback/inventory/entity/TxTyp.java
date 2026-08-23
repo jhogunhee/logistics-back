@@ -13,7 +13,8 @@ public enum TxTyp {
     MOVE("이동(적치 포함)"),
     ADJUST("조정"),
     PICK("피킹"),
-    SHIP("출고확정");
+    SHIP("출고확정"),
+    RPLN("수시보충");
 
     private final String label;
 }

@@ -43,6 +43,8 @@ public class OutbOrderResponse {
      * 응답에서도 지킨다. 그래서 이 값은 생성자가 계산하지 않고 밖에서 받는다.
      */
     private final long totalAlocQty;
+    /** 출고확정 시각. 미확정이면 NULL — 출고실적은 이 값 + inv_hist의 SHIP 행이다 */
+    private final LocalDateTime shmtDt;
     private final LocalDateTime createdAt;
 
     private OutbOrderResponse(OutbOrder order, Map<Long, Long> alocQtyByLineId) {
@@ -69,6 +71,7 @@ public class OutbOrderResponse {
         this.totalAlocQty = order.getLines().stream()
                 .mapToLong(l -> alocQtyByLineId.getOrDefault(l.getId(), 0L))
                 .sum();
+        this.shmtDt = order.getShmtDt();
         this.createdAt = order.getCreatedAt();
     }
 

@@ -22,8 +22,18 @@ import com.project.wmsback.outbound.repository.PikngAcrstRepository;
 import com.project.wmsback.outbound.repository.PikngTaskRepository;
 import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.Lot;
+import com.project.wmsback.warehouse.repository.LocRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import com.project.mdm.nbr.service.NbrService;
+import com.project.wmsback.inventory.entity.InvMovDvsn;
+import com.project.wmsback.inventory.entity.InvMovStatus;
+import com.project.wmsback.inventory.entity.InvMovTask;
+import com.project.wmsback.inventory.repository.InvMovTaskRepository;
+import com.project.wmsback.warehouse.entity.BizDvsn;
+import com.project.wmsback.warehouse.entity.Zon;
+import java.util.HashMap;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -66,6 +76,10 @@ class PikngTaskServiceTest {
     @Mock OutbAllocRepository outbAllocRepository;
     @Mock OutbOrderRepository outbOrderRepository;
     @Mock OutbWaveRepository outbWaveRepository;
+    @Mock LocRepository locRepository;
+    @Mock InvMovTaskRepository invMovTaskRepository;
+    @Mock NbrService nbrService;
+    @Mock RplnDestinationResolver rplnDestinationResolver;
 
     @InjectMocks PikngTaskService pikngTaskService;
 
@@ -89,6 +103,123 @@ class PikngTaskServiceTest {
         when(outbWaveRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(wave));
         when(pikngTaskRepository.saveAll(anyList())).thenAnswer(i -> i.getArgument(0));
         when(pikngTaskRepository.findWaveIdsByTaskIds(anyCollection())).thenReturn(List.of(100L));
+        when(locRepository.findByLocCd("SHIP-STAGE")).thenReturn(Optional.of(mock(Loc.class)));
+        when(invMovTaskRepository.saveAll(anyList())).thenAnswer(i -> i.getArgument(0));
+        when(nbrService.issue(any(), any())).thenReturn("MV-001");
+        when(rplnDestinationResolver.resolve(anyList()))
+                .thenReturn(new RplnDestinationResolver.Destinations(Map.of()));
+    }
+
+    @Test
+    @DisplayName("보관존 할당은 도착지를 from으로 한 피킹지시와 보충지시를 짝으로 낸다 — 예약은 건드리지 않는다")
+    void issueCreatesReplenishmentForStorageAlloc() {
+        OutbOrder order = order("OB-001");
+        Loc storage = storageLoc(5L, 9, "S-01");
+        Loc dest = loc(2L, 1, "P-01");
+        OutbAlloc alloc = alloc(1L, order, 10, storage);
+        when(outbOrderRepository.findByWaveId(100L)).thenReturn(List.of(order));
+        when(outbAllocRepository.findIssuableByWaveId(100L, PikngTaskStatus.CANCELLED)).thenReturn(List.of(alloc));
+        when(outbAllocRepository.findAllocatedOrderIdsByWaveId(100L)).thenReturn(List.of(order.getId()));
+        when(rplnDestinationResolver.resolve(List.of(alloc)))
+                .thenReturn(new RplnDestinationResolver.Destinations(Map.of(1L, dest)));
+
+        PikngIssueResponse response = pikngTaskService.issue(issue(100L));
+
+        ArgumentCaptor<List<PikngTask>> tasks = ArgumentCaptor.captor();
+        verify(pikngTaskRepository).saveAll(tasks.capture());
+        assertEquals(dest, tasks.getValue().get(0).getFromLoc());     // 작업자가 가는 곳은 도착지다
+        ArgumentCaptor<List<InvMovTask>> rplns = ArgumentCaptor.captor();
+        verify(invMovTaskRepository).saveAll(rplns.capture());
+        InvMovTask rpln = rplns.getValue().get(0);
+        assertEquals(InvMovDvsn.RPLN, rpln.getMovDvsn());
+        assertEquals(storage, rpln.getFromLoc());
+        assertEquals(dest, rpln.getToLoc());
+        assertEquals(10, rpln.getDrctQty());
+        assertEquals(1, response.rplnCount());
+        assertEquals(0, alloc.getInv().getAlocQty());                  // 보충지시는 예약을 잡지 않는다
+        assertEquals(WaveStatus.ISSUED, wave.getStatus());
+    }
+
+    @Test
+    @DisplayName("피킹 로케이션이 없는 할당은 그 할당만 빠지고 웨이브는 나머지로 발행된다 — 가드 범위 = 조작 범위")
+    void issueExcludesAllocWithoutDestinationOnly() {
+        OutbOrder order = order("OB-001");
+        OutbAlloc noDest = alloc(1L, order, 10, storageLoc(5L, 9, "S-01"));
+        OutbAlloc picking = alloc(2L, order, 20, loc(2L, 1, "P-01"));
+        when(outbOrderRepository.findByWaveId(100L)).thenReturn(List.of(order));
+        when(outbAllocRepository.findIssuableByWaveId(100L, PikngTaskStatus.CANCELLED)).thenReturn(List.of(noDest, picking));
+        when(outbAllocRepository.findAllocatedOrderIdsByWaveId(100L)).thenReturn(List.of(order.getId()));
+        Map<Long, Loc> unresolved = new HashMap<>();
+        unresolved.put(1L, null);
+        when(rplnDestinationResolver.resolve(List.of(noDest, picking)))
+                .thenReturn(new RplnDestinationResolver.Destinations(unresolved));
+
+        PikngIssueResponse response = pikngTaskService.issue(issue(100L));
+
+        ArgumentCaptor<List<PikngTask>> tasks = ArgumentCaptor.captor();
+        verify(pikngTaskRepository).saveAll(tasks.capture());
+        assertEquals(1, tasks.getValue().size());
+        assertEquals(picking, tasks.getValue().get(0).getOutbAlloc());
+        assertEquals(List.of("OB-001/PROD-0001"), response.waves().get(0).noDestination());
+        assertEquals(0, response.rplnCount());
+        assertEquals(WaveStatus.ISSUED, wave.getStatus());
+
+        // 전부 빠지면 발행할 것이 없다 — 웨이브는 PLANNED 그대로
+        OutbWave other = OutbWave.builder().wavNo("WV-20260820-002").build();
+        setId(other, 101L);
+        when(outbWaveRepository.findByIdForUpdate(101L)).thenReturn(Optional.of(other));
+        when(outbOrderRepository.findByWaveId(101L)).thenReturn(List.of(order));
+        when(outbAllocRepository.findIssuableByWaveId(101L, PikngTaskStatus.CANCELLED)).thenReturn(List.of(noDest));
+        when(rplnDestinationResolver.resolve(List.of(noDest)))
+                .thenReturn(new RplnDestinationResolver.Destinations(unresolved));
+        when(outbAllocRepository.findAllocatedOrderIdsByWaveId(101L)).thenReturn(List.of(order.getId()));
+        assertThrows(IllegalStateException.class, () -> pikngTaskService.issue(issue(101L)));
+        assertEquals(WaveStatus.PLANNED, other.getStatus());
+    }
+
+    @Test
+    @DisplayName("지시 단위 취소는 아직 확정되지 않은 짝 보충지시를 함께 취소한다 — 둘 다 아무 일도 안 했다")
+    void cancelTaskCancelsPendingReplenishment() {
+        wave.issue();
+        PikngTask task = task(alloc(1L, order("OB-001"), 10, loc(2L, 1, "P-01")), 10);
+        setId(task, 900L);
+        InvMovTask rpln = InvMovTask.builder().invMovNo("MV-001").movDvsn(InvMovDvsn.RPLN)
+                .prod(prod).lot(mock(Lot.class)).fromLoc(storageLoc(5L, 9, "S-01")).toLoc(loc(2L, 1, "P-01"))
+                .drctQty(10L).pikngTaskId(900L).build();
+        when(pikngTaskRepository.findAllWithDetailsByIds(List.of(900L))).thenReturn(List.of(task));
+        when(invMovTaskRepository.findByPikngTaskIdInAndStatusNot(List.of(900L), InvMovStatus.CANCELLED))
+                .thenReturn(List.of(rpln));
+
+        pikngTaskService.cancel(cancelTasks(900L));
+
+        assertEquals(PikngTaskStatus.CANCELLED, task.getStatus());
+        assertEquals(InvMovStatus.CANCELLED, rpln.getStatus());
+    }
+
+    @Test
+    @DisplayName("보충이 확정된 지시가 있으면 웨이브 통째 취소를 거부한다 — 실물이 이미 피킹존으로 옮겨진 실적이다")
+    void cancelWaveRejectsWhenReplenishmentDone() {
+        wave.issue();
+        PikngTask task = task(alloc(1L, order("OB-001"), 10, loc(2L, 1, "P-01")), 10);
+        setId(task, 900L);
+        when(pikngTaskRepository.findByWaveIdAndStatusNot(100L, PikngTaskStatus.CANCELLED)).thenReturn(List.of(task));
+        when(invMovTaskRepository.countByPikngTaskIdInAndStatus(List.of(900L), InvMovStatus.DONE)).thenReturn(1L);
+
+        IllegalStateException e = assertThrows(IllegalStateException.class, () -> pikngTaskService.cancel(cancel(100L)));
+        assertTrue(e.getMessage().contains("보충"));
+        assertEquals(PikngTaskStatus.DIRECTED, task.getStatus());
+        assertEquals(WaveStatus.ISSUED, wave.getStatus());
+    }
+
+    @Test
+    @DisplayName("SHIP-STAGE가 없으면 발행 자체를 거부한다 — 실행에서 처음 알면 창고를 다 돈 뒤 롤백된다")
+    void issueRejectsWhenShipStageMissing() {
+        when(locRepository.findByLocCd("SHIP-STAGE")).thenReturn(Optional.empty());
+
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> pikngTaskService.issue(issue(100L)));
+        assertTrue(e.getMessage().contains("SHIP-STAGE"));
+        verify(pikngTaskRepository, never()).saveAll(anyList());
     }
 
     // ── 발행 ─────────────────────────────────────────────────────────────────
@@ -237,6 +368,24 @@ class PikngTaskServiceTest {
 
         assertTrue(e.getMessage().contains("OB-002"));
         verify(pikngTaskRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    @DisplayName("전량 미출고로 확정된(SHIPPED · 할당 0건) 주문은 발행 가드에서 빠진다 — 추가 발행을 막지 않는다")
+    void issueAdditionalIgnoresShippedNoAllocOrder() {
+        wave.issue();
+        OutbOrder allocated = order("OB-001");
+        OutbOrder shipped = order("OB-002");
+        shipped.ship();   // CREATED + 웨이브 편성 상태라 전량 미출고 확정이 통과한다
+        OutbAlloc added = alloc(3L, allocated, 15, loc(4L, 2, "C-01"));
+        when(outbOrderRepository.findByWaveId(100L)).thenReturn(List.of(allocated, shipped));
+        when(outbAllocRepository.findIssuableByWaveId(100L, PikngTaskStatus.CANCELLED)).thenReturn(List.of(added));
+        when(outbAllocRepository.findAllocatedOrderIdsByWaveId(100L)).thenReturn(List.of(allocated.getId()));
+        when(pikngTaskRepository.findMaxSrtSeqByWaveId(100L)).thenReturn(2);
+
+        PikngIssueResponse response = pikngTaskService.issueAdditional(issue(100L));
+
+        assertEquals(1, response.taskCount());
     }
 
     @Test
@@ -397,11 +546,24 @@ class PikngTaskServiceTest {
                 .build();
     }
 
+    /** 피킹존 로케이션 — 여기 잡힌 할당은 그 자리에서 집는다 */
     private Loc loc(long id, int pikngPrty, String locCd) {
+        return loc(id, pikngPrty, locCd, BizDvsn.PIKNG);
+    }
+
+    /** 보관존 로케이션 — 여기 잡힌 할당은 보충 대상이다 */
+    private Loc storageLoc(long id, int pikngPrty, String locCd) {
+        return loc(id, pikngPrty, locCd, BizDvsn.STRG);
+    }
+
+    private Loc loc(long id, int pikngPrty, String locCd, BizDvsn bizDvsn) {
         Loc created = mock(Loc.class);
         when(created.getId()).thenReturn(id);
         when(created.getPikngPrty()).thenReturn(pikngPrty);
         when(created.getLocCd()).thenReturn(locCd);
+        Zon zon = mock(Zon.class);
+        when(zon.getBizDvsn()).thenReturn(bizDvsn);
+        when(created.getZon()).thenReturn(zon);
         return created;
     }
 

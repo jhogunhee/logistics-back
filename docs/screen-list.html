@@ -264,10 +264,18 @@
   <td><code>GET /outbound/picking/waves</code><br><code>GET /outbound/picking-tasks/{taskId}/acrsts</code><br><code>POST /outbound/picking/execute</code><br><code>/outbound/picking</code></td>
 </tr>
 <tr>
+  <td class="name">수시보충 (Replenishment)</td>
+  <td>피킹은 <strong>피킹존에서만</strong> — 보관존에 잡힌 할당분은 피킹지시 발행이 도착지(고정 로케이션 → 같은 상품 피킹존 → 빈 피킹존)를 정해 피킹지시(from = 도착지)와 보충지시(<code>inv_mov_task</code> <code>RPLN</code>, 짝 <code>pikng_task_id</code>)를 함께 낸다. 여기서 보충을 <strong>전량 확정</strong>하면 보관존 → 피킹존 실물 이동 + 예약 동행(<code>InvStore.replenish()</code>, <code>tx_typ=RPLN</code> 2행) + 할당 재지정(<code>OutbAlloc.relocate()</code>).
+  <br>보충지시는 예약을 잡지 않는다(할당이 든다). 짝 피킹지시는 보충 <code>DONE</code>이어야 실행된다. 취소는 예약 변화 없음. 도착지 없는 할당은 그 할당만 발행에서 빠진다(웨이브 차단 아님).</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>GET /outbound/replenishment/waves</code><br><code>GET /outbound/waves/{wavId}/replenishments</code><br><code>POST /outbound/replenishment/confirm</code><br><code>POST /outbound/replenishment/cancel</code><br><code>/outbound/replenishment</code></td>
+</tr>
+<tr>
   <td class="name">출고확정 (Shipping)</td>
-  <td><code>PICKED</code> 주문의 <code>SHIP-STAGE</code> 반출 확정 → <code>SHIPPED</code></td>
-  <td class="st"><span class="badge todo">미구현</span></td>
-  <td>—</td>
+  <td>발행(<code>ISSUED</code>) 웨이브의 주문을 골라 확정 → <code>SHIP-STAGE</code> 실물·예약 동시 소진(<code>tx_typ=SHIP</code> 1행, <code>InvStore.ship()</code>) + 주문 <code>SHIPPED</code>·<code>shmt_dt</code>. 통과 상태는 <code>PICKED</code>(정상)와 <code>CREATED</code>(할당 0건, 전량 미출고 — 재고 처리 없음) 둘, 할당·피킹중은 「출고작업중」 거부. <strong>웨이브의 주문이 전부 닫히면 웨이브 <code>CLOSED</code></strong>.
+  <br>출고실적 테이블 없음(<code>shmt_dt</code> + <code>SHIP</code> 이력이 실적). 확정 취소는 v1 미지원. 피킹이 예약을 도착지로 옮기므로(from 예약 → to 예약) 스테이징 재고는 가용 0</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>GET /outbound/shipping/waves</code><br><code>GET /outbound/shipping/waves/{wavId}/orders</code><br><code>POST /outbound/shipping/confirm</code><br><code>/outbound/shipping</code></td>
 </tr>
 </tbody>
 </table>
@@ -397,7 +405,8 @@
 <tr><td>할당</td><td><code>/outbound/allocation</code></td><td><code>pages/outbound/Allocation.jsx</code> — 대상 웨이브 + 라인·할당내역 2단, 자동할당·수동할당(<code>components/outbound/AllocCandidateModal.jsx</code>)·해제. 자동할당은 <strong>할당 전략(SC-04)</strong>을 적용하고, 전략이 없으면 기본 동작(FEFO·점포 잔여수명·순차 소진)으로 실행된다 — 실행 결과에 적용 전략명·리비전이 표시되고 할당내역에 전략/수동 출처가 구분된다</td></tr>
 <tr><td>피킹지시</td><td><code>/outbound/pick-order</code></td><td><code>pages/outbound/PickOrder.jsx</code> — 웨이브(편성중·발행) + 지시 대상/내역 2단, 발행·발행취소. 발행 전 하단 목록이 발행될 순서 그대로라 그 자체가 발행 미리보기, 할당 0건 주문은 배너로 차단 사유 표시</td></tr>
 <tr><td>피킹</td><td><code>/outbound/picking</code></td><td><code>pages/outbound/Picking.jsx</code> — 발행 웨이브 + 지시(집품 동선 순) 2단, 수량 입력(기본 잔량)·일괄 피킹·실적 내역(<code>components/outbound/PikngAcrstModal.jsx</code>). 완료 행은 흐리게·체크 불가</td></tr>
-<tr><td>출고확정</td><td><code>/outbound/shipping</code></td><td>Placeholder</td></tr>
+<tr><td>수시보충</td><td><code>/outbound/replenishment</code></td><td><code>pages/outbound/Replenishment.jsx</code> — 보충이 있는 발행 웨이브(미확정 건수 강조) + 보충지시(보관존 → 피킹존 · 수량 · 상태) 2단, 지시 상태 행만 체크, 확정(전량)·취소. 피킹지시·피킹 화면에 「보충」 열 — 피킹은 보충 미완료 행을 체크하지 못한다</td></tr>
+<tr><td>출고확정</td><td><code>/outbound/shipping</code></td><td><code>pages/outbound/Shipping.jsx</code> — 발행 웨이브(확정대상·작업중·확정완료 건수) + 주문(상태·주문/할당/피킹/결품 수량) 2단, 확정 가능 행만 체크, 확인 모달이 결품·웨이브 종료를 짚는다</td></tr>
 
 <tr><td class="name" rowspan="5">마스터</td><td>상품 관리</td><td><code>/master/prod</code></td><td><code>pages/master/ProdMaster.jsx</code></td></tr>
 <tr><td>존 관리</td><td><code>/master/zone</code></td><td><code>pages/master/ZonMaster.jsx</code></td></tr>

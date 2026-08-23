@@ -225,10 +225,10 @@ public class InvMovService {
         }
         InvMovTask task = invMovTaskRepository.findByIdForUpdate(item.getTaskId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 이동지시입니다: " + item.getTaskId()));
-        // 재고이동·보충 유형만 이 경로에서 확정 가능 — 실물을 옮기는 동일 작업이라 경로를 가르지 않는다.
-        // 적치 지시는 자기 화면 경로에서만 처리된다
-        if (task.getMovDvsn() == InvMovDvsn.PTAWY) {
-            throw new IllegalArgumentException("적치 유형의 지시는 이 화면에서 확정할 수 없습니다 (이동구분 " + task.getMovDvsn().getLabel() + "): " + task.getInvMovNo());
+        // 재고이동·정기보충만 이 경로에서 확정 가능 — 둘 다 예약을 들어 실물을 옮기는 동일 작업이다.
+        // 수시보충(RPLN)은 예약을 들지 않아 확정이 할당 재배치까지 해야 하므로 RplnService가 전담한다
+        if (task.getMovDvsn() == InvMovDvsn.RPLN) {
+            throw new IllegalArgumentException("수시보충 지시는 이 화면에서 확정할 수 없습니다 (이동구분 " + task.getMovDvsn().getLabel() + "): " + task.getInvMovNo());
         }
         if (task.getStatus() != InvMovStatus.DIRECTED) {
             throw new IllegalArgumentException("지시 상태의 이동지시만 확정할 수 있습니다 (현재 " + task.getStatus().getLabel() + "): " + task.getInvMovNo());
@@ -278,9 +278,9 @@ public class InvMovService {
 
         InvMovTask task = invMovTaskRepository.findByIdForUpdate(taskId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 이동지시입니다: " + taskId));
-        // 재고이동·보충 유형만 이 경로에서 취소 가능 (확정과 같은 방어)
-        if (task.getMovDvsn() == InvMovDvsn.PTAWY) {
-            throw new IllegalArgumentException("적치 유형의 지시는 이 화면에서 취소할 수 없습니다 (이동구분 " + task.getMovDvsn().getLabel() + "): " + task.getInvMovNo());
+        // 재고이동·정기보충만 이 경로에서 취소 가능 (확정과 같은 방어)
+        if (task.getMovDvsn() == InvMovDvsn.RPLN) {
+            throw new IllegalArgumentException("수시보충 지시는 이 화면에서 취소할 수 없습니다 (이동구분 " + task.getMovDvsn().getLabel() + "): " + task.getInvMovNo());
         }
         if (task.getStatus() != InvMovStatus.DIRECTED) {
             throw new IllegalArgumentException("지시 상태의 이동지시만 취소할 수 있습니다 (현재 " + task.getStatus().getLabel() + "): " + task.getInvMovNo());

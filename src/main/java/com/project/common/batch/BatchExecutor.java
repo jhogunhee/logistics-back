@@ -3,6 +3,7 @@ package com.project.common.batch;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -65,6 +66,10 @@ public class BatchExecutor {
             } catch (IllegalArgumentException | IllegalStateException e) {
                 // 업무 규칙 거부 — 메시지가 곧 사용자에게 보여줄 사유다 (GlobalExceptionHandler와 같은 취급)
                 failed.add(new BatchResult.Failure(id, e.getMessage()));
+            } catch (DataIntegrityViolationException e) {
+                // 유니크·FK 충돌 — 대개 같은 대상을 두 창구가 동시에 처리한 것이다. 「처리 중 오류」로 뭉개지 않는다
+                log.warn("일괄 처리 중 제약 충돌 (id={})", id, e);
+                failed.add(new BatchResult.Failure(id, "다른 처리와 충돌했습니다 (이미 처리됐을 수 있습니다) — 다시 조회한 뒤 시도하세요."));
             } catch (RuntimeException e) {
                 log.error("일괄 처리 중 예외 (id={})", id, e);
                 failed.add(new BatchResult.Failure(id, "처리 중 오류가 발생했습니다."));

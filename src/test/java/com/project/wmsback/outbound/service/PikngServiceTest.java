@@ -33,6 +33,9 @@ import com.project.wmsback.warehouse.entity.Lot;
 import com.project.wmsback.warehouse.repository.LocRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import com.project.wmsback.inventory.entity.InvMovStatus;
+import com.project.wmsback.inventory.entity.InvMovTask;
+import com.project.wmsback.inventory.repository.InvMovTaskRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -78,6 +81,7 @@ class PikngServiceTest {
     @Mock InvRepository invRepository;
     @Mock InvHistRepository invHistRepository;
     @Mock CodeDetailRepository codeDetailRepository;
+    @Mock InvMovTaskRepository invMovTaskRepository;
 
     // 재고 쓰기 포트는 목이 아니라 실물을 쓴다 — 예약 소진·실물 이동이 검증 대상이기 때문
     private PikngService pikngService;
@@ -95,7 +99,7 @@ class PikngServiceTest {
         doCallRealMethod().when(outbAllocRepository).recalcStatus(any());
         pikngService = new PikngService(pikngTaskRepository, pikngAcrstRepository, outbAllocRepository,
                 outbWaveRepository, locRepository, new InvStore(invRepository, invHistRepository),
-                new RsnValidator(codeDetailRepository));
+                new RsnValidator(codeDetailRepository), invMovTaskRepository);
 
         invById.clear();
         createdInvs.clear();
@@ -149,7 +153,60 @@ class PikngServiceTest {
     }
 
     @Test
-    @DisplayName("피킹은 실물과 예약을 함께 소진하고 SHIP-STAGE를 늘린다 — 지시·할당·실적 세 곳 동시 갱신")
+    @DisplayName("짝 보충지시가 확정되기 전에는 집을 수 없다 — 실물이 아직 보관존에 있고 지시의 from에는 없다")
+    void executeRejectsBeforeReplenishmentDone() {
+        PikngTask task = task(1L, 30, 100);
+        InvMovTask rpln = mock(InvMovTask.class);
+        when(rpln.getPikngTaskId()).thenReturn(1L);
+        when(rpln.getStatus()).thenReturn(InvMovStatus.DIRECTED);
+        when(rpln.getInvMovNo()).thenReturn("MV-001");
+        when(invMovTaskRepository.findByPikngTaskIdIn(any())).thenReturn(List.of(rpln));
+
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> pikngService.execute(execute(item(1L, 30L))));
+        assertTrue(e.getMessage().contains("보충"));
+        assertEquals(100, task.getOutbAlloc().getInv().getOnHandQty());
+        assertEquals(0, task.getCmplQty());
+
+        // 보충이 끝나면 집는다
+        when(rpln.getStatus()).thenReturn(InvMovStatus.DONE);
+        when(outbAllocRepository.countUnpickedByOrderId(anyLong())).thenReturn(0L);
+        pikngService.execute(execute(item(1L, 30L)));
+        assertEquals(30, task.getCmplQty());
+    }
+
+    @Test
+    @DisplayName("짝 보충이 취소된 지시도 집을 수 없다 — 취소된 짝을 빼고 읽으면 「짝이 없는 지시」로 통과한다")
+    void executeRejectsWhenPairedReplenishmentCancelled() {
+        PikngTask task = task(1L, 30, 100);
+        InvMovTask rpln = mock(InvMovTask.class);
+        when(rpln.getPikngTaskId()).thenReturn(1L);
+        when(rpln.getStatus()).thenReturn(InvMovStatus.CANCELLED);
+        when(rpln.getInvMovNo()).thenReturn("MV-001");
+        when(invMovTaskRepository.findByPikngTaskIdIn(any())).thenReturn(List.of(rpln));
+
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> pikngService.execute(execute(item(1L, 30L))));
+        assertTrue(e.getMessage().contains("보충"));
+        assertEquals(100, task.getOutbAlloc().getInv().getOnHandQty());
+        assertEquals(0, task.getCmplQty());
+    }
+
+    @Test
+    @DisplayName("실물이 예약보다 적으면 읽을 수 있는 메시지로 막는다 — DB CHECK 위반을 원문으로 노출하지 않는다")
+    void executeRejectsWhenStockBelowRequestedQty() {
+        // 장부가 어긋난 상태 — 예약 30인데 실물은 10뿐이다
+        PikngTask task = task(1L, 30, 10);
+
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> pikngService.execute(execute(item(1L, 30L))));
+        assertTrue(e.getMessage().contains("실물"));
+        assertEquals(10, task.getOutbAlloc().getInv().getOnHandQty());
+        assertEquals(0, task.getCmplQty());
+    }
+
+    @Test
+    @DisplayName("피킹은 출발지의 실물·예약을 함께 소진하고 SHIP-STAGE에 실물·예약을 함께 쌓는다 — 지시·할당·실적 세 곳 동시 갱신")
     void executeMovesStockAndKeepsIdentity() {
         PikngTask task = task(1L, 30, 100);
         Inv storage = task.getOutbAlloc().getInv();
@@ -160,9 +217,11 @@ class PikngServiceTest {
         // 출발지: 실물 −30, 예약 −30 (aloc ≤ on_hand 불변식 유지)
         assertEquals(70, storage.getOnHandQty());
         assertEquals(0, storage.getAlocQty());
-        // 도착지(SHIP-STAGE): 실물 +30
+        // 도착지(SHIP-STAGE): 실물 +30, 예약 +30 — 예약이 실물을 따라간다 (스테이징 가용 0)
         assertEquals(1, createdInvs.size());
         assertEquals(30, createdInvs.get(0).getOnHandQty());
+        assertEquals(30, createdInvs.get(0).getAlocQty());
+        assertEquals(0, createdInvs.get(0).avalQty());
         // 항등식 — 지시 cmpl = 할당 pikng = 실적 합
         assertEquals(30, task.getCmplQty());
         assertEquals(PikngTaskStatus.DONE, task.getStatus());

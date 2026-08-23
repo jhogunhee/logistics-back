@@ -56,7 +56,7 @@ class NbrRuleServiceTest {
 
     @Test
     void 신규_등록시_prfx가_비어있으면_예외() {
-        when(nbrRuleRepository.existsById("PROD_CD")).thenReturn(false);
+        // 형식 검사가 존재 확인보다 먼저라 저장소는 호출되지 않는다
         NbrRuleSaveRequest row = createRow("C", "PROD_CD", "", 4, DyncKyTyp.NONE);
 
         assertThrows(IllegalArgumentException.class, () -> nbrRuleService.saveAll(List.of(row)));

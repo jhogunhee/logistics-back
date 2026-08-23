@@ -2,6 +2,7 @@ package com.project.wmsback.inventory.service;
 
 import com.project.mdm.prod.entity.TmpZon;
 import com.project.wmsback.inventory.dto.LocMapResponse;
+import com.project.wmsback.inventory.repository.InvAlocRecRepository;
 import com.project.wmsback.inventory.repository.InvRepository;
 import com.project.wmsback.inventory.repository.LocMapQueryRepository;
 import com.project.wmsback.inventory.repository.LocMapQueryRepository.LocRow;
@@ -30,12 +31,13 @@ class InvServiceTest {
 
     @Mock InvRepository invRepository;
     @Mock LocMapQueryRepository locMapQueryRepository;
+    @Mock InvAlocRecRepository invAlocRecRepository;
 
     private InvService service;
 
     @BeforeEach
     void setUp() {
-        service = new InvService(invRepository, locMapQueryRepository);
+        service = new InvService(invRepository, locMapQueryRepository, invAlocRecRepository);
     }
 
     private LocRow row(Long locId, String locCd, String fxngProdCd, Long fxngMinQty) {

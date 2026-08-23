@@ -11,7 +11,7 @@ import java.util.List;
 
 public interface PikngTaskRepository extends JpaRepository<PikngTask, Long>, PikngTaskRepositoryCustom {
 
-    /** 웨이브의 살아 있는 지시 (CANCELLED 제외) — 지시취소의 대상·실적 0 검증의 재료 */
+    /** 웨이브의 취소되지 않은 지시 (DIRECTED·DONE) — 지시취소의 대상·실적 0 검증·「지시가 남았나」의 재료 */
     List<PikngTask> findByWaveIdAndStatusNot(Long wavId, PikngTaskStatus status);
 
     /**
@@ -36,6 +36,19 @@ public interface PikngTaskRepository extends JpaRepository<PikngTask, Long>, Pik
      */
     @Query("select coalesce(max(t.srtSeq), 0) from PikngTask t where t.wave.id = :wavId")
     int findMaxSrtSeqByWaveId(@Param("wavId") Long wavId);
+
+    /**
+     * 출고확정 대상 주문들의 <b>살아 있는 지시</b> — 반출할 스테이징 키(상품 · Lot)와 수량({@code cmpl_qty})의
+     * 출처다. 할당이 아니라 지시에서 읽는 이유: 할당이 가리키는 보관 {@code inv} 행은 전량 집품으로
+     * 지워졌을 수 있지만 지시는 재고 키를 <b>발행 시점 스냅샷</b>으로 들고 있다(바로 그 용도로 둔 컬럼이다).
+     * 실적이 붙은 지시는 취소되지 않으므로 PICKED 주문의 집품 전량이 여기 있다.
+     */
+    @Query("select t from PikngTask t"
+            + " join fetch t.outbAlloc a join fetch a.outbLine l join fetch l.outbOrder o"
+            + " join fetch t.prod join fetch t.lot"
+            + " where o.id in :orderIds and t.status <> :cancelled")
+    List<PikngTask> findLiveWithDetailsByOrderIds(@Param("orderIds") Collection<Long> orderIds,
+                                                  @Param("cancelled") PikngTaskStatus cancelled);
 
     /** 실행 대상 지시의 웨이브 — 웨이브 행 락을 재고 락보다 먼저 잡기 위한 선조회 */
     @Query("select distinct t.wave.id from PikngTask t where t.id in :ids")

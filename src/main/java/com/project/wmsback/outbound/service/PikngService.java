@@ -1,7 +1,10 @@
 package com.project.wmsback.outbound.service;
 
 import com.project.wmsback.inventory.entity.Inv;
+import com.project.wmsback.inventory.entity.InvMovStatus;
+import com.project.wmsback.inventory.entity.InvMovTask;
 import com.project.wmsback.inventory.entity.RefDocTyp;
+import com.project.wmsback.inventory.repository.InvMovTaskRepository;
 import com.project.wmsback.inventory.service.InvDocRef;
 import com.project.wmsback.inventory.service.InvStore;
 import com.project.wmsback.inventory.service.RsnValidator;
@@ -73,6 +76,7 @@ public class PikngService {
     private final LocRepository locRepository;
     private final InvStore invStore;
     private final RsnValidator rsnValidator;
+    private final InvMovTaskRepository invMovTaskRepository;
 
     // ── 조회 ─────────────────────────────────────────────────────────────────
 
@@ -97,6 +101,15 @@ public class PikngService {
         if (tasks.size() != qtyByTaskId.size()) {
             throw new IllegalArgumentException("존재하지 않는 지시가 포함돼 있습니다.");
         }
+        // 짝 보충지시가 있으면 확정(DONE)된 뒤에야 집을 수 있다 — 그 전에는 실물이 아직 보관존에 있고
+        // 지시의 from(피킹존)에는 없다. 웨이브 락 뒤에 읽으므로 보충 확정과 직렬화된다.
+        // 상태를 가리지 않고 읽는다 — 취소된 짝을 빼고 읽으면 「짝이 없는 지시」로 보여 그대로 통과한다.
+        // 보충 취소가 짝 지시도 함께 취소하므로 정상 경로에서는 여기 걸리지 않지만, 가드가 두 서비스에
+        // 걸친 약속에 기대지 않고 스스로 성립해야 한다
+        Map<Long, InvMovTask> rplnByTask = new HashMap<>();
+        for (InvMovTask rpln : invMovTaskRepository.findByPikngTaskIdIn(qtyByTaskId.keySet())) {
+            rplnByTask.put(rpln.getPikngTaskId(), rpln);
+        }
         for (PikngTask task : tasks) {
             long qty = qtyByTaskId.get(task.getId());
             if (task.getStatus() != PikngTaskStatus.DIRECTED) {
@@ -106,6 +119,17 @@ public class PikngService {
             if (qty > task.remainingQty()) {
                 throw new IllegalArgumentException("지시 잔량을 초과했습니다 (잔량 " + task.remainingQty()
                         + ", 요청 " + qty + "): " + rowName(task));
+            }
+            InvMovTask rpln = rplnByTask.get(task.getId());
+            if (rpln != null && rpln.getStatus() == InvMovStatus.CANCELLED) {
+                // 보충 취소가 짝 지시도 취소하므로 여기 오는 것은 정합성 오류다 — 실물이 보관존에 있는 채로
+                // 피킹존에서 집으라는 지시가 살아 있다는 뜻이라 집품을 통과시킬 수 없다
+                throw new IllegalStateException("보충이 취소된 지시입니다 (정합성 오류) — 이 지시를 취소하고"
+                        + " 다시 발행하세요 (보충 " + rpln.getInvMovNo() + "): " + rowName(task));
+            }
+            if (rpln != null && rpln.getStatus() != InvMovStatus.DONE) {
+                throw new IllegalStateException("보충이 끝나지 않은 지시입니다 — 보충 확정 후 집품하세요 (보충 "
+                        + rpln.getInvMovNo() + "): " + rowName(task));
             }
         }
 
@@ -134,8 +158,16 @@ public class PikngService {
             OutbOrder order = alloc.getOutbLine().getOutbOrder();
             beforeByOrder.putIfAbsent(order.getId(), order.getStatus());
 
-            invStore.pick(locked.get(alloc.getInv().getId()), shipStage, qty,
-                    InvDocRef.of(RefDocTyp.OUTBOUND, order.getOutbNo()));
+            // 실물·예약을 명시적으로 본다 — 없으면 ck_inv_qty 위반이 원문 그대로 노출된다.
+            // 결품 종결 ④ · 보충 확정 · 출고확정이 같은 자리에서 하는 검사와 같은 형태다.
+            // 같은 재고 행을 여러 지시가 나눠 집을 수 있어 앞 지시가 소진한 뒤의 현재 값으로 판정한다
+            Inv inv = locked.get(alloc.getInv().getId());
+            if (inv.getOnHandQty() < qty || inv.getAlocQty() < qty) {
+                throw new IllegalStateException("집품할 실물·예약이 요청 수량보다 적습니다 (정합성 오류 — 실물 "
+                        + inv.getOnHandQty() + " / 예약 " + inv.getAlocQty() + " / 집품 " + qty + "): " + rowName(task));
+            }
+
+            invStore.pick(inv, shipStage, qty, InvDocRef.of(RefDocTyp.OUTBOUND, order.getOutbNo()));
             task.execute(qty);
             alloc.addPikngQty(qty);
             pikngAcrstRepository.save(PikngAcrst.builder()
@@ -186,6 +218,10 @@ public class PikngService {
     @Transactional
     public PikngCloseShortResponse closeShort(PikngCloseShortRequest request) {
         Map<Long, PikngCloseShortRequest.Item> itemByTaskId = validatedCloseShort(request);
+        // 사유코드도 락 전에 본다 — 사유 미선택 하나로 잡아 둔 락을 들고 롤백할 일이 아니다
+        Map<Long, String> rsnDscrByTaskId = new HashMap<>();
+        itemByTaskId.forEach((taskId, item) -> rsnDscrByTaskId.put(taskId,
+                rsnValidator.validate(SHOTGE_RSN_GRP_CD, "결품사유", item.getRsnCd(), item.getRsnDscr())));
 
         // ① 웨이브 행 락 — 피킹 실행과 같은 순서(웨이브 오름차순 → 재고 키 오름차순)로 잡는다.
         //    InvMovService의 취소가 재고를 먼저 잠그는 것과 갈리는 지점이고, 이유는 출고에는
@@ -220,8 +256,7 @@ public class PikngService {
         long totalShotge = 0;
         for (PikngTask task : tasks) {
             PikngCloseShortRequest.Item item = itemByTaskId.get(task.getId());
-            String rsnDscr = rsnValidator.validate(SHOTGE_RSN_GRP_CD, "결품사유",
-                    item.getRsnCd(), item.getRsnDscr());
+            String rsnDscr = rsnDscrByTaskId.get(task.getId());
             OutbAlloc alloc = task.getOutbAlloc();
             OutbOrder order = alloc.getOutbLine().getOutbOrder();
             long remaining = task.remainingQty();
@@ -256,7 +291,7 @@ public class PikngService {
         return new PikngCloseShortResponse(tasks.size(), totalShotge, changes);
     }
 
-    /** 결품 종결 요청 검증 — 지시 지정·중복 없음. 사유코드는 그룹 대조가 필요해 본 처리에서 본다 */
+    /** 결품 종결 요청 검증 — 지시 지정·중복 없음. 사유코드는 그룹 대조가 필요해 {@link #closeShort}가 락 전에 본다 */
     private static Map<Long, PikngCloseShortRequest.Item> validatedCloseShort(PikngCloseShortRequest request) {
         List<PikngCloseShortRequest.Item> items = request.getItems();
         if (items == null || items.isEmpty()) {

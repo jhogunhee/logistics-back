@@ -37,13 +37,11 @@ import com.project.wmsback.strategy.core.entity.StgyTyp;
 import com.project.wmsback.strategy.core.entity.TrgrTyp;
 import com.project.wmsback.strategy.core.service.StgyExecLogService;
 import com.project.wmsback.warehouse.entity.LocTyp;
-import com.project.wmsback.warehouse.entity.Lot;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -119,27 +117,44 @@ public class OutbAllocService {
         // 전략도 실행과 같은 창구로 고른다. 다만 선택 규칙이 「대상 라인 전부 만족」이라,
         // 대상이 이 라인 하나인 여기서는 웨이브 전체로 고른 전략과 다를 수 있다
         AlocStgy stgy = alocStgyService.select(List.of(target)).orElse(null);
-        List<AlocStgyDefinition.SlotDef> rstrctSlots = stgy != null
-                ? AlocStgyResponse.from(stgy).toDefinition().slotsOf(AlocSlotTyp.RSTRCT)
-                : List.of();
+        AlocStgyDefinition def = stgy != null ? AlocStgyResponse.from(stgy).toDefinition() : null;
+        List<AlocStgyDefinition.SlotDef> rstrctSlots = def != null ? def.slotsOf(AlocSlotTyp.RSTRCT) : List.of();
+        // 계층(재고위치) 축도 자동할당과 같은 판정을 내린다 — 제약만 보여 주면 「잔여수명은 초록인데
+        // 자동할당은 절대 안 건드리는」 재고가 화면에서 구분되지 않는다
+        List<AlocStgyDefinition.SlotDef> tiers = def != null ? def.slotsOf(AlocSlotTyp.INVN_FLTR) : List.of();
+        Map<Long, String> bizDvsnByZon = alocQueryRepository.bizDvsnByZon();
 
         List<AllocCandidateResponse> result = new ArrayList<>();
         for (Inv candidate : outbAllocRepository.findCandidates(line.getProd().getId())) {
-            if (expired(candidate.getLot(), target.expctDe())) {
+            if (AlocPlanner.expired(candidate.getLot().getExpiryDt(), target.expctDe())) {
                 continue;
             }
-            AlocInvnCandidate snapshot = AlocInvnCandidate.of(candidate, null);
+            AlocInvnCandidate snapshot = AlocInvnCandidate.of(candidate,
+                    bizDvsnByZon.get(candidate.getLoc().getZon().getId()));
             BigDecimal rate = AlocRstrct.lifeRate(snapshot, target);
             String rjctRsn = AlocPlanner.rstrctReason(rstrctSlots, snapshot, target);
+            Integer tierSeq = AlocPlanner.tierSeq(tiers, snapshot);
             result.add(new AllocCandidateResponse(
                     candidate.getId(),
                     candidate.getLoc().getId(), candidate.getLoc().getLocCd(),
                     candidate.getLot().getId(), candidate.getLot().getLotNo(),
                     candidate.getLot().getMfgDt(), candidate.getLot().getExpiryDt(),
                     candidate.getOnHandQty(), candidate.avalQty(),
-                    rate, rjctRsn == null, rjctRsn));
+                    rate, rjctRsn == null, rjctRsn,
+                    tierSeq, tierCondOf(tiers, tierSeq)));
         }
         return result;
+    }
+
+    /** 속한 계층의 조건 한 줄. 계층 정의가 없으면 "전체", 어느 계층에도 안 속하면 null */
+    private static String tierCondOf(List<AlocStgyDefinition.SlotDef> tiers, Integer tierSeq) {
+        if (tierSeq == null) {
+            return null;
+        }
+        if (tiers.isEmpty()) {
+            return "전체";
+        }
+        return AlocPlanner.describeCond(tiers.get(tierSeq - 1).condOrEmpty());
     }
 
     // ── 자동할당 ──────────────────────────────────────────────────────────────
@@ -432,7 +447,7 @@ public class OutbAllocService {
                 throw new IllegalArgumentException("라인의 상품과 다른 재고입니다: "
                         + candidate.getProd().getProdCd() + " ≠ " + line.getProd().getProdCd());
             }
-            if (expired(candidate.getLot(), line.getOutbOrder().getExpctDe())) {
+            if (AlocPlanner.expired(candidate.getLot().getExpiryDt(), line.getOutbOrder().getExpctDe())) {
                 throw new IllegalArgumentException("유통기한이 지난 Lot은 할당할 수 없습니다: "
                         + candidate.getLot().getLotNo());
             }
@@ -528,12 +543,6 @@ public class OutbAllocService {
         // 남은 할당이 없으면 CREATED로, 남은 것이 전부 소진됐으면 PICKED로 — 「0건이 됐나」만
         // 묻던 옛 판정이 실적 있는 할당 하나만 남은 주문을 PICKING에 고이게 했다
         orders.forEach(outbAllocRepository::recalcStatus);
-    }
-
-    // ── 잔여수명 (수동할당 화면 표시용) ────────────────────────────────────────
-
-    private boolean expired(Lot lot, LocalDate baseDe) {
-        return lot.getExpiryDt() != null && lot.getExpiryDt().isBefore(baseDe);
     }
 
     /**
