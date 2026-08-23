@@ -25,7 +25,8 @@ public class AllocTargetSearchCond {
     private String wavNo;
     private String prodCd;
     private String outbNo;
-    private String storeCd;
+    /** 점포 — 팝업에서 고른 식별자라 정확일치다 (코드 부분일치 아니다) */
+    private Long storeId;
     /** 출고 예정일 범위 — 웨이브는 「같은 날 나갈 주문」 묶음이라 주문일이 아니라 이쪽을 본다 */
     private LocalDate expctDeFrom;
     private LocalDate expctDeTo;

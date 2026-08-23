@@ -175,8 +175,8 @@ public class WaveStgyExecService {
         OutbOrderSearchCond cond = new OutbOrderSearchCond();
         cond.setStatus(OutbStatus.CREATED);
         cond.setUnassigned(true);
-        cond.setDateFrom(expctDe);
-        cond.setDateTo(expctDe);
+        cond.setExpctDeFrom(expctDe);
+        cond.setExpctDeTo(expctDe);
         return cond;
     }
 

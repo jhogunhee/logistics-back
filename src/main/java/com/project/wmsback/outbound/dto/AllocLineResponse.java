@@ -12,7 +12,7 @@ public record AllocLineResponse(
         Long outbLineId,
         Long outbOrderId,
         String outbNo,
-        String storeCd,
+        Long storeId,
         String storeNm,
         LocalDate expctDe,
         Long prodId,
@@ -24,10 +24,10 @@ public record AllocLineResponse(
 ) {
     /** QueryDSL Projections 용 — 잔량은 저장값이 아니라 파생이므로 여기서 만든다 */
     public AllocLineResponse(Long outbLineId, Long outbOrderId, String outbNo,
-                             String storeCd, String storeNm, LocalDate expctDe,
+                             Long storeId, String storeNm, LocalDate expctDe,
                              Long prodId, String prodCd, String prodNm,
                              long odrQty, long alocQty) {
-        this(outbLineId, outbOrderId, outbNo, storeCd, storeNm, expctDe,
+        this(outbLineId, outbOrderId, outbNo, storeId, storeNm, expctDe,
                 prodId, prodCd, prodNm, odrQty, alocQty, odrQty - alocQty);
     }
 }

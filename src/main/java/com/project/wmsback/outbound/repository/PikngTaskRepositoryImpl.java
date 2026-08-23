@@ -56,7 +56,7 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
                         outbWave.status.in(WaveStatus.PLANNED, WaveStatus.ISSUED),
                         statusEq(cond.getStatus()),
                         waveNoContains(cond.getWavNo()),
-                        matchingLineExists(cond)
+                        withinExpctDe(cond)
                 )
                 .groupBy(outbWave.id, outbWave.wavNo, outbWave.status, outbWave.issuedDt)
                 .orderBy(outbWave.id.desc())
@@ -257,7 +257,8 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
                         waveNoContains(cond.getWavNo()),
                         cond.getExpctDeFrom() != null ? outbOrder.expctDe.goe(cond.getExpctDeFrom()) : null,
                         cond.getExpctDeTo() != null ? outbOrder.expctDe.loe(cond.getExpctDeTo()) : null,
-                        matchingTaskProdExists(cond.getProdCd())
+                        matchingTaskProdExists(cond.getProdCd()),
+                        matchingTaskLocExists(cond.getLocCd())
                 )
                 .groupBy(outbWave.id, outbWave.wavNo, outbWave.issuedDt)
                 .orderBy(outbWave.id.desc())
@@ -296,29 +297,20 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
     }
 
     /**
-     * 주문 쪽 검색조건(상품·출고번호·점포·출고예정일) — <b>웨이브를 거른다.</b>
-     * 조건에 맞는 라인이 하나라도 있으면 그 웨이브가 통째로 걸리고, 합계는 웨이브 전체로 낸다
-     * ({@code OutbAllocRepositoryImpl.matchingLineExists}와 같은 규칙).
+     * 출고예정일 조건 — 웨이브 컬럼이 아니라 소속 주문에서 파생하므로 EXISTS로 건다.
+     * 그 기간에 걸리는 주문이 하나라도 있으면 그 웨이브가 나오고, 합계는 언제나 웨이브 전체다.
      */
-    private BooleanExpression matchingLineExists(PikngTaskSearchCond cond) {
-        boolean hasProd = StringUtils.hasText(cond.getProdCd());
-        boolean hasOutbNo = StringUtils.hasText(cond.getOutbNo());
-        boolean hasStore = StringUtils.hasText(cond.getStoreCd());
+    private BooleanExpression withinExpctDe(PikngTaskSearchCond cond) {
         boolean hasFrom = cond.getExpctDeFrom() != null;
         boolean hasTo = cond.getExpctDeTo() != null;
-        if (!hasProd && !hasOutbNo && !hasStore && !hasFrom && !hasTo) {
+        if (!hasFrom && !hasTo) {
             return null;
         }
-        var line = new com.project.wmsback.outbound.entity.QOutbLine("matchLine");
         var order = new com.project.wmsback.outbound.entity.QOutbOrder("matchOrder");
         return JPAExpressions.selectOne()
-                .from(line)
-                .join(line.outbOrder, order)
+                .from(order)
                 .where(
                         order.wave.id.eq(outbWave.id),
-                        hasProd ? line.prod.prodCd.containsIgnoreCase(cond.getProdCd()) : null,
-                        hasOutbNo ? order.outbNo.containsIgnoreCase(cond.getOutbNo()) : null,
-                        hasStore ? order.store.storeCd.containsIgnoreCase(cond.getStoreCd()) : null,
                         hasFrom ? order.expctDe.goe(cond.getExpctDeFrom()) : null,
                         hasTo ? order.expctDe.loe(cond.getExpctDeTo()) : null
                 )
@@ -337,6 +329,25 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
                         task.wave.eq(outbWave),
                         task.status.ne(PikngTaskStatus.CANCELLED),
                         task.prod.prodCd.containsIgnoreCase(prodCd)
+                )
+                .exists();
+    }
+
+    /**
+     * 로케이션 조건 — 그 로케이션에서 집을 지시가 있는 웨이브만 남긴다.
+     * 내 구역에 일감이 없는 웨이브를 목록에서 빼는 게 목적이다 — 하단 지시 행을 좁히는 건 화면이 맡는다.
+     */
+    private BooleanExpression matchingTaskLocExists(String locCd) {
+        if (!StringUtils.hasText(locCd)) {
+            return null;
+        }
+        var task = new com.project.wmsback.outbound.entity.QPikngTask("matchLocTask");
+        return JPAExpressions.selectOne()
+                .from(task)
+                .where(
+                        task.wave.eq(outbWave),
+                        task.status.ne(PikngTaskStatus.CANCELLED),
+                        task.fromLoc.locCd.containsIgnoreCase(locCd)
                 )
                 .exists();
     }

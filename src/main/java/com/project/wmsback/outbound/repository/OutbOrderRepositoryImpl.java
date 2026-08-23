@@ -48,8 +48,8 @@ public class OutbOrderRepositoryImpl implements OutbOrderRepositoryCustom {
                         vhclFltnoEq(cond.getVhclFltno()),
                         waveIdEq(cond.getWavId()),
                         unassigned(cond.getUnassigned()),
-                        expctDeGoe(cond.getDateFrom()),
-                        expctDeLoe(cond.getDateTo())
+                        expctDeGoe(cond.getExpctDeFrom()),
+                        expctDeLoe(cond.getExpctDeTo())
                 )
                 .orderBy(outbOrder.id.desc())
                 .fetch();
@@ -68,8 +68,8 @@ public class OutbOrderRepositoryImpl implements OutbOrderRepositoryCustom {
                         vhclFltnoEq(cond.getVhclFltno()),
                         waveIdEq(cond.getWavId()),
                         unassigned(cond.getUnassigned()),
-                        expctDeGoe(cond.getDateFrom()),
-                        expctDeLoe(cond.getDateTo())
+                        expctDeGoe(cond.getExpctDeFrom()),
+                        expctDeLoe(cond.getExpctDeTo())
                 )
                 .orderBy(outbOrder.id.asc())
                 .fetch();
@@ -138,7 +138,7 @@ public class OutbOrderRepositoryImpl implements OutbOrderRepositoryCustom {
     /** 주문 쪽 검색조건 — 할당·피킹지시 화면과 같은 EXISTS. 어느 웨이브를 보여줄지만 정하고 건수는 웨이브 전체다 */
     private BooleanExpression shmtOrderMatches(ShmtSearchCond cond) {
         boolean hasOutbNo = StringUtils.hasText(cond.getOutbNo());
-        boolean hasStore = StringUtils.hasText(cond.getStoreCd());
+        boolean hasStore = cond.getStoreId() != null;
         boolean hasFrom = cond.getExpctDeFrom() != null;
         boolean hasTo = cond.getExpctDeTo() != null;
         if (!hasOutbNo && !hasStore && !hasFrom && !hasTo) {
@@ -150,7 +150,7 @@ public class OutbOrderRepositoryImpl implements OutbOrderRepositoryCustom {
                 .where(
                         order.wave.id.eq(outbWave.id),
                         hasOutbNo ? order.outbNo.containsIgnoreCase(cond.getOutbNo()) : null,
-                        hasStore ? order.store.storeCd.containsIgnoreCase(cond.getStoreCd()) : null,
+                        hasStore ? order.store.id.eq(cond.getStoreId()) : null,
                         hasFrom ? order.expctDe.goe(cond.getExpctDeFrom()) : null,
                         hasTo ? order.expctDe.loe(cond.getExpctDeTo()) : null
                 )
@@ -201,11 +201,11 @@ public class OutbOrderRepositoryImpl implements OutbOrderRepositoryCustom {
     }
 
     /** 기간 조건은 출고예정일을 본다 — 주문일이 아니다. 웨이브는 「같은 날 나갈 주문」을 묶는 단위다 */
-    private BooleanExpression expctDeGoe(LocalDate dateFrom) {
-        return dateFrom != null ? outbOrder.expctDe.goe(dateFrom) : null;
+    private BooleanExpression expctDeGoe(LocalDate expctDeFrom) {
+        return expctDeFrom != null ? outbOrder.expctDe.goe(expctDeFrom) : null;
     }
 
-    private BooleanExpression expctDeLoe(LocalDate dateTo) {
-        return dateTo != null ? outbOrder.expctDe.loe(dateTo) : null;
+    private BooleanExpression expctDeLoe(LocalDate expctDeTo) {
+        return expctDeTo != null ? outbOrder.expctDe.loe(expctDeTo) : null;
     }
 }

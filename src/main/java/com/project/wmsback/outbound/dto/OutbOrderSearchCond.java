@@ -32,10 +32,13 @@ public class OutbOrderSearchCond {
     /** 웨이브 편성 화면의 후보 필터 — true: 미편성만, false: 편성된 것만, null: 무시 */
     private Boolean unassigned;
 
-    /** 출고 예정일 범위 (from ~ to). 주문일이 아니다 — 웨이브 편성 대상도 이 기준으로 좁힌다 */
+    /**
+     * 출고 예정일 범위 (from ~ to). 주문일이 아니다 — 웨이브 편성 대상도 이 기준으로 좁힌다.
+     * 이름은 다른 출고 화면들과 맞췄다 — 같은 「출고예정일」인데 여기만 파라미터명이 달랐다.
+     */
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-    private LocalDate dateFrom;
+    private LocalDate expctDeFrom;
 
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-    private LocalDate dateTo;
+    private LocalDate expctDeTo;
 }

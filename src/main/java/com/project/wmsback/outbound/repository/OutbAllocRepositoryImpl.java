@@ -127,7 +127,7 @@ public class OutbAllocRepositoryImpl implements OutbAllocRepositoryCustom {
     public List<AllocLineResponse> lineRows(Long wavId) {
         List<Tuple> rows = queryFactory
                 .select(outbLine.id, outbOrder.id, outbOrder.outbNo,
-                        outbOrder.store.storeCd, outbOrder.store.storeNm, outbOrder.expctDe,
+                        outbOrder.store.id, outbOrder.store.storeNm, outbOrder.expctDe,
                         outbLine.prod.id, outbLine.prod.prodCd, outbLine.prod.prodNm,
                         outbLine.odrQty, alocQtyOf(outbLine))
                 .from(outbLine)
@@ -140,7 +140,7 @@ public class OutbAllocRepositoryImpl implements OutbAllocRepositoryCustom {
         for (Tuple row : rows) {
             result.add(new AllocLineResponse(
                     row.get(outbLine.id), row.get(outbOrder.id), row.get(outbOrder.outbNo),
-                    row.get(outbOrder.store.storeCd), row.get(outbOrder.store.storeNm),
+                    row.get(outbOrder.store.id), row.get(outbOrder.store.storeNm),
                     row.get(outbOrder.expctDe),
                     row.get(outbLine.prod.id), row.get(outbLine.prod.prodCd), row.get(outbLine.prod.prodNm),
                     orZero(row.get(outbLine.odrQty)), orZero(row.get(alocQtyOf(outbLine)))));
@@ -276,7 +276,7 @@ public class OutbAllocRepositoryImpl implements OutbAllocRepositoryCustom {
     private BooleanExpression matchingLineExists(AllocTargetSearchCond cond) {
         boolean hasProd = StringUtils.hasText(cond.getProdCd());
         boolean hasOutbNo = StringUtils.hasText(cond.getOutbNo());
-        boolean hasStore = StringUtils.hasText(cond.getStoreCd());
+        boolean hasStore = cond.getStoreId() != null;
         boolean hasFrom = cond.getExpctDeFrom() != null;
         boolean hasTo = cond.getExpctDeTo() != null;
         if (!hasProd && !hasOutbNo && !hasStore && !hasFrom && !hasTo) {
@@ -291,7 +291,7 @@ public class OutbAllocRepositoryImpl implements OutbAllocRepositoryCustom {
                         order.wave.id.eq(outbWave.id),
                         hasProd ? line.prod.prodCd.containsIgnoreCase(cond.getProdCd()) : null,
                         hasOutbNo ? order.outbNo.containsIgnoreCase(cond.getOutbNo()) : null,
-                        hasStore ? order.store.storeCd.containsIgnoreCase(cond.getStoreCd()) : null,
+                        hasStore ? order.store.id.eq(cond.getStoreId()) : null,
                         hasFrom ? order.expctDe.goe(cond.getExpctDeFrom()) : null,
                         hasTo ? order.expctDe.loe(cond.getExpctDeTo()) : null
                 )
