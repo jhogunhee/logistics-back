@@ -66,6 +66,14 @@ public class Prod extends BaseEntity {
     private Integer shelfLifeDays;
 
     /**
+     * 상품 이미지 URL (Supabase Storage 퍼블릭 객체). NULL = 이미지 없음 — 화면이 폴백을 그린다.
+     * 파일은 프론트가 Storage로 직접 올리고 여기엔 주소만 남으므로, 백엔드는 이 값이 가리키는
+     * 객체가 실제로 있는지 알지 못한다(고아 URL은 화면 폴백이 흡수한다).
+     */
+    @Column(name = "img_url", length = 500)
+    private String imgUrl;
+
+    /**
      * 이 상품이 갖는 포장들. {@code inbUomCd} · {@code outbUomCd}는 반드시 이 안의 한 행을 가리킨다
      * (검증은 ProdService). 환산수량을 상품에 컬럼으로 두지 않고 여기서 파생시킨다.
      */
@@ -74,20 +82,22 @@ public class Prod extends BaseEntity {
 
     @Builder
     private Prod(String prodCd, String prodNm, TmpZon tmpZon,
-                 String inbUomCd, String outbUomCd, Integer shelfLifeDays) {
+                 String inbUomCd, String outbUomCd, Integer shelfLifeDays, String imgUrl) {
         this.prodCd = prodCd;
         this.prodNm = prodNm;
         this.tmpZon = tmpZon;
         this.inbUomCd = inbUomCd;
         this.outbUomCd = outbUomCd;
         this.shelfLifeDays = shelfLifeDays;
+        this.imgUrl = imgUrl;
     }
 
     /** 입고/출고단위는 여기서 바꾸지 않는다 — 역할 이동은 {@link #assignInbUomCd} · {@link #assignOutbUomCd} */
-    public void update(String prodNm, TmpZon tmpZon, Integer shelfLifeDays) {
+    public void update(String prodNm, TmpZon tmpZon, Integer shelfLifeDays, String imgUrl) {
         this.prodNm = prodNm;
         this.tmpZon = tmpZon;
         this.shelfLifeDays = shelfLifeDays;
+        this.imgUrl = imgUrl;
     }
 
     public void addUom(ProdUom uom) {

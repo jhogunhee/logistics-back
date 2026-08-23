@@ -4,7 +4,9 @@
 
 DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있다. 필드와 컬럼이 1:1로 붙어 있는 구조라 두 사전이 겹치는 자리가 생기는데, 어긋나는 항목은 아래 「이미 쓰고 있는 이름과 어긋나는 곳」에 모아뒀다.
 
-238개 단어이며 한글·약어 모두 중복이 없다. (2026-08-02 전략 시스템 설계에서 15개 추가 · 2026-08-03 재고조사 설계에서 `실사 STKTK` 1개 추가 · 2026-08-13 재고 로트변경 설계에서 `신규 NEW` 1개 추가 · 2026-08-21 로케이션 점유 맵 설계에서 `맵 MAP` 1개 추가)
+242개 단어이며 한글·약어 모두 중복이 없다. (2026-08-02 전략 시스템 설계에서 15개 추가 · 2026-08-03 재고조사 설계에서 `실사 STKTK` 1개 추가 · 2026-08-13 재고 로트변경 설계에서 `신규 NEW` 1개 추가 · 2026-08-21 로케이션 점유 맵 설계에서 `맵 MAP` 1개 추가 · 2026-08-23 상품 이미지 설계에서 `이미지 IMG` · `URL URL` 2개 추가)
+
+> 개수는 두 표를 실측한 값이다. 2026-08-23에 맞췄다 — `MAP`이 가나다순 표에만 있고 역인덱스에 빠져 있었고, 머리말 숫자도 실제 행 수보다 낮게 밀려 있었다. 단어를 추가하면 **두 표에 모두** 넣고 이 숫자를 함께 올린다.
 
 ## 이름 만드는 규칙
 
@@ -36,6 +38,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 단어 | 약어 | 영문명 |
 |---|---|---|
 | ID | `ID` | Identification |
+| URL | `URL` | Uniform Resource Locator |
 | 가능 | `PSBL` | Possible |
 | 가로 | `WDTH` | Width |
 | 가용 | `AVAL` | Available |
@@ -188,6 +191,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 응답 | `RSPS` | Response |
 | 이동 | `MOV` | Move |
 | 이메일 | `EMAIL` | Id |
+| 이미지 | `IMG` | Image |
 | 일련번호 | `SN` | Serial Number |
 | 일시 | `DT` | Date And Time |
 | 일자 | `DE` | Date |
@@ -383,6 +387,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | `HP` | 휴대전화 | HandPhone |
 | `ID` | ID | Identification |
 | `IF` | 연계 | Interface |
+| `IMG` | 이미지 | Image |
 | `INB` | 입고 | Inbound |
 | `INF` | 정보 | Information |
 | `INQ` | 조회 | Inquiry |
@@ -404,6 +409,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | `LOT` | 로트 | Lot |
 | `LTTD` | 위도 | Latitude |
 | `MAX` | 최대 | Maximum |
+| `MAP` | 맵 | Map |
 | `MDUL` | 모듈 | Module |
 | `MIN` | 최소 | Minimum |
 | `MNU` | 메뉴 | Menu |
@@ -507,6 +513,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | `UPD` | 수정 | Update |
 | `UPDR` | 수정자 | Updater |
 | `UPR` | 상위 | Upper |
+| `URL` | URL | Uniform Resource Locator |
 | `US` | 사용 | Use |
 | `USR` | 사용자 | User |
 | `VAL` | 값 | Value |

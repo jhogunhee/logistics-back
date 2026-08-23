@@ -13,52 +13,52 @@
 -- 출고단위가 BOX인 것은 음료 2건뿐이다 (점포에 박스째 나간다). 나머지는 낱개 피킹이라 EA.
 
 -- 상온(DRY)
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-0001', '제주 삼다수 2L', 'DRY', 'PLT', 'BOX', 365);
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-0002', '신라면 멀티팩 (5입)', 'DRY', 'PLT', 'EA', 180);
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-0003', '햇반 백미 210g', 'DRY', 'BOX', 'EA', 270);
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-0004', '일회용 종이컵 1000입', 'DRY', 'PLT', 'EA', NULL);
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days, img_url)
+    VALUES ('PROD-0001', '제주 삼다수 2L', 'DRY', 'PLT', 'BOX', 365, '/prod-img/PROD-0001.svg');
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days, img_url)
+    VALUES ('PROD-0002', '신라면 멀티팩 (5입)', 'DRY', 'PLT', 'EA', 180, '/prod-img/PROD-0002.svg');
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days, img_url)
+    VALUES ('PROD-0003', '햇반 백미 210g', 'DRY', 'BOX', 'EA', 270, '/prod-img/PROD-0003.svg');
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days, img_url)
+    VALUES ('PROD-0004', '일회용 종이컵 1000입', 'DRY', 'PLT', 'EA', NULL, '/prod-img/PROD-0004.svg');
 
 -- 냉장(CHL)
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-0005', '서울우유 1L', 'CHL', 'BOX', 'EA', 14);
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-0006', '딸기 요거트 4입', 'CHL', 'BOX', 'EA', 21);
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-0007', '참치마요 삼각김밥', 'CHL', 'TRAY', 'EA', 2);
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-0008', '국산콩 두부 300g', 'CHL', 'BOX', 'EA', 14);
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days, img_url)
+    VALUES ('PROD-0005', '서울우유 1L', 'CHL', 'BOX', 'EA', 14, '/prod-img/PROD-0005.svg');
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days, img_url)
+    VALUES ('PROD-0006', '딸기 요거트 4입', 'CHL', 'BOX', 'EA', 21, '/prod-img/PROD-0006.svg');
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days, img_url)
+    VALUES ('PROD-0007', '참치마요 삼각김밥', 'CHL', 'TRAY', 'EA', 2, '/prod-img/PROD-0007.svg');
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days, img_url)
+    VALUES ('PROD-0008', '국산콩 두부 300g', 'CHL', 'BOX', 'EA', 14, '/prod-img/PROD-0008.svg');
 
 -- 냉동(FRZ)
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-0009', '왕교자 만두 1kg', 'FRZ', 'BOX', 'EA', 365);
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-0010', '냉동 새우살 500g', 'FRZ', 'BOX', 'EA', 540);
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-0011', '붕어싸만코 (아이스크림)', 'FRZ', 'BOX', 'EA', NULL);
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-0012', '코카콜라 350ml (24입)', 'DRY', 'PLT', 'BOX', 365);
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-0013', '진라면 순한맛 멀티팩 (5입)', 'DRY', 'BOX', 'EA', 240);
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-0014', '백설 밀가루 1kg', 'DRY', 'BOX', 'EA', 540);
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-0015', '스팸 클래식 200g', 'DRY', 'BOX', 'EA', 1095);
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-0016', '물티슈 캡형 100매', 'DRY', 'BOX', 'EA', NULL);
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-0017', '바나나우유 240ml', 'CHL', 'BOX', 'EA', 12);
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-0018', '슬라이스 치즈 20매', 'CHL', 'BOX', 'EA', 60);
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-0019', '닭가슴살 샐러드', 'CHL', 'TRAY', 'EA', 3);
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-0020', '모짜렐라 피자치즈 1kg', 'FRZ', 'BOX', 'EA', 365);
-INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days)
-    VALUES ('PROD-0021', '냉동 블루베리 1kg', 'FRZ', 'BOX', 'EA', 720);
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days, img_url)
+    VALUES ('PROD-0009', '왕교자 만두 1kg', 'FRZ', 'BOX', 'EA', 365, '/prod-img/PROD-0009.svg');
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days, img_url)
+    VALUES ('PROD-0010', '냉동 새우살 500g', 'FRZ', 'BOX', 'EA', 540, '/prod-img/PROD-0010.svg');
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days, img_url)
+    VALUES ('PROD-0011', '붕어싸만코 (아이스크림)', 'FRZ', 'BOX', 'EA', NULL, '/prod-img/PROD-0011.svg');
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days, img_url)
+    VALUES ('PROD-0012', '코카콜라 350ml (24입)', 'DRY', 'PLT', 'BOX', 365, '/prod-img/PROD-0012.svg');
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days, img_url)
+    VALUES ('PROD-0013', '진라면 순한맛 멀티팩 (5입)', 'DRY', 'BOX', 'EA', 240, '/prod-img/PROD-0013.svg');
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days, img_url)
+    VALUES ('PROD-0014', '백설 밀가루 1kg', 'DRY', 'BOX', 'EA', 540, '/prod-img/PROD-0014.svg');
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days, img_url)
+    VALUES ('PROD-0015', '스팸 클래식 200g', 'DRY', 'BOX', 'EA', 1095, '/prod-img/PROD-0015.svg');
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days, img_url)
+    VALUES ('PROD-0016', '물티슈 캡형 100매', 'DRY', 'BOX', 'EA', NULL, '/prod-img/PROD-0016.svg');
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days, img_url)
+    VALUES ('PROD-0017', '바나나우유 240ml', 'CHL', 'BOX', 'EA', 12, '/prod-img/PROD-0017.svg');
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days, img_url)
+    VALUES ('PROD-0018', '슬라이스 치즈 20매', 'CHL', 'BOX', 'EA', 60, '/prod-img/PROD-0018.svg');
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days, img_url)
+    VALUES ('PROD-0019', '닭가슴살 샐러드', 'CHL', 'TRAY', 'EA', 3, '/prod-img/PROD-0019.svg');
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days, img_url)
+    VALUES ('PROD-0020', '모짜렐라 피자치즈 1kg', 'FRZ', 'BOX', 'EA', 365, '/prod-img/PROD-0020.svg');
+INSERT INTO prod (prod_cd, prod_nm, tmp_zon, inb_uom_cd, outb_uom_cd, shelf_life_days, img_url)
+    VALUES ('PROD-0021', '냉동 블루베리 1kg', 'FRZ', 'BOX', 'EA', 720, '/prod-img/PROD-0021.svg');
 
 -- 상품 포장. 위 상품이 inb_uom_cd · outb_uom_cd로 가리키는 단위는 반드시 여기 있어야 한다
 -- (ProdService가 지키는 규칙이고, 없으면 ASN 생성이 IllegalStateException으로 죽는다).

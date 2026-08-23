@@ -173,6 +173,12 @@
   <td><code>GET /inventory/stock</code></td>
 </tr>
 <tr>
+  <td class="name">로케이션 점유 맵</td>
+  <td>보관(<code>STORAGE</code>) 로케이션 <strong>전건</strong>을 격자로. 재고가 있는 자리만 보이는 현재고 조회와 달리 <strong>빈 자리가 함께 보이는 것이 이 화면의 존재 이유</strong>다(적치 여력·보충 미달 파악) — 재고 0이면 <code>inv</code> 행을 지우는 규칙 때문에 표로는 원리적으로 낼 수 없다. 두 모드 — <strong>구조도</strong>(센터 평면도, 칸=레벨 합산 베이, 농도=점유율) / <strong>랙 상세</strong>(존→통로→베이×레벨 입면, 채움 높이=점유율). 점유율(<code>onHandQty ÷ maxQty</code>)은 프론트 파생이고 보충 미달(<code>fxngShort</code>)은 서버 판정이다. 칸 클릭 → 오른쪽 상시 패널에 그 자리 재고(<code>GET /inventory/stock</code>의 <code>locCd</code> 부분일치 재사용 — 베이 선택은 prefix라 레벨 전부가 걸린다). 고정 자리는 지정 상품 썸네일을 칸에 얹는다. 입·출고 도크는 스테이징 재고 합. <strong>현재고 조회와 조회 대상·검색조건·요약지표·API가 전부 달라 별도 화면으로 분리했다</strong>(2026-08-23) — 패널의 「현재고 조회로 보기」와 표의 로케이션 셀로 서로 건너뛴다(쿼리스트링 <code>locCd</code>)</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>GET /inventory/stock/map</code><br><code>GET /inventory/stock</code>(상세 패널 · 도크)</td>
+</tr>
+<tr>
   <td class="name">재고 이력 조회</td>
   <td>RECEIVE / MOVE / ADJUST / PICK / SHIP 원장. 참조문서번호로 입·출고 역추적</td>
   <td class="st"><span class="badge done">구현</span></td>
@@ -374,7 +380,7 @@
 </div>
 
 <h2 id="sidebar">7. 프론트 사이드바 구조 (2026-07-23 반영)</h2>
-<p class="note"><code>wms-front/src/layout/Sidebar.jsx</code> · <code>src/App.jsx</code>. 업무 흐름(OMS → 입고 → 재고 → 출고) 순으로 배치하고 마스터를 맨 아래로 내렸다. <strong>실제 화면이 있는 것은 24개</strong>(대시보드 포함, 로그인 제외), 나머지 8개는 <code>Placeholder</code>로 라우트만 등록된 상태.</p>
+<p class="note"><code>wms-front/src/layout/Sidebar.jsx</code> · <code>src/App.jsx</code>. 업무 흐름(OMS → 입고 → 재고 → 출고) 순으로 배치하고 마스터를 맨 아래로 내렸다. <strong>사이드바 항목 39개가 전부 실제 화면이다</strong>(대시보드 포함, 로그인 제외) — 예전에 <code>Placeholder</code>로 라우트만 잡아두었던 8개는 모두 구현되어 남아 있지 않다. 라우트는 41개로, 위 39개에 <code>/login</code>과 주문 상세 2개(<code>/oms/inbound-order/:omsIbOrderId</code> · <code>/oms/outbound-order/:omsOutbOrderId</code>)가 더 있다. (2026-08-23 실측)</p>
 <div class="tablebox">
 <table>
 <thead><tr><th style="width:110px">그룹</th><th style="width:170px">메뉴</th><th style="width:230px">라우트</th><th>화면 파일 / 상태</th></tr></thead>
@@ -392,12 +398,14 @@
 <tr><td>적치</td><td><code>/inbound/putaway</code></td><td><code>pages/inbound/Putaway.jsx</code> — 지시 실행 워크리스트</td></tr>
 <tr><td>입고확정</td><td><code>/inbound/confirm</code></td><td>Placeholder — 백엔드(<code>POST /inbound/asns/{id}/confirm</code>)는 구현 완료</td></tr>
 
-<tr><td class="name" rowspan="6">재고</td><td>현재고 조회</td><td><code>/stock/status</code></td><td><code>pages/stock/StockStatus.jsx</code> — 모니터링 그룹에서 이동</td></tr>
+<tr><td class="name" rowspan="9">재고</td><td>현재고 조회</td><td><code>/stock/status</code></td><td><code>pages/stock/StockStatus.jsx</code> — 모니터링 그룹에서 이동</td></tr>
+<tr><td>로케이션 점유 맵</td><td><code>/stock/loc-map</code></td><td><code>pages/stock/StockLocMap.jsx</code> — 2모드(구조도 · 랙 상세) + 상시 상세패널. <code>components/stock/</code>에서 승격(2026-08-23, 자체 필터·요약지표를 갖는 페이지라 모달만 있는 디렉터리에서 뺐다)</td></tr>
 <tr><td>재고 이력 조회</td><td><code>/stock/history</code></td><td><code>pages/stock/InvHistory.jsx</code></td></tr>
 <tr><td>재고 속성변경</td><td><code>/stock/attribute</code></td><td><code>pages/stock/StockAttr.jsx</code> — 탭 2개(속성 정정 <code>StockAttrChange.jsx</code> / 변경 이력 <code>StockAttrChngHist.jsx</code>)</td></tr>
 <tr><td>재고 로트변경</td><td><code>/stock/lot-change</code></td><td><code>pages/stock/StockLotChng.jsx</code> — 탭 2개(로트변경 <code>StockLotChngExec.jsx</code> / 변경 실적 <code>StockLotChngAcrst.jsx</code>)</td></tr>
 <tr><td>재고 보류</td><td><code>/stock/hold</code></td><td><code>pages/stock/StockHold.jsx</code> — 탭 3개(보류등록 <code>StockHoldRegister.jsx</code> / 보류 관리 <code>StockHoldList.jsx</code> / 실적 조회 <code>StockHoldAcrst.jsx</code>)</td></tr>
 <tr><td>재고 이동</td><td><code>/stock/move</code></td><td><code>pages/stock/StockMove.jsx</code> — 탭 2개(이동지시등록 <code>StockMoveOrder.jsx</code> / 이동지시 관리 <code>StockMoveTaskList.jsx</code>)</td></tr>
+<tr><td>정기 보충</td><td><code>/stock/spmt</code></td><td><code>pages/stock/StockSpmt.jsx</code></td></tr>
 <tr><td>재고조사</td><td><code>/stock/count</code></td><td><code>pages/stock/StockCount.jsx</code> — 탭 2개(조사 목록 <code>StockCountList.jsx</code> / 실사 입력·확정 <code>StockCountDetail.jsx</code>)</td></tr>
 
 <tr><td class="name" rowspan="6">출고</td><td>출고예정 관리</td><td><code>/outbound/order</code></td><td><code>pages/outbound/OutbOrderList.jsx</code> — 헤더–라인 2단 조회 전용. 입고예정(<code>AsnList.jsx</code>)과 같은 구조에 웨이브 편성 여부와 할당 진행이 더 붙는다</td></tr>

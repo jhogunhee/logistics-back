@@ -28,7 +28,7 @@ public class InvRepositoryImpl implements InvRepositoryCustom {
         return queryFactory
                 .select(Projections.constructor(InvResponse.class,
                         inv.id,
-                        prod.prodCd, prod.prodNm, prod.tmpZon,
+                        prod.prodCd, prod.prodNm, prod.imgUrl, prod.tmpZon,
                         loc.locCd, loc.zon.zonCd, loc.locTyp,
                         lot.lotNo, lot.expiryDt,
                         inv.onHandQty, inv.alocQty, inv.hldQty,

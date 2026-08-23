@@ -42,7 +42,9 @@ class InvServiceTest {
 
     private LocRow row(Long locId, String locCd, String fxngProdCd, Long fxngMinQty) {
         return new LocRow(locId, locCd, "DRY", "상온 보관존", BizDvsn.STRG, TmpZon.DRY, 1000L,
-                fxngProdCd, fxngProdCd != null ? "상품명" : null, fxngMinQty);
+                fxngProdCd, fxngProdCd != null ? "상품명" : null,
+                fxngProdCd != null ? "https://example.supabase.co/storage/v1/object/public/prod-img/x.png" : null,
+                fxngMinQty);
     }
 
     @Test

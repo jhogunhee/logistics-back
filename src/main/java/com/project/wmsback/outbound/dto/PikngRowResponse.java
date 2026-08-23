@@ -20,6 +20,8 @@ public record PikngRowResponse(
         String storeNm,
         String prodCd,
         String prodNm,
+        /** 상품 이미지 URL. NULL = 이미지 없음 — 화면이 폴백을 그린다 */
+        String prodImgUrl,
         String locCd,
         String lotNo,
         LocalDate expiryDt,
@@ -40,10 +42,10 @@ public record PikngRowResponse(
         String rplnNo
 ) {
     public static PikngRowResponse of(Long taskId, Integer srtSeq, Long allocId, String outbNo, String storeNm,
-                                      String prodCd, String prodNm, String locCd, String lotNo,
+                                      String prodCd, String prodNm, String prodImgUrl, String locCd, String lotNo,
                                       LocalDate expiryDt, long drctQty, long cmplQty, PikngTaskStatus status,
                                       Long shotgeQty, String shotgeRsnCd, InvMovStatus rplnStatus, String rplnNo) {
-        return new PikngRowResponse(taskId, srtSeq, allocId, outbNo, storeNm, prodCd, prodNm,
+        return new PikngRowResponse(taskId, srtSeq, allocId, outbNo, storeNm, prodCd, prodNm, prodImgUrl,
                 locCd, lotNo, expiryDt, drctQty, cmplQty, drctQty - cmplQty, status, shotgeQty, shotgeRsnCd,
                 rplnStatus, rplnNo);
     }

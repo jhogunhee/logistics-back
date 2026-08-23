@@ -43,7 +43,7 @@ public class InvService {
                     return new LocMapResponse(row.locId(), row.locCd(), row.zonCd(), row.zonNm(),
                             row.bizDvsn(), row.tmpZon(), row.maxQty(),
                             sums.onHandQty(), sums.alocQty(), sums.hldQty(),
-                            row.fxngProdCd(), row.fxngProdNm(), row.fxngMinQty(), fxngOnHand);
+                            row.fxngProdCd(), row.fxngProdNm(), row.fxngProdImgUrl(), row.fxngMinQty(), fxngOnHand);
                 })
                 .toList();
     }

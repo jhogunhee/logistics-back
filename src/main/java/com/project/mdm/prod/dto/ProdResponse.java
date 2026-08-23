@@ -17,6 +17,8 @@ public class ProdResponse {
     private final String inbUomCd;
     private final String outbUomCd;
     private final Integer shelfLifeDays;
+    /** 상품 이미지 URL (Supabase Storage 퍼블릭 객체). NULL = 이미지 없음 — 화면이 폴백을 그린다 */
+    private final String imgUrl;
     /**
      * 입고단위/출고단위 1개 = 낱개(EA) 몇 개 (환산계수). 상품 선택 팝업·검수 화면이 쓴다 —
      * 소비자가 필요로 하는 건 이 두 스칼라뿐이라 포장 배열(uoms)을 통째로 싣지 않는다.
@@ -37,6 +39,7 @@ public class ProdResponse {
         this.inbUomCd = prod.getInbUomCd();
         this.outbUomCd = prod.getOutbUomCd();
         this.shelfLifeDays = prod.getShelfLifeDays();
+        this.imgUrl = prod.getImgUrl();
         this.inbEaQty = eaQtyOf(prod, prod.getInbUomCd());
         this.outbEaQty = eaQtyOf(prod, prod.getOutbUomCd());
         this.createdBy = prod.getCreatedBy();

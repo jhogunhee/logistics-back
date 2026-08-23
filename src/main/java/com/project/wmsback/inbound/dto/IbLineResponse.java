@@ -12,6 +12,8 @@ public class IbLineResponse {
     private final Long prodId;
     private final String prodCd;
     private final String prodNm;
+    /** 상품 이미지 URL. NULL = 이미지 없음 — 화면이 폴백을 그린다 */
+    private final String prodImgUrl;
     private final TmpZon tmpZon;
     /**
      * 이 라인이 어디까지 왔는지 (IbLine#progressStatus). 저장된 값이 아니라 수량 셋에서 파생한다 —
@@ -36,6 +38,7 @@ public class IbLineResponse {
         this.prodId = line.getProd().getId();
         this.prodCd = line.getProd().getProdCd();
         this.prodNm = line.getProd().getProdNm();
+        this.prodImgUrl = line.getProd().getImgUrl();
         this.tmpZon = line.getProd().getTmpZon();
         this.status = line.progressStatus();
         this.shelfLifeDays = line.getProd().getShelfLifeDays();

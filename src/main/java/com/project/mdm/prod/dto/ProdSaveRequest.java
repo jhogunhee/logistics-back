@@ -31,6 +31,8 @@ public class ProdSaveRequest {
     /** 출고주문 단위 (공통코드 UOM). 마찬가지로 신규 등록 시에만 자동 생성되고 등록 후엔 못 바꾼다 */
     private String outbUomCd;
     private Integer shelfLifeDays;
+    /** 상품 이미지 URL. 프론트가 Supabase Storage에 올리고 받은 퍼블릭 주소를 그대로 싣는다 */
+    private String imgUrl;
 
     /** 신규 행 → 엔티티. 상품 코드는 서비스가 채번해 넘긴다. 단위 필수 검사는 신규에만 있다 */
     public Prod toEntity(String prodCd) {
@@ -44,6 +46,7 @@ public class ProdSaveRequest {
                 .inbUomCd(inbUomCd)
                 .outbUomCd(outbUomCd)
                 .shelfLifeDays(shelfLifeDays)
+                .imgUrl(imgUrl)
                 .build();
         prod.ensureRoleUoms();
         return prod;
@@ -52,7 +55,7 @@ public class ProdSaveRequest {
     /** 수정 행 → 기존 엔티티에 반영. 입고/출고단위는 보지 않는다 — 등록 후 변경은 단위 관리 화면이 맡는다 */
     public void updateEntity(Prod prod) {
         validateFields();
-        prod.update(prodNm, tmpZon, shelfLifeDays);
+        prod.update(prodNm, tmpZon, shelfLifeDays, imgUrl);
     }
 
     private void validateFields() {
@@ -65,6 +68,39 @@ public class ProdSaveRequest {
         // NULL = 유통기한 미관리(공산품 등). 값이 있으면 1 이상이어야 한다.
         if (shelfLifeDays != null && shelfLifeDays < 1) {
             throw new IllegalArgumentException("유통기한(일)은 비워두거나(미관리) 1 이상이어야 합니다: " + prodNm);
+        }
+        validateImgUrl();
+    }
+
+    /**
+     * 이미지 URL은 자기 필드만으로 되는 검사(형식 · 길이)만 여기서 본다 — 그 주소에 파일이 실제로
+     * 있는지는 백엔드가 알 수 없다(프론트가 배포한 정적 파일이거나 외부 저장소의 객체다).
+     * 그리드에서 값을 지우면 빈 문자열이 오므로 NULL(이미지 없음)로 맞춰 둔다 —
+     * 그래야 컬럼이 ''와 NULL 두 벌로 갈리지 않는다.
+     * <p>
+     * 두 가지 형태를 받는다 —
+     * <ul>
+     *   <li>{@code /prod-img/PROD-0001.svg} — 프론트와 함께 배포되는 정적 파일(기본).
+     *       도메인이 바뀌어도 그대로 살아 있고 외부 의존이 없다.</li>
+     *   <li>{@code https://…} — 외부 저장소(Supabase Storage 등)에 올린 객체.
+     *       업로드 기능을 켜면 이쪽이 들어온다.</li>
+     * </ul>
+     * {@code http://}는 받지 않는다 — 배포가 https라 혼합 콘텐츠로 차단되어 그림이 안 뜬다.
+     */
+    private void validateImgUrl() {
+        if (imgUrl != null && imgUrl.isBlank()) {
+            imgUrl = null;
+            return;
+        }
+        if (imgUrl == null) {
+            return;
+        }
+        if (imgUrl.length() > 500) {
+            throw new IllegalArgumentException("이미지 URL이 너무 깁니다(최대 500자): " + prodNm);
+        }
+        if (!imgUrl.startsWith("/") && !imgUrl.startsWith("https://")) {
+            throw new IllegalArgumentException(
+                    "이미지 주소는 /로 시작하는 경로이거나 https:// 로 시작해야 합니다: " + prodNm);
         }
     }
 

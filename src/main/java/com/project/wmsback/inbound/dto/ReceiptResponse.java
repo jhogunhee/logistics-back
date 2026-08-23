@@ -18,6 +18,8 @@ public class ReceiptResponse {
     private final Long ibLineId;
     private final String prodCd;
     private final String prodNm;
+    /** 상품 이미지 URL. NULL = 이미지 없음 — 화면이 폴백을 그린다 */
+    private final String prodImgUrl;
     /** 검수 입력 단위 = 입고단위. 수량을 「n BOX (m)」로 보여주는 재료 */
     private final String inbUomCd;
     /** 입고단위 1개 = 낱개(EA) 몇 개. qty가 낱개라 화면이 이 값으로 나눈다 */
@@ -35,6 +37,7 @@ public class ReceiptResponse {
         this.ibLineId = hist.getIbLineId();
         this.prodCd = hist.getProd().getProdCd();
         this.prodNm = hist.getProd().getProdNm();
+        this.prodImgUrl = hist.getProd().getImgUrl();
         this.inbUomCd = hist.getProd().getInbUomCd();
         this.inbEaQty = hist.getProd().eaQtyOf(this.inbUomCd);
         this.lotNo = hist.getLot().getLotNo();

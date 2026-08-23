@@ -21,6 +21,8 @@ public record LocMapResponse(
         long hldQty,
         String fxngProdCd,
         String fxngProdNm,
+        /** 고정 지정 상품의 이미지 URL. 미지정 자리거나 이미지가 없으면 null */
+        String fxngProdImgUrl,
         Long fxngMinQty,
         Long fxngOnHandQty
 ) {

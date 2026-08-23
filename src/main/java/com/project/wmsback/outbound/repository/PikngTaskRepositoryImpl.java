@@ -147,7 +147,7 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
     public List<PikngRowResponse> allocRowsForIssue(Long wavId) {
         List<Tuple> rows = queryFactory
                 .select(outbAlloc.id, outbOrder.outbNo, outbOrder.store.storeNm,
-                        outbLine.prod.prodCd, outbLine.prod.prodNm,
+                        outbLine.prod.prodCd, outbLine.prod.prodNm, outbLine.prod.imgUrl,
                         inv.loc.locCd, inv.lot.lotNo, inv.lot.expiryDt,
                         outbAlloc.alocQty, outbAlloc.pikngQty)
                 .from(outbAlloc)
@@ -165,7 +165,7 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
         for (Tuple row : rows) {
             result.add(PikngRowResponse.of(null, null, row.get(outbAlloc.id),
                     row.get(outbOrder.outbNo), row.get(outbOrder.store.storeNm),
-                    row.get(outbLine.prod.prodCd), row.get(outbLine.prod.prodNm),
+                    row.get(outbLine.prod.prodCd), row.get(outbLine.prod.prodNm), row.get(outbLine.prod.imgUrl),
                     row.get(inv.loc.locCd), row.get(inv.lot.lotNo), row.get(inv.lot.expiryDt),
                     orZero(row.get(outbAlloc.alocQty)), orZero(row.get(outbAlloc.pikngQty)), null, null, null, null, null));
         }
@@ -177,7 +177,7 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
         List<Tuple> rows = queryFactory
                 .select(pikngTask.id, pikngTask.srtSeq, pikngTask.outbAlloc.id,
                         outbOrder.outbNo, outbOrder.store.storeNm,
-                        pikngTask.prod.prodCd, pikngTask.prod.prodNm,
+                        pikngTask.prod.prodCd, pikngTask.prod.prodNm, pikngTask.prod.imgUrl,
                         pikngTask.fromLoc.locCd, pikngTask.lot.lotNo, pikngTask.lot.expiryDt,
                         pikngTask.drctQty, pikngTask.cmplQty, pikngTask.status, pikngTask.shotgeQty, pikngTask.shotgeRsnCd,
                         invMovTask.status, invMovTask.invMovNo)
@@ -197,7 +197,7 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
             result.add(PikngRowResponse.of(row.get(pikngTask.id), row.get(pikngTask.srtSeq),
                     row.get(pikngTask.outbAlloc.id),
                     row.get(outbOrder.outbNo), row.get(outbOrder.store.storeNm),
-                    row.get(pikngTask.prod.prodCd), row.get(pikngTask.prod.prodNm),
+                    row.get(pikngTask.prod.prodCd), row.get(pikngTask.prod.prodNm), row.get(pikngTask.prod.imgUrl),
                     row.get(pikngTask.fromLoc.locCd), row.get(pikngTask.lot.lotNo), row.get(pikngTask.lot.expiryDt),
                     orZero(row.get(pikngTask.drctQty)), orZero(row.get(pikngTask.cmplQty)),
                     row.get(pikngTask.status), row.get(pikngTask.shotgeQty), row.get(pikngTask.shotgeRsnCd),

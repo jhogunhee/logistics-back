@@ -17,6 +17,8 @@ public class InvResponse {
     private final Long invId;
     private final String prodCd;
     private final String prodNm;
+    /** 상품 이미지 URL. NULL = 이미지 없음 — 화면이 폴백을 그린다 */
+    private final String prodImgUrl;
     private final TmpZon tmpZon;
     private final String locCd;
     private final String zonCd;
@@ -29,12 +31,13 @@ public class InvResponse {
     /** 가용재고 = 보유 - 예약 - 보류 (파생값). 쿼리에서 계산해 내려준다 */
     private final Long avalQty;
 
-    public InvResponse(Long invId, String prodCd, String prodNm, TmpZon tmpZon,
+    public InvResponse(Long invId, String prodCd, String prodNm, String prodImgUrl, TmpZon tmpZon,
                        String locCd, String zonCd, LocTyp locTyp, String lotNo, LocalDate expiryDt,
                        Long onHandQty, Long alocQty, Long hldQty, Long avalQty) {
         this.invId = invId;
         this.prodCd = prodCd;
         this.prodNm = prodNm;
+        this.prodImgUrl = prodImgUrl;
         this.tmpZon = tmpZon;
         this.locCd = locCd;
         this.zonCd = zonCd;
