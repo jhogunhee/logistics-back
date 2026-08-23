@@ -13,7 +13,7 @@ import java.util.Optional;
 
 public interface OutbOrderRepository extends JpaRepository<OutbOrder, Long>, OutbOrderRepositoryCustom {
 
-    /** 웨이브 해체 시 소속 주문 일괄 조회 */
+    /** 웨이브 삭제 시 소속 주문 일괄 조회 */
     List<OutbOrder> findByWaveId(Long wavId);
 
     /**

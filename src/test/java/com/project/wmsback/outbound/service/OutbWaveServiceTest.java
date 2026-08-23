@@ -40,7 +40,7 @@ import static org.mockito.Mockito.when;
  * 웨이브 PLANNED/ISSUED)로 검증한다 — {@code PikngTaskServiceTest}와 같은 방식.
  *
  * <p>여기서 지키는 것은 셋이다: ① 발행된 웨이브는 편성을 못 바꾼다 ② 할당이 시작된 주문이
- * 있으면 담기·해체가 막힌다 ③ 한 웨이브의 주문은 출고예정일이 같다.
+ * 있으면 담기·삭제가 막힌다 ③ 한 웨이브의 주문은 출고예정일이 같다.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -93,25 +93,25 @@ class OutbWaveServiceTest {
 
     @Test
     @DisplayName("발행된 웨이브에는 주문을 담을 수 없다")
-    void addOrdersRejectsIssuedWave() {
+    void assignOrdersRejectsIssuedWave() {
         wave.issue();
 
         assertThrows(IllegalStateException.class,
-                () -> outbWaveService.addOrders(100L, orders(1L)));
+                () -> outbWaveService.assignOrders(100L, orders(1L)));
 
         verify(outbOrderRepository, never()).findByIdForUpdate(any());
     }
 
     @Test
     @DisplayName("할당이 시작된 주문이 있으면 담기를 막는다 — 담긴 주문 전체가 판정 대상이다")
-    void addOrdersRejectsWhenAllocationStarted() {
+    void assignOrdersRejectsWhenAllocationStarted() {
         OutbOrder allocated = order("OB-001", EXPCT_DE);
         allocated.assignWave(wave, WavRegTyp.MANUAL);
         allocated.recalcStatus(1, 1, 0);
         when(outbOrderRepository.findByWaveId(100L)).thenReturn(List.of(allocated));
 
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                () -> outbWaveService.addOrders(100L, orders(9L)));
+                () -> outbWaveService.assignOrders(100L, orders(9L)));
 
         assertTrue(e.getMessage().contains("할당이 시작된 주문"));
         verify(outbOrderRepository, never()).findByIdForUpdate(any());
@@ -123,7 +123,7 @@ class OutbWaveServiceTest {
      */
     @Test
     @DisplayName("출고예정일이 다른 주문은 같은 웨이브에 담기지 않는다")
-    void addOrdersRejectsDifferentExpctDe() {
+    void assignOrdersRejectsDifferentExpctDe() {
         OutbOrder mounted = order("OB-001", EXPCT_DE);
         mounted.assignWave(wave, WavRegTyp.MANUAL);
         when(outbOrderRepository.findByWaveId(100L)).thenReturn(List.of(mounted));
@@ -132,7 +132,7 @@ class OutbWaveServiceTest {
         when(outbOrderRepository.findByIdForUpdate(other.getId())).thenReturn(Optional.of(other));
 
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                () -> outbWaveService.addOrders(100L, orders(other.getId())));
+                () -> outbWaveService.assignOrders(100L, orders(other.getId())));
 
         assertTrue(e.getMessage().contains("출고예정일이 다른 주문"));
         assertNull(other.getWave());
@@ -140,13 +140,13 @@ class OutbWaveServiceTest {
 
     @Test
     @DisplayName("빈 웨이브는 첫 주문이 출고예정일을 정하고, 같은 날짜면 함께 담긴다")
-    void addOrdersLetsFirstOrderFixTheDate() {
+    void assignOrdersLetsFirstOrderFixTheDate() {
         OutbOrder first = order("OB-001", EXPCT_DE);
         OutbOrder second = order("OB-002", EXPCT_DE);
         when(outbOrderRepository.findByIdForUpdate(first.getId())).thenReturn(Optional.of(first));
         when(outbOrderRepository.findByIdForUpdate(second.getId())).thenReturn(Optional.of(second));
 
-        outbWaveService.addOrders(100L, orders(first.getId(), second.getId()));
+        outbWaveService.assignOrders(100L, orders(first.getId(), second.getId()));
 
         assertEquals(wave, first.getWave());
         assertEquals(wave, second.getWave());
@@ -159,7 +159,7 @@ class OutbWaveServiceTest {
      */
     @Test
     @DisplayName("주문 행 락을 id 오름차순으로 잡는다 — 요청 순서와 무관하게")
-    void addOrdersLocksOrdersInAscendingId() {
+    void assignOrdersLocksOrdersInAscendingId() {
         OutbOrder a = order("OB-001", EXPCT_DE);
         OutbOrder b = order("OB-002", EXPCT_DE);
         OutbOrder c = order("OB-003", EXPCT_DE);
@@ -167,7 +167,7 @@ class OutbWaveServiceTest {
         when(outbOrderRepository.findByIdForUpdate(b.getId())).thenReturn(Optional.of(b));
         when(outbOrderRepository.findByIdForUpdate(c.getId())).thenReturn(Optional.of(c));
 
-        outbWaveService.addOrders(100L, orders(c.getId(), a.getId(), b.getId()));
+        outbWaveService.assignOrders(100L, orders(c.getId(), a.getId(), b.getId()));
 
         InOrder locking = inOrder(outbOrderRepository);
         locking.verify(outbOrderRepository).findByIdForUpdate(a.getId());
@@ -222,18 +222,18 @@ class OutbWaveServiceTest {
                 () -> outbWaveService.unassignOrders(100L, orders(1L)));
     }
 
-    // ── 해체 ─────────────────────────────────────────────────────────────────
+    // ── 삭제 ─────────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("해체하면 소속 주문이 전부 미편성으로 돌아가고 웨이브가 지워진다")
-    void disbandDetachesAllOrdersAndDeletesWave() {
+    @DisplayName("삭제하면 소속 주문이 전부 미편성으로 돌아가고 웨이브가 지워진다")
+    void removeDetachesAllOrdersAndDeletesWave() {
         OutbOrder a = order("OB-001", EXPCT_DE);
         OutbOrder b = order("OB-002", EXPCT_DE);
         a.assignWave(wave, WavRegTyp.MANUAL);
         b.assignWave(wave, WavRegTyp.MANUAL);
         when(outbOrderRepository.findByWaveId(100L)).thenReturn(List.of(a, b));
 
-        outbWaveService.disband(100L);
+        outbWaveService.remove(100L);
 
         assertNull(a.getWave());
         assertNull(b.getWave());
@@ -241,15 +241,15 @@ class OutbWaveServiceTest {
     }
 
     @Test
-    @DisplayName("할당이 시작된 주문이 있으면 해체를 막는다 — 웨이브는 남는다")
-    void disbandRejectsWhenAllocationStarted() {
+    @DisplayName("할당이 시작된 주문이 있으면 삭제를 막는다 — 웨이브는 남는다")
+    void removeRejectsWhenAllocationStarted() {
         OutbOrder allocated = order("OB-001", EXPCT_DE);
         allocated.assignWave(wave, WavRegTyp.MANUAL);
         allocated.recalcStatus(1, 1, 0);
         when(outbOrderRepository.findByWaveId(100L)).thenReturn(List.of(allocated));
 
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                () -> outbWaveService.disband(100L));
+                () -> outbWaveService.remove(100L));
 
         assertTrue(e.getMessage().contains("할당이 시작된 주문"));
         assertEquals(wave, allocated.getWave());
@@ -257,11 +257,11 @@ class OutbWaveServiceTest {
     }
 
     @Test
-    @DisplayName("발행된 웨이브는 해체할 수 없다")
-    void disbandRejectsIssuedWave() {
+    @DisplayName("발행된 웨이브는 삭제할 수 없다")
+    void removeRejectsIssuedWave() {
         wave.issue();
 
-        assertThrows(IllegalStateException.class, () -> outbWaveService.disband(100L));
+        assertThrows(IllegalStateException.class, () -> outbWaveService.remove(100L));
 
         assertEquals(WaveStatus.ISSUED, wave.getStatus());
         verify(outbWaveRepository, never()).delete(any());
@@ -271,7 +271,7 @@ class OutbWaveServiceTest {
     @DisplayName("존재하지 않는 웨이브는 거부한다")
     void rejectsUnknownWave() {
         when(outbWaveRepository.findByIdForUpdate(999L)).thenReturn(Optional.empty());
-        assertThrows(IllegalArgumentException.class, () -> outbWaveService.disband(999L));
+        assertThrows(IllegalArgumentException.class, () -> outbWaveService.remove(999L));
     }
 
     // ── 픽스처 ───────────────────────────────────────────────────────────────

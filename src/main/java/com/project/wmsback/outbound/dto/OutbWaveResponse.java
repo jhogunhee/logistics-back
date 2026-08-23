@@ -24,7 +24,7 @@ public class OutbWaveResponse {
     private final int orderCount;
     /**
      * 할당이 시작된(CREATED가 아닌) 주문 수 (orders 매핑에서 파생). 0보다 크면 그 주문은 웨이브에서
-     * 뺄 수 없고 웨이브도 해체할 수 없다 — 화면이 눌러보기 전에 알 수 있게 목록에 실어 내린다.
+     * 뺄 수 없고 웨이브도 삭제할 수 없다 — 화면이 눌러보기 전에 알 수 있게 목록에 실어 내린다.
      * 웨이브 상태는 할당을 기록하지 않으므로(PLANNED → ISSUED 둘뿐) 주문 상태에서 세는 것이 맞다.
      */
     private final int alocStartedCount;

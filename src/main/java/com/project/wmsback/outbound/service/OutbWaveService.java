@@ -43,13 +43,13 @@ public class OutbWaveService {
         String wavNo = nbrService.issue("OUTB_WAV_NO", LocalDate.now());
 
         OutbWave wave = outbWaveRepository.save(OutbWave.builder().wavNo(wavNo).build());
-        assignOrders(wave, req.getOrderIds());
+        assignTo(wave, req.getOrderIds());
         return wave.getId();
     }
 
-    /** 주문 추가 편성. 웨이브 행 락 — 해체·할당 실행과 직렬화해 삭제된 웨이브에 담기는 것을 막는다 */
+    /** 주문 추가 편성. 웨이브 행 락 — 삭제·할당 실행과 직렬화해 삭제된 웨이브에 담기는 것을 막는다 */
     @Transactional
-    public void addOrders(Long wavId, OutbWaveOrdersRequest req) {
+    public void assignOrders(Long wavId, OutbWaveOrdersRequest req) {
         OutbWave wave = lockWave(wavId);
         wave.assertPlanned();
         long started = outbOrderRepository.findByWaveId(wavId).stream()
@@ -59,17 +59,18 @@ public class OutbWaveService {
             throw new IllegalArgumentException(
                     "할당이 시작된 주문이 " + started + "건 있어 주문을 추가할 수 없습니다 — 할당을 먼저 해제하세요: " + wave.getWavNo());
         }
-        assignOrders(wave, req.getOrderIds());
+        assignTo(wave, req.getOrderIds());
     }
 
     /**
-     * 편성 해제. 담기(addOrders)와 마찬가지로 목록을 받아 한 트랜잭션에서 처리한다 —
+     * 편성 해제. 담기(assignOrders)와 마찬가지로 목록을 받아 한 트랜잭션에서 처리한다 —
      * 화면이 여러 주문을 체크해 한 번에 빼는데 1건씩 호출하면 중간 실패가 부분 해제로 남는다.
      * 주문 자체는 지워지지 않고 미편성(CREATED)으로 되돌아간다.
      */
     @Transactional
     public void unassignOrders(Long wavId, OutbWaveOrdersRequest req) {
-        // 웨이브 행 락 — 같은 웨이브의 편성 변경·할당 실행과 직렬화 (락 순서: 웨이브 → 주문)
+        // 웨이브 행 락 — 편성된 주문을 쓰는 경로는 모두 이 락을 먼저 잡으므로 주문은 따로 잠그지 않는다.
+        // 담기(assignTo)가 잠그는 것은 대상이 아직 웨이브 밖이라 이 락이 닿지 않아서다.
         OutbWave wave = lockWave(wavId);
         wave.assertPlanned();
         if (req.getOrderIds() == null || req.getOrderIds().isEmpty()) {
@@ -85,19 +86,18 @@ public class OutbWaveService {
         }
     }
 
-    /** 웨이브 해체. 소속 주문을 모두 편성 해제하고 웨이브를 삭제한다 (PLANNED만) */
+    /** 웨이브 삭제. 소속 주문을 모두 편성 해제하고 웨이브 행을 지운다 (PLANNED만) */
     @Transactional
-    public void disband(Long wavId) {
-        // 웨이브 행 락 — 담기(addOrders)와 직렬화해 삭제 중인 웨이브에 주문이 들어오는 것을 막는다
+    public void remove(Long wavId) {
+        // 웨이브 행 락 — 담기(assignOrders)와 직렬화해 삭제 중인 웨이브에 주문이 들어오는 것을 막는다
         OutbWave wave = lockWave(wavId);
         wave.assertPlanned();
         List<OutbOrder> orders = outbOrderRepository.findByWaveId(wavId);
-        // 해제 가드는 주문 단위라 메시지도 주문을 가리킨다 — 해체는 웨이브 단위 조작이므로 여기서 먼저
-        // 웨이브 관점으로 걸러낸다. 안 그러면 "왜 이 주문 얘기가 나오지"가 된다.
+
         long started = orders.stream().filter(o -> o.getStatus() != OutbStatus.CREATED).count();
         if (started > 0) {
             throw new IllegalArgumentException(
-                    "할당이 시작된 주문이 " + started + "건 있어 해체할 수 없습니다 — 할당을 먼저 해제하세요: " + wave.getWavNo());
+                    "할당이 시작된 주문이 " + started + "건 있어 삭제할 수 없습니다 — 할당을 먼저 해제하세요: " + wave.getWavNo());
         }
         orders.forEach(OutbOrder::unassignWave);
         outbWaveRepository.delete(wave);
@@ -109,7 +109,7 @@ public class OutbWaveService {
      * 동시에 같은 주문을 잡았을 때 마지막 커밋이 조용히 이긴다 (@Version 없음).
      * 오름차순은 전략 실행(searchIds)의 잠금 순서와 같아 교착이 없다.
      */
-    private void assignOrders(OutbWave wave, List<Long> orderIds) {
+    private void assignTo(OutbWave wave, List<Long> orderIds) {
         if (orderIds == null || orderIds.isEmpty()) {
             return;
         }

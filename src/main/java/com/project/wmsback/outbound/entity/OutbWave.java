@@ -80,7 +80,7 @@ public class OutbWave extends BaseEntity {
         this.status = WaveStatus.PLANNED;
     }
 
-    /** 편성 변경(주문 담기/빼기/해체)은 피킹지시 발행 전(PLANNED)에만 허용 */
+    /** 편성 변경(주문 담기/빼기/삭제)은 피킹지시 발행 전(PLANNED)에만 허용 */
     public void assertPlanned() {
         if (status != WaveStatus.PLANNED) {
             throw new IllegalStateException("이미 피킹지시가 발행된 웨이브는 편성을 변경할 수 없습니다: " + wavNo);

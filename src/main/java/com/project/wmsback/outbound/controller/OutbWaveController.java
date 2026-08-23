@@ -47,9 +47,9 @@ public class OutbWaveController {
         return outbWaveService.create(req);
     }
 
-    @PostMapping("/{wavId}/orders")
-    public void addOrders(@PathVariable Long wavId, @RequestBody OutbWaveOrdersRequest req) {
-        outbWaveService.addOrders(wavId, req);
+    @PostMapping("/{wavId}/orders/assign")
+    public void assignOrders(@PathVariable Long wavId, @RequestBody OutbWaveOrdersRequest req) {
+        outbWaveService.assignOrders(wavId, req);
     }
 
     /**
@@ -62,7 +62,7 @@ public class OutbWaveController {
     }
 
     @DeleteMapping("/{wavId}")
-    public void disband(@PathVariable Long wavId) {
-        outbWaveService.disband(wavId);
+    public void remove(@PathVariable Long wavId) {
+        outbWaveService.remove(wavId);
     }
 }
