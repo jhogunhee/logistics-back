@@ -63,9 +63,7 @@ public class OutbWaveService {
     }
 
     /**
-     * 편성 해제. 담기(assignOrders)와 마찬가지로 목록을 받아 한 트랜잭션에서 처리한다 —
-     * 화면이 여러 주문을 체크해 한 번에 빼는데 1건씩 호출하면 중간 실패가 부분 해제로 남는다.
-     * 주문 자체는 지워지지 않고 미편성(CREATED)으로 되돌아간다.
+     * 편성 해제.
      */
     @Transactional
     public void unassignOrders(Long wavId, OutbWaveOrdersRequest req) {
@@ -104,17 +102,14 @@ public class OutbWaveService {
     }
 
     /**
-     * 주문 행을 <b>id 오름차순으로 잠그며 처음 읽고</b> 편입한다. assignWave의 「이미 편성됨」
-     * 가드가 신선한 행 위에서 판정되게 하기 위함 — 락 없이는 전략 실행·다른 수동 편성과
-     * 동시에 같은 주문을 잡았을 때 마지막 커밋이 조용히 이긴다 (@Version 없음).
-     * 오름차순은 전략 실행(searchIds)의 잠금 순서와 같아 교착이 없다.
+     * 주문 행을 id 오름차순으로 잠그며 읽어 편입한다 — 중복 편성 가드가 최신 값을 보고
+     * 판정하게 하기 위함. 전략 실행과 잠금 순서가 같아 교착이 없다.
      */
     private void assignTo(OutbWave wave, List<Long> orderIds) {
         if (orderIds == null || orderIds.isEmpty()) {
             return;
         }
         // 웨이브의 출고예정일 — 소속 주문에서 파생한다(웨이브에 날짜 컬럼 없음). 빈 웨이브면 첫 주문이 정한다.
-        // 편성 후에는 주문의 출고예정일이 바뀔 수 없어(OMS 수정은 작성 상태만 · 확정취소는 편성 전만) 이 가드로 충분하다.
         LocalDate waveDe = outbOrderRepository.findByWaveId(wave.getId()).stream()
                 .map(OutbOrder::getExpctDe).findFirst().orElse(null);
         List<Long> sorted = orderIds.stream().filter(Objects::nonNull).distinct().sorted().toList();
