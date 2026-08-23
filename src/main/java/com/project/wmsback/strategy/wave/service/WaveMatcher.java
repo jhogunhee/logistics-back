@@ -39,9 +39,11 @@ public final class WaveMatcher {
                 String actual = field.extract(target);
                 boolean pass = cond.op().test(actual, cond.vals());
                 conds.add(new WaveMatchResult.CondTrace(cond.fld(), cond.op().name(), cond.vals(), actual, pass));
+                // and 조건
                 groupPass &= pass;
             }
             grps.add(new WaveMatchResult.GroupTrace(idx++, groupPass, conds));
+            // or 조건
             matched |= groupPass;
         }
         return new WaveMatchResult(target.outbOrderId(), target.outbNo(),
