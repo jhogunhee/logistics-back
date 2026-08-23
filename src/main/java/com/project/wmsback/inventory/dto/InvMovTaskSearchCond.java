@@ -5,7 +5,9 @@ import com.project.wmsback.inventory.entity.InvMovStatus;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.springframework.format.annotation.DateTimeFormat;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /** 이동지시 조회 조건. 비어 있는 조건은 쿼리에서 무시된다. */
@@ -18,7 +20,14 @@ public class InvMovTaskSearchCond {
     private InvMovDvsn movDvsn;
     private String prodCd;
     private String prodNm;
+    private String lotNo;
     private String fromLocCd;
     private String toLocCd;
     private List<InvMovStatus> status;
+
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+    private LocalDate dateFrom;
+
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+    private LocalDate dateTo;
 }

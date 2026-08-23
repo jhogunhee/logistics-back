@@ -76,6 +76,7 @@ public class InvHistRepositoryImpl implements InvHistRepositoryCustom {
                         prodCdContains(cond.getProdCd()),
                         prodNmContains(cond.getProdNm()),
                         locCdContains(cond.getLocCd()),
+                        lotNoContains(cond.getLotNo()),
                         txTypEq(cond.getTxTyp()),
                         rfnDocNoContains(cond.getRfnDocNo()),
                         createdAtGoe(cond.getDateFrom()),
@@ -97,6 +98,10 @@ public class InvHistRepositoryImpl implements InvHistRepositoryCustom {
 
     private BooleanExpression locCdContains(String locCd) {
         return StringUtils.hasText(locCd) ? loc.locCd.containsIgnoreCase(locCd) : null;
+    }
+
+    private BooleanExpression lotNoContains(String lotNo) {
+        return StringUtils.hasText(lotNo) ? lot.lotNo.containsIgnoreCase(lotNo) : null;
     }
 
     private BooleanExpression txTypEq(TxTyp txTyp) {

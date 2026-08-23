@@ -17,6 +17,7 @@ public class InvHistSearchCond {
     private String prodCd;
     private String prodNm;
     private String locCd;
+    private String lotNo;
     private TxTyp txTyp;
 
     /** 참조문서번호 (입고번호/출고번호) — 특정 문서가 만든 이력만 추적할 때 */

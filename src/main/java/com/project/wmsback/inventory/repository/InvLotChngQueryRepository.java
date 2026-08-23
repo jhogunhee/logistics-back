@@ -2,6 +2,7 @@ package com.project.wmsback.inventory.repository;
 
 import com.project.wmsback.inventory.dto.InvLotChngTargetResponse;
 import com.project.wmsback.inventory.dto.InvLotChngTargetSearchCond;
+import com.project.mdm.prod.entity.TmpZon;
 import com.project.wmsback.warehouse.entity.LocTyp;
 import com.project.wmsback.warehouse.entity.Lot;
 import com.project.wmsback.warehouse.entity.QLot;
@@ -57,7 +58,8 @@ public class InvLotChngQueryRepository {
                         prodCdContains(cond.getProdCd()),
                         prodNmContains(cond.getProdNm()),
                         lotNoContains(cond.getLotNo()),
-                        locCdContains(cond.getLocCd())
+                        locCdContains(cond.getLocCd()),
+                        tmpZonEq(cond.getTmpZon())
                 )
                 .orderBy(prod.prodCd.asc(), lot.expiryDt.asc(), loc.locCd.asc())
                 .fetch();
@@ -104,5 +106,9 @@ public class InvLotChngQueryRepository {
 
     private BooleanExpression locCdContains(String locCd) {
         return StringUtils.hasText(locCd) ? loc.locCd.containsIgnoreCase(locCd) : null;
+    }
+
+    private BooleanExpression tmpZonEq(TmpZon tmpZon) {
+        return tmpZon != null ? prod.tmpZon.eq(tmpZon) : null;
     }
 }

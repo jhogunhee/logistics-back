@@ -1,5 +1,6 @@
 package com.project.wmsback.inventory.dto;
 
+import com.project.mdm.prod.entity.TmpZon;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -17,4 +18,5 @@ public class InvLotChngTargetSearchCond {
     private String prodNm;
     private String lotNo;
     private String locCd;
+    private TmpZon tmpZon;
 }

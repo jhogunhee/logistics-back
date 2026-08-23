@@ -75,7 +75,7 @@ public class SpmtQueryRepository {
                 .leftJoin(loc.zon, zon)
                 .join(fxngLoc.prod, prod)
                 .leftJoin(inv).on(inv.loc.eq(loc))
-                .where(zonCdEq(cond), prodCdContains(cond), prodNmContains(cond), locCdContains(cond))
+                .where(zonCdEq(cond), tmpZonEq(cond), prodCdContains(cond), prodNmContains(cond), locCdContains(cond))
                 .groupBy(fxngLoc.id, loc.id, loc.locCd, zon.zonCd,
                         prod.id, prod.prodCd, prod.prodNm, prod.tmpZon,
                         fxngLoc.minQty, fxngLoc.maxQty, loc.maxQty)
@@ -141,6 +141,10 @@ public class SpmtQueryRepository {
 
     private BooleanExpression zonCdEq(SpmtTargetSearchCond cond) {
         return StringUtils.hasText(cond.getZonCd()) ? zon.zonCd.eq(cond.getZonCd()) : null;
+    }
+
+    private BooleanExpression tmpZonEq(SpmtTargetSearchCond cond) {
+        return cond.getTmpZon() != null ? prod.tmpZon.eq(cond.getTmpZon()) : null;
     }
 
     private BooleanExpression prodCdContains(SpmtTargetSearchCond cond) {

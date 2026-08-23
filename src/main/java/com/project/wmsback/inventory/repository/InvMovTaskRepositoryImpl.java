@@ -11,6 +11,7 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import static com.project.wmsback.inventory.entity.QInvMovTask.invMovTask;
@@ -47,9 +48,12 @@ public class InvMovTaskRepositoryImpl implements InvMovTaskRepositoryCustom {
                         movDvsnEq(cond.getMovDvsn()),
                         prodCdContains(cond.getProdCd()),
                         prodNmContains(cond.getProdNm()),
+                        lotNoContains(cond.getLotNo()),
                         fromLocCdContains(cond.getFromLocCd()),
                         toLocCdContains(cond.getToLocCd()),
-                        statusIn(cond.getStatus())
+                        statusIn(cond.getStatus()),
+                        createdAtGoe(cond.getDateFrom()),
+                        createdAtLt(cond.getDateTo())
                 )
                 .orderBy(invMovTask.id.desc())
                 .fetch();
@@ -69,6 +73,10 @@ public class InvMovTaskRepositoryImpl implements InvMovTaskRepositoryCustom {
         return StringUtils.hasText(prodNm) ? prod.prodNm.containsIgnoreCase(prodNm) : null;
     }
 
+    private BooleanExpression lotNoContains(String lotNo) {
+        return StringUtils.hasText(lotNo) ? lot.lotNo.containsIgnoreCase(lotNo) : null;
+    }
+
     private BooleanExpression fromLocCdContains(String locCd) {
         return StringUtils.hasText(locCd) ? fromLoc.locCd.containsIgnoreCase(locCd) : null;
     }
@@ -83,5 +91,13 @@ public class InvMovTaskRepositoryImpl implements InvMovTaskRepositoryCustom {
 
     private BooleanExpression movDvsnEq(InvMovDvsn movDvsn) {
         return movDvsn != null ? invMovTask.movDvsn.eq(movDvsn) : null;
+    }
+
+    private BooleanExpression createdAtGoe(LocalDate dateFrom) {
+        return dateFrom != null ? invMovTask.createdAt.goe(dateFrom.atStartOfDay()) : null;
+    }
+
+    private BooleanExpression createdAtLt(LocalDate dateTo) {
+        return dateTo != null ? invMovTask.createdAt.lt(dateTo.plusDays(1).atStartOfDay()) : null;
     }
 }

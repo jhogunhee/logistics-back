@@ -3,6 +3,9 @@ package com.project.wmsback.inventory.dto;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.springframework.format.annotation.DateTimeFormat;
+
+import java.time.LocalDate;
 
 /** 로트변경 실적 조회 조건 (append-only 로그 조회) */
 @Getter
@@ -17,4 +20,10 @@ public class InvLotChngSearchCond {
     /** 원/목적지 어느 쪽이든 매치 — 「이 Lot이 낀 로트변경」을 한 조건으로 찾는다 */
     private String lotNo;
     private String rsnCd;
+
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+    private LocalDate dateFrom;
+
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+    private LocalDate dateTo;
 }

@@ -41,6 +41,7 @@ public class InvRepositoryImpl implements InvRepositoryCustom {
                         prodCdContains(cond.getProdCd()),
                         prodNmContains(cond.getProdNm()),
                         locCdContains(cond.getLocCd()),
+                        zonCdEq(cond.getZonCd()),
                         lotNoContains(cond.getLotNo()),
                         tmpZonEq(cond.getTmpZon()),
                         locTypEq(cond.getLocTyp()),

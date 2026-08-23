@@ -8,6 +8,7 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import static com.project.wmsback.inventory.entity.QInvHldRlzAcrst.invHldRlzAcrst;
@@ -40,7 +41,9 @@ public class InvHldRlzAcrstRepositoryImpl implements InvHldRlzAcrstRepositoryCus
                         prodNmContains(cond.getProdNm()),
                         locCdContains(cond.getLocCd()),
                         lotNoContains(cond.getLotNo()),
-                        rsnCdEq(cond.getRsnCd())
+                        rsnCdEq(cond.getRsnCd()),
+                        createdAtGoe(cond.getDateFrom()),
+                        createdAtLt(cond.getDateTo())
                 )
                 .orderBy(invHldRlzAcrst.id.desc())
                 .fetch();
@@ -70,5 +73,13 @@ public class InvHldRlzAcrstRepositoryImpl implements InvHldRlzAcrstRepositoryCus
 
     private BooleanExpression rsnCdEq(String rsnCd) {
         return StringUtils.hasText(rsnCd) ? invHldRlzAcrst.rsnCd.eq(rsnCd) : null;
+    }
+
+    private BooleanExpression createdAtGoe(LocalDate dateFrom) {
+        return dateFrom != null ? invHldRlzAcrst.createdAt.goe(dateFrom.atStartOfDay()) : null;
+    }
+
+    private BooleanExpression createdAtLt(LocalDate dateTo) {
+        return dateTo != null ? invHldRlzAcrst.createdAt.lt(dateTo.plusDays(1).atStartOfDay()) : null;
     }
 }
