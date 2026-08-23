@@ -65,7 +65,7 @@ COMMENT ON COLUMN prod.tmp_zon       IS '보관 온도대. TmpZon enum';
 COMMENT ON COLUMN prod.inb_uom_cd      IS '입고단위';
 COMMENT ON COLUMN prod.outb_uom_cd     IS '출고단위';
 COMMENT ON COLUMN prod.shelf_life_days IS '제조일 기준 총 유통기한. NULL = 유통기한 미관리';
-COMMENT ON COLUMN prod.img_url         IS '상품 이미지. NULL = 이미지 없음';
+COMMENT ON COLUMN prod.img_url         IS '상품 이미지 — emoji:🥛 아이콘(화면이 넣는 유일한 형태) / /prod-img/… 시더 전용 그림 / https:// 절대주소. NULL = 이미지 없음';
 
 -- 상품 코드(PROD-0001)는 채번 모듈이 발급한다 — nbr_rule 'PROD_CD' + nbr_seq.
 -- 전용 시퀀스(prod_cd_seq)를 두던 방식은 폐기했다. 규칙이 테이블 데이터라 화면에서 바꿀 수 있고,

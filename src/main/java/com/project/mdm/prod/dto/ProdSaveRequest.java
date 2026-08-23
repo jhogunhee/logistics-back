@@ -78,14 +78,21 @@ public class ProdSaveRequest {
      * 그리드에서 값을 지우면 빈 문자열이 오므로 NULL(이미지 없음)로 맞춰 둔다 —
      * 그래야 컬럼이 ''와 NULL 두 벌로 갈리지 않는다.
      * <p>
-     * 두 가지 형태를 받는다 —
+     * 세 가지 형태를 받는다 —
      * <ul>
-     *   <li>{@code /prod-img/PROD-0001.svg} — 프론트와 함께 배포되는 정적 파일(기본).
-     *       도메인이 바뀌어도 그대로 살아 있고 외부 의존이 없다.</li>
+     *   <li>{@code emoji:🥛} — 이모지(<b>화면이 넣는 유일한 형태</b>). 상품 관리 화면이 목록에서
+     *       고르게 한다. 글자라 파일도 스토리지도 아이콘 라이브러리도 없고, 라이선스 의무나
+     *       「없는 아이콘 이름」 같은 실패가 아예 생기지 않는다.</li>
+     *   <li>{@code /prod-img/PROD-0001.svg} — 시더 상품에 붙은 전용 그림(정적 파일).
+     *       화면에서 넣을 수는 없고 시드로만 들어온다 — 파일을 미리 소스 폴더에 넣어 두는
+     *       화면 밖 단계를 전제하는 방식이라 사용자 기능에서 뺐다.</li>
      *   <li>{@code https://…} — 이미 어딘가에 떠 있는 이미지의 절대 주소. 업로드 기능은 없고
      *       (Supabase Storage 업로드 경로를 옵션으로 뒀다가 뺐다 — 켜지 않는 옵션은 남기지 않는다),
      *       손으로 적는 절대 주소까지 막을 이유는 없어 형식만 허용해 둔다.</li>
      * </ul>
+     * 이모지가 화면의 목록에 실제로 있는지는 검사하지 않는다 — 목록의 주인이 프론트 상수라
+     * 서버가 알 수 없고, 없는 값이면 화면이 「이미지 없음」 폴백으로 흡수한다(파일 경로와 같은 성격).
+     * <p>
      * {@code http://}는 받지 않는다 — 배포가 https라 혼합 콘텐츠로 차단되어 그림이 안 뜬다.
      */
     private void validateImgUrl() {
@@ -99,9 +106,9 @@ public class ProdSaveRequest {
         if (imgUrl.length() > 500) {
             throw new IllegalArgumentException("이미지 URL이 너무 깁니다(최대 500자): " + prodNm);
         }
-        if (!imgUrl.startsWith("/") && !imgUrl.startsWith("https://")) {
+        if (!imgUrl.startsWith("emoji:") && !imgUrl.startsWith("/") && !imgUrl.startsWith("https://")) {
             throw new IllegalArgumentException(
-                    "이미지 주소는 /로 시작하는 경로이거나 https:// 로 시작해야 합니다: " + prodNm);
+                    "이미지는 아이콘(emoji:…)이거나 /로 시작하는 경로, https:// 주소여야 합니다: " + prodNm);
         }
     }
 
