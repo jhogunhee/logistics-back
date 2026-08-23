@@ -5,6 +5,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.List;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -16,5 +18,5 @@ public class InvHldSearchCond {
     private String locCd;
     private String lotNo;
     private String rsnCd;
-    private InvHldStatus status;
+    private List<InvHldStatus> status;
 }

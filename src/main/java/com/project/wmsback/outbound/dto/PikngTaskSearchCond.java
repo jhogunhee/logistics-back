@@ -1,10 +1,12 @@
 package com.project.wmsback.outbound.dto;
 
+import com.project.wmsback.outbound.entity.WaveStatus;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * 피킹지시 화면의 웨이브 검색 조건.
@@ -23,8 +25,8 @@ import java.time.LocalDate;
 public class PikngTaskSearchCond {
 
     private String wavNo;
-    /** 웨이브 상태 필터 — PLANNED / ISSUED / null(전체) */
-    private String status;
+    /** 웨이브 상태 필터 — PLANNED / ISSUED / 비었으면 전체 */
+    private List<WaveStatus> status;
     private LocalDate expctDeFrom;
     private LocalDate expctDeTo;
 }

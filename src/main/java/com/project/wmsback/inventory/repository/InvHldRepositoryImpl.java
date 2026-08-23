@@ -44,7 +44,7 @@ public class InvHldRepositoryImpl implements InvHldRepositoryCustom {
                         locCdContains(cond.getLocCd()),
                         lotNoContains(cond.getLotNo()),
                         rsnCdEq(cond.getRsnCd()),
-                        statusEq(cond.getStatus())
+                        statusIn(cond.getStatus())
                 )
                 .orderBy(invHld.id.desc())
                 .fetch();
@@ -76,7 +76,7 @@ public class InvHldRepositoryImpl implements InvHldRepositoryCustom {
         return StringUtils.hasText(rsnCd) ? invHld.rsnCd.eq(rsnCd) : null;
     }
 
-    private BooleanExpression statusEq(InvHldStatus status) {
-        return status != null ? invHld.status.eq(status) : null;
+    private BooleanExpression statusIn(List<InvHldStatus> status) {
+        return status != null && !status.isEmpty() ? invHld.status.in(status) : null;
     }
 }

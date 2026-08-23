@@ -173,7 +173,7 @@ public class WaveStgyExecService {
 
     private OutbOrderSearchCond targetCond(LocalDate expctDe) {
         OutbOrderSearchCond cond = new OutbOrderSearchCond();
-        cond.setStatus(OutbStatus.CREATED);
+        cond.setStatus(List.of(OutbStatus.CREATED));
         cond.setUnassigned(true);
         cond.setExpctDeFrom(expctDe);
         cond.setExpctDeTo(expctDe);

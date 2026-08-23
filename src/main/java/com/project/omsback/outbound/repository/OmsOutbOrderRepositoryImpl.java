@@ -38,7 +38,7 @@ public class OmsOutbOrderRepositoryImpl implements OmsOutbOrderRepositoryCustom 
                 .where(
                         omsOutbNoContains(cond.getOmsOutbNo()),
                         storeNmContains(cond.getStoreNm()),
-                        statusEq(cond.getStatus()),
+                        statusIn(cond.getStatus()),
                         outbTypEq(cond.getOutbTyp()),
                         vhclFltnoEq(cond.getVhclFltno()),
                         expctDeGoe(cond.getDateFrom()),
@@ -78,8 +78,8 @@ public class OmsOutbOrderRepositoryImpl implements OmsOutbOrderRepositoryCustom 
         return StringUtils.hasText(storeNm) ? omsOutbOrder.store.storeNm.containsIgnoreCase(storeNm) : null;
     }
 
-    private BooleanExpression statusEq(OmsOutbStatus status) {
-        return status != null ? omsOutbOrder.status.eq(status) : null;
+    private BooleanExpression statusIn(List<OmsOutbStatus> status) {
+        return status != null && !status.isEmpty() ? omsOutbOrder.status.in(status) : null;
     }
 
     private BooleanExpression outbTypEq(String outbTyp) {

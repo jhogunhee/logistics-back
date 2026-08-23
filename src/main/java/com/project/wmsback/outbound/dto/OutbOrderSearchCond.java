@@ -7,6 +7,7 @@ import lombok.Setter;
 import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDate;
+import java.util.List;
 
 /** 출고 주문 목록 검색 조건. 비어 있는 조건은 쿼리에서 무시된다. */
 @Getter
@@ -15,7 +16,7 @@ import java.time.LocalDate;
 public class OutbOrderSearchCond {
 
     private String outbNo;
-    private OutbStatus status;
+    private List<OutbStatus> status;
     private Long storeId;
 
     /**

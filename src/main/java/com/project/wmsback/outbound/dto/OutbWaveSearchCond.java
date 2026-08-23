@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * 출고 웨이브 목록 검색 조건.
@@ -20,7 +21,7 @@ import java.time.LocalDate;
 public class OutbWaveSearchCond {
 
     private String wavNo;
-    private WaveStatus status;
+    private List<WaveStatus> status;
 
     /** 소속 주문의 출고예정일 (파생 조건 — 이 기간에 걸리는 주문이 하나라도 있으면 그 웨이브가 나온다) */
     private LocalDate expctDeFrom;

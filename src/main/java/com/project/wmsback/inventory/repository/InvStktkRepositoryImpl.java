@@ -45,7 +45,7 @@ public class InvStktkRepositoryImpl implements InvStktkRepositoryCustom {
                 .leftJoin(invStktk.prod, prod)
                 .where(
                         stktkNoContains(cond.getStktkNo()),
-                        statusEq(cond.getStatus()),
+                        statusIn(cond.getStatus()),
                         zonCdEq(cond.getZonCd()),
                         prodCdContains(cond.getProdCd()),
                         createdFrom(cond.getFromDe()),
@@ -61,8 +61,8 @@ public class InvStktkRepositoryImpl implements InvStktkRepositoryCustom {
         return StringUtils.hasText(stktkNo) ? invStktk.stktkNo.containsIgnoreCase(stktkNo) : null;
     }
 
-    private BooleanExpression statusEq(InvStktkStatus status) {
-        return status != null ? invStktk.status.eq(status) : null;
+    private BooleanExpression statusIn(List<InvStktkStatus> status) {
+        return status != null && !status.isEmpty() ? invStktk.status.in(status) : null;
     }
 
     private BooleanExpression zonCdEq(String zonCd) {

@@ -54,7 +54,7 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
                 .join(outbOrder.wave, outbWave)
                 .where(
                         outbWave.status.in(WaveStatus.PLANNED, WaveStatus.ISSUED),
-                        statusEq(cond.getStatus()),
+                        statusIn(cond.getStatus()),
                         waveNoContains(cond.getWavNo()),
                         withinExpctDe(cond)
                 )
@@ -288,8 +288,8 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
 
     // ── 검색 조건 ────────────────────────────────────────────────────────────
 
-    private BooleanExpression statusEq(String status) {
-        return StringUtils.hasText(status) ? outbWave.status.eq(WaveStatus.valueOf(status)) : null;
+    private BooleanExpression statusIn(List<WaveStatus> status) {
+        return status != null && !status.isEmpty() ? outbWave.status.in(status) : null;
     }
 
     private BooleanExpression waveNoContains(String wavNo) {

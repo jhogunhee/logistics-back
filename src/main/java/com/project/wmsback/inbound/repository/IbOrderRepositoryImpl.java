@@ -65,7 +65,7 @@ public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {
                 .where(searchConds(cond))
                 .groupBy(ibOrder.id, ibOrder.ibNo, ibOrder.status, ibOrder.expctDe,
                         ibOrder.cfmDt, vendor.vndrNm)
-                .having(prgrEq(cond.getPrgr()))
+                .having(prgrIn(cond.getPrgr()))
                 .orderBy(ibOrder.id.desc())
                 .fetch();
     }
@@ -111,7 +111,7 @@ public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {
                 .where(searchConds(cond))
                 .groupBy(ibOrder.id, ibOrder.ibNo, ibOrder.status, ibOrder.expctDe,
                         ibOrder.cfmDt, vendor.vndrNm)
-                .having(prgrEq(cond.getPrgr()))
+                .having(prgrIn(cond.getPrgr()))
                 .orderBy(ibOrder.id.desc())
                 .fetch();
     }
@@ -215,8 +215,10 @@ public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {
      * 진행단계 필터. 조건이 있으면 CASE 식 전체가 having에 한 번 더 펼쳐진다
      * — SQL은 select 별칭을 having에서 못 쓴다.
      */
-    private BooleanExpression prgrEq(IbPrgr prgr) {
-        return prgr != null ? progressCode().eq(prgr.name()) : null;
+    private BooleanExpression prgrIn(List<IbPrgr> prgr) {
+        return prgr != null && !prgr.isEmpty()
+                ? progressCode().in(prgr.stream().map(IbPrgr::name).toList())
+                : null;
     }
 
     private BooleanExpression ibNoContains(String ibNo) {

@@ -42,7 +42,7 @@ public class OutbOrderRepositoryImpl implements OutbOrderRepositoryCustom {
                 .leftJoin(outbOrder.lines).fetchJoin()
                 .where(
                         outbNoContains(cond.getOutbNo()),
-                        statusEq(cond.getStatus()),
+                        statusIn(cond.getStatus()),
                         storeIdEq(cond.getStoreId()),
                         outbTypEq(cond.getOutbTyp()),
                         vhclFltnoEq(cond.getVhclFltno()),
@@ -62,7 +62,7 @@ public class OutbOrderRepositoryImpl implements OutbOrderRepositoryCustom {
                 .from(outbOrder)
                 .where(
                         outbNoContains(cond.getOutbNo()),
-                        statusEq(cond.getStatus()),
+                        statusIn(cond.getStatus()),
                         storeIdEq(cond.getStoreId()),
                         outbTypEq(cond.getOutbTyp()),
                         vhclFltnoEq(cond.getVhclFltno()),
@@ -171,8 +171,8 @@ public class OutbOrderRepositoryImpl implements OutbOrderRepositoryCustom {
         return StringUtils.hasText(outbNo) ? outbOrder.outbNo.containsIgnoreCase(outbNo) : null;
     }
 
-    private BooleanExpression statusEq(OutbStatus status) {
-        return status != null ? outbOrder.status.eq(status) : null;
+    private BooleanExpression statusIn(List<OutbStatus> status) {
+        return status != null && !status.isEmpty() ? outbOrder.status.in(status) : null;
     }
 
     private BooleanExpression storeIdEq(Long storeId) {

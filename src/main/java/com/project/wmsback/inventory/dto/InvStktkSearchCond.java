@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.util.List;
 
 /** 재고조사 조회 조건. 비어 있는 조건은 쿼리에서 무시된다. */
 @Getter
@@ -14,7 +15,7 @@ import java.time.LocalDate;
 public class InvStktkSearchCond {
 
     private String stktkNo;
-    private InvStktkStatus status;
+    private List<InvStktkStatus> status;
     private String zonCd;
     private String prodCd;
     /** 조사 생성일 From (해당 일자 00:00부터) */

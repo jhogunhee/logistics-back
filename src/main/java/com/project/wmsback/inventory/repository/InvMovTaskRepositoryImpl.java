@@ -49,7 +49,7 @@ public class InvMovTaskRepositoryImpl implements InvMovTaskRepositoryCustom {
                         prodNmContains(cond.getProdNm()),
                         fromLocCdContains(cond.getFromLocCd()),
                         toLocCdContains(cond.getToLocCd()),
-                        statusEq(cond.getStatus())
+                        statusIn(cond.getStatus())
                 )
                 .orderBy(invMovTask.id.desc())
                 .fetch();
@@ -77,8 +77,8 @@ public class InvMovTaskRepositoryImpl implements InvMovTaskRepositoryCustom {
         return StringUtils.hasText(locCd) ? toLoc.locCd.containsIgnoreCase(locCd) : null;
     }
 
-    private BooleanExpression statusEq(InvMovStatus status) {
-        return status != null ? invMovTask.status.eq(status) : null;
+    private BooleanExpression statusIn(List<InvMovStatus> status) {
+        return status != null && !status.isEmpty() ? invMovTask.status.in(status) : null;
     }
 
     private BooleanExpression movDvsnEq(InvMovDvsn movDvsn) {

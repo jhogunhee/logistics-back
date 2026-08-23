@@ -38,7 +38,7 @@ public class OmsIbOrderRepositoryImpl implements OmsIbOrderRepositoryCustom {
                 .where(
                         omsIbNoContains(cond.getOmsIbNo()),
                         vndrNmContains(cond.getVndrNm()),
-                        statusEq(cond.getStatus()),
+                        statusIn(cond.getStatus()),
                         expctDeGoe(cond.getDateFrom()),
                         expctDeLoe(cond.getDateTo())
                 )
@@ -72,8 +72,8 @@ public class OmsIbOrderRepositoryImpl implements OmsIbOrderRepositoryCustom {
         return StringUtils.hasText(vndrNm) ? omsIbOrder.vendor.vndrNm.containsIgnoreCase(vndrNm) : null;
     }
 
-    private BooleanExpression statusEq(OmsIbStatus status) {
-        return status != null ? omsIbOrder.status.eq(status) : null;
+    private BooleanExpression statusIn(List<OmsIbStatus> status) {
+        return status != null && !status.isEmpty() ? omsIbOrder.status.in(status) : null;
     }
 
     private BooleanExpression expctDeGoe(LocalDate dateFrom) {

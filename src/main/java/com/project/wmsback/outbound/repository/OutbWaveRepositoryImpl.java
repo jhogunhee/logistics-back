@@ -27,7 +27,7 @@ public class OutbWaveRepositoryImpl implements OutbWaveRepositoryCustom {
                 .leftJoin(outbWave.orders).fetchJoin()
                 .where(
                         waveNoContains(cond.getWavNo()),
-                        statusEq(cond.getStatus()),
+                        statusIn(cond.getStatus()),
                         withinExpctDe(cond)
                 )
                 .orderBy(outbWave.id.desc())
@@ -38,8 +38,8 @@ public class OutbWaveRepositoryImpl implements OutbWaveRepositoryCustom {
         return StringUtils.hasText(wavNo) ? outbWave.wavNo.containsIgnoreCase(wavNo) : null;
     }
 
-    private BooleanExpression statusEq(WaveStatus status) {
-        return status != null ? outbWave.status.eq(status) : null;
+    private BooleanExpression statusIn(List<WaveStatus> status) {
+        return status != null && !status.isEmpty() ? outbWave.status.in(status) : null;
     }
 
     /**
