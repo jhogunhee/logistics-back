@@ -204,9 +204,15 @@
 </tr>
 <tr>
   <td class="name">재고 이동</td>
-  <td>보관 ↔ 보관 이동을 <strong>2단계(지시=예약 → 확정=실물 MOVE)</strong>로 처리. <strong>메뉴는 하나, 화면 안 탭 2개</strong> — ① <strong>이동지시등록</strong>: 현재고에서 대상 선택 → TO·수량 담기 → 일괄 등록 시 <code>inv.aloc_qty</code> 선점(예약 — <code>aloc_qty</code>는 예약수량 일반), 온도대·적재가능수량(<code>max_qty − 현재고 − 미완료 지시 유입 잔량</code>) 검증. ② <strong>이동지시 관리</strong>: 지시 목록, <strong>확정</strong>(다건 일괄 — 한 건이라도 걸리면 전량 롤백, 건마다 부분 허용 — <code>inv_hist</code> MOVE 2행 + 예약 소진, 전량 시 DONE), <strong>취소</strong>(잔량 예약 해제 — 실적 없으면 CANCELLED, 부분확정 후면 지시수량 차감 후 DONE). <strong>확정·취소는 이동구분(<code>mov_dvsn</code>)이 재고이동(INV_MOV)인 지시만</strong> — 적치·피킹 유형은 각자의 화면 전용. 실적 테이블 없음 — 실적 조회는 재고 이력 조회로 수렴</td>
+  <td>보관 ↔ 보관 이동을 <strong>2단계(지시=예약 → 확정=실물 MOVE)</strong>로 처리. <strong>메뉴는 하나, 화면 안 탭 2개</strong> — ① <strong>이동지시등록</strong>: 현재고에서 대상 선택 → TO·수량 담기 → 일괄 등록 시 <code>inv.aloc_qty</code> 선점(예약 — <code>aloc_qty</code>는 예약수량 일반), 온도대·적재가능수량(<code>max_qty − 현재고 − 미완료 지시 유입 잔량</code>) 검증. ② <strong>이동지시 관리</strong>: 지시 목록, <strong>확정</strong>(다건 일괄 — 한 건이라도 걸리면 전량 롤백, 건마다 부분 허용 — <code>inv_hist</code> MOVE 2행 + 예약 소진, 전량 시 DONE), <strong>취소</strong>(잔량 예약 해제 — 실적 없으면 CANCELLED, 부분확정 후면 지시수량 차감 후 DONE). <strong>확정·취소는 이동구분(<code>mov_dvsn</code>)이 재고이동(INV_MOV)·보충(SPMT)인 지시</strong> — 적치 유형만 자기 화면 전용. 실적 테이블 없음 — 실적 조회는 재고 이력 조회로 수렴</td>
   <td class="st"><span class="badge done">구현</span></td>
   <td><code>POST·GET /inventory/moves</code><br><code>POST /inventory/moves/confirm</code><br><code>POST /inventory/moves/{id}/cancel</code></td>
+</tr>
+<tr>
+  <td class="name">정기 보충</td>
+  <td>피킹존 고정로케이션(<code>fxng_loc</code>)이 <strong>재보충점(min) 미달이면 보관존 재고를 상한(max)까지</strong> 채우는 이동지시(<code>mov_dvsn=SPMT</code>, <code>SP-</code> 채번)를 일괄 발행. 대상 판정은 <code>현재고+미완료 유입 잔량 &lt; min</code>(이미 지시 건 자리는 다시 안 잡힘), 원천은 같은 상품 보관 가용재고를 <strong>FEFO 자동 추천</strong>(고정로케이션 자리는 후보 제외) — 행별 원천·수량 보정 가능. 추천 ≠ 예약 — 발행 시 서버가 부족량·가용을 재검증(2회 검증). 실물 이동(확정)은 「재고 이동 › 이동지시 관리」가 담당. <strong>정기 실행은 스케줄러(<code>SpmtScheduler</code>, <code>spmt.cron</code> 기본 매일 03:00)가 같은 경로(plan→issue)로 자동 발행</strong> — 화면은 임의 시점 재계산·보정용 보조</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>GET /inventory/spmt/targets</code><br><code>POST /inventory/spmt</code></td>
 </tr>
 </tbody>
 </table>

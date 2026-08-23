@@ -70,6 +70,15 @@ public class InvMovService {
      */
     @Transactional
     public List<String> register(InvMovRegisterRequest request) {
+        return register(request, InvMovDvsn.INV_MOV, MOV_NO_RULE_CD);
+    }
+
+    /**
+     * 이동구분·채번규칙을 지정하는 등록 — 보충(SPMT) 발행이 자기 검증을 마친 뒤 이 창구로 위임한다.
+     * 락 순서·검증·예약이 유형과 무관하게 동일해 경로를 복제하지 않는다.
+     */
+    @Transactional
+    public List<String> register(InvMovRegisterRequest request, InvMovDvsn movDvsn, String noRuleCd) {
         if (request.getItems() == null || request.getItems().isEmpty()) {
             throw new IllegalArgumentException("이동지시 대상이 없습니다.");
         }
@@ -104,12 +113,13 @@ public class InvMovService {
             if (fromInv == null) {
                 throw new IllegalArgumentException("존재하지 않는 재고입니다: " + item.getInvId());
             }
-            movNos.add(registerOne(item, fromInv, lockedToLocs.get(item.getToLocId())));
+            movNos.add(registerOne(item, fromInv, lockedToLocs.get(item.getToLocId()), movDvsn, noRuleCd));
         }
         return movNos;
     }
 
-    private String registerOne(InvMovRegisterRequest.Item item, Inv fromInv, Loc to) {
+    private String registerOne(InvMovRegisterRequest.Item item, Inv fromInv, Loc to,
+                               InvMovDvsn movDvsn, String noRuleCd) {
         if (item.getQty() == null || item.getQty() < 1) {
             throw new IllegalArgumentException("이동수량은 1 이상이어야 합니다.");
         }
@@ -145,8 +155,8 @@ public class InvMovService {
 
         invStore.reserve(fromInv, item.getQty());
         InvMovTask task = InvMovTask.builder()
-                .invMovNo(nbrService.issue(MOV_NO_RULE_CD, LocalDate.now()))
-                .movDvsn(InvMovDvsn.INV_MOV) // 이 화면 경로의 이동구분은 재고이동 고정
+                .invMovNo(nbrService.issue(noRuleCd, LocalDate.now()))
+                .movDvsn(movDvsn)
                 .prod(prodEntity).lot(lotEntity)
                 .fromLoc(from).toLoc(to)
                 .drctQty(item.getQty())
@@ -215,9 +225,10 @@ public class InvMovService {
         }
         InvMovTask task = invMovTaskRepository.findByIdForUpdate(item.getTaskId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 이동지시입니다: " + item.getTaskId()));
-        // 재고이동 유형만 이 경로에서 확정 가능 — 적치·피킹 지시는 각자의 화면 경로에서만 처리된다
-        if (task.getMovDvsn() != InvMovDvsn.INV_MOV) {
-            throw new IllegalArgumentException("재고이동 유형의 지시만 이 화면에서 확정할 수 있습니다 (이동구분 " + task.getMovDvsn().getLabel() + "): " + task.getInvMovNo());
+        // 재고이동·보충 유형만 이 경로에서 확정 가능 — 실물을 옮기는 동일 작업이라 경로를 가르지 않는다.
+        // 적치 지시는 자기 화면 경로에서만 처리된다
+        if (task.getMovDvsn() == InvMovDvsn.PTAWY) {
+            throw new IllegalArgumentException("적치 유형의 지시는 이 화면에서 확정할 수 없습니다 (이동구분 " + task.getMovDvsn().getLabel() + "): " + task.getInvMovNo());
         }
         if (task.getStatus() != InvMovStatus.DIRECTED) {
             throw new IllegalArgumentException("지시 상태의 이동지시만 확정할 수 있습니다 (현재 " + task.getStatus().getLabel() + "): " + task.getInvMovNo());
@@ -267,9 +278,9 @@ public class InvMovService {
 
         InvMovTask task = invMovTaskRepository.findByIdForUpdate(taskId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 이동지시입니다: " + taskId));
-        // 재고이동 유형만 이 경로에서 취소 가능 (확정과 같은 방어)
-        if (task.getMovDvsn() != InvMovDvsn.INV_MOV) {
-            throw new IllegalArgumentException("재고이동 유형의 지시만 이 화면에서 취소할 수 있습니다 (이동구분 " + task.getMovDvsn().getLabel() + "): " + task.getInvMovNo());
+        // 재고이동·보충 유형만 이 경로에서 취소 가능 (확정과 같은 방어)
+        if (task.getMovDvsn() == InvMovDvsn.PTAWY) {
+            throw new IllegalArgumentException("적치 유형의 지시는 이 화면에서 취소할 수 없습니다 (이동구분 " + task.getMovDvsn().getLabel() + "): " + task.getInvMovNo());
         }
         if (task.getStatus() != InvMovStatus.DIRECTED) {
             throw new IllegalArgumentException("지시 상태의 이동지시만 취소할 수 있습니다 (현재 " + task.getStatus().getLabel() + "): " + task.getInvMovNo());

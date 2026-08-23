@@ -181,10 +181,10 @@ CREATE TABLE fxng_loc (
     CONSTRAINT ck_fxng_loc_qty CHECK (min_qty >= 0 AND max_qty >= 1 AND min_qty <= max_qty)
 );
 
-COMMENT ON TABLE  fxng_loc IS '고정 로케이션 마스터. 상품×로케이션 지정 (FK 없음 — 존재·STORAGE·온도대 검증은 FxngLocService, 삭제 가드는 WmsProdRefChecker·LocRefQueryRepository). 적치 FXNG_LOC 방식의 후보 원천이고, min/max는 보충(SPMT) 기준 — 보충 프로세스는 미구현';
+COMMENT ON TABLE  fxng_loc IS '고정 로케이션 마스터. 상품×로케이션 지정 (FK 없음 — 존재·STORAGE·온도대 검증은 FxngLocService, 삭제 가드는 WmsProdRefChecker·LocRefQueryRepository). 적치 FXNG_LOC 방식의 후보 원천이고, min/max는 보충(SPMT — SpmtService, 이동지시 mov_dvsn=SPMT 발행) 기준';
 COMMENT ON COLUMN fxng_loc.prod_id IS '고정할 상품 (prod.prod_id). 한 상품이 여러 고정 로케이션을 가질 수 있다';
 COMMENT ON COLUMN fxng_loc.loc_id  IS '고정 로케이션 (loc.loc_id, STORAGE 전용 — STAGE는 적치·할당 후보 모집단 밖이라 지정해도 영영 쓰이지 않는다). UNIQUE — 한 로케이션은 한 상품 전용';
-COMMENT ON COLUMN fxng_loc.min_qty IS '재보충점. 이 로케이션의 재고가 이 아래로 내려가면 보충 대상 (보충 프로세스 구현 시 사용)';
+COMMENT ON COLUMN fxng_loc.min_qty IS '재보충점. 현재고+미완료 유입 잔량이 이 아래로 내려가면 보충 대상 (SpmtService.plan)';
 COMMENT ON COLUMN fxng_loc.max_qty IS '보충 목표 상한. loc.max_qty 이하 — 크로스 테이블이라 CHECK 불가, FxngLocService(등록)와 LocService(loc.max_qty 하향 가드)가 지킨다';
 
 CREATE INDEX ix_fxng_loc_prod ON fxng_loc (prod_id); -- 상품→고정 로케이션 조회 (적치 추천 join · 상품 삭제 가드)
@@ -486,6 +486,7 @@ INSERT INTO nbr_rule (rule_cd, rule_nm, prfx, prfx_dlmt, de_dlmt, seq_dgt, dync_
     ('OUTB_NO',     '출고 번호',        'OB',   '-', '-', 3, 'DAY'),
     ('OUTB_WAV_NO', '출고 웨이브 번호', 'WV',   '-', '-', 3, 'DAY'),
     ('INV_MOV_NO',  '이동지시 번호',    'MV',   '-', '-', 3, 'DAY'),
+    ('SPMT_NO',     '보충지시 번호',    'SP',   '-', '-', 3, 'DAY'),
     ('HLD_NO',      '보류 번호',        'HD',   '-', '-', 3, 'DAY'),
     ('STKTK_NO',    '재고조사 번호',    'ST',   '-', '-', 3, 'DAY'),
     ('LOT_CHNG_NO', '재고 로트변경 번호', 'LC', '-', '-', 3, 'DAY');
@@ -806,7 +807,7 @@ CREATE TABLE inv_mov_task (
     updated_at      TIMESTAMP,
     updated_by      VARCHAR(30),
     CONSTRAINT uq_inv_mov_no UNIQUE (inv_mov_no),
-    CONSTRAINT ck_inv_mov_dvsn CHECK (mov_dvsn IN ('INV_MOV', 'PTAWY')),
+    CONSTRAINT ck_inv_mov_dvsn CHECK (mov_dvsn IN ('INV_MOV', 'PTAWY', 'SPMT')),
     CONSTRAINT ck_inv_mov_status CHECK (status IN ('DIRECTED', 'DONE', 'CANCELLED')),
     -- 지시 초과 확정을 DB가 거부한다 (putaway_task의 ck_ptawy_task_qty와 같은 방어)
     CONSTRAINT ck_inv_mov_qty CHECK (drct_qty > 0 AND cmpl_qty >= 0 AND cmpl_qty <= drct_qty),
@@ -815,7 +816,7 @@ CREATE TABLE inv_mov_task (
 
 COMMENT ON TABLE  inv_mov_task IS '이동지시 (보관↔보관 2단계: 지시=예약 → 확정=실물 MOVE). 지시는 권고가 아니라 명령 — 지시 TO와 다른 로케이션으로 확정할 수 없고, 다른 곳에 두려면 잔량 취소 후 재지시한다. 실적은 별도 테이블 없이 inv_hist의 MOVE 2행(rfn_doc_no = inv_mov_no)';
 COMMENT ON COLUMN inv_mov_task.inv_mov_no  IS '이동지시 번호 (건당 유일 — 라인 구조 없음). inv_hist 실적이 rfn_doc_no만으로 지시와 정확히 매칭되게 하는 전제. nbr_rule INV_MOV_NO 채번';
-COMMENT ON COLUMN inv_mov_task.mov_dvsn    IS '이동구분 — INV_MOV 재고이동 / PTAWY 적치. 재고이동 화면의 등록은 INV_MOV 고정이고, 그 화면의 확정·취소도 INV_MOV만 허용한다. 적치는 별도 putaway_task 유지로 확정(2026-08-04 — FROM이 항상 스테이징이라 컬럼이 남고, ib_line_id 같은 입고 전용 컬럼이 이 테이블로 새어 나온다), 피킹도 별도 pikng_task로 확정(2026-08-20 — 같은 논리 + 예약 의미 충돌)되어 PIKNG 값은 제거했다';
+COMMENT ON COLUMN inv_mov_task.mov_dvsn    IS '이동구분 — INV_MOV 재고이동 / PTAWY 적치 / SPMT 보충(피킹존 고정로케이션을 min 미달 시 max까지 채우는 보관→피킹 이동, 2026-08-21). 등록은 재고이동 화면이 INV_MOV, 보충 화면이 SPMT 고정. 확정·취소는 두 유형 모두 이동지시 관리 화면이 처리한다(실물을 옮기는 동일 작업). 적치는 별도 putaway_task 유지로 확정(2026-08-04 — FROM이 항상 스테이징이라 컬럼이 남고, ib_line_id 같은 입고 전용 컬럼이 이 테이블로 새어 나온다), 피킹도 별도 pikng_task로 확정(2026-08-20 — 같은 논리 + 예약 의미 충돌)되어 PIKNG 값은 제거했다';
 COMMENT ON COLUMN inv_mov_task.prod_id     IS '이동 대상 상품. Lot이 상품을 함의하지만 재고 키(상품+Loc+Lot) 그대로 담아 단독 조회를 가능하게 한다 (inv_hist와 같은 형태)';
 COMMENT ON COLUMN inv_mov_task.from_loc_id IS '출발 보관 로케이션. 등록 시 이 로케이션 재고의 aloc_qty를 잔여수량만큼 선점(예약)한다';
 COMMENT ON COLUMN inv_mov_task.to_loc_id   IS '도착 보관 로케이션. 온도대 일치 + 적재가능수량(max_qty − 현재고 − 미완료 지시 유입 잔량) 검증 대상';

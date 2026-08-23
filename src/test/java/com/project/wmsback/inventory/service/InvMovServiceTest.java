@@ -256,6 +256,47 @@ class InvMovServiceTest {
     }
 
     @Test
+    @DisplayName("등록 오버로드: 보충(SPMT) 유형·전용 채번규칙으로 등록된다")
+    void register_overloadCarriesSpmtDvsnAndRule() {
+        when(nbrService.issue("SPMT_NO", LocalDate.now())).thenReturn("SP-20260821-001");
+
+        List<String> movNos = invMovService.register(request(100L, 20L, 6L), InvMovDvsn.SPMT, "SPMT_NO");
+
+        assertEquals(List.of("SP-20260821-001"), movNos);
+        ArgumentCaptor<InvMovTask> captor = ArgumentCaptor.forClass(InvMovTask.class);
+        verify(invMovTaskRepository).save(captor.capture());
+        assertEquals(InvMovDvsn.SPMT, captor.getValue().getMovDvsn());
+    }
+
+    @Test
+    @DisplayName("확정: 보충(SPMT) 지시도 이 경로에서 확정된다 — 실물을 옮기는 동일 작업")
+    void confirm_allowsSpmt() {
+        fromInv.reserve(6L);
+        InvMovTask spmt = task(6L, InvMovDvsn.SPMT);
+        when(invMovTaskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(spmt));
+        when(invRepository.findByKeyForUpdate(1L, 10L, 5L)).thenReturn(Optional.of(fromInv));
+
+        invMovService.confirm(confirmRequest(1L, 6L));
+
+        assertEquals(InvMovStatus.DONE, spmt.getStatus());
+        assertEquals(0L, fromInv.getAlocQty());
+    }
+
+    @Test
+    @DisplayName("취소: 보충(SPMT) 지시도 이 경로에서 취소된다")
+    void cancel_allowsSpmt() {
+        fromInv.reserve(6L);
+        InvMovTask spmt = task(6L, InvMovDvsn.SPMT);
+        when(invMovTaskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(spmt));
+        when(invRepository.findByKeyForUpdate(1L, 10L, 5L)).thenReturn(Optional.of(fromInv));
+
+        invMovService.cancel(1L);
+
+        assertEquals(InvMovStatus.CANCELLED, spmt.getStatus());
+        assertEquals(0L, fromInv.getAlocQty());
+    }
+
+    @Test
     @DisplayName("확정: DIRECTED가 아닌 지시는 거부")
     void confirm_rejectsNonDirected() {
         InvMovTask done = task(4L);

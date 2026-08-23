@@ -40,4 +40,17 @@ public class LocCapacityService {
     public Map<Long, Long> openInflowQtyByLoc() {
         return locCapacityQueryRepository.openInflowQtyByLoc();
     }
+
+    /**
+     * 상품×로케이션별 미완료 유입 잔량. 보충 산정이 고정 상품의 유입만 얹어 판정할 때 쓴다 —
+     * 적재가능 식의 유입 항(전 상품)과 달리 상품으로 한 번 더 거른 값이다
+     */
+    public Map<ProdLocKey, Long> openInflowQtyByProdLoc() {
+        return locCapacityQueryRepository.openInflowQtyByProdLoc();
+    }
+
+    /** 특정 상품이 특정 로케이션으로 오는 유입 잔량 단건. 보충 발행의 부족량 재검증용 (위 집계와 같은 정의) */
+    public long openInflowQty(Long prodId, Long locId) {
+        return locCapacityQueryRepository.openInflowQty(prodId, locId);
+    }
 }

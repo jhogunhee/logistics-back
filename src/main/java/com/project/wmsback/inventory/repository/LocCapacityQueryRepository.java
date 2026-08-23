@@ -2,6 +2,7 @@ package com.project.wmsback.inventory.repository;
 
 import com.project.wmsback.inbound.entity.PutawayTaskStatus;
 import com.project.wmsback.inventory.entity.InvMovStatus;
+import com.project.wmsback.inventory.service.ProdLocKey;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.Expression;
 import com.querydsl.core.types.dsl.NumberExpression;
@@ -89,6 +90,55 @@ public class LocCapacityQueryRepository {
         for (Tuple row : rows) {
             target.merge(row.get(locIdPath), sumOf(row.get(qtyPath)), Long::sum);
         }
+    }
+
+    /**
+     * 특정 상품이 특정 로케이션으로 들어올 미완료 잔량. 보충의 부족량 재검증용 —
+     * 전용 자리로 오는 타상품 지시는 물리 용량은 차지해도 그 상품의 보충 판정과는 무관하다.
+     * 적치지시는 상품 컬럼이 없어 Lot을 거쳐 상품을 본다.
+     */
+    public long openInflowQty(Long prodId, Long locId) {
+        return sumOf(queryFactory
+                .select(invMovTask.drctQty.subtract(invMovTask.cmplQty).sum())
+                .from(invMovTask)
+                .where(invMovTask.toLoc.id.eq(locId), invMovTask.prod.id.eq(prodId),
+                        invMovTask.status.eq(InvMovStatus.DIRECTED))
+                .fetchOne())
+                + sumOf(queryFactory
+                .select(putawayTask.drctQty.subtract(putawayTask.cmplQty).sum())
+                .from(putawayTask)
+                .where(putawayTask.toLoc.id.eq(locId), putawayTask.lot.prod.id.eq(prodId),
+                        putawayTask.status.eq(PutawayTaskStatus.DIRECTED))
+                .fetchOne());
+    }
+
+    /** 상품×로케이션별 미완료 유입 잔량 (잔량이 있는 조합만). 보충 산정이 대상 전체를 한 번에 판정할 때 쓴다 */
+    public Map<ProdLocKey, Long> openInflowQtyByProdLoc() {
+        Map<ProdLocKey, Long> byProdLoc = new HashMap<>();
+
+        NumberExpression<Long> movRemainder = invMovTask.drctQty.subtract(invMovTask.cmplQty).sum();
+        for (Tuple row : queryFactory
+                .select(invMovTask.prod.id, invMovTask.toLoc.id, movRemainder)
+                .from(invMovTask)
+                .where(invMovTask.status.eq(InvMovStatus.DIRECTED))
+                .groupBy(invMovTask.prod.id, invMovTask.toLoc.id)
+                .fetch()) {
+            byProdLoc.merge(new ProdLocKey(row.get(invMovTask.prod.id), row.get(invMovTask.toLoc.id)),
+                    sumOf(row.get(movRemainder)), Long::sum);
+        }
+
+        NumberExpression<Long> ptawyRemainder = putawayTask.drctQty.subtract(putawayTask.cmplQty).sum();
+        for (Tuple row : queryFactory
+                .select(putawayTask.lot.prod.id, putawayTask.toLoc.id, ptawyRemainder)
+                .from(putawayTask)
+                .where(putawayTask.status.eq(PutawayTaskStatus.DIRECTED))
+                .groupBy(putawayTask.lot.prod.id, putawayTask.toLoc.id)
+                .fetch()) {
+            byProdLoc.merge(new ProdLocKey(row.get(putawayTask.lot.prod.id), row.get(putawayTask.toLoc.id)),
+                    sumOf(row.get(ptawyRemainder)), Long::sum);
+        }
+
+        return byProdLoc;
     }
 
     /** 대상 행이 없으면 SUM이 null이다 — 0으로 본다 */

@@ -2,6 +2,7 @@ package com.project.wmsback.inventory.controller;
 
 import com.project.wmsback.inventory.dto.InvResponse;
 import com.project.wmsback.inventory.dto.InvSearchCond;
+import com.project.wmsback.inventory.dto.LocMapResponse;
 import com.project.wmsback.inventory.service.InvService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,5 +22,11 @@ public class InvController {
     @GetMapping
     public List<InvResponse> list(@ModelAttribute InvSearchCond cond) {
         return invService.list(cond);
+    }
+
+    /** 로케이션 점유 맵 — STORAGE 전건. 필터는 프론트가 한다 (수백 건 규모) */
+    @GetMapping("/map")
+    public List<LocMapResponse> locMap() {
+        return invService.locMap();
     }
 }
