@@ -66,9 +66,9 @@ public class Prod extends BaseEntity {
     private Integer shelfLifeDays;
 
     /**
-     * 상품 이미지 URL (Supabase Storage 퍼블릭 객체). NULL = 이미지 없음 — 화면이 폴백을 그린다.
-     * 파일은 프론트가 Storage로 직접 올리고 여기엔 주소만 남으므로, 백엔드는 이 값이 가리키는
-     * 객체가 실제로 있는지 알지 못한다(고아 URL은 화면 폴백이 흡수한다).
+     * 상품 이미지 URL. NULL = 이미지 없음 — 화면이 폴백을 그린다.
+     * 파일은 프론트와 함께 배포되는 정적 파일({@code /prod-img/{상품코드}.svg})이고 여기엔 주소만 남으므로,
+     * 백엔드는 이 값이 가리키는 파일이 실제로 있는지 알지 못한다(깨진 주소는 화면 폴백이 흡수한다).
      */
     @Column(name = "img_url", length = 500)
     private String imgUrl;

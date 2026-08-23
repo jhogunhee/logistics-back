@@ -31,7 +31,7 @@ public class ProdSaveRequest {
     /** 출고주문 단위 (공통코드 UOM). 마찬가지로 신규 등록 시에만 자동 생성되고 등록 후엔 못 바꾼다 */
     private String outbUomCd;
     private Integer shelfLifeDays;
-    /** 상품 이미지 URL. 프론트가 Supabase Storage에 올리고 받은 퍼블릭 주소를 그대로 싣는다 */
+    /** 상품 이미지 URL. 기본은 프론트와 함께 배포되는 정적 파일의 루트 상대경로({@code /prod-img/{상품코드}.svg}) */
     private String imgUrl;
 
     /** 신규 행 → 엔티티. 상품 코드는 서비스가 채번해 넘긴다. 단위 필수 검사는 신규에만 있다 */
@@ -74,7 +74,7 @@ public class ProdSaveRequest {
 
     /**
      * 이미지 URL은 자기 필드만으로 되는 검사(형식 · 길이)만 여기서 본다 — 그 주소에 파일이 실제로
-     * 있는지는 백엔드가 알 수 없다(프론트가 배포한 정적 파일이거나 외부 저장소의 객체다).
+     * 있는지는 백엔드가 알 수 없다(프론트가 배포한 정적 파일이다).
      * 그리드에서 값을 지우면 빈 문자열이 오므로 NULL(이미지 없음)로 맞춰 둔다 —
      * 그래야 컬럼이 ''와 NULL 두 벌로 갈리지 않는다.
      * <p>
@@ -82,8 +82,9 @@ public class ProdSaveRequest {
      * <ul>
      *   <li>{@code /prod-img/PROD-0001.svg} — 프론트와 함께 배포되는 정적 파일(기본).
      *       도메인이 바뀌어도 그대로 살아 있고 외부 의존이 없다.</li>
-     *   <li>{@code https://…} — 외부 저장소(Supabase Storage 등)에 올린 객체.
-     *       업로드 기능을 켜면 이쪽이 들어온다.</li>
+     *   <li>{@code https://…} — 이미 어딘가에 떠 있는 이미지의 절대 주소. 업로드 기능은 없고
+     *       (Supabase Storage 업로드 경로를 옵션으로 뒀다가 뺐다 — 켜지 않는 옵션은 남기지 않는다),
+     *       손으로 적는 절대 주소까지 막을 이유는 없어 형식만 허용해 둔다.</li>
      * </ul>
      * {@code http://}는 받지 않는다 — 배포가 https라 혼합 콘텐츠로 차단되어 그림이 안 뜬다.
      */

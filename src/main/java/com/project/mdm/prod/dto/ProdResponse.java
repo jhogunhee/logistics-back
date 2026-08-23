@@ -17,7 +17,7 @@ public class ProdResponse {
     private final String inbUomCd;
     private final String outbUomCd;
     private final Integer shelfLifeDays;
-    /** 상품 이미지 URL (Supabase Storage 퍼블릭 객체). NULL = 이미지 없음 — 화면이 폴백을 그린다 */
+    /** 상품 이미지 URL (프론트와 함께 배포되는 정적 파일 경로). NULL = 이미지 없음 — 화면이 폴백을 그린다 */
     private final String imgUrl;
     /**
      * 입고단위/출고단위 1개 = 낱개(EA) 몇 개 (환산계수). 상품 선택 팝업·검수 화면이 쓴다 —
