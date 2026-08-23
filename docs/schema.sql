@@ -58,7 +58,7 @@ CREATE TABLE prod (
     -- 파생시킨다 (아래 prod_uom 주석 참고). 두 벌로 두면 서로 어긋날 수 있는 값이 생긴다.
 );
 
-COMMENT ON TABLE  prod IS '상품 마스터. 보관 규칙(온도대)과 유통기한 정책을 상품 단위로 정의';
+COMMENT ON TABLE  prod IS '상품 마스터';
 COMMENT ON COLUMN prod.prod_cd          IS '상품 코드 (업무 식별자, 예: PROD-0001)';
 COMMENT ON COLUMN prod.tmp_zon       IS '보관 온도대 (DRY 상온 / CHL 냉장 / FRZ 냉동). 적치·이동 시 로케이션 온도대와 일치 검증';
 COMMENT ON COLUMN prod.inb_uom_cd      IS '입고단위 (prod_uom에 있는 uom_cd여야 한다, FK 없음). 벤더에게 발주하고 납품받는 단위 (예: BOX). 이 단위를 쓰는 곳은 oms_ib_line.odr_qty 하나뿐이다. CHECK를 걸지 않는 이유는 값 목록의 주인이 공통코드 UOM 그룹이라서, CHECK가 있으면 단위를 추가할 때마다 DDL을 고쳐야 하기 때문 (zon.tmp_zon 등과 같은 형태)';
@@ -99,7 +99,7 @@ CREATE TABLE prod_uom (
     CONSTRAINT ck_prod_uom_wgt CHECK (wgt IS NULL OR wgt > 0)
 );
 
-COMMENT ON TABLE  prod_uom IS '상품 포장. (상품, 단위) 한 조합이 한 행 — 낱개수량과 중량을 포장마다 갖는다. 어느 단위든 낱개(EA)를 매개로 환산되는 근거가 여기다';
+COMMENT ON TABLE  prod_uom IS '상품 포장 (단위별 낱개수량·중량)';
 COMMENT ON COLUMN prod_uom.uom_cd IS '단위 코드. 공통코드 UOM 그룹(code_detail) 참조, FK 없음 — 존재 검증은 ProdService';
 COMMENT ON COLUMN prod_uom.ea_qty IS '이 단위 1개가 낱개 몇 개인가 (예: BOX 1개 = 24). 낱개 그 자체면 1. 환산(Prod.toEaQty = qty × ea_qty)은 OMS→WMS 경계 세 곳에서만 일어난다 — 발주→ASN(입고단위), 검수 입력(입고단위), 출고주문 확정(출고단위). 창고의 모든 수량 컬럼은 낱개(EA)다';
 COMMENT ON COLUMN prod_uom.wgt    IS '이 단위 1개의 중량(kg). 포장재 무게(tare)를 포함한 실측값이며 미측정이면 NULL. 낱개중량 × 낱개수량으로 파생시키지 않는 이유가 tare다';
@@ -123,7 +123,7 @@ CREATE TABLE zon (
     CONSTRAINT uq_zon_cd UNIQUE (zon_cd)
 );
 
-COMMENT ON TABLE  zon IS '존 마스터. 로케이션의 상위 그룹 (loc.zon_id가 참조, FK 없음)';
+COMMENT ON TABLE  zon IS '존 마스터 (로케이션의 상위 그룹)';
 COMMENT ON COLUMN zon.zon_cd   IS '존 코드 (업무 식별자, 예: DRY, RCV-STAGE). 등록 후 변경 금지 — 재고조사 범위(inv_stktk.zon_cd) 등이 코드값을 보존한다';
 COMMENT ON COLUMN zon.zon_nm   IS '존 명 (화면 표시용)';
 COMMENT ON COLUMN zon.tmp_zon  IS '온도구분. 공통코드 TEMP_ZONE (DRY 상온 / CHL 냉장 / FRZ 냉동). 보관 로케이션은 이 값과 loc.tmp_zon이 일치해야 한다';
@@ -153,7 +153,7 @@ CREATE TABLE loc (
     CONSTRAINT ck_loc_storage_capacity CHECK (loc_typ <> 'STORAGE' OR max_qty IS NOT NULL)
 );
 
-COMMENT ON TABLE  loc IS '로케이션 마스터. 재고가 놓이는 물리 위치 (스테이징/보관존)';
+COMMENT ON TABLE  loc IS '로케이션 마스터 (재고가 놓이는 물리 위치)';
 COMMENT ON COLUMN loc.loc_cd    IS '로케이션 코드 (예: DRY-A-01-01, RCV-STAGE)';
 COMMENT ON COLUMN loc.zon_id   IS '소속 존 (zon.zon_id). FK는 없다 — 존재 검증은 LocService, 존 삭제 가드는 ZonService가 한다';
 COMMENT ON COLUMN loc.tmp_zon IS '존 온도대. 상품 온도대와 불일치하면 적치·이동 차단 (스테이징은 예외적으로 전 온도대 허용할지 서비스에서 판단)';
@@ -181,7 +181,7 @@ CREATE TABLE fxng_loc (
     CONSTRAINT ck_fxng_loc_qty CHECK (min_qty >= 0 AND max_qty >= 1 AND min_qty <= max_qty)
 );
 
-COMMENT ON TABLE  fxng_loc IS '고정 로케이션 마스터. 상품×로케이션 지정 (FK 없음 — 존재·STORAGE·온도대 검증은 FxngLocService, 삭제 가드는 WmsProdRefChecker·LocRefQueryRepository). 적치 FXNG_LOC 방식의 후보 원천이고 수시보충 도착지의 1순위다. min/max는 정기보충(SPMT — SpmtService, 이동지시 mov_dvsn=SPMT 발행) 기준';
+COMMENT ON TABLE  fxng_loc IS '고정 로케이션 마스터 (상품 전용 자리)';
 COMMENT ON COLUMN fxng_loc.prod_id IS '고정할 상품 (prod.prod_id). 한 상품이 여러 고정 로케이션을 가질 수 있다';
 COMMENT ON COLUMN fxng_loc.loc_id  IS '고정 로케이션 (loc.loc_id, STORAGE 전용 — STAGE는 적치·할당 후보 모집단 밖이라 지정해도 영영 쓰이지 않는다). UNIQUE — 한 로케이션은 한 상품 전용';
 COMMENT ON COLUMN fxng_loc.min_qty IS '재보충점. 현재고+미완료 유입 잔량이 이 아래로 내려가면 보충 대상 (SpmtService.plan)';
@@ -204,7 +204,7 @@ CREATE TABLE lot (
     CONSTRAINT uq_lot UNIQUE (prod_id, lot_no)
 );
 
-COMMENT ON TABLE  lot IS 'Lot(입고 단위 묶음). 입고 처리 시 생성. 유통기한이 FEFO 할당과 납품기한 필터의 기준';
+COMMENT ON TABLE  lot IS 'Lot 마스터 (입고 단위 묶음)';
 COMMENT ON COLUMN lot.lot_no    IS 'Lot 번호 (상품 내 유일). 입고일 기준 상품별 일자 리셋 채번(LOT-YYMMDD-NNN). 유통기한 미관리 상품도 동일 형식이며 입고일자만으로 구분됨';
 COMMENT ON COLUMN lot.receipt_dt IS '입고일자 (소급 등록 가능). 상품+입고일자+제조일자가 같으면 기존 Lot을 재사용 (증분 검수 시 배치 중복 생성 방지). 유통기한 미관리 상품은 제조일자가 항상 NULL이라 사실상 상품+입고일자로만 구분';
 COMMENT ON COLUMN lot.mfg_dt    IS '제조일자. 유통기한 미관리 상품의 Lot은 NULL';
@@ -233,7 +233,7 @@ CREATE TABLE store (
     CONSTRAINT ck_store_life_rate CHECK (outb_life_rate BETWEEN 0 AND 100)
 );
 
-COMMENT ON TABLE  store IS '점포(납품처) 마스터. 납품 허용 잔여수명 기준을 점포 단위로 관리';
+COMMENT ON TABLE  store IS '점포 마스터 (출고처)';
 COMMENT ON COLUMN store.store_cd       IS '점포 코드 (업무 식별자, 예: ST-0001)';
 COMMENT ON COLUMN store.store_grp      IS '점포그룹 (공통코드 STORE_GRP — 체인·계열 묶음). NULL = 미지정. 웨이브 편성·할당 분배 조건의 기준값. CHECK 없음 — 값 목록은 공통코드가 소유하고 존재 검증은 하지 않는다(화면 콤보로만 들어온다)';
 COMMENT ON COLUMN store.store_typ      IS '점포유형 (공통코드 STORE_TYP — 편의점·마트·급식). NULL = 미지정. 웨이브 편성·할당 분배 조건의 기준값';
@@ -260,7 +260,7 @@ CREATE TABLE vendor (
     CONSTRAINT uq_vndr_cd UNIQUE (vndr_cd)
 );
 
-COMMENT ON TABLE  vendor IS '벤더(납품처) 마스터. 입고주문·입고예정의 거래처. 거래 종료는 물리삭제';
+COMMENT ON TABLE  vendor IS '벤더 마스터 (매입처)';
 COMMENT ON COLUMN vendor.vndr_cd IS '벤더 코드 (업무 식별자, 예: VD-0001). 서버가 시퀀스로 채번';
 
 -- 공통코드 그룹. 관리 화면은 추후 추가 예정, 당분간 시드 데이터로만 운용.
@@ -276,7 +276,7 @@ CREATE TABLE code_group (
     CONSTRAINT pk_code_group PRIMARY KEY (grp_cd)
 );
 
-COMMENT ON TABLE  code_group IS '공통코드 그룹. 로직 분기에 쓰이는 enum성 코드의 기준 목록 (표시 스타일은 프론트 상수가 보유)';
+COMMENT ON TABLE  code_group IS '공통코드 그룹';
 COMMENT ON COLUMN code_group.grp_cd IS '코드 그룹 코드 (예: TEMP_ZONE)';
 COMMENT ON COLUMN code_group.dscr   IS '그룹 설명. 이 그룹을 어느 컬럼이 참조하는지와, ref1~ref3에 무엇을 담았는지를 적어 둔다';
 
@@ -299,7 +299,7 @@ CREATE TABLE code_detail (
 
 -- 사용여부(us_yn)를 두지 않는다 (vendor와 같은 이유). 안 쓰는 코드는 지우고, 하위가 참조
 -- 중이면 CodeService가 삭제를 거부한다 — UOM 그룹이 그 가드를 갖는 유일한 그룹이다.
-COMMENT ON TABLE  code_detail IS '공통코드 상세. 그룹 내 개별 코드와 표시명/정렬 순서';
+COMMENT ON TABLE  code_detail IS '공통코드 상세';
 COMMENT ON COLUMN code_detail.code_cd  IS '코드 값 (예: DRY). 로직에서 리터럴로 참조하므로 변경 금지';
 COMMENT ON COLUMN code_detail.srt_seq IS '화면 표시 정렬 순서';
 -- 참조값 3칸. 코드마다 딸린 자잘한 속성을 새 컬럼 없이 얹는 자리다 (공통코드의 관행).
@@ -330,7 +330,7 @@ CREATE TABLE nbr_rule (
     CONSTRAINT ck_nbr_rule_dync_ky_typ CHECK (dync_ky_typ IN ('NONE', 'YEAR', 'MONTH', 'DAY'))
 );
 
-COMMENT ON TABLE  nbr_rule IS '채번 규칙. 접두어+구분자+SEQ 자릿수+리셋단위로 형식을 정의 (예: prfx=PROD, prfx_dlmt=-, seq_dgt=4, dync_ky_typ=NONE → PROD-0001)';
+COMMENT ON TABLE  nbr_rule IS '채번 규칙';
 COMMENT ON COLUMN nbr_rule.rule_cd     IS '채번 규칙 코드 (업무 식별자, 예: PROD_CD). 코드성 테이블이라 자연키를 PK로 쓴다 (code_group과 동일 패턴)';
 COMMENT ON COLUMN nbr_rule.prfx        IS '접두어 리터럴 (예: IB, PROD)';
 COMMENT ON COLUMN nbr_rule.prfx_dlmt   IS '접두어 뒤 구분자. NONE이면 접두어→SEQ 사이 유일한 경계로 쓰인다';
@@ -350,7 +350,7 @@ CREATE TABLE nbr_seq (
     CONSTRAINT pk_nbr_seq PRIMARY KEY (rule_cd, dync_ky)
 );
 
-COMMENT ON TABLE  nbr_seq IS '채번 카운터. rule_cd+dync_ky별 현재 발급값. FK 없음 — rule_cd는 nbr_rule.rule_cd를 느슨하게 참조';
+COMMENT ON TABLE  nbr_seq IS '채번 카운터';
 COMMENT ON COLUMN nbr_seq.dync_ky IS '동적키 값. dync_ky_typ=NONE이면 고정값 "-", YEAR/MONTH/DAY면 각각 yyyy/yyyyMM/yyyyMMdd';
 COMMENT ON COLUMN nbr_seq.seq     IS '현재 발급값. 발급마다 +1, updated_at이 곧 최종 발급 시각';
 
@@ -527,7 +527,7 @@ CREATE TABLE oms_ib_order (
     CONSTRAINT ck_oms_ib_order_status CHECK (status IN ('CREATED', 'CONFIRMED'))
 );
 
-COMMENT ON TABLE  oms_ib_order IS '입고주문(벤더 발주) 헤더. 확정 시 ib_order(ASN)를 생성하는 상위 원장. ASN의 생성·취소는 전적으로 여기서 주관한다';
+COMMENT ON TABLE  oms_ib_order IS '입고주문 헤더 (벤더 발주)';
 COMMENT ON COLUMN oms_ib_order.oms_ib_no    IS '입고주문 번호 (업무 식별자, 예: PO-20260723-001). 확정 후 생기는 입고번호(IB-)와는 별개의 채번';
 COMMENT ON COLUMN oms_ib_order.status       IS 'CREATED 작성 / CONFIRMED 확정(=ASN 생성됨). 확정취소하면 CREATED로 돌아와 재확정할 수 있다. 취소 상태는 두지 않는다 — 없앨 주문은 삭제한다(확정 전만)';
 COMMENT ON COLUMN oms_ib_order.vendor_id    IS '납품 벤더 (vendor 참조). 확정 시 ASN이 같은 벤더를 이어받는다. 이름은 조인으로 얻는다 — 주문에 텍스트를 중복 보관하지 않는다';
@@ -550,7 +550,7 @@ CREATE TABLE oms_ib_line (
     CONSTRAINT ck_oms_ib_line_qty CHECK (odr_qty > 0)
 );
 
-COMMENT ON TABLE  oms_ib_line IS '입고주문 라인. 확정 시 ib_line으로 1:1 복사된다 (odr_qty를 낱개(EA)로 환산 → expct_qty)';
+COMMENT ON TABLE  oms_ib_line IS '입고주문 라인';
 COMMENT ON COLUMN oms_ib_line.odr_qty IS '발주 수량. <<입고단위(prod.inb_uom_cd) 기준>> — 주문 원장은 사람이 쓰는 단위를 유지한다 (출고 쪽은 oms_outb_line.odr_qty가 출고단위). ASN 생성(주문확정) 시 prod_uom.ea_qty(입고단위)를 곱해 낱개(EA)로 환산된다';
 
 CREATE INDEX ix_oms_ib_line_order ON oms_ib_line (oms_ib_order_id);
@@ -579,7 +579,7 @@ CREATE TABLE oms_outb_order (
     CONSTRAINT ck_oms_outb_order_status CHECK (status IN ('CREATED', 'CONFIRMED'))
 );
 
-COMMENT ON TABLE  oms_outb_order IS '출고주문(점포 수주) 헤더. 확정 시 outb_order(WMS 출고주문)를 생성하는 상위 원장. WMS 출고주문의 생성·소멸은 전적으로 여기서 주관한다';
+COMMENT ON TABLE  oms_outb_order IS '출고주문 헤더 (점포 수주)';
 COMMENT ON COLUMN oms_outb_order.oms_outb_no IS '출고주문 번호 (업무 식별자, 예: SO-20260803-001). 확정 후 생기는 출고번호(OB-)와는 별개의 채번';
 COMMENT ON COLUMN oms_outb_order.status      IS 'CREATED 작성 / CONFIRMED 확정(=WMS 출고주문 생성됨). 확정취소하면 CREATED로 돌아와 재확정할 수 있다. 취소 상태는 두지 않는다 — 없앨 주문은 삭제한다(확정 전만)';
 COMMENT ON COLUMN oms_outb_order.store_id    IS '납품처 점포 (store 참조). 확정 시 WMS 출고주문이 같은 점포를 이어받는다 — 할당 때 이 점포의 잔여수명 허용률로 Lot을 거른다. 이름은 조인으로 얻는다';
@@ -603,7 +603,7 @@ CREATE TABLE oms_outb_line (
     CONSTRAINT ck_oms_outb_line_qty CHECK (odr_qty > 0)
 );
 
-COMMENT ON TABLE  oms_outb_line IS '출고주문 라인. 확정 시 outb_line으로 복사되며, 그때 수량만 prod_uom.ea_qty(출고단위)를 곱해 낱개(EA)로 환산된다';
+COMMENT ON TABLE  oms_outb_line IS '출고주문 라인';
 COMMENT ON COLUMN oms_outb_line.odr_qty IS '주문 수량. <<출고단위(prod.outb_uom_cd) 기준>> — 주문 원장은 사람이 쓰는 단위를 유지한다 (입고 쪽은 oms_ib_line.odr_qty가 입고단위). 확정 시 prod_uom.ea_qty(출고단위)를 곱해 낱개(EA)로 환산돼 outb_line.odr_qty가 된다';
 
 CREATE INDEX ix_oms_outb_line_order ON oms_outb_line (oms_outb_order_id);
@@ -636,7 +636,7 @@ CREATE TABLE ib_order (
     CONSTRAINT ck_ib_order_status CHECK (status IN ('SCHEDULED', 'RECEIVING', 'CONFIRMED'))
 );
 
-COMMENT ON TABLE  ib_order IS '입고예정(ASN) 헤더. 부분입고 여부는 상태가 아니라 라인 수량(expct vs rcvd)에서 파생';
+COMMENT ON TABLE  ib_order IS '입고예정(ASN) 헤더';
 COMMENT ON COLUMN ib_order.ib_no     IS '입고 번호 (업무 식별자, 예: IB-20260714-001)';
 COMMENT ON COLUMN ib_order.oms_ib_order_id IS '이 ASN을 발생시킨 입고주문. NOT NULL — 주문 없는 입고예정은 존재할 수 없다(무결성은 애플리케이션이 보증, FK 없음). JPA는 연관관계가 아닌 스칼라로 매핑한다(패키지 의존을 omsback → wmsback 한 방향으로 유지)';
 COMMENT ON COLUMN ib_order.status    IS 'SCHEDULED 예정 / RECEIVING 입고중 / CONFIRMED 입고확정. 자동 전이 없음 — CONFIRMED는 입고확정 버튼만이 만든다(전제: 검수분 전량 적치). 적치지시/적치완료 등 진행 단계는 저장하지 않고 파생(IbPrgr). 취소 상태 없음 — 확정취소는 행을 삭제한다(검수 시작 전만)';
@@ -663,7 +663,7 @@ CREATE TABLE ib_line (
     )
 );
 
-COMMENT ON TABLE  ib_line IS '입고 라인. Lot은 라인이 아니라 입고 처리(재고 이력) 단위로 기록되므로 여기엔 두지 않는다';
+COMMENT ON TABLE  ib_line IS '입고예정(ASN) 라인';
 COMMENT ON COLUMN ib_line.expct_qty IS '입고 예정 수량. 낱개(EA) 기준 — oms_ib_line.odr_qty(입고단위)에 prod_uom.ea_qty(입고단위)를 곱한 값이다. 창고의 모든 수량 컬럼이 같은 단위(EA)다';
 COMMENT ON COLUMN ib_line.rcvd_qty  IS '검수(개수 확인) 완료된 실제 입고(스테이징 입) 수량 누계. 실무 검수는 개수 대조 수준이라 불합격 수량은 관리하지 않는다';
 COMMENT ON COLUMN ib_line.ptawy_qty  IS '적치 완료 수량 누계 (스테이징 → 보관 MOVE 반영분)';
@@ -698,7 +698,7 @@ CREATE TABLE putaway_task (
     CONSTRAINT ck_ptawy_task_qty CHECK (drct_qty > 0 AND cmpl_qty >= 0 AND cmpl_qty <= drct_qty)
 );
 
-COMMENT ON TABLE  putaway_task IS '적치 지시. 전략이 정한 (라인, Lot, 대상 로케이션, 수량) 배정 결과. 지시는 권고가 아니라 명령이며, 다른 로케이션에 두려면 취소 후 재지시한다';
+COMMENT ON TABLE  putaway_task IS '적치 지시';
 COMMENT ON COLUMN putaway_task.ib_line_id   IS '적치 대상 입고 라인. 지시 단위가 (라인, Lot) 배치인 이유는 한 라인의 검수분이 여러 Lot에 걸칠 수 있기 때문';
 COMMENT ON COLUMN putaway_task.lot_id       IS '적치 대상 Lot. 이 Lot의 스테이징 잔량이 지시 수량의 상한';
 COMMENT ON COLUMN putaway_task.to_loc_id    IS '지시된 보관 로케이션. 출발지는 항상 RCV-STAGE라 컬럼으로 두지 않는다. 용량이 모자라면 한 배치가 여러 로케이션으로 1:N 분할된다';
@@ -737,7 +737,7 @@ CREATE TABLE inv (
     CONSTRAINT ck_inv_qty CHECK (on_hand_qty >= 0 AND aloc_qty >= 0 AND hld_qty >= 0 AND aloc_qty + hld_qty <= on_hand_qty)
 );
 
-COMMENT ON TABLE  inv IS '현재고 스냅샷. 키: 상품+Loc+Lot. 재고수량(on_hand) = 가용 + 예약(aloc) + 보류(hld). 가용재고 = on_hand - aloc - hld (파생값, 컬럼 아님)';
+COMMENT ON TABLE  inv IS '현재고 스냅샷 (키: 상품+Loc+Lot)';
 COMMENT ON COLUMN inv.on_hand_qty IS '실물 보유 수량. 물리 변동(RECEIVE/MOVE/ADJUST/PICK 등) 시에만 증감';
 COMMENT ON COLUMN inv.aloc_qty   IS '예약 수량 — 출고 할당 전용이 아니라 예약수량 일반. 원천 셋: 출고 할당(outb_alloc, 보관) · 이동지시(inv_mov_task, 보관) · 피킹된 물량(SHIP-STAGE). 피킹은 예약을 출발지에서 소진하고 도착지에 다시 잡으며(from 예약 → to 예약), 이동확정·출고확정이 on_hand와 함께 소진. 물리 이동이 아니므로 이력에 기록하지 않음. 항등식: aloc_qty = 원천별 미소진 잔량 합 — 스테이징에서는 주문이 SHIPPED가 아닌 outb_alloc.pikng_qty의 합 (대사 대상)';
 COMMENT ON COLUMN inv.hld_qty     IS '보류 수량 — 가용재고에서 뺀다(예약과 배타: 가용에서만 잡고, 예약분은 보류 불가). 물리 이동이 아니므로 이력에 기록하지 않고, 원장은 inv_hld/inv_hld_acrst/inv_hld_rlz_acrst가 담당. 항등식: hld_qty = SUM(HELD 건의 hld_qty - rlz_qty) (대사 대상)';
@@ -768,7 +768,7 @@ CREATE TABLE inv_hist (
     CONSTRAINT ck_invh_qty CHECK (qty <> 0)
 );
 
-COMMENT ON TABLE  inv_hist IS '재고 이력 (append-only 원장). 모든 물리 변동을 ±수량으로 기록. 스냅샷과 한 트랜잭션에서 갱신. MOVE는 출발지(-)/도착지(+) 2건으로 기록';
+COMMENT ON TABLE  inv_hist IS '재고 이력 (append-only 원장)';
 COMMENT ON COLUMN inv_hist.tx_typ      IS 'RECEIVE 입고 / MOVE 이동(적치 포함) / ADJUST 조정 / PICK 피킹(보관→SHIP-STAGE, 2행) / SHIP 출고확정(SHIP-STAGE 반출, 1행 — 실물과 예약을 함께 소진, 도착지 없음) / RPLN 수시보충(보관존→피킹존, 2행 — 예약이 함께 옮겨 간다)';
 COMMENT ON COLUMN inv_hist.qty          IS '변동 수량 (증가 +, 감소 -). 0 금지';
 COMMENT ON COLUMN inv_hist.rfn_doc_typ IS '참조 문서 유형 (INBOUND / OUTBOUND / INV_MOV 이동지시 / INV_STKTK 재고조사 / LOT_CHNG 재고 로트변경 / 수동조정 시 NULL)';
@@ -815,7 +815,7 @@ CREATE TABLE inv_mov_task (
     CONSTRAINT ck_inv_mov_loc CHECK (from_loc_id <> to_loc_id)
 );
 
-COMMENT ON TABLE  inv_mov_task IS '이동지시 (보관↔보관 2단계: 지시=예약 → 확정=실물 MOVE). 지시는 권고가 아니라 명령 — 지시 TO와 다른 로케이션으로 확정할 수 없고, 다른 곳에 두려면 잔량 취소 후 재지시한다. 실적은 별도 테이블 없이 inv_hist의 MOVE 2행(rfn_doc_no = inv_mov_no)';
+COMMENT ON TABLE  inv_mov_task IS '이동지시 (보관↔보관)';
 COMMENT ON COLUMN inv_mov_task.inv_mov_no  IS '이동지시 번호 (건당 유일 — 라인 구조 없음). inv_hist 실적이 rfn_doc_no만으로 지시와 정확히 매칭되게 하는 전제. nbr_rule INV_MOV_NO 채번';
 COMMENT ON COLUMN inv_mov_task.mov_dvsn    IS '이동구분 — INV_MOV 재고이동 / RPLN 수시보충(피킹지시 발행이 보관존 할당분에 짝으로 냄, 예약 없음, /outbound/replenishment 에서 전량 확정) / SPMT 정기보충(고정로케이션이 min 미달일 때 max까지 채움, 예약 있음, 2026-08-21). 적치·피킹은 각자 테이블(putaway_task · pikng_task)이라 여기 값이 없다. 등록은 재고이동 화면이 INV_MOV, 정기보충 화면이 SPMT 고정. 확정·취소는 INV_MOV·SPMT만 이동지시 관리 화면이 처리하고(둘 다 예약을 들어 실물을 옮기는 동일 작업) RPLN은 예약을 들지 않아 RplnService 전용 경로다. 적치는 별도 putaway_task 유지로 확정(2026-08-04 — FROM이 항상 스테이징이라 컬럼이 남고, ib_line_id 같은 입고 전용 컬럼이 이 테이블로 새어 나온다), 피킹도 별도 pikng_task로 확정(2026-08-20 — 같은 논리 + 예약 의미 충돌)되어 PIKNG 값은 제거했다';
 COMMENT ON COLUMN inv_mov_task.prod_id     IS '이동 대상 상품. Lot이 상품을 함의하지만 재고 키(상품+Loc+Lot) 그대로 담아 단독 조회를 가능하게 한다 (inv_hist와 같은 형태)';
@@ -862,7 +862,7 @@ CREATE TABLE inv_hld (
     CONSTRAINT ck_inv_hld_qty CHECK (hld_qty > 0 AND rlz_qty >= 0 AND rlz_qty <= hld_qty)
 );
 
-COMMENT ON TABLE  inv_hld IS '재고 보류 건. 등록 즉시 발효(지시→확정 2단계 아님) — inv.hld_qty 증가와 한 트랜잭션. 잔량 = hld_qty - rlz_qty 파생. 전량 해제돼도 행 보존(RELEASED 전이) — putaway_task 선례. 항등식: inv.hld_qty = SUM(HELD 건의 잔량)';
+COMMENT ON TABLE  inv_hld IS '재고 보류 건';
 COMMENT ON COLUMN inv_hld.hld_no   IS '보류 번호 (건당 유일 — 라인 구조 없음). nbr_rule HLD_NO 채번';
 COMMENT ON COLUMN inv_hld.prod_id  IS '보류 대상 상품. 재고 키(상품+Loc+Lot) 그대로 담는다 (inv_mov_task와 같은 형태)';
 COMMENT ON COLUMN inv_hld.hld_qty  IS '보류 수량. 등록 시점 가용재고(on_hand - aloc - hld) 이내 — 예약분은 보류 불가(배타)';
@@ -896,7 +896,7 @@ CREATE TABLE inv_hld_acrst (
     CONSTRAINT ck_inv_hld_acrst_qty CHECK (hld_qty > 0)
 );
 
-COMMENT ON TABLE  inv_hld_acrst IS '보류 실적 (등록 append-only 로그). 수정·삭제하지 않는다. hld_no는 inv_hld를 느슨하게 참조 (FK 없음)';
+COMMENT ON TABLE  inv_hld_acrst IS '보류 등록 실적 (append-only)';
 
 CREATE INDEX ix_inv_hld_acrst_no ON inv_hld_acrst (hld_no);
 
@@ -918,7 +918,7 @@ CREATE TABLE inv_hld_rlz_acrst (
     CONSTRAINT ck_inv_hld_rlz_acrst_qty CHECK (rlz_qty > 0)
 );
 
-COMMENT ON TABLE  inv_hld_rlz_acrst IS '보류 해제 실적 (append-only 로그). 해제는 특정 보류 건(hld_no)을 지목하며 부분 해제 허용 — N번 해제면 N행. rsn_cd는 공통코드 HLD_RLZ_RSN, ETC일 때만 rsn_dscr 필수';
+COMMENT ON TABLE  inv_hld_rlz_acrst IS '보류 해제 실적 (append-only)';
 
 CREATE INDEX ix_inv_hld_rlz_acrst_no ON inv_hld_rlz_acrst (hld_no);
 
@@ -943,7 +943,7 @@ CREATE TABLE inv_stktk (
     CONSTRAINT ck_inv_stktk_status CHECK (status IN ('CREATED', 'CONFIRMED', 'CANCELLED'))
 );
 
-COMMENT ON TABLE  inv_stktk IS '재고조사(실사) 헤더. 상태는 워크플로 단계만(작성 → 확정) — 「부분확정」은 두지 않는다. 확정 후 재정정은 조사를 되열지 않고 새 조사를 만든다(append-only). 확정이 남기는 것은 inv_hist의 ADJUST 행(rfn_doc_typ=INV_STKTK, rfn_doc_no=stktk_no)';
+COMMENT ON TABLE  inv_stktk IS '재고조사(실사) 헤더';
 COMMENT ON COLUMN inv_stktk.stktk_no IS '재고조사 번호 (건당 유일 — 라인은 inv_stktk_ln). nbr_rule STKTK_NO 채번. inv_hist.rfn_doc_no로 실려 조사 ↔ 조정 이력이 매칭된다';
 COMMENT ON COLUMN inv_stktk.zon_cd   IS '조사 범위 — 존 코드. NULL이면 존 조건 없음. 라인 생성에 쓴 조건을 그대로 보존해 「무엇을 조사했나」를 남긴다';
 COMMENT ON COLUMN inv_stktk.loc_id   IS '조사 범위 — 로케이션. NULL이면 로케이션 조건 없음. 범위 3필드가 모두 NULL이면 전 보관 로케이션 조사';
@@ -979,7 +979,7 @@ CREATE TABLE inv_stktk_ln (
     )
 );
 
-COMMENT ON TABLE  inv_stktk_ln IS '재고조사 라인. 재고 키 단위. 조정수량 = stktk_qty - cfm_sys_qty (파생, 컬럼 아님). 실사수량 미입력(NULL) 라인은 「미조사」로 확정에서 건너뛴다 — 0(실물 없음)과 구분된다';
+COMMENT ON TABLE  inv_stktk_ln IS '재고조사 라인 (재고 키 단위)';
 COMMENT ON COLUMN inv_stktk_ln.sys_qty     IS '조사 생성 시점의 전산수량 스냅샷 (on_hand_qty). 조정 계산의 기준이 아니라 「조사 시작 때는 얼마였나」의 기록 — 확정 기준은 cfm_sys_qty다';
 COMMENT ON COLUMN inv_stktk_ln.stktk_qty   IS '실사수량 (실물을 센 값). NULL = 미조사(확정 시 건너뜀), 0 = 실물 없음(전량 차감). 낱개(EA) 기준';
 COMMENT ON COLUMN inv_stktk_ln.cfm_sys_qty IS '확정 시점에 재고 행 락을 걸고 다시 읽은 전산수량(= 조정전수량). 조정수량 = stktk_qty - cfm_sys_qty이므로 확정 후 on_hand_qty는 실사수량과 정확히 일치한다. 조사 중 다른 업무로 재고가 변해도 실사값이 이긴다 (2026-08-03 결정 — 확정시점 기준). 확정 전에는 NULL';
@@ -1019,7 +1019,7 @@ CREATE TABLE lot_attr_chng (
     )
 );
 
-COMMENT ON TABLE  lot_attr_chng IS 'Lot 속성 정정 이력 (append-only 자기완결 로그). 재고 속성변경 화면이 남기는 유일한 원장 — 수량 변동이 없어 inv_hist에 실을 수 없다(보류 실적 테이블과 같은 예외 성격). 변경 이벤트당 1행이고 바뀌지 않은 필드도 전/후에 같은 값이 들어간다. 되돌리는 정정도 새 행이다(취소 경로 없음)';
+COMMENT ON TABLE  lot_attr_chng IS 'Lot 속성 정정 이력 (수량 변동 없음)';
 COMMENT ON COLUMN lot_attr_chng.lot_id        IS '정정 대상 Lot. lot 테이블 FK는 걸지 않는다 — inv_hist.ib_line_id와 같은 느슨한 참조';
 COMMENT ON COLUMN lot_attr_chng.prod_id       IS '대상 Lot의 상품. Lot이 상품을 함의하지만 단독 조회를 가능하게 담는다 (inv_hld·inv_mov_task와 같은 형태)';
 COMMENT ON COLUMN lot_attr_chng.lot_no        IS 'Lot 번호 스냅샷. lot_no는 정정 대상이 아니라 지금은 lot과 항상 같지만, 로그를 자기완결로 두는 원칙(보류 실적 선례)을 따른다';
@@ -1069,7 +1069,7 @@ CREATE TABLE inv_lot_chng (
     CONSTRAINT ck_inv_lot_chng_dt  CHECK (to_expiry_dt >= to_mfg_dt)
 );
 
-COMMENT ON TABLE  inv_lot_chng IS '재고 로트변경 원장 (append-only 자기완결 로그). 「이 로케이션의 이 재고 중 N개는 제조일자가 X였다」 — 원 Lot에서 N개를 빼 (상품+입고일자+X) 배치의 Lot으로 넣는다(그 키의 Lot이 있으면 병합, 없으면 채번=분할). 취소 경로 없음 — 되돌리는 것도 새 로트변경 1건. 재고 실체는 inv_hist의 ADJUST 2행(rfn_doc_typ=LOT_CHNG, rfn_doc_no=lot_chng_no)';
+COMMENT ON TABLE  inv_lot_chng IS '재고 로트변경 이력 (재고를 다른 Lot으로 이동)';
 COMMENT ON COLUMN inv_lot_chng.lot_chng_no    IS '로트변경 번호 (건당 유일 — 라인 구조 없음). nbr_rule LOT_CHNG_NO 채번. inv_hist.rfn_doc_no로 실려 실적 ↔ 이력이 매칭된다 — lot_attr_chng가 무채번인 것과 갈리는 지점(그쪽은 아무도 참조하지 않는 로그다)';
 COMMENT ON COLUMN inv_lot_chng.prod_id        IS '대상 상품. 재고 키(상품+Loc+Lot) 그대로 담는다 (inv_hld·inv_mov_task와 같은 형태)';
 COMMENT ON COLUMN inv_lot_chng.loc_id         IS '대상 보관 로케이션. 로케이션은 바뀌지 않는다 — 같은 로케이션 안에서 Lot만 바뀌는 장부 이동이라 inv_hist의 from/to_loc_id도 NULL';
@@ -1118,7 +1118,7 @@ CREATE TABLE outb_wave (
     CONSTRAINT ck_outb_wave_stgy CHECK ((wav_stgy_id IS NULL) = (rvsn_no IS NULL))
 );
 
-COMMENT ON TABLE  outb_wave IS '출고 웨이브. 피킹지시의 발행 단위 — 여러 주문의 집품을 한 번에 지시하기 위한 그룹. 발행 이후 진행(피킹/확정)은 주문 단위라 웨이브는 여기서 역할이 끝난다. 할당도 이 단위로 실행하지만(2026-08-03 번복 — 피킹지시가 웨이브 단위라 할당만 주문 단위면 흐름 중간에서 단위가 어긋난다) 계산·결과는 라인 단위이고 웨이브 상태는 할당으로 바뀌지 않는다';
+COMMENT ON TABLE  outb_wave IS '출고 웨이브 (피킹지시 발행 단위)';
 COMMENT ON COLUMN outb_wave.wav_no     IS '웨이브 번호 (업무 식별자, 예: WV-20260718-001)';
 COMMENT ON COLUMN outb_wave.status      IS 'PLANNED 편성중(주문 담기 가능) / ISSUED 지시가 나가 있다(작업중 또는 확정 대기) / CLOSED 종료(소속 주문이 전부 출고확정). 종료로 가는 길은 출고확정 하나이고 되돌아오는 길은 없다. RELEASED를 쓰지 않는 것은 inv_hld의 RELEASED(보류 해제)와 한 토큰이 두 뜻이 되기 때문';
 COMMENT ON COLUMN outb_wave.issued_dt   IS '피킹지시 발행 시각. 미발행이면 NULL — 지시취소(실적 0일 때만)가 다시 NULL로 되돌린다';
@@ -1154,7 +1154,7 @@ CREATE TABLE outb_order (
     )
 );
 
-COMMENT ON TABLE  outb_order IS '출고 주문 헤더 (B2B 점포 출고). OMS 출고주문 확정으로만 생성되고 확정취소로만 삭제된다. 피킹 시작 이후 취소는 v1 미지원';
+COMMENT ON TABLE  outb_order IS '출고주문 헤더 (WMS)';
 COMMENT ON COLUMN outb_order.outb_no  IS '출고 번호 (업무 식별자, 예: OB-20260714-001)';
 COMMENT ON COLUMN outb_order.oms_outb_order_id IS '이 출고주문을 발생시킨 OMS 출고주문. NOT NULL — 주문 없는 창고 출고주문은 존재할 수 없다(무결성은 애플리케이션이 보증, FK 없음). JPA는 연관관계가 아닌 스칼라로 매핑한다(패키지 의존을 omsback → wmsback 한 방향으로 유지)';
 COMMENT ON COLUMN outb_order.status   IS 'CREATED 생성 / ALLOCATED 할당 / PICKING 피킹중 / PICKED 피킹완료 / SHIPPED 출고확정. 취소 상태 없음 — 없앨 주문은 OMS 확정취소가 행을 삭제한다(웨이브 편성 전만). 같은 「없앤다」를 두 조작이 다르게 처리하던 겹침을 정리한 것이다 — migration-drop-outb-cancelled.sql';
@@ -1188,7 +1188,7 @@ CREATE TABLE outb_line (
     CONSTRAINT ck_outb_line_qty CHECK (odr_qty > 0)
 );
 
-COMMENT ON TABLE  outb_line IS '출고 주문 라인. 할당/피킹 수량은 컬럼으로 두지 않고 outb_alloc 집계로 파생 (수량-상태 불일치 원천 차단)';
+COMMENT ON TABLE  outb_line IS '출고주문 라인 (WMS)';
 COMMENT ON COLUMN outb_line.odr_qty IS '주문 수량. 낱개(EA) 기준 — oms_outb_line.odr_qty(출고단위)에 prod_uom.ea_qty(출고단위)를 곱한 값이다. 창고의 모든 수량 컬럼이 같은 단위(EA)다 (입고 쪽 대응은 ib_line.expct_qty)';
 
 CREATE INDEX ix_outb_line_order ON outb_line (outb_order_id);
@@ -1212,7 +1212,7 @@ CREATE TABLE outb_alloc (
     CONSTRAINT ck_outb_alloc_stgy CHECK ((aloc_stgy_id IS NULL) = (rvsn_no IS NULL))
 );
 
-COMMENT ON TABLE  outb_alloc IS '재고 할당 레코드. 어떤 주문라인이 어떤 재고(상품+Loc+Lot)를 몇 개 예약했는지. 할당 취소 시 삭제 + inv.aloc_qty 복원';
+COMMENT ON TABLE  outb_alloc IS '재고 할당 레코드';
 COMMENT ON COLUMN outb_alloc.aloc_qty  IS '할당 수량 (부분할당 허용: 라인 order_qty보다 합계가 작을 수 있음)';
 COMMENT ON COLUMN outb_alloc.aloc_stgy_id IS '이 할당을 만든 할당 전략 (느슨한 참조, FK 없음). NULL = 수동할당 또는 전략 미설정 기간의 기본 동작 할당. 같은 (라인,재고)에 합산될 때는 처음 값을 유지한다 — 나중 실행의 전략으로 덮어쓰면 이미 기록된 수량의 근거가 바뀐다';
 COMMENT ON COLUMN outb_alloc.rvsn_no      IS '할당에 사용된 전략 리비전. stgy_rvsn과 조합해 "그때의 정의"를 재구성한다 (P5)';
@@ -1252,7 +1252,7 @@ CREATE TABLE pikng_task (
                                            AND (shotge_qty IS NULL OR shotge_qty > 0))
 );
 
-COMMENT ON TABLE  pikng_task IS '피킹 지시. putaway_task·inv_mov_task와 동등한 위치의 작업지시 문서 — 웨이브 발행 시 outb_alloc과 1:1로 생성된다(상품별 집약 없음). 등록은 예약을 만들지 않는다 — 예약은 할당이 이미 잡았고 실행(PICK)이 소진한다. 최초 발행은 웨이브 단위(웨이브가 발행 문서)이고 추가 발행은 나중에 붙은 할당만 낸다. 취소는 웨이브 단위와 지시 단위 둘 다 — 다른 것은 실적 판정 범위뿐이다';
+COMMENT ON TABLE  pikng_task IS '피킹 지시';
 COMMENT ON COLUMN pikng_task.outb_wave_id  IS '발행 웨이브 (느슨한 참조, FK 없음). 발행·취소·피킹 화면의 조회 단위';
 COMMENT ON COLUMN pikng_task.outb_alloc_id IS '지시의 근거 할당 — 1:1 (uq_pikng_task_alloc). 주문 도메인 카운터(outb_alloc.pikng_qty)·할당해제 가드가 이 참조를 지난다';
 COMMENT ON COLUMN pikng_task.prod_id       IS '재고 키 스냅샷. alloc → inv 조인으로도 얻지만 inv 행은 수량 0이 되면 삭제된다 — 완료된 지시의 표시를 위해 직접 담는다 (inv_hist·inv_mov_task와 같은 형태)';
@@ -1289,7 +1289,7 @@ CREATE TABLE pikng_acrst (
     CONSTRAINT ck_pikng_acrst_qty CHECK (pikng_qty > 0)
 );
 
-COMMENT ON TABLE  pikng_acrst IS '피킹 실적 (실행 append-only 로그). 수정·삭제하지 않는다 — 부분 피킹이 N번이면 N행. inv_hld_acrst와 같은 형태 (지시 느슨한 참조 + 재고 키 스냅샷)';
+COMMENT ON TABLE  pikng_acrst IS '피킹 실적 (append-only)';
 COMMENT ON COLUMN pikng_acrst.pikng_task_id IS '실행한 피킹지시 (느슨한 참조, FK 없음)';
 COMMENT ON COLUMN pikng_acrst.pikng_qty     IS '이번 실행의 피킹 수량. SUM = pikng_task.cmpl_qty (대사 축)';
 
@@ -1327,7 +1327,7 @@ CREATE TABLE stgy_rvsn (
     CONSTRAINT ck_stgy_rvsn_no CHECK (rvsn_no >= 1)
 );
 
-COMMENT ON TABLE  stgy_rvsn IS '전략 리비전 스냅샷 (append-only). 전략 저장마다 1행 — created_*가 곧 저장 시각/저장자. 전략이 삭제돼도 남아 복원·감사의 근거가 된다';
+COMMENT ON TABLE  stgy_rvsn IS '전략 리비전 스냅샷 (append-only)';
 COMMENT ON COLUMN stgy_rvsn.stgy_typ IS 'INSP 검수 / PTAWY 적치 (2차: WAV 웨이브 / ALOC 할당)';
 COMMENT ON COLUMN stgy_rvsn.stgy_id  IS '유형별 헤더 PK (insp_plcy_id 또는 ptawy_stgy_id). FK 없음 — 원본 삭제 후에도 남는 느슨한 참조';
 COMMENT ON COLUMN stgy_rvsn.rvsn_no  IS '전략별 1부터 증가. 헤더 행 잠금 하에 last_rvsn_no+1로 부여, uq_stgy_rvsn이 최후 방어선';
@@ -1352,7 +1352,7 @@ CREATE TABLE stgy_exec_log (
     CONSTRAINT ck_stgy_exec_log_trgr CHECK (trgr_typ IN ('MANUAL', 'AUTO', 'PREVIEW'))
 );
 
-COMMENT ON TABLE  stgy_exec_log IS '전략 실행 로그. 검수 위반(=검수 저장 롤백) 시에도 남아야 하므로 기록은 REQUIRES_NEW 별도 트랜잭션. created_at = 실행 시각';
+COMMENT ON TABLE  stgy_exec_log IS '전략 실행 로그';
 COMMENT ON COLUMN stgy_exec_log.rvsn_no  IS '실행에 사용된 리비전. stgy_rvsn과 조합해 판정 당시의 정의를 재구성한다';
 COMMENT ON COLUMN stgy_exec_log.trgr_typ IS 'MANUAL 화면 조작 / AUTO 자동 실행(2차 웨이브용 선반영) / PREVIEW 결과를 반영하지 않은 산정 — 적치 일괄 추천만 기록한다(지시 생성 경로가 산정을 다시 돌리지 않아 근거가 거기밖에 없다). 조회 기본값은 MANUAL·AUTO';
 COMMENT ON COLUMN stgy_exec_log.tgt_ref  IS '대상 문서 번호 (입고번호 IB-…). 가상 입력 미리보기는 NULL. inv_hist.rfn_doc_no와 같은 느슨한 참조 — 새 컬럼이라 ref 표기(사전 결정)';
@@ -1375,7 +1375,7 @@ CREATE TABLE insp_plcy (
     updated_by   VARCHAR(30)
 );
 
-COMMENT ON TABLE  insp_plcy IS '검수 정책 헤더 (전역 1행 — 서비스 검증). 검수 저장 직전 규칙 전부를 AND 평가, 위반 시 저장 전체 거부';
+COMMENT ON TABLE  insp_plcy IS '검수 정책 헤더';
 COMMENT ON COLUMN insp_plcy.stgy_nm      IS '정책명. 표시용 — 실행에 사용하지 않는다 (이름/동작 불일치는 미리보기가 보완)';
 COMMENT ON COLUMN insp_plcy.last_rvsn_no IS '마지막 저장 리비전 (stgy_rvsn.rvsn_no 최신값)';
 
@@ -1394,7 +1394,7 @@ CREATE TABLE insp_plcy_rule (
     CONSTRAINT uq_insp_plcy_rule UNIQUE (insp_plcy_id, rule_cd)
 );
 
-COMMENT ON TABLE  insp_plcy_rule IS '검수 규칙. 규칙 끄기 = 행 삭제 (D4 — 사용여부 컬럼 없음). 삭제 전 구성은 정책 리비전 스냅샷이 보유';
+COMMENT ON TABLE  insp_plcy_rule IS '검수 규칙';
 COMMENT ON COLUMN insp_plcy_rule.insp_plcy_id IS '소속 정책. FK 없음 — 정책 삭제 시 규칙 정리는 서비스(cascade)가 한다';
 COMMENT ON COLUMN insp_plcy_rule.srt_seq IS '평가·표시 순서. 전 규칙이 실행되므로 결과에는 영향 없고 위반 목록 정렬에 쓰인다';
 COMMENT ON COLUMN insp_plcy_rule.rule_cd IS '코드 레지스트리의 규칙 code (1차: LOT_DATE_REVERSE 역순제한 / SHELF_LIFE_PCT 유통기한 잔여비율). CHECK 없음 — 값 목록의 주인은 코드 레지스트리';
@@ -1423,7 +1423,7 @@ CREATE TABLE ptawy_stgy (
 -- 선택 규칙이 "유형 일치 → 전체 → 수동 폴백"으로 숫자 없이 결정적이다.
 CREATE UNIQUE INDEX ux_ptawy_stgy_odr_dvsn ON ptawy_stgy (COALESCE(odr_dvsn, 'ALL'));
 
-COMMENT ON TABLE  ptawy_stgy IS '적치 전략 헤더. 선택 기준은 발주구분 하나(유형당 1개 — ux_ptawy_stgy_odr_dvsn). 1차에서 전략은 추천만 한다 — 실행은 기존 즉시 MOVE 흐름 유지';
+COMMENT ON TABLE  ptawy_stgy IS '적치 전략 헤더';
 COMMENT ON COLUMN ptawy_stgy.stgy_nm     IS '전략명. 표시용 — 실행에 사용하지 않는다';
 COMMENT ON COLUMN ptawy_stgy.odr_dvsn    IS '적용대상 발주구분 (공통코드 ODR_DVSN — NRML/URGT). NULL = 전체. 반품(RTNGS)은 스코프 아웃이라 저장 검증이 거부한다';
 COMMENT ON COLUMN ptawy_stgy.unt_splt_yn IS '입수 단위 배수 절사. 입수 = ea_qty(입고단위) — 재고가 낱개(EA)라 입고단위 낱개수량이 곧 배수다. true면 로케이션별 배정수량을 입수 배수로 내림(낱개 혼적 방지), 몫 0인 로케이션은 스킵';
@@ -1448,7 +1448,7 @@ CREATE TABLE ptawy_stgy_stg (
     CONSTRAINT ck_ptawy_stg_loc_cond  CHECK (jsonb_typeof(loc_cond)  = 'array')
 );
 
-COMMENT ON TABLE  ptawy_stgy_stg IS '적치 단계. srt_seq 순으로 시도, 잔여수량이 0이 되면 종료. "단계 0건 전략" 저장 거부는 서비스 검증(자식 행 존재는 CHECK 범위 밖)';
+COMMENT ON TABLE  ptawy_stgy_stg IS '적치 전략 단계';
 COMMENT ON COLUMN ptawy_stgy_stg.ptawy_stgy_id IS '소속 전략. FK 없음 — 삭제 연쇄는 서비스가 수행';
 COMMENT ON COLUMN ptawy_stgy_stg.srt_seq   IS '실행 순서 (화면 drag&drop 순서 그대로)';
 COMMENT ON COLUMN ptawy_stgy_stg.mthd_cd   IS '추천 방식 code (FXNG_LOC 고정 / SAME_PROD_LOC 적재 / EMPTY_LOC 빈 / ANY_LOC 전체 보관). CHECK 없음 — PutawayMethod enum이 소유';
@@ -1479,7 +1479,7 @@ CREATE TABLE wav_stgy (
     )
 );
 
-COMMENT ON TABLE  wav_stgy IS '웨이브 전략. 실행 시 전략마다 웨이브를 1개 만들고 조건에 맞는 미편성 주문을 편입한다. 적치와 달리 "적용대상 1개 선택"이 아니라 전 전략을 prty 순으로 순회하는 유형이라 우선순위 컬럼이 있다';
+COMMENT ON TABLE  wav_stgy IS '웨이브 전략';
 COMMENT ON COLUMN wav_stgy.stgy_nm      IS '전략명. 표시용 — 실행에 사용하지 않는다 (이름/조건 불일치는 미리보기가 보완)';
 COMMENT ON COLUMN wav_stgy.prty         IS '실행 순서. 낮을수록 먼저 — 주문은 먼저 실행된 전략이 선점한다(한 주문은 웨이브 1개). 동률은 wav_stgy_id 순으로 결정적이게 처리';
 COMMENT ON COLUMN wav_stgy.cond_grp     IS '조건그룹 [[{fld,op,vals},…],…]. 그룹끼리 OR, 그룹 안 AND. 필드: WaveOrderField enum — OUTB_TYP 출고유형 · VHCL_FLTNO 차량편수 · STORE_GRP 납품처그룹 · STORE_TYP 납품처유형 (넷 다 값 목록의 주인은 공통코드다 — 뒤 둘은 store.store_grp·store_typ에서 읽는다)';
@@ -1506,7 +1506,7 @@ CREATE TABLE aloc_stgy (
     CONSTRAINT ck_aloc_stgy_tgt_cond CHECK (jsonb_typeof(tgt_cond) = 'array')
 );
 
-COMMENT ON TABLE  aloc_stgy IS '할당 전략. 자동할당이 어느 재고를 어떤 순서로 쓰고 모자라면 어떻게 나눌지를 정한다. 전략은 코드의 기본 동작을 슬롯 단위로 덮어쓰므로 필수 슬롯이 없고, 전략 0건이면 기본 동작(FEFO·점포 잔여수명·순차 소진)이 그대로 실행된다';
+COMMENT ON TABLE  aloc_stgy IS '할당 전략';
 COMMENT ON COLUMN aloc_stgy.stgy_nm      IS '전략명. 표시용 — 실행에 사용하지 않는다 (이름/정의 불일치는 미리보기가 보완)';
 COMMENT ON COLUMN aloc_stgy.prty         IS '선택 순서. 낮을수록 먼저 매칭 판정 — 실행 1회당 전략 1건이 확정된다. 동률은 aloc_stgy_id 순';
 COMMENT ON COLUMN aloc_stgy.tgt_cond     IS '적용대상 조건 [{fld,op,vals},…]. 원소끼리 AND, 빈 배열 = 전체 매칭 폴백. 대상 주문 "전부"가 만족해야 매칭이다. 필드: AlocTgtField enum — OUTB_TYP 출고유형 · VHCL_FLTNO 차량편수 (점포는 없다 — 한 웨이브에 여러 점포가 섞이는 것이 정상이라 전부-만족이 성립하지 않는다)';
@@ -1548,7 +1548,7 @@ CREATE INDEX ix_aloc_stgy_slot ON aloc_stgy_slot (aloc_stgy_id);
 CREATE UNIQUE INDEX uq_aloc_stgy_slot_single ON aloc_stgy_slot (aloc_stgy_id, slot_typ)
     WHERE slot_typ IN ('INVN_SRT','ODR_SRT');
 
-COMMENT ON TABLE  aloc_stgy_slot IS '할당 슬롯. 할당이 하는 일을 역할로 쪼갠 5종 — INVN_FLTR 재고위치(다중=계층) · RSTRCT 출고제약(다중) · INVN_SRT 재고정렬(단일) · ODR_SRT 주문순서(단일) · DSTRB 분배(다중=실행순서)';
+COMMENT ON TABLE  aloc_stgy_slot IS '할당 슬롯 (역할 5종)';
 COMMENT ON COLUMN aloc_stgy_slot.aloc_stgy_id IS '할당 전략 헤더 (느슨한 참조, FK 없음)';
 COMMENT ON COLUMN aloc_stgy_slot.slot_typ     IS '슬롯 타입. 값 목록이 코드 구조 그 자체(AlocSlotTyp enum)라 공통코드가 아니라 CHECK로 고정한다 — status류와 같은 취급';
 COMMENT ON COLUMN aloc_stgy_slot.srt_seq      IS '다중 슬롯 안의 순서. INVN_FLTR은 후보 계층 순서(앞 계층부터 소진), DSTRB는 분배 실행 순서. 단일 슬롯에서는 무의미';
