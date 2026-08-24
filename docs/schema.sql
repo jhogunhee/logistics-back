@@ -1356,7 +1356,7 @@ CREATE TABLE stgy_exec_log (
 
 COMMENT ON TABLE  stgy_exec_log IS '전략 실행 로그';
 COMMENT ON COLUMN stgy_exec_log.rvsn_no  IS '실행에 사용된 리비전. stgy_rvsn과 조합해 판정 당시의 정의를 재구성한다';
-COMMENT ON COLUMN stgy_exec_log.trgr_typ IS 'MANUAL 화면 조작 / AUTO 자동 실행(2차 웨이브용 선반영) / PREVIEW 결과를 반영하지 않은 산정 — 적치 일괄 추천만 기록한다(지시 생성 경로가 산정을 다시 돌리지 않아 근거가 거기밖에 없다). 조회 기본값은 MANUAL·AUTO';
+COMMENT ON COLUMN stgy_exec_log.trgr_typ IS 'MANUAL 화면 조작 / AUTO 스케줄 실행 / PREVIEW 결과를 반영하지 않은 산정 — 적치 일괄 추천만 기록한다(지시 생성 경로가 산정을 다시 돌리지 않아 근거가 거기밖에 없다). 조회 기본값은 MANUAL·AUTO';
 COMMENT ON COLUMN stgy_exec_log.tgt_ref  IS '대상 문서 번호 (입고번호 IB-…). 가상 입력 미리보기는 NULL. inv_hist.rfn_doc_no와 같은 느슨한 참조 — 새 컬럼이라 ref 표기(사전 결정)';
 COMMENT ON COLUMN stgy_exec_log.rslt_smry IS '사람용 한 줄 요약. 예: "라인 3건 중 위반 1건"';
 COMMENT ON COLUMN stgy_exec_log.dcsn_trc IS '건별 판정 상세(라인×규칙 / 단계×후보). 관리 화면의 "왜 차단/배정됐나" 표의 원본이고, 구조는 판정 결과 DTO가 정의한다';
