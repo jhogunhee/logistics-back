@@ -144,12 +144,8 @@ public class WaveStgyExecService {
     }
 
     /**
-     * 실행용 편성 대상 — id 오름차순으로 <b>잠그며 처음 읽는다</b>. assignWave의 「이미 편성됨」
-     * 가드는 같은 트랜잭션 안에서만 유효해서, 락 없이는 동시 실행(전략끼리·수동 편성)이 각자
-     * wave = NULL을 보고 같은 주문을 이중 편입한다 (마지막 커밋이 조용히 이긴다 — @Version 없음).
-     * 엔티티가 아니라 id를 먼저 뽑는 이유는 「검수 동시성」과 같다 — 먼저 읽어두면 영속성
-     * 컨텍스트에 올라가 락을 걸어도 값이 갱신되지 않는다. 잠근 뒤 조건을 다시 확인해
-     * id 조회와 락 사이에 편성·진행된 주문을 대상에서 뺀다.
+     * 실행용 편성 대상 — 락 없이는 동시 실행이 같은 주문을 이중 편입한다. 미리 읽으면 영속성
+     * 컨텍스트 값이 갱신되지 않으므로 id만 뽑아 <b>잠그며 처음 읽고</b>, 잠근 뒤 조건을 재확인한다.
      */
     private List<OutbOrder> lockTargetOrders(LocalDate expctDe) {
         List<OutbOrder> orders = new ArrayList<>();
