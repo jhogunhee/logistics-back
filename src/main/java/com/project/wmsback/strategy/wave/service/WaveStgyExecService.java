@@ -86,7 +86,7 @@ public class WaveStgyExecService {
             if (matched.isEmpty()) {
                 results.add(new WaveStgyExecResponse.StgyResult(stgy.getId(), stgy.getStgyNm(),
                         stgy.getLastRvsnNo(), null, null, 0, "조건에 맞는 미편성 주문이 없어 웨이브를 만들지 않았습니다."));
-                pendingLogs.add(new PendingLog(stgy, null, traces, candidates.size(), 0));
+                pendingLogs.add(new PendingLog(stgy, null, traces, traces.size(), 0));
                 continue;
             }
 
