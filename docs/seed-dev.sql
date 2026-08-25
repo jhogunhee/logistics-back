@@ -190,6 +190,18 @@ SELECT 'PIK-CHL-01-01', zon_id, 'CHL', 'STORAGE', 0, 9, 200 FROM zon WHERE zon_c
 INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, ptawy_prty, max_qty)
 SELECT 'PIK-FRZ-01-01', zon_id, 'FRZ', 'STORAGE', 0, 9, 200 FROM zon WHERE zon_cd = 'PIK-FRZ' ON CONFLICT (loc_cd) DO NOTHING;
 
+-- 반품존 (biz_dvsn = RTNGS). 반품 검수의 불량분이 바로 들어가 보류로 묶이는 자리 — 보류가 보관(STORAGE)
+-- 로케이션만 받으므로 STORAGE다. 할당 후보에서는 존 업무구분으로 제외된다.
+INSERT INTO zon (zon_cd, zon_nm, tmp_zon, strg_typ, biz_dvsn) VALUES ('RTN-DRY', '상온 반품존', 'DRY', 'FLAT', 'RTNGS') ON CONFLICT (zon_cd) DO NOTHING;
+INSERT INTO zon (zon_cd, zon_nm, tmp_zon, strg_typ, biz_dvsn) VALUES ('RTN-CHL', '냉장 반품존', 'CHL', 'FLAT', 'RTNGS') ON CONFLICT (zon_cd) DO NOTHING;
+INSERT INTO zon (zon_cd, zon_nm, tmp_zon, strg_typ, biz_dvsn) VALUES ('RTN-FRZ', '냉동 반품존', 'FRZ', 'FLAT', 'RTNGS') ON CONFLICT (zon_cd) DO NOTHING;
+INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, ptawy_prty, max_qty)
+SELECT 'RTN-DRY-01', zon_id, 'DRY', 'STORAGE', 99, 99, 5000 FROM zon WHERE zon_cd = 'RTN-DRY' ON CONFLICT (loc_cd) DO NOTHING;
+INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, ptawy_prty, max_qty)
+SELECT 'RTN-CHL-01', zon_id, 'CHL', 'STORAGE', 99, 99, 5000 FROM zon WHERE zon_cd = 'RTN-CHL' ON CONFLICT (loc_cd) DO NOTHING;
+INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, ptawy_prty, max_qty)
+SELECT 'RTN-FRZ-01', zon_id, 'FRZ', 'STORAGE', 99, 99, 5000 FROM zon WHERE zon_cd = 'RTN-FRZ' ON CONFLICT (loc_cd) DO NOTHING;
+
 -- 고정 로케이션 마스터 (상품×로케이션). uq_fxng_loc(loc_id)로 멱등 — 한 로케이션 = 한 상품 전용.
 -- min/max는 보충 기준(미구현) — max는 loc.max_qty(200) 이하.
 INSERT INTO fxng_loc (prod_id, loc_id, min_qty, max_qty)
