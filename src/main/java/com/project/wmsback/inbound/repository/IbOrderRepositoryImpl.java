@@ -26,6 +26,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.function.Function;
 
 import static com.project.wmsback.inbound.entity.QIbLine.ibLine;
 import static com.project.wmsback.inbound.entity.QIbOrder.ibOrder;
@@ -36,7 +37,8 @@ import static com.project.mdm.store.entity.QStore.store;
 
 /**
  * 입고건 목록을 화면별로 세 벌 뽑는다. 셋 다 목록 1행을 SQL 한 번으로 완성한다 —
- * 라인을 fetch join하지 않으므로 행이 뻥튀기되지 않고, 진행단계도 HAVING으로 거를 수 있다.
+ * 라인을 fetch join하지 않으므로 행이 뻥튀기되지 않는다.
+ * 진행단계 필터만 SQL이 아니라 결과 목록에 건다(사유는 {@code filterByPrgr}).
  * <p>
  * <b>나눈 기준은 뽑는 컬럼이 아니라 쿼리 모양이다.</b> 컬럼 하나 더 뽑는 건 사실상 공짜지만,
  * 조인·서브쿼리·집계는 그 화면이 안 써도 비용을 문다. 아래 둘이 화면마다 갈린다:
@@ -54,7 +56,7 @@ public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {
     /** 입고예정(ASN) 관리 · 대시보드 — 진행단계와 최종 검수일시를 둘 다 쓴다 */
     @Override
     public List<IbOrderResponse> search(IbOrderSearchCond cond) {
-        return queryFactory
+        List<IbOrderResponse> rows = queryFactory
                 .select(Projections.constructor(IbOrderResponse.class,
                         ibOrder.id, ibOrder.ibNo, progressCode(),
                         vendor.vndrNm, store.storeNm, ibOrder.odrDvsn, ibOrder.expctDe,
@@ -67,9 +69,9 @@ public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {
                 .where(searchConds(cond))
                 .groupBy(ibOrder.id, ibOrder.ibNo, ibOrder.status, ibOrder.expctDe,
                         ibOrder.cfmDt, vendor.vndrNm, store.storeNm, ibOrder.odrDvsn)
-                .having(prgrIn(cond.getPrgr()))
                 .orderBy(ibOrder.id.desc())
                 .fetch();
+        return filterByPrgr(rows, cond.getPrgr(), IbOrderResponse::getPrgr);
     }
 
     /**
@@ -103,7 +105,7 @@ public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {
      */
     @Override
     public List<IbOrderCfmResponse> searchForCfm(IbOrderSearchCond cond) {
-        return queryFactory
+        List<IbOrderCfmResponse> rows = queryFactory
                 .select(Projections.constructor(IbOrderCfmResponse.class,
                         ibOrder.id, ibOrder.ibNo, progressCode(), ibOrder.status,
                         vendor.vndrNm, store.storeNm, ibOrder.odrDvsn, ibOrder.expctDe,
@@ -117,9 +119,9 @@ public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {
                 .where(searchConds(cond))
                 .groupBy(ibOrder.id, ibOrder.ibNo, ibOrder.status, ibOrder.expctDe,
                         ibOrder.cfmDt, vendor.vndrNm, store.storeNm, ibOrder.odrDvsn)
-                .having(prgrIn(cond.getPrgr()))
                 .orderBy(ibOrder.id.desc())
                 .fetch();
+        return filterByPrgr(rows, cond.getPrgr(), IbOrderCfmResponse::getPrgr);
     }
 
     /** 셋이 공유하는 검색조건. 각 조건은 값이 없으면 null이라 where()가 알아서 무시한다 */
@@ -219,13 +221,20 @@ public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {
     // 조건 메서드가 null을 반환하면 where()·having()이 그 조건을 무시한다 — QueryDSL 동적 쿼리 관례
 
     /**
-     * 진행단계 필터. 조건이 있으면 CASE 식 전체가 having에 한 번 더 펼쳐진다
-     * — SQL은 select 별칭을 having에서 못 쓴다.
+     * 진행단계 필터는 SQL이 아니라 조회 결과에 건다.
+     * <p>
+     * having에 걸면 진행단계 CASE가 통째로 한 번 더 펼쳐지는데(SQL은 select 별칭을 having에서 못 쓴다),
+     * 그 CASE 안에는 적치지시 EXISTS 서브쿼리가 들어 있다. 집계 그룹마다 상관 서브쿼리를 다시 도는
+     * 모양이 되어 쿼리가 끝나지 않고 인스턴스가 메모리째 주저앉았다.
+     * <p>
+     * 나머지 조건(입고번호·상대처·구분·기간)은 그대로 SQL이 거르므로, 여기 들어오는 것은 이미
+     * 한 화면 분량으로 좁혀진 목록이다.
      */
-    private BooleanExpression prgrIn(List<IbPrgr> prgr) {
-        return prgr != null && !prgr.isEmpty()
-                ? progressCode().in(prgr.stream().map(IbPrgr::name).toList())
-                : null;
+    private <T> List<T> filterByPrgr(List<T> rows, List<IbPrgr> prgr, Function<T, IbPrgr> prgrOf) {
+        if (prgr == null || prgr.isEmpty()) {
+            return rows;
+        }
+        return rows.stream().filter(row -> prgr.contains(prgrOf.apply(row))).toList();
     }
 
     private BooleanExpression ibNoContains(String ibNo) {
