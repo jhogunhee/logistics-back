@@ -177,6 +177,7 @@ public class ReceivingService {
         }
         // 불량은 스테이징을 거치지 않는다 — 보류된 재고는 적치지시를 걸 수 없어 거기 갇힌다. 반품존에 바로 받는다
         ibLine.reject(rjct);
+        // 같은 상품 검수는 앞단 상품 락이 직렬화하므로 스테이징 → 반품존 순 inv 락이 키 오름차순이 아니어도 교착이 없다
         Inv rtngsInv = invStore.increase(prod, rtngsLocResolver.resolve(prod), lot, rjct, TxTyp.RECEIVE, ref);
         return Optional.of(new PendingHold(rtngsInv, rjct, line.getRjctRsnCd(), line.getRjctRsnDscr()));
     }

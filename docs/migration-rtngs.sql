@@ -100,6 +100,20 @@ BEGIN
     INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, ptawy_prty, max_qty)
     SELECT 'RTN-FRZ-01', zon_id, 'FRZ', 'STORAGE', 99, 99, 5000 FROM zon WHERE zon_cd = 'RTN-FRZ' ON CONFLICT (loc_cd) DO NOTHING;
     RAISE NOTICE '반품존 3 + 로케이션 3 (이미 있으면 유지)';
+
+    -- 7. store_id 인덱스 --------------------------------------------------------
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ix_ib_order_store') THEN
+        CREATE INDEX ix_ib_order_store ON ib_order (store_id);
+        RAISE NOTICE 'ix_ib_order_store 생성';
+    ELSE
+        RAISE NOTICE 'ix_ib_order_store 이미 존재 — 건너뜀';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ix_oms_ib_order_store') THEN
+        CREATE INDEX ix_oms_ib_order_store ON oms_ib_order (store_id);
+        RAISE NOTICE 'ix_oms_ib_order_store 생성';
+    ELSE
+        RAISE NOTICE 'ix_oms_ib_order_store 이미 존재 — 건너뜀';
+    END IF;
 END
 $mig$;
 

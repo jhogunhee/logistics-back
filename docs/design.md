@@ -209,7 +209,8 @@ stateDiagram-v2
 
 `ib_line.rcvd_qty` / `ptawy_qty`는 **`inv_hist`에서 파생 가능한 값의 캐시**다. 캐시를 두는 순간 위험한 것은 조정 경로에서 `ptawy_qty = ptawy_qty - 작업수량`처럼 증분 차감을 하는 패턴이다 — 원천 SUM과 컬럼이 어긋날 수 있는 경로가 생긴다. 그 경로를 아예 만들지 않는다.
 
-- **원천**: `rcvdQty = SUM(qty)` where `ib_line_id` = ? and `tx_typ in (RECEIVE, ADJUST)` / `ptawyQty = SUM(qty)` where `tx_typ = MOVE and qty > 0`.
+- **원천**: `rcvdQty = SUM(qty)` where `ib_line_id` = ? and `tx_typ in (RECEIVE, ADJUST)` and 로케이션이 반품존이 아닌 것 / `ptawyQty = SUM(qty)` where `tx_typ = MOVE and qty > 0`.
+- **`rjctQty`**: `SUM(qty)` where `ib_line_id` = ? and `tx_typ in (RECEIVE, ADJUST)` and 로케이션이 반품존인 것 — 반품 검수의 불량 수량은 `rcvdQty`와 원천이 갈린다(`RtngsLocResolver.inRtngsZon`).
 - **규칙**: 검수·검수취소·적치 어느 경로든 컬럼을 직접 증감하지 않고, **재계산 후 덮어쓰기** 한 곳(`IbLine#recalcQty`)만 거친다. 어긋날 수 있는 경로 자체를 없앤다.
 - **그럼에도 컬럼을 남기는 이유**: ① 목록 화면이 라인마다 이력을 집계하면 그대로 N+1 집계가 된다 ② `CHECK (ptawy_qty <= rcvd_qty)`가 애플리케이션 버그의 최후 방어선 역할을 하는데, 컬럼이 없으면 DB가 검증할 대상도 사라진다.
 

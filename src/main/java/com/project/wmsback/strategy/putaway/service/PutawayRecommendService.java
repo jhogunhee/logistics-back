@@ -88,7 +88,8 @@ public class PutawayRecommendService {
         IbLine ibLine = ibLineRepository.findById(item.ibLineId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고 라인입니다: " + item.ibLineId()));
         Prod prod = ibLine.getProd();
-        PutawayTarget target = new PutawayTarget(prod, ibLine.getIbOrder().getVendor().getVndrCd());
+        var vendor = ibLine.getIbOrder().getVendor();
+        PutawayTarget target = new PutawayTarget(prod, vendor != null ? vendor.getVndrCd() : null);
 
         Optional<PtawyStgy> selected = selectStrategy(ibLine.getIbOrder().getOdrDvsn());
         if (selected.isEmpty()) {
@@ -134,7 +135,8 @@ public class PutawayRecommendService {
             IbLine ibLine = ibLineRepository.findById(request.ibLineId())
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고 라인입니다: " + request.ibLineId()));
             prod = ibLine.getProd();
-            vndrCd = ibLine.getIbOrder().getVendor().getVndrCd();
+            var vendor = ibLine.getIbOrder().getVendor();
+            vndrCd = vendor != null ? vendor.getVndrCd() : null;
         } else if (request.prodId() != null) {
             prod = prodRepository.findById(request.prodId())
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다: " + request.prodId()));

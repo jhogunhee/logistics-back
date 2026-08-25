@@ -91,7 +91,7 @@ common  ← mdm ← wmsback ← omsback
 expected→expct  received→rcvd  rejected→rjct  location→loc  history→hist
 product→prod  putaway→ptawy  allocated/allocation→aloc  picking→pikng
 type→typ  zone→zon  temperature→tmp  group→grp  use→us  description→dscr
-reference→rfn  order→odr  wave→wav  sort+sequence→srt_seq  person in charge→pic
+reference→ref  order→odr  wave→wav  sort+sequence→srt_seq  person in charge→pic
 date→de(일자)  datetime→dt(일시)  cancel→cncl  close→clos  complete→cmpl  shipment→shmt
 unit of measure→uom(계량단위)  each→ea(낱개)  weight→wgt(중량)
 ```

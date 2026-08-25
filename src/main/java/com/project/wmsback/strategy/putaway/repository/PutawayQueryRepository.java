@@ -1,5 +1,6 @@
 package com.project.wmsback.strategy.putaway.repository;
 
+import com.project.wmsback.warehouse.entity.BizDvsn;
 import com.project.wmsback.warehouse.entity.LocTyp;
 import com.project.mdm.prod.entity.TmpZon;
 import com.project.wmsback.strategy.putaway.component.PutawayMethodContext;
@@ -49,7 +50,9 @@ public class PutawayQueryRepository {
                 .leftJoin(fxngLoc).on(fxngLoc.loc.eq(loc).and(fxngLoc.prod.id.eq(prodId)))
                 .where(
                         loc.locTyp.eq(LocTyp.STORAGE),
-                        loc.tmpZon.eq(tmpZon)
+                        loc.tmpZon.eq(tmpZon),
+                        // 반품존은 적치 후보가 아니다 — RtngsLocResolver.inRtngsZon 참고
+                        zon.bizDvsn.ne(BizDvsn.RTNGS).or(zon.bizDvsn.isNull())
                 )
                 .groupBy(loc, zon.bizDvsn)
                 .fetch();

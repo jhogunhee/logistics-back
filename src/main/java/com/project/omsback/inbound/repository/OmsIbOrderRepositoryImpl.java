@@ -72,7 +72,7 @@ public class OmsIbOrderRepositoryImpl implements OmsIbOrderRepositoryCustom {
     /** 상대처명 — 벤더명 또는 점포명 */
     private BooleanExpression vndrNmContains(String vndrNm) {
         return StringUtils.hasText(vndrNm)
-                ? omsIbOrder.vendor.vndrNm.containsIgnoreCase(vndrNm).or(omsIbOrder.store.storeNm.containsIgnoreCase(vndrNm))
+                ? vendor.vndrNm.containsIgnoreCase(vndrNm).or(store.storeNm.containsIgnoreCase(vndrNm))
                 : null;
     }
 

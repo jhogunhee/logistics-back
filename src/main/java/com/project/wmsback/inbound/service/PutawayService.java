@@ -58,6 +58,8 @@ public class PutawayService {
         return locRepository
                 .findAllByTmpZonAndLocTypOrderByPtawyPrtyAsc(ibLine.getProd().getTmpZon(), LocTyp.STORAGE)
                 .stream()
+                // 반품존은 적치 후보가 아니다 — RtngsLocResolver.inRtngsZon 참고
+                .filter(loc -> !RtngsLocResolver.inRtngsZon(loc))
                 .map(loc -> PutawayLocCandidateResponse.of(loc, locCapacityService.availCapacity(loc)))
                 .toList();
     }
