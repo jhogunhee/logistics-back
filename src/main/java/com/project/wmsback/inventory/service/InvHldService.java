@@ -111,7 +111,20 @@ public class InvHldService {
         if (item.getQty() == null || item.getQty() < 1) {
             throw new IllegalArgumentException("보류수량은 1 이상이어야 합니다.");
         }
-        String rsnDscr = rsnValidator.validate(HLD_RSN_GRP_CD, "보류사유", item.getRsnCd(), item.getRsnDscr());
+        return holdOn(inv, item.getQty(), item.getRsnCd(), item.getRsnDscr());
+    }
+
+    /**
+     * 재고 행 하나에 보류 한 건 — 검증 · hld 증가 · 보류 건 · 등록 실적. 화면 등록과 반품 검수(불량분)가 같이 쓴다.
+     * 호출자가 그 재고 행의 락을 이미 잡고 있어야 하고, 채번(HLD_NO)이 여기서 일어나므로
+     * 잡을 재고 락이 더 남았을 때 부르면 안 된다 (락 순서 — 채번은 재고 락을 전부 잡은 뒤).
+     */
+    @Transactional
+    public String holdOn(Inv inv, long qty, String rsnCd, String rsnDscr) {
+        if (qty < 1) {
+            throw new IllegalArgumentException("보류수량은 1 이상이어야 합니다.");
+        }
+        String dscr = rsnValidator.validate(HLD_RSN_GRP_CD, "보류사유", rsnCd, rsnDscr);
 
         Prod prodEntity = inv.getProd();
         Lot lotEntity = inv.getLot();
@@ -122,25 +135,25 @@ public class InvHldService {
             throw new IllegalArgumentException("보관 로케이션의 재고만 보류할 수 있습니다: " + locEntity.getLocCd());
         }
         // 예약과 보류는 배타 — 보류는 가용재고에서만 잡는다 (예약 잔량이 있어도 남은 가용분은 보류 가능)
-        if (item.getQty() > inv.avalQty()) {
+        if (qty > inv.avalQty()) {
             throw new IllegalArgumentException("보류수량이 가용재고를 초과했습니다 (가용 " + inv.avalQty() + "): "
                     + prodEntity.getProdCd() + " @ " + locEntity.getLocCd());
         }
 
-        invStore.hold(inv, item.getQty());
+        invStore.hold(inv, qty);
         InvHld hld = InvHld.builder()
                 .hldNo(nbrService.issue(HLD_NO_RULE_CD, LocalDate.now()))
                 .prod(prodEntity).loc(locEntity).lot(lotEntity)
-                .hldQty(item.getQty())
-                .rsnCd(item.getRsnCd()).rsnDscr(rsnDscr)
+                .hldQty(qty)
+                .rsnCd(rsnCd).rsnDscr(dscr)
                 .build();
         invHldRepository.save(hld);
         // 실적은 자기완결 로그 — 건이 갱신돼도 등록 시점 기록이 보존된다
         invHldAcrstRepository.save(InvHldAcrst.builder()
                 .hldNo(hld.getHldNo())
                 .prod(prodEntity).loc(locEntity).lot(lotEntity)
-                .hldQty(item.getQty())
-                .rsnCd(item.getRsnCd()).rsnDscr(rsnDscr)
+                .hldQty(qty)
+                .rsnCd(rsnCd).rsnDscr(dscr)
                 .build());
         return hld.getHldNo();
     }
