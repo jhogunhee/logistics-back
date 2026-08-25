@@ -12,6 +12,11 @@ public class OmsIbLineSaveRequest {
 
     private Long prodId;
 
-    /** 발주 수량. 입고단위({@code prod.inb_uom_cd}) 기준이다 — ASN 생성(주문확정) 시 출고단위로 환산된다 */
+    /** 발주 수량. 정상은 입고단위, 반품은 출고단위 — 확정 시 낱개(EA)로 환산된다 */
     private Long odrQty;
+
+    /** 반품사유 (RTNGS_RSN). 반품 라인만 필수 */
+    private String rsnCd;
+    /** 반품사유 상세. ETC일 때만 */
+    private String rsnDscr;
 }

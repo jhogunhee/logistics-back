@@ -19,11 +19,20 @@ public class OmsIbLineResponse {
     private final String inbUomCd;
     /** 발주단위 1개 = 낱개(EA) 몇 개. 화면이 수량 입력 중에 환산을 재계산할 때 쓴다 */
     private final Long inbEaQty;
+    private final String outbUomCd;
+    private final Long outbEaQty;
+    /** 발주 수량의 단위 — 정상은 입고단위, 반품은 출고단위 (order.odrUomCd) */
+    private final String odrUomCd;
+    private final Long odrEaQty;
     /**
      * 발주 수량을 낱개(EA)로 환산한 값 — 표시용.
      * ASN 예정수량도 같은 낱개(EA) 기준이다 (재고 저장 단위가 EA로 통일되면서 둘이 일치하게 됐다).
      */
     private final Long cnvrQty;
+    /** 반품사유 (공통코드 RTNGS_RSN). 반품 라인만, 정상 발주는 null */
+    private final String rsnCd;
+    /** 반품사유 상세. ETC일 때만 */
+    private final String rsnDscr;
 
     private OmsIbLineResponse(OmsIbLine line) {
         this.omsIbLineId = line.getId();
@@ -35,7 +44,14 @@ public class OmsIbLineResponse {
         this.odrQty = line.getOdrQty();
         this.inbUomCd = line.getProd().getInbUomCd();
         this.inbEaQty = line.getProd().eaQtyOf(this.inbUomCd);
-        this.cnvrQty = line.getOdrQty() * this.inbEaQty;
+        this.outbUomCd = line.getProd().getOutbUomCd();
+        this.outbEaQty = line.getProd().eaQtyOf(this.outbUomCd);
+        // 발주 수량의 단위는 주문 구분이 정한다 — 정상 입고단위, 반품 출고단위
+        this.odrUomCd = line.getOmsIbOrder().odrUomCd(line.getProd());
+        this.odrEaQty = line.getProd().eaQtyOf(this.odrUomCd);
+        this.cnvrQty = line.getOdrQty() * this.odrEaQty;
+        this.rsnCd = line.getRsnCd();
+        this.rsnDscr = line.getRsnDscr();
     }
 
     public static OmsIbLineResponse from(OmsIbLine line) {

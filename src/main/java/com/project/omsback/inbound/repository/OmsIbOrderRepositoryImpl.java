@@ -19,6 +19,7 @@ import static com.project.omsback.inbound.entity.QOmsIbOrder.omsIbOrder;
 import static com.project.wmsback.inbound.entity.QIbOrder.ibOrder;
 import static com.project.mdm.prod.entity.QProd.prod;
 import static com.project.mdm.vendor.entity.QVendor.vendor;
+import static com.project.mdm.store.entity.QStore.store;
 
 @RequiredArgsConstructor
 public class OmsIbOrderRepositoryImpl implements OmsIbOrderRepositoryCustom {
@@ -27,14 +28,15 @@ public class OmsIbOrderRepositoryImpl implements OmsIbOrderRepositoryCustom {
 
     @Override
     public List<OmsIbOrder> search(OmsIbOrderSearchCond cond) {
-        // 라인(집계용)과 라인의 상품(단위·환산 합계용), 벤더(응답의 코드/명)를 fetch join으로 함께 로딩 (N+1 방지).
+        // 라인(집계용)과 라인의 상품(단위·환산 합계용), 벤더·점포(응답의 코드/명)를 fetch join으로 함께 로딩 (N+1 방지).
         // 환산이 마저 읽는 prod.uoms까지 여기서 당기면 컬렉션 fetch join이 둘이 돼 못 쓴다(MultipleBagFetch)
         // — 그쪽은 hibernate.default_batch_fetch_size가 IN 쿼리로 묶는다.
         return queryFactory
                 .selectFrom(omsIbOrder).distinct()
                 .leftJoin(omsIbOrder.lines, omsIbLine).fetchJoin()
                 .leftJoin(omsIbLine.prod, prod).fetchJoin()
-                .innerJoin(omsIbOrder.vendor, vendor).fetchJoin()
+                .leftJoin(omsIbOrder.vendor, vendor).fetchJoin()
+                .leftJoin(omsIbOrder.store, store).fetchJoin()
                 .where(
                         omsIbNoContains(cond.getOmsIbNo()),
                         vndrNmContains(cond.getVndrNm()),
@@ -67,9 +69,11 @@ public class OmsIbOrderRepositoryImpl implements OmsIbOrderRepositoryCustom {
         return StringUtils.hasText(omsIbNo) ? omsIbOrder.omsIbNo.containsIgnoreCase(omsIbNo) : null;
     }
 
-    /** 벤더는 이제 마스터라 검색도 조인 대상 컬럼(vendor.vndrNm)을 본다 */
+    /** 상대처명 — 벤더명 또는 점포명 */
     private BooleanExpression vndrNmContains(String vndrNm) {
-        return StringUtils.hasText(vndrNm) ? omsIbOrder.vendor.vndrNm.containsIgnoreCase(vndrNm) : null;
+        return StringUtils.hasText(vndrNm)
+                ? omsIbOrder.vendor.vndrNm.containsIgnoreCase(vndrNm).or(omsIbOrder.store.storeNm.containsIgnoreCase(vndrNm))
+                : null;
     }
 
     private BooleanExpression statusIn(List<OmsIbStatus> status) {
