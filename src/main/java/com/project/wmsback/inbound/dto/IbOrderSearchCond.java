@@ -23,8 +23,11 @@ public class IbOrderSearchCond {
      */
     private List<IbPrgr> prgr;
 
-    /** 벤더명 (contains). 화면은 벤더 선택 팝업에서 고른 이름을 그대로 보낸다 — OMS 주문목록과 같은 방식 */
+    /** 상대처명 (벤더명 또는 점포명 contains) */
     private String vndrNm;
+
+    /** 발주구분 정확일치 — 반품(RTNGS)만 보기 */
+    private String odrDvsn;
 
     /** 입고 예정일 범위 (from ~ to) */
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)

@@ -23,6 +23,9 @@ public class IbOrderInspResponse {
     /** 저장 상태 3값 — 검수 가능 여부(SCHEDULED·RECEIVING)와 확정건 제외에 쓴다 */
     private final IbStatus status;
     private final String vndrNm;
+    /** 반품이면 점포명, 아니면 null */
+    private final String storeNm;
+    private final String odrDvsn;
     private final LocalDate expctDe;
     /** 전체 라인 수 (저장값이 아니라 라인에서 파생) */
     private final int lineCount;
@@ -36,12 +39,14 @@ public class IbOrderInspResponse {
     private final LocalDateTime inspDt;
 
     public IbOrderInspResponse(Long ibOrderId, String ibNo, IbStatus status,
-                               String vndrNm, LocalDate expctDe,
+                               String vndrNm, String storeNm, String odrDvsn, LocalDate expctDe,
                                int lineCount, int cmplLineCount, LocalDateTime inspDt) {
         this.ibOrderId = ibOrderId;
         this.ibNo = ibNo;
         this.status = status;
         this.vndrNm = vndrNm;
+        this.storeNm = storeNm;
+        this.odrDvsn = odrDvsn;
         this.expctDe = expctDe;
         this.lineCount = lineCount;
         this.cmplLineCount = cmplLineCount;

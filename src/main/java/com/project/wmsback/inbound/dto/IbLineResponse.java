@@ -24,8 +24,9 @@ public class IbLineResponse {
     private final Integer shelfLifeDays;
     private final Long expctQty;
     private final Long rcvdQty;
+    private final Long rjctQty;
     private final Long ptawyQty;
-    /** 검수 입력 단위 = 입고단위(발주단위). 화면이 검수수량 입력 칸 옆에 라벨로 붙인다 */
+    /** 검수 입력 단위 — 정상 입고단위 · 반품 출고단위. 화면이 검수수량 입력 칸 옆에 라벨로 붙인다 */
     private final String inbUomCd;
     /**
      * 입고단위 1개 = 낱개(EA) 몇 개. 수량 컬럼(expct/rcvd/ptawy)은 낱개(EA) 저장이라,
@@ -44,8 +45,10 @@ public class IbLineResponse {
         this.shelfLifeDays = line.getProd().getShelfLifeDays();
         this.expctQty = line.getExpctQty();
         this.rcvdQty = line.getRcvdQty();
+        this.rjctQty = line.getRjctQty();
         this.ptawyQty = line.getPtawyQty();
-        this.inbUomCd = line.getProd().getInbUomCd();
+        // 검수 입력 단위는 문서 구분이 정한다 — 정상 입고단위, 반품 출고단위 (IbOrder#rcvUomCd)
+        this.inbUomCd = line.getIbOrder().rcvUomCd(line.getProd());
         this.inbEaQty = line.getProd().eaQtyOf(this.inbUomCd);
     }
 

@@ -32,6 +32,7 @@ import static com.project.wmsback.inbound.entity.QIbOrder.ibOrder;
 import static com.project.wmsback.inbound.entity.QPutawayTask.putawayTask;
 import static com.project.wmsback.inventory.entity.QInvHist.invHist;
 import static com.project.mdm.vendor.entity.QVendor.vendor;
+import static com.project.mdm.store.entity.QStore.store;
 
 /**
  * 입고건 목록을 화면별로 세 벌 뽑는다. 셋 다 목록 1행을 SQL 한 번으로 완성한다 —
@@ -56,15 +57,16 @@ public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {
         return queryFactory
                 .select(Projections.constructor(IbOrderResponse.class,
                         ibOrder.id, ibOrder.ibNo, progressCode(),
-                        vendor.vndrNm, ibOrder.expctDe,
+                        vendor.vndrNm, store.storeNm, ibOrder.odrDvsn, ibOrder.expctDe,
                         sumOrZero(ibLine.expctQty),
                         lastReceiveDt(), ibOrder.cfmDt))
                 .from(ibOrder)
-                .innerJoin(ibOrder.vendor, vendor)
+                .leftJoin(ibOrder.vendor, vendor)
+                .leftJoin(ibOrder.store, store)
                 .leftJoin(ibOrder.lines, ibLine)
                 .where(searchConds(cond))
                 .groupBy(ibOrder.id, ibOrder.ibNo, ibOrder.status, ibOrder.expctDe,
-                        ibOrder.cfmDt, vendor.vndrNm)
+                        ibOrder.cfmDt, vendor.vndrNm, store.storeNm, ibOrder.odrDvsn)
                 .having(prgrIn(cond.getPrgr()))
                 .orderBy(ibOrder.id.desc())
                 .fetch();
@@ -81,14 +83,16 @@ public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {
         return queryFactory
                 .select(Projections.constructor(IbOrderInspResponse.class,
                         ibOrder.id, ibOrder.ibNo, ibOrder.status,
-                        vendor.vndrNm, ibOrder.expctDe,
+                        vendor.vndrNm, store.storeNm, ibOrder.odrDvsn, ibOrder.expctDe,
                         ibLine.id.count().intValue(), cmplLineCount(),
                         lastReceiveDt()))
                 .from(ibOrder)
-                .innerJoin(ibOrder.vendor, vendor)
+                .leftJoin(ibOrder.vendor, vendor)
+                .leftJoin(ibOrder.store, store)
                 .leftJoin(ibOrder.lines, ibLine)
                 .where(searchConds(cond))
-                .groupBy(ibOrder.id, ibOrder.ibNo, ibOrder.status, ibOrder.expctDe, vendor.vndrNm)
+                .groupBy(ibOrder.id, ibOrder.ibNo, ibOrder.status, ibOrder.expctDe,
+                        vendor.vndrNm, store.storeNm, ibOrder.odrDvsn)
                 .orderBy(ibOrder.id.desc())
                 .fetch();
     }
@@ -102,15 +106,17 @@ public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {
         return queryFactory
                 .select(Projections.constructor(IbOrderCfmResponse.class,
                         ibOrder.id, ibOrder.ibNo, progressCode(), ibOrder.status,
-                        vendor.vndrNm, ibOrder.expctDe,
-                        sumOrZero(ibLine.expctQty), sumOrZero(ibLine.rcvdQty), sumOrZero(ibLine.ptawyQty),
+                        vendor.vndrNm, store.storeNm, ibOrder.odrDvsn, ibOrder.expctDe,
+                        sumOrZero(ibLine.expctQty), sumOrZero(ibLine.rcvdQty), sumOrZero(ibLine.rjctQty),
+                        sumOrZero(ibLine.ptawyQty),
                         ibOrder.cfmDt))
                 .from(ibOrder)
-                .innerJoin(ibOrder.vendor, vendor)
+                .leftJoin(ibOrder.vendor, vendor)
+                .leftJoin(ibOrder.store, store)
                 .leftJoin(ibOrder.lines, ibLine)
                 .where(searchConds(cond))
                 .groupBy(ibOrder.id, ibOrder.ibNo, ibOrder.status, ibOrder.expctDe,
-                        ibOrder.cfmDt, vendor.vndrNm)
+                        ibOrder.cfmDt, vendor.vndrNm, store.storeNm, ibOrder.odrDvsn)
                 .having(prgrIn(cond.getPrgr()))
                 .orderBy(ibOrder.id.desc())
                 .fetch();
@@ -121,6 +127,7 @@ public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {
         return new Predicate[]{
                 ibNoContains(cond.getIbNo()),
                 vndrNmContains(cond.getVndrNm()),
+                odrDvsnEq(cond.getOdrDvsn()),
                 expctDeGoe(cond.getDateFrom()),
                 expctDeLoe(cond.getDateTo())
         };
@@ -141,8 +148,8 @@ public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {
     private StringExpression progressCode() {
         return new CaseBuilder()
                 .when(ibOrder.status.eq(IbStatus.CONFIRMED)).then(IbPrgr.CONFIRMED.name())
-                // 라인이 없으면 이 합이 0이라 여기서 걸린다 (빈 라인 목록의 Java 합계와 같다)
-                .when(sumOrZero(ibLine.rcvdQty).eq(0L)).then(IbPrgr.SCHEDULED.name())
+                // 라인이 없으면 이 합이 0이라 여기서 걸린다 (빈 라인 목록의 Java 합계와 같다) — 검수 착수는 양품+불량 모두 센다
+                .when(sumOrZero(ibLine.rcvdQty).add(sumOrZero(ibLine.rjctQty)).eq(0L)).then(IbPrgr.SCHEDULED.name())
                 .when(notFullyPutawayLines().eq(0)).then(IbPrgr.PTAWY_CMPL.name())
                 .when(hasOpenPtawyDrct().or(sumOrZero(ibLine.ptawyQty).gt(0L))).then(IbPrgr.PTAWY_DRCT.name())
                 .otherwise(IbPrgr.RECEIVING.name());
@@ -195,10 +202,10 @@ public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {
                 );
     }
 
-    /** 전량 검수된 라인 수 — 라인이 없으면 CASE가 ELSE로 떨어져 0이 된다(null 아님) */
+    /** 전량 검수된 라인 수 — 라인이 없으면 CASE가 ELSE로 떨어져 0이 된다(null 아님). 양품+불량이 예정에 닿으면 완료 */
     private NumberExpression<Integer> cmplLineCount() {
         return new CaseBuilder()
-                .when(ibLine.rcvdQty.goe(ibLine.expctQty)).then(1).otherwise(0).sum();
+                .when(ibLine.rcvdQty.add(ibLine.rjctQty).goe(ibLine.expctQty)).then(1).otherwise(0).sum();
     }
 
     /**
@@ -225,8 +232,15 @@ public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {
         return StringUtils.hasText(ibNo) ? ibOrder.ibNo.containsIgnoreCase(ibNo) : null;
     }
 
+    /** 상대처명 — 벤더명 또는 점포명 */
     private BooleanExpression vndrNmContains(String vndrNm) {
-        return StringUtils.hasText(vndrNm) ? vendor.vndrNm.containsIgnoreCase(vndrNm) : null;
+        return StringUtils.hasText(vndrNm)
+                ? vendor.vndrNm.containsIgnoreCase(vndrNm).or(store.storeNm.containsIgnoreCase(vndrNm))
+                : null;
+    }
+
+    private BooleanExpression odrDvsnEq(String odrDvsn) {
+        return StringUtils.hasText(odrDvsn) ? ibOrder.odrDvsn.eq(odrDvsn) : null;
     }
 
     private BooleanExpression expctDeGoe(LocalDate dateFrom) {
