@@ -31,7 +31,11 @@ class InspectionRuleTest {
     private final InspectionQueryRepository lotQuery = mock(InspectionQueryRepository.class);
 
     private InspectionContext ctx(LocalDate mfgDt) {
-        return new InspectionContext(prod, RECEIPT_DT, mfgDt, lotQuery);
+        return new InspectionContext(prod, RECEIPT_DT, mfgDt, lotQuery, false, false);
+    }
+
+    private InspectionContext rtngsCtx(LocalDate mfgDt, boolean rjctOnly) {
+        return new InspectionContext(prod, RECEIPT_DT, mfgDt, lotQuery, true, rjctOnly);
     }
 
     @Nested
@@ -114,6 +118,14 @@ class InspectionRuleTest {
         }
 
         @Test
+        @DisplayName("반품에서 양품이 0인 라인(불량만)은 판정하지 않는다 — 불량으로 받는 물건에 잔여수명 하한을 걸 이유가 없다")
+        void skipsRjctOnlyLine() {
+            when(prod.getShelfLifeDays()).thenReturn(100);
+            assertEquals("양품 없음 (불량만 입고)", rule.skipReason(rtngsCtx(RECEIPT_DT.minusDays(90), true)).orElseThrow());
+            assertTrue(rule.skipReason(rtngsCtx(RECEIPT_DT.minusDays(1), false)).isEmpty());
+        }
+
+        @Test
         @DisplayName("저장 검증 — minPercent는 필수, 0~100, 정의되지 않은 키는 거부한다 (P2)")
         void validateParaRejectsBadInput() {
             assertThrows(IllegalArgumentException.class, () -> rule.validatePara(Map.of()));
@@ -191,6 +203,13 @@ class InspectionRuleTest {
 
             when(prod.getShelfLifeDays()).thenReturn(null);
             assertTrue(rule.minMfgDt(ctx(null), para).isEmpty());
+        }
+
+        @Test
+        @DisplayName("반품은 역순 제한 대상이 아니다 — 오래된 Lot이 FEFO 앞으로 가는 것이 반품에서는 맞다")
+        void skipsForRtngs() {
+            when(prod.getShelfLifeDays()).thenReturn(100);
+            assertEquals("반품은 역순 제한 대상이 아님", rule.skipReason(rtngsCtx(RECEIPT_DT.minusDays(30), false)).orElseThrow());
         }
 
         @Test

@@ -73,7 +73,9 @@ public class InspectionService {
             Prod prod = ibLine.getProd();
             LocalDate receiptDt = line.getReceiptDt() != null ? line.getReceiptDt() : LocalDate.now();
 
-            List<InspRuleResult> results = evaluateOne(ruleDefs, prod, receiptDt, line.getMfgDt());
+            boolean rjctOnly = (line.getInspectQty() == null || line.getInspectQty() == 0)
+                    && line.getRjctQty() != null && line.getRjctQty() > 0;
+            List<InspRuleResult> results = evaluateOne(ruleDefs, prod, receiptDt, line.getMfgDt(), order.isRtngs(), rjctOnly);
             results.stream()
                     .filter(r -> !r.pass())
                     .forEach(r -> violations.add(new InspectionViolationException.LineViolation(
@@ -125,7 +127,13 @@ public class InspectionService {
      */
     public List<InspRuleResult> evaluateOne(List<InspPlcyDefinition.RuleDef> ruleDefs,
                                             Prod prod, LocalDate receiptDt, LocalDate mfgDt) {
-        InspectionContext ctx = new InspectionContext(prod, receiptDt, mfgDt, inspectionQueryRepository);
+        return evaluateOne(ruleDefs, prod, receiptDt, mfgDt, false, false);
+    }
+
+    public List<InspRuleResult> evaluateOne(List<InspPlcyDefinition.RuleDef> ruleDefs,
+                                            Prod prod, LocalDate receiptDt, LocalDate mfgDt,
+                                            boolean rtngs, boolean rjctOnly) {
+        InspectionContext ctx = new InspectionContext(prod, receiptDt, mfgDt, inspectionQueryRepository, rtngs, rjctOnly);
         List<InspRuleResult> results = new ArrayList<>();
         for (InspPlcyDefinition.RuleDef def : ruleDefs) {
             InspectionRule rule = InspectionRule.of(def.ruleCd());
@@ -169,7 +177,7 @@ public class InspectionService {
                 throw new IllegalArgumentException("존재하지 않는 상품입니다: " + item.prodId());
             }
             LocalDate receiptDt = item.receiptDt() != null ? item.receiptDt() : LocalDate.now();
-            InspectionContext ctx = new InspectionContext(prod, receiptDt, null, inspectionQueryRepository);
+            InspectionContext ctx = new InspectionContext(prod, receiptDt, null, inspectionQueryRepository, false, false);
 
             List<InspMinMfgDtResponse.RuleMin> ruleMins = new ArrayList<>();
             LocalDate overall = null;

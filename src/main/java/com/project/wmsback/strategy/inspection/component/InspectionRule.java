@@ -39,6 +39,9 @@ public enum InspectionRule {
             if (ctx.prod().getShelfLifeDays() == null || ctx.prod().getShelfLifeDays() <= 0) {
                 return Optional.of("유통기한 미관리 상품");
             }
+            if (ctx.rjctOnly()) {
+                return Optional.of("양품 없음 (불량만 입고)");
+            }
             if (ctx.mfgDt() == null) {
                 return Optional.of("제조일자 없음");
             }
@@ -85,7 +88,7 @@ public enum InspectionRule {
             // 잔여율을 소수 첫째 자리에서 절사하므로 기준에 소수가 있으면 경계일이 하루 밀릴 수 있다 —
             // 식을 한 번 더 세우지 않고 실제 판정(check)으로 맞춘다. 하한은 판정과 어긋나면 안 된다
             while (candidate.isBefore(ctx.receiptDt())
-                    && check(new InspectionContext(ctx.prod(), ctx.receiptDt(), candidate, ctx.lotQuery()), para).isPresent()) {
+                    && check(new InspectionContext(ctx.prod(), ctx.receiptDt(), candidate, ctx.lotQuery(), ctx.rtngs(), false), para).isPresent()) {
                 candidate = candidate.plusDays(1);
             }
             return Optional.of(candidate);
@@ -110,6 +113,9 @@ public enum InspectionRule {
 
         @Override
         public Optional<String> skipReason(InspectionContext ctx) {
+            if (ctx.rtngs()) {
+                return Optional.of("반품은 역순 제한 대상이 아님");
+            }
             // 0 이하는 잔여비율의 분모가 성립하지 않는다 — 미관리와 같게 제외
             if (ctx.prod().getShelfLifeDays() == null || ctx.prod().getShelfLifeDays() <= 0) {
                 return Optional.of("유통기한 미관리 상품");
@@ -136,6 +142,9 @@ public enum InspectionRule {
 
         @Override
         public Optional<LocalDate> minMfgDt(InspectionContext ctx, Map<String, Object> para) {
+            if (ctx.rtngs()) {
+                return Optional.empty();
+            }
             if (ctx.prod().getShelfLifeDays() == null || ctx.prod().getShelfLifeDays() <= 0) {
                 return Optional.empty();
             }

@@ -13,6 +13,10 @@ public record InspectionContext(
         Prod prod,
         LocalDate receiptDt,
         LocalDate mfgDt,
-        InspectionQueryRepository lotQuery
+        InspectionQueryRepository lotQuery,
+        /** 반품입고(odr_dvsn=RTNGS)인가 — 역순 제한이 빠진다 */
+        boolean rtngs,
+        /** 이 라인이 불량만 받는가(양품 0) — 잔여수명 하한이 빠진다. 힌트(minMfgDt) 계산에서는 false */
+        boolean rjctOnly
 ) {
 }

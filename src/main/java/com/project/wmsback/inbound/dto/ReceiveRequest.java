@@ -33,5 +33,11 @@ public class ReceiveRequest {
         private LocalDate receiptDt;
         /** 제조일자. 유통기한 관리 상품만 필수 — 유통기한 = 제조일 + shelfLifeDays */
         private LocalDate mfgDt;
+        /** 이번 불량수량 — 입고단위. 반품입고만. 반품존에 받아 즉시 보류된다 */
+        private Long rjctQty;
+        /** 불량사유 (공통코드 HLD_RSN) — rjctQty > 0이면 필수 */
+        private String rjctRsnCd;
+        /** 불량사유 상세 — ETC일 때만 */
+        private String rjctRsnDscr;
     }
 }
