@@ -18,6 +18,7 @@ import static com.project.wmsback.inventory.entity.QInvHist.invHist;
 import static com.project.wmsback.warehouse.entity.QLot.lot;
 import static com.project.mdm.prod.entity.QProd.prod;
 import static com.project.mdm.vendor.entity.QVendor.vendor;
+import static com.project.mdm.store.entity.QStore.store;
 
 @RequiredArgsConstructor
 public class IbLineRepositoryImpl implements IbLineRepositoryCustom {
@@ -46,14 +47,15 @@ public class IbLineRepositoryImpl implements IbLineRepositoryCustom {
         // 스테이징 로케이션 한정으로 합산하면 그 배치의 미적치 잔량이 그대로 나온다.
         return queryFactory
                 .select(Projections.constructor(PutawayCandidateResponse.class,
-                        ibLine.id, ibOrder.id, ibOrder.ibNo, vendor.vndrNm,
+                        ibLine.id, ibOrder.id, ibOrder.ibNo, vendor.vndrNm, store.storeNm,
                         prod.prodCd, prod.prodNm, prod.tmpZon,
                         lot.id, lot.lotNo, lot.receiptDt, lot.expiryDt,
                         invHist.qty.sum()))
                 .from(invHist)
                 .innerJoin(ibLine).on(invHist.ibLineId.eq(ibLine.id))
                 .innerJoin(ibLine.ibOrder, ibOrder)
-                .innerJoin(ibOrder.vendor, vendor)
+                .leftJoin(ibOrder.vendor, vendor)
+                .leftJoin(ibOrder.store, store)
                 .innerJoin(ibLine.prod, prod)
                 .innerJoin(invHist.lot, lot)
                 .where(
@@ -66,7 +68,7 @@ public class IbLineRepositoryImpl implements IbLineRepositoryCustom {
                         receiptDtGoe(cond.getDateFrom()),
                         receiptDtLoe(cond.getDateTo())
                 )
-                .groupBy(ibLine.id, ibOrder.id, ibOrder.ibNo, vendor.vndrNm,
+                .groupBy(ibLine.id, ibOrder.id, ibOrder.ibNo, vendor.vndrNm, store.storeNm,
                         prod.prodCd, prod.prodNm, prod.tmpZon,
                         lot.id, lot.lotNo, lot.receiptDt, lot.expiryDt)
                 .having(invHist.qty.sum().gt(0L))
@@ -80,8 +82,11 @@ public class IbLineRepositoryImpl implements IbLineRepositoryCustom {
         return StringUtils.hasText(ibNo) ? ibOrder.ibNo.containsIgnoreCase(ibNo) : null;
     }
 
+    /** 상대처명 — 벤더명 또는 점포명 */
     private BooleanExpression vndrNmContains(String vndrNm) {
-        return StringUtils.hasText(vndrNm) ? vendor.vndrNm.containsIgnoreCase(vndrNm) : null;
+        return StringUtils.hasText(vndrNm)
+                ? vendor.vndrNm.containsIgnoreCase(vndrNm).or(store.storeNm.containsIgnoreCase(vndrNm))
+                : null;
     }
 
     private BooleanExpression prodCdContains(String prodCd) {

@@ -19,6 +19,10 @@ import com.project.mdm.prod.entity.Prod;
 import com.project.mdm.vendor.entity.Vendor;
 import com.project.mdm.prod.repository.ProdRepository;
 import com.project.mdm.vendor.repository.VendorRepository;
+import com.project.mdm.store.entity.Store;
+import com.project.mdm.store.repository.StoreRepository;
+import com.project.mdm.code.entity.CodeDetailId;
+import com.project.mdm.code.repository.CodeDetailRepository;
 import com.project.mdm.nbr.service.NbrService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -40,6 +44,9 @@ public class OmsIbOrderService {
     private final OmsIbLineRepository omsIbLineRepository;
     private final ProdRepository prodRepository;
     private final VendorRepository vendorRepository;
+    private final StoreRepository storeRepository;
+    /** 반품사유 존재 검증. RsnValidator는 wmsback.inventory라 omsback에서 쓰지 않는다 (의존 방향) */
+    private final CodeDetailRepository codeDetailRepository;
     /** 확정 시 ASN을 만들기 위한 WMS 쪽 의존. 방향은 omsback → wmsback 한쪽만 */
     private final IbOrderRepository ibOrderRepository;
     private final NbrService nbrService;
@@ -78,19 +85,21 @@ public class OmsIbOrderService {
     @Transactional
     public Long create(OmsIbOrderSaveRequest req) {
         validate(req);
-        Vendor vendor = findVendor(req.getVendorId());
-
+        String odrDvsn = odrDvsnOf(req);
+        boolean rtngs = OmsIbOrder.RTNGS.equals(odrDvsn);
         String omsIbNo = nbrService.issue("OMS_IB_NO", req.getExpctDe());
 
         OmsIbOrder order = OmsIbOrder.builder()
                 .omsIbNo(omsIbNo)
-                .vendor(vendor)
+                .vendor(rtngs ? null : findVendor(req.getVendorId()))
+                .store(rtngs ? findStore(req.getStoreId()) : null)
+                .refOutbNo(blankToNull(req.getRefOutbNo()))
                 .expctDe(req.getExpctDe())
-                .odrDvsn(odrDvsnOf(req))
+                .odrDvsn(odrDvsn)
                 .picNm(req.getPicNm())
                 .rmk(req.getRmk())
                 .build();
-        order.addLines(toLines(req));
+        order.addLines(toLines(req, rtngs));
         omsIbOrderRepository.save(order); // cascade로 라인까지 함께 저장
         return order.getId();
     }
@@ -107,10 +116,14 @@ public class OmsIbOrderService {
     @Transactional
     public void update(Long omsIbOrderId, OmsIbOrderSaveRequest req) {
         validate(req);
+        String odrDvsn = odrDvsnOf(req);
+        boolean rtngs = OmsIbOrder.RTNGS.equals(odrDvsn);
         OmsIbOrder order = omsIbOrderRepository.findById(omsIbOrderId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고주문입니다: " + omsIbOrderId));
-        order.update(findVendor(req.getVendorId()), null, null, req.getExpctDe(),
-                odrDvsnOf(req), req.getPicNm(), req.getRmk(), toLines(req));
+        order.update(rtngs ? null : findVendor(req.getVendorId()),
+                rtngs ? findStore(req.getStoreId()) : null,
+                blankToNull(req.getRefOutbNo()),
+                req.getExpctDe(), odrDvsn, req.getPicNm(), req.getRmk(), toLines(req, rtngs));
     }
 
     /**
@@ -129,7 +142,16 @@ public class OmsIbOrderService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 벤더입니다: " + vendorId));
     }
 
-    private List<OmsIbLine> toLines(OmsIbOrderSaveRequest req) {
+    private Store findStore(Long storeId) {
+        return storeRepository.findById(storeId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 점포입니다: " + storeId));
+    }
+
+    private static String blankToNull(String s) {
+        return (s == null || s.isBlank()) ? null : s.trim();
+    }
+
+    private List<OmsIbLine> toLines(OmsIbOrderSaveRequest req, boolean rtngs) {
         List<OmsIbLine> lines = new ArrayList<>();
         for (OmsIbLineSaveRequest line : req.getLines()) {
             Prod prod = prodRepository.findById(line.getProdId())
@@ -137,9 +159,16 @@ public class OmsIbOrderService {
             lines.add(OmsIbLine.builder()
                     .prod(prod)
                     .odrQty(line.getOdrQty())
+                    .rsnCd(rtngs ? line.getRsnCd() : null)
+                    .rsnDscr(rtngs ? rsnDscrOf(line) : null)
                     .build());
         }
         return lines;
+    }
+
+    /** ETC일 때만 상세를 남긴다 — HLD_RSN과 같은 규칙 */
+    private static String rsnDscrOf(OmsIbLineSaveRequest line) {
+        return "ETC".equals(line.getRsnCd()) ? line.getRsnDscr().trim() : null;
     }
 
     /**
@@ -163,16 +192,17 @@ public class OmsIbOrderService {
                 .ibNo(ibNo)
                 .omsIbOrderId(order.getId())
                 .vendor(order.getVendor())
+                .store(order.getStore())
                 .expctDe(order.getExpctDe())
                 .odrDvsn(order.getOdrDvsn())
                 .build();
         for (OmsIbLine line : order.getLines()) {
-            // 발주 수량은 입고단위(벤더 납품 단위), ASN부터 창고의 모든 수량은 낱개(EA)다.
+            // 발주 수량은 정상이면 입고단위, 반품이면 출고단위. ASN부터 창고의 모든 수량은 낱개(EA)다.
             // 단위가 갈리는 경계가 여기라서 환산도 여기서 한 번만 한다.
             Prod prod = line.getProd();
             asn.addLine(IbLine.builder()
                     .prod(prod)
-                    .expctQty(prod.toEaQty(line.getOdrQty(), prod.getInbUomCd()))
+                    .expctQty(prod.toEaQty(line.getOdrQty(), order.odrUomCd(prod)))
                     .build());
         }
         ibOrderRepository.save(asn); // cascade로 라인까지 함께 저장
@@ -241,7 +271,11 @@ public class OmsIbOrderService {
     }
 
     private void validate(OmsIbOrderSaveRequest req) {
-        if (req.getVendorId() == null) {
+        boolean rtngs = OmsIbOrder.RTNGS.equals(odrDvsnOf(req));
+        if (rtngs && req.getStoreId() == null) {
+            throw new IllegalArgumentException("반품입고는 점포가 필수입니다.");
+        }
+        if (!rtngs && req.getVendorId() == null) {
             throw new IllegalArgumentException("벤더는 필수입니다.");
         }
         if (req.getExpctDe() == null) {
@@ -257,6 +291,27 @@ public class OmsIbOrderService {
             if (line.getOdrQty() == null || line.getOdrQty() < 1) {
                 throw new IllegalArgumentException("발주 수량은 1 이상이어야 합니다.");
             }
+            validateRsn(line, rtngs);
+        }
+    }
+
+    /** 반품 라인은 사유 필수(그룹에 존재해야 하고 ETC면 상세 필수), 정상 라인은 사유를 받지 않는다 */
+    private void validateRsn(OmsIbLineSaveRequest line, boolean rtngs) {
+        boolean has = line.getRsnCd() != null && !line.getRsnCd().isBlank();
+        if (!rtngs) {
+            if (has) {
+                throw new IllegalArgumentException("정상 발주 라인에는 반품사유를 둘 수 없습니다.");
+            }
+            return;
+        }
+        if (!has) {
+            throw new IllegalArgumentException("반품사유를 선택해야 합니다.");
+        }
+        if (!codeDetailRepository.existsById(new CodeDetailId("RTNGS_RSN", line.getRsnCd()))) {
+            throw new IllegalArgumentException("존재하지 않는 반품사유 코드입니다: " + line.getRsnCd());
+        }
+        if ("ETC".equals(line.getRsnCd()) && (line.getRsnDscr() == null || line.getRsnDscr().isBlank())) {
+            throw new IllegalArgumentException("반품사유가 기타일 때는 사유 내용을 입력해야 합니다.");
         }
     }
 }

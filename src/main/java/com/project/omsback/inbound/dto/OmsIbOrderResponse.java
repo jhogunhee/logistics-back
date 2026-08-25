@@ -19,6 +19,11 @@ public class OmsIbOrderResponse {
     private final Long vendorId;
     private final String vndrCd;
     private final String vndrNm;
+    private final Long storeId;
+    private final String storeCd;
+    private final String storeNm;
+    /** 원 출고번호 (선택). 반품만 */
+    private final String refOutbNo;
     private final LocalDate expctDe;
     /** 발주구분 (공통코드 ODR_DVSN). 표시명은 화면이 /master/codes/ODR_DVSN 으로 얻는다 */
     private final String odrDvsn;
@@ -42,9 +47,13 @@ public class OmsIbOrderResponse {
         this.omsIbOrderId = order.getId();
         this.omsIbNo = order.getOmsIbNo();
         this.status = order.getStatus();
-        this.vendorId = order.getVendor().getId();
-        this.vndrCd = order.getVendor().getVndrCd();
-        this.vndrNm = order.getVendor().getVndrNm();
+        this.vendorId = order.getVendor() != null ? order.getVendor().getId() : null;
+        this.vndrCd = order.getVendor() != null ? order.getVendor().getVndrCd() : null;
+        this.vndrNm = order.getVendor() != null ? order.getVendor().getVndrNm() : null;
+        this.storeId = order.getStore() != null ? order.getStore().getId() : null;
+        this.storeCd = order.getStore() != null ? order.getStore().getStoreCd() : null;
+        this.storeNm = order.getStore() != null ? order.getStore().getStoreNm() : null;
+        this.refOutbNo = order.getRefOutbNo();
         this.expctDe = order.getExpctDe();
         this.odrDvsn = order.getOdrDvsn();
         this.picNm = order.getPicNm();
@@ -53,7 +62,7 @@ public class OmsIbOrderResponse {
         this.lineCount = lines.size();
         this.totalOrderQty = lines.stream().mapToLong(OmsIbLine::getOdrQty).sum();
         this.totalCnvrQty = lines.stream()
-                .mapToLong(l -> l.getOdrQty() * l.getProd().eaQtyOf(l.getProd().getInbUomCd()))
+                .mapToLong(l -> l.getOdrQty() * l.getProd().eaQtyOf(order.odrUomCd(l.getProd())))
                 .sum();
         this.cfmDt = order.getCfmDt();
         this.createdAt = order.getCreatedAt();

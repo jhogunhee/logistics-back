@@ -13,8 +13,10 @@ import com.project.wmsback.inventory.repository.InvHistRepository;
 import com.project.wmsback.inventory.repository.InvRepository;
 import com.project.wmsback.inventory.service.InvHldService;
 import com.project.wmsback.inventory.service.InvStore;
+import com.project.wmsback.warehouse.entity.BizDvsn;
 import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.Lot;
+import com.project.wmsback.warehouse.entity.Zon;
 import com.project.wmsback.warehouse.repository.LocRepository;
 import com.project.wmsback.warehouse.repository.LotRepository;
 import com.project.wmsback.warehouse.service.LotIssuer;
@@ -240,6 +242,81 @@ class ReceivingServiceTest {
 
         assertEquals(30L, reserved.getOnHandQty());
         verify(ibLine, never()).cancelReceive(anyLong());
+    }
+
+    @Test
+    @DisplayName("반품 검수 취소: 반품존 검수 건은 cancelReject를 부르고 재고 감소·ADJUST 이력을 남긴다")
+    void cancelReceipt_rtngsZoneCancelsReject() {
+        Zon rtngsZon = mock(Zon.class);
+        when(rtngsZon.getBizDvsn()).thenReturn(BizDvsn.RTNGS);
+        Loc rtngsRecLoc = mock(Loc.class);
+        when(rtngsRecLoc.getId()).thenReturn(9L);
+        when(rtngsRecLoc.getZon()).thenReturn(rtngsZon);
+
+        InvHist receipt = mock(InvHist.class);
+        when(receipt.getId()).thenReturn(500L);
+        when(receipt.getTxTyp()).thenReturn(TxTyp.RECEIVE);
+        when(receipt.getIbLineId()).thenReturn(100L);
+        when(receipt.getProd()).thenReturn(prod);
+        when(receipt.getLoc()).thenReturn(rtngsRecLoc);
+        when(receipt.getLot()).thenReturn(lot);
+        when(receipt.getQty()).thenReturn(48L);
+        when(invHistRepository.findById(500L)).thenReturn(Optional.of(receipt));
+        when(invHistRepository.findAllByIbLineIdAndTxTypeOrderByCreatedAtDesc(100L, TxTyp.ADJUST))
+                .thenReturn(List.of());
+        when(order.getStatus()).thenReturn(IbStatus.RECEIVING);
+
+        Inv rtngsInv = Inv.builder().prod(prod).loc(rtngsRecLoc).lot(lot).build();
+        rtngsInv.increaseOnHand(48L); // 보류 없음 — 가용 48 전부
+
+        when(invRepository.findByKeyForUpdate(1L, 9L, 7L)).thenReturn(Optional.of(rtngsInv));
+
+        receivingService.cancelReceipt(10L, 500L);
+
+        verify(ibLine).cancelReject(48L);
+        verify(ibLine, never()).cancelReceive(anyLong());
+        assertEquals(0L, rtngsInv.getOnHandQty());
+        ArgumentCaptor<InvHist> captor = ArgumentCaptor.forClass(InvHist.class);
+        verify(invHistRepository).save(captor.capture());
+        assertEquals(TxTyp.ADJUST, captor.getValue().getTxTyp());
+        assertEquals(-48L, captor.getValue().getQty());
+    }
+
+    @Test
+    @DisplayName("반품 검수 취소 거부: 보류가 아직 걸려 있으면 「보류를 해제한 뒤」로 안내한다")
+    void cancelReceipt_rtngsZoneRejectsWhileHeld() {
+        Zon rtngsZon = mock(Zon.class);
+        when(rtngsZon.getBizDvsn()).thenReturn(BizDvsn.RTNGS);
+        Loc rtngsRecLoc = mock(Loc.class);
+        when(rtngsRecLoc.getId()).thenReturn(9L);
+        when(rtngsRecLoc.getZon()).thenReturn(rtngsZon);
+
+        InvHist receipt = mock(InvHist.class);
+        when(receipt.getId()).thenReturn(500L);
+        when(receipt.getTxTyp()).thenReturn(TxTyp.RECEIVE);
+        when(receipt.getIbLineId()).thenReturn(100L);
+        when(receipt.getProd()).thenReturn(prod);
+        when(receipt.getLoc()).thenReturn(rtngsRecLoc);
+        when(receipt.getLot()).thenReturn(lot);
+        when(receipt.getQty()).thenReturn(48L);
+        when(invHistRepository.findById(500L)).thenReturn(Optional.of(receipt));
+        when(invHistRepository.findAllByIbLineIdAndTxTypeOrderByCreatedAtDesc(100L, TxTyp.ADJUST))
+                .thenReturn(List.of());
+        when(order.getStatus()).thenReturn(IbStatus.RECEIVING);
+
+        Inv rtngsInv = Inv.builder().prod(prod).loc(rtngsRecLoc).lot(lot).build();
+        rtngsInv.increaseOnHand(48L);
+        rtngsInv.hold(48L); // 보류가 아직 살아 있어 가용 0
+
+        when(invRepository.findByKeyForUpdate(1L, 9L, 7L)).thenReturn(Optional.of(rtngsInv));
+
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> receivingService.cancelReceipt(10L, 500L));
+
+        assertTrue(e.getMessage().contains("보류를 해제한 뒤"));
+        verify(ibLine, never()).cancelReject(anyLong());
+        verify(ibLine, never()).cancelReceive(anyLong());
+        assertEquals(48L, rtngsInv.getOnHandQty());
     }
 
     @Test

@@ -26,11 +26,16 @@ public class IbOrderCfmResponse {
     /** 저장 상태 3값 — prgr와 함께 확정 가능 여부를 판정한다 */
     private final IbStatus status;
     private final String vndrNm;
+    /** 반품이면 점포명, 아니면 null */
+    private final String storeNm;
+    private final String odrDvsn;
     private final LocalDate expctDe;
     /** 예정 수량 합계 — 화면이 결품(예정−검수)을 계산한다 */
     private final long totalExpctQty;
-    /** 검수 수량 합계 — 결품과 미적치 양쪽에 쓰인다 */
+    /** 양품 검수 합계 — 미적치 계산용 */
     private final long totalRcvdQty;
+    /** 불량 합계 — 결품 = 예정 − 양품 − 불량 */
+    private final long totalRjctQty;
     /** 적치 수량 합계 — 화면이 미적치(검수−적치)를 계산한다 */
     private final long totalPtawyQty;
     /** 확정일시 — 사람이 입고확정을 누른 시각. 확정 전이면 null */
@@ -38,17 +43,20 @@ public class IbOrderCfmResponse {
 
     /** prgr를 이름 문자열로 받는 이유는 {@code IbOrderRepositoryImpl#progressCode} 참고 */
     public IbOrderCfmResponse(Long ibOrderId, String ibNo, String prgr, IbStatus status,
-                              String vndrNm, LocalDate expctDe,
-                              long totalExpctQty, long totalRcvdQty, long totalPtawyQty,
+                              String vndrNm, String storeNm, String odrDvsn, LocalDate expctDe,
+                              long totalExpctQty, long totalRcvdQty, long totalRjctQty, long totalPtawyQty,
                               LocalDateTime cfmDt) {
         this.ibOrderId = ibOrderId;
         this.ibNo = ibNo;
         this.prgr = IbPrgr.valueOf(prgr);
         this.status = status;
         this.vndrNm = vndrNm;
+        this.storeNm = storeNm;
+        this.odrDvsn = odrDvsn;
         this.expctDe = expctDe;
         this.totalExpctQty = totalExpctQty;
         this.totalRcvdQty = totalRcvdQty;
+        this.totalRjctQty = totalRjctQty;
         this.totalPtawyQty = totalPtawyQty;
         this.cfmDt = cfmDt;
     }

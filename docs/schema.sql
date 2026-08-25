@@ -570,8 +570,8 @@ CREATE TABLE oms_ib_order (
     updated_at   TIMESTAMP,
     updated_by   VARCHAR(30),
     CONSTRAINT uq_oms_ib_no UNIQUE (oms_ib_no),
-    CONSTRAINT ck_oms_ib_order_status CHECK (status IN ('CREATED', 'CONFIRMED'))
-    ,CONSTRAINT ck_oms_ib_order_vndr_store CHECK ((vendor_id IS NOT NULL) <> (store_id IS NOT NULL))
+    CONSTRAINT ck_oms_ib_order_status CHECK (status IN ('CREATED', 'CONFIRMED')),
+    CONSTRAINT ck_oms_ib_order_vndr_store CHECK ((vendor_id IS NOT NULL) <> (store_id IS NOT NULL))
 );
 
 COMMENT ON TABLE  oms_ib_order IS '입고주문 헤더 (벤더 발주)';
@@ -608,6 +608,7 @@ COMMENT ON COLUMN oms_ib_line.rsn_dscr IS '반품사유 상세. ETC일 때만';
 
 CREATE INDEX ix_oms_ib_line_order ON oms_ib_line (oms_ib_order_id);
 CREATE INDEX ix_oms_ib_order_vendor ON oms_ib_order (vendor_id);
+CREATE INDEX ix_oms_ib_order_store ON oms_ib_order (store_id);
 
 
 -- 출고주문(점포 수주) 헤더. 창고 작업 진행은 여기서 표현하지 않는다 (outb_order의 status가 담당).
@@ -687,8 +688,8 @@ CREATE TABLE ib_order (
     updated_at  TIMESTAMP,
     updated_by  VARCHAR(30),
     CONSTRAINT uq_ib_no UNIQUE (ib_no),
-    CONSTRAINT ck_ib_order_status CHECK (status IN ('SCHEDULED', 'RECEIVING', 'CONFIRMED'))
-    ,CONSTRAINT ck_ib_order_vndr_store CHECK ((vendor_id IS NOT NULL) <> (store_id IS NOT NULL))
+    CONSTRAINT ck_ib_order_status CHECK (status IN ('SCHEDULED', 'RECEIVING', 'CONFIRMED')),
+    CONSTRAINT ck_ib_order_vndr_store CHECK ((vendor_id IS NOT NULL) <> (store_id IS NOT NULL))
 );
 
 COMMENT ON TABLE  ib_order IS '입고예정(ASN) 헤더';
@@ -734,6 +735,7 @@ CREATE INDEX ix_ib_order_oms ON ib_order (oms_ib_order_id);
 -- 동시 확정 요청 시 두 트랜잭션이 모두 CREATED를 읽고 통과하는 구간을 DB가 막는 최후 방어선.
 CREATE UNIQUE INDEX uq_ib_order_oms_active ON ib_order (oms_ib_order_id);
 CREATE INDEX ix_ib_order_vendor ON ib_order (vendor_id);
+CREATE INDEX ix_ib_order_store ON ib_order (store_id);
 
 -- 적치 지시. 전략이 정한 배정 결과(어느 Lot을 어느 로케이션에 몇 개)를 담는다.
 -- 지시 생성(전략 적용)과 지시 실행(실물 MOVE)을 분리해 지시 대비 실적을 추적한다.

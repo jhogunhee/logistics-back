@@ -253,6 +253,47 @@ class PutawayRecommendServiceTest {
         when(ibLineRepository.findById(ibLineId)).thenReturn(Optional.of(ibLine));
     }
 
+    /** 반품 ASN 픽스처 — 상대처가 점포라 vendor가 null이다 (IbOrder.vendor가 nullable로 바뀐 뒤) */
+    private void givenRtngsIbLine(long ibLineId, Prod lineProd) {
+        IbOrder ibOrder = mock(IbOrder.class);
+        when(ibOrder.getOdrDvsn()).thenReturn("RTNGS");
+        when(ibOrder.getIbNo()).thenReturn("IB-0002");
+        when(ibOrder.getVendor()).thenReturn(null);
+        IbLine ibLine = mock(IbLine.class);
+        when(ibLine.getProd()).thenReturn(lineProd);
+        when(ibLine.getIbOrder()).thenReturn(ibOrder);
+        when(ibLineRepository.findById(ibLineId)).thenReturn(Optional.of(ibLine));
+    }
+
+    @Test
+    @DisplayName("반품 ASN(vendor null)도 일괄 추천이 NPE 없이 동작한다 — PutawayTarget은 vndrCd null을 받는다")
+    void recommendBulk_nullVendorDoesNotThrow() {
+        givenRtngsIbLine(5L, prod);
+        PtawyStgy stgy = PtawyStgy.builder()
+                .stgyNm("반품").odrDvsn("RTNGS").untSpltYn(false).locSrt(List.of()).build();
+        stgy.addStage(PtawyStgyStg.builder().srtSeq(1).mthdCd("ANY_LOC").build());
+        when(ptawyStgyRepository.findByOdrDvsn("RTNGS")).thenReturn(Optional.of(stgy));
+        givenStocks(stock(1L, "A", 100L, 0, false, null));
+
+        PutawayBulkRecommendResponse.Item result = service.recommendBulk(new PutawayBulkRecommendRequest(
+                List.of(new PutawayBulkRecommendRequest.Item(5L, 1L, 30L)))).items().get(0);
+
+        assertEquals(30, result.asgnQty());
+    }
+
+    @Test
+    @DisplayName("반품 ASN(vendor null)의 관리자 미리보기도 NPE 없이 동작한다")
+    void preview_nullVendorDoesNotThrow() {
+        givenRtngsIbLine(5L, prod);
+        givenStocks(stock(1L, "A", 100L, 0, false, null));
+
+        PtawyStgyDefinition definition = def(false, stage("ANY_LOC", List.of(), List.of()));
+        PutawayRecommendResponse result = service.preview(
+                definition, new PtawyPreviewRequest(definition, 5L, null, 10L));
+
+        assertEquals(10, result.asgnQty());
+    }
+
     /** 두 번째 상품 — 같은 온도대라 후보 모집단(보관 로케이션)이 겹친다 */
     private Prod otherProd() {
         Prod other = mock(Prod.class);

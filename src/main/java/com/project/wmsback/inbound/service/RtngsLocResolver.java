@@ -20,7 +20,10 @@ public class RtngsLocResolver {
 
     private final LocRepository locRepository;
 
-    /** 반품존 판정. 검수 취소·검수 이력의 판정 열·원천 대사가 쓴다 */
+    /**
+     * 반품존 판정. 검수 취소·검수 이력의 판정 열·원천 대사가 쓴다.
+     * 반품존은 검수만 넣고 재고이동만 뺀다 — 적치 후보·할당 후보 셋이 이 판정을 공유한다.
+     */
     public static boolean inRtngsZon(Loc loc) {
         return loc.getZon() != null && loc.getZon().getBizDvsn() == BizDvsn.RTNGS;
     }

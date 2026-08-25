@@ -24,6 +24,9 @@ public class IbOrderResponse {
      */
     private final IbPrgr prgr;
     private final String vndrNm;
+    /** 반품이면 점포명, 아니면 null */
+    private final String storeNm;
+    private final String odrDvsn;
     private final LocalDate expctDe;
     /** 예정 수량 합계 (라인 파생) */
     private final long totalExpctQty;
@@ -44,12 +47,14 @@ public class IbOrderResponse {
      * 리터럴로 뽑을 수밖에 없다(사유는 {@code IbOrderRepositoryImpl#progressCode}).
      */
     public IbOrderResponse(Long ibOrderId, String ibNo, String prgr,
-                           String vndrNm, LocalDate expctDe, long totalExpctQty,
+                           String vndrNm, String storeNm, String odrDvsn, LocalDate expctDe, long totalExpctQty,
                            LocalDateTime inspDt, LocalDateTime cfmDt) {
         this.ibOrderId = ibOrderId;
         this.ibNo = ibNo;
         this.prgr = IbPrgr.valueOf(prgr);
         this.vndrNm = vndrNm;
+        this.storeNm = storeNm;
+        this.odrDvsn = odrDvsn;
         this.expctDe = expctDe;
         this.totalExpctQty = totalExpctQty;
         this.inspDt = inspDt;

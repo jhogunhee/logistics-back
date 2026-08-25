@@ -166,6 +166,7 @@ public class InspectionService {
                         .toList())
                 .orElse(List.of());
 
+        boolean rtngs = Boolean.TRUE.equals(request.rtngs());
         List<Long> prodIds = items.stream().map(InspMinMfgDtRequest.Item::prodId).filter(Objects::nonNull).distinct().toList();
         Map<Long, Prod> prods = prodIds.isEmpty() ? Map.of()
                 : prodRepository.findAllById(prodIds).stream().collect(Collectors.toMap(Prod::getId, Function.identity()));
@@ -177,7 +178,7 @@ public class InspectionService {
                 throw new IllegalArgumentException("존재하지 않는 상품입니다: " + item.prodId());
             }
             LocalDate receiptDt = item.receiptDt() != null ? item.receiptDt() : LocalDate.now();
-            InspectionContext ctx = new InspectionContext(prod, receiptDt, null, inspectionQueryRepository, false, false);
+            InspectionContext ctx = new InspectionContext(prod, receiptDt, null, inspectionQueryRepository, rtngs, false);
 
             List<InspMinMfgDtResponse.RuleMin> ruleMins = new ArrayList<>();
             LocalDate overall = null;

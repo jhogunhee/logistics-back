@@ -22,7 +22,7 @@ public class ReceiptResponse {
     private final String prodImgUrl;
     /** 검수 입력 단위 — 정상 입고단위 · 반품 출고단위. 수량을 「n BOX (m)」로 보여주는 재료 */
     private final String inbUomCd;
-    /** 입고단위 1개 = 낱개(EA) 몇 개. qty가 낱개라 화면이 이 값으로 나눈다 */
+    /** 검수 단위 1개 = 낱개(EA) 몇 개. qty가 낱개라 화면이 이 값으로 나눈다 */
     private final Long inbEaQty;
     private final String lotNo;
     private final LocalDate receiptDt;

@@ -74,8 +74,12 @@ class InspectionServiceTest {
     }
 
     private InspMinMfgDtResponse.Item ask() {
+        return ask(false);
+    }
+
+    private InspMinMfgDtResponse.Item ask(boolean rtngs) {
         return service.minMfgDts(new InspMinMfgDtRequest(
-                List.of(new InspMinMfgDtRequest.Item(1L, RECEIPT_DT)))).items().get(0);
+                List.of(new InspMinMfgDtRequest.Item(1L, RECEIPT_DT)), rtngs)).items().get(0);
     }
 
     @Test
@@ -122,9 +126,21 @@ class InspectionServiceTest {
         stubPolicy(rule("SHELF_LIFE_PCT", Map.of("minPercent", 80)));
 
         InspMinMfgDtResponse.Item item = service.minMfgDts(new InspMinMfgDtRequest(
-                List.of(new InspMinMfgDtRequest.Item(1L, null)))).items().get(0);
+                List.of(new InspMinMfgDtRequest.Item(1L, null)), false)).items().get(0);
 
         assertEquals(LocalDate.now(), item.receiptDt());
         assertEquals(LocalDate.now().minusDays(20), item.minMfgDt());
+    }
+
+    @Test
+    @DisplayName("반품이면 역순제한 규칙은 하한을 안 내고, 전체 하한은 유통기한 규칙만으로 정해진다")
+    void rtngsSkipsLotDateReverse() {
+        stubPolicy(rule("SHELF_LIFE_PCT", Map.of("minPercent", 80)),     // 경과 허용 20일 → 07-25
+                rule("LOT_DATE_REVERSE", Map.of("excludeSameDay", true)));
+
+        InspMinMfgDtResponse.Item item = ask(true);
+
+        assertNull(item.rules().get(1).minMfgDt());
+        assertEquals(LocalDate.of(2026, 7, 25), item.minMfgDt());
     }
 }

@@ -8,9 +8,12 @@ import com.project.wmsback.inbound.repository.IbLineRepository;
 import com.project.wmsback.inbound.repository.PutawayTaskRepository;
 import com.project.wmsback.inventory.service.InvStore;
 import com.project.wmsback.inventory.service.LocCapacityService;
+import com.project.wmsback.inbound.dto.PutawayLocCandidateResponse;
+import com.project.wmsback.warehouse.entity.BizDvsn;
 import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.LocTyp;
 import com.project.wmsback.warehouse.entity.Lot;
+import com.project.wmsback.warehouse.entity.Zon;
 import com.project.wmsback.warehouse.repository.LocRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -21,8 +24,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -84,5 +89,32 @@ class PutawayServiceTest {
         assertTrue(e.getMessage().contains("검수"));
         assertTrue(e.getMessage().contains("22"));
         verifyNoInteractions(invStore);
+    }
+
+    @Test
+    @DisplayName("반품존 로케이션은 수동 지시 후보에서 빠진다 — RtngsLocResolver.inRtngsZon")
+    void candidateLocs_excludesRtngsZone() {
+        when(ibLine.getId()).thenReturn(100L);
+        when(ibLineRepository.findById(100L)).thenReturn(Optional.of(ibLine));
+
+        Zon storageZon = mock(Zon.class);
+        when(storageZon.getBizDvsn()).thenReturn(BizDvsn.STRG);
+        when(storageZon.getZonCd()).thenReturn("DRY-A");
+        Loc storageLoc = mock(Loc.class);
+        when(storageLoc.getLocCd()).thenReturn("DRY-A-01-01");
+        when(storageLoc.getZon()).thenReturn(storageZon);
+
+        Zon rtngsZon = mock(Zon.class);
+        when(rtngsZon.getBizDvsn()).thenReturn(BizDvsn.RTNGS);
+        Loc rtngsLoc = mock(Loc.class);
+        when(rtngsLoc.getZon()).thenReturn(rtngsZon);
+
+        when(locRepository.findAllByTmpZonAndLocTypOrderByPtawyPrtyAsc(TmpZon.DRY, LocTyp.STORAGE))
+                .thenReturn(List.of(storageLoc, rtngsLoc));
+
+        List<PutawayLocCandidateResponse> result = service.candidateLocs(100L);
+
+        assertEquals(1, result.size());
+        assertEquals("DRY-A-01-01", result.get(0).getLocCd());
     }
 }

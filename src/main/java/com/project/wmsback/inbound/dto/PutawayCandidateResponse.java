@@ -16,6 +16,8 @@ public class PutawayCandidateResponse {
     private final Long ibOrderId;
     private final String ibNo;
     private final String vndrNm;
+    /** 반품이면 점포명, 아니면 null */
+    private final String storeNm;
     private final String prodCd;
     private final String prodNm;
     private final TmpZon tmpZon;
@@ -33,7 +35,7 @@ public class PutawayCandidateResponse {
     /** 아직 지시하지 않은 수량 = pendingQty − drctRemainQty. 지시 등록 화면이 이 값으로 선택 가능 여부를 정한다 */
     private Long unDrctQty;
 
-    public PutawayCandidateResponse(Long ibLineId, Long ibOrderId, String ibNo, String vndrNm,
+    public PutawayCandidateResponse(Long ibLineId, Long ibOrderId, String ibNo, String vndrNm, String storeNm,
                                      String prodCd, String prodNm, TmpZon tmpZon,
                                      Long lotId, String lotNo, LocalDate receiptDt, LocalDate expiryDt,
                                      Long pendingQty) {
@@ -41,6 +43,7 @@ public class PutawayCandidateResponse {
         this.ibOrderId = ibOrderId;
         this.ibNo = ibNo;
         this.vndrNm = vndrNm;
+        this.storeNm = storeNm;
         this.prodCd = prodCd;
         this.prodNm = prodNm;
         this.tmpZon = tmpZon;

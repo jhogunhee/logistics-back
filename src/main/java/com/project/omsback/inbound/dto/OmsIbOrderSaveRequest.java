@@ -14,6 +14,10 @@ import java.util.List;
 public class OmsIbOrderSaveRequest {
 
     private Long vendorId;
+    /** 반품 점포. 발주구분이 RTNGS면 필수, 아니면 비운다 (벤더와 둘 중 하나) */
+    private Long storeId;
+    /** 원 출고번호 (선택). 반품만 */
+    private String refOutbNo;
     private LocalDate expctDe;
     /** 발주구분 (공통코드 ODR_DVSN). 비워 보내면 서버가 NRML(정상)로 채운다 */
     private String odrDvsn;

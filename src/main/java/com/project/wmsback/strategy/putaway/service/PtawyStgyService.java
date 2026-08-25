@@ -33,8 +33,8 @@ import java.util.Set;
 @Transactional(readOnly = true)
 public class PtawyStgyService {
 
-    /** 적용대상 선택지 — 반품(RTNGS)은 스코프 아웃이라 제외. 재도입 시 여기와 옵션 소스에 추가 */
-    private static final Set<String> ODR_DVSNS = Set.of("NRML", "URGT");
+    /** 적용대상 선택지 — 옵션 소스(StrategyOptionService odrDvsns)와 같아야 한다 */
+    private static final Set<String> ODR_DVSNS = Set.of("NRML", "URGT", "RTNGS");
 
     private final PtawyStgyRepository ptawyStgyRepository;
     private final StgyRvsnService stgyRvsnService;

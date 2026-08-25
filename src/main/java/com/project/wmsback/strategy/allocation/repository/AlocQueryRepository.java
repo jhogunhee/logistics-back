@@ -1,6 +1,7 @@
 package com.project.wmsback.strategy.allocation.repository;
 
 import com.project.wmsback.strategy.allocation.field.AlocInvnCandidate;
+import com.project.wmsback.warehouse.entity.BizDvsn;
 import com.project.wmsback.warehouse.entity.LocTyp;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.dsl.NumberExpression;
@@ -63,7 +64,10 @@ public class AlocQueryRepository {
                         // 스테이징 재고는 후보가 아니다 — 피킹이 「보관 → SHIP-STAGE」라
                         // 스테이징을 할당하면 피킹이 성립하지 않는다
                         loc.locTyp.eq(LocTyp.STORAGE),
-                        aval.gt(0L)
+                        aval.gt(0L),
+                        // 반품존 재고는 후보가 아니다 — 보류를 풀자마자 반품 불량이 FEFO 최우선으로 나가면 안 된다.
+                        // 양품 재판정은 「보류 해제 → 재고 이동(보관존)」 두 단계다
+                        zon.bizDvsn.ne(BizDvsn.RTNGS).or(zon.bizDvsn.isNull())
                 )
                 .fetch();
 
