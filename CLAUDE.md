@@ -46,6 +46,7 @@ common  ← mdm ← wmsback ← omsback
 **의존은 이 방향으로만 흐른다.** `mdm`은 `wmsback`·`omsback`을 모르고, `wmsback`은 `omsback`을 모른다. 나중에 앱을 떼어낼 수 있게 하려는 의도다.
 
 - `omsback → wmsback`은 **주문 확정이 만드는 작업문서 둘**로 제한한다 — 입고예정 ASN(`IbOrder` · `IbLine` · `IbStatus` · `IbOrderRepository`)과 창고 출고주문(`OutbOrder` · `OutbLine` · `OutbStatus` · `OutbOrderRepository`). 그 외 `omsback`이 쓰는 `Prod` · `Vendor` · `Store` · `NbrService` · `CodeDetail`은 전부 `mdm`이다 — 마스터를 `wmsback` 안에 두면 이 구분이 보이지 않아 밖으로 뺐다.
+- **세 번째 접점은 읽기 전용 포트 `wmsback.inventory.service.ProdStockPort` 하나다**(2026-08-25, 자동발주). 발주 여부를 정하려면 「이 상품이 창고에 · 오는 중에 얼마나 있나」를 알아야 하는데, `omsback`이 `inv`·`ib_line`을 직접 조회하면 창고 내부 구조(로케이션 · 존 · 반품존 판정)에 결합된다. 질문 하나를 포트로 세워 창고가 답하고 **쓰기는 없다** — 재고를 건드리는 창구는 여전히 `InvStore` 하나다. 구현은 `ProdStockQueryRepository`.
 - 이 규칙을 실제로 떠받치는 지점이 `IbOrder.omsIbOrderId` · `OutbOrder.omsOutbOrderId`인데, `@ManyToOne`이 아니라 **평범한 `Long` 스칼라**로 매핑돼 있다. 도메인 간 참조를 건드릴 때 이 형태를 유지할 것.
 
 **아래 층이 위 층의 데이터를 봐야 하면 포트로 뒤집는다.** 상품 삭제 가드가 그 사례다 — `mdm`의 `ProdService`가 두 앱의 참조를 모두 확인해야 하는데(FK 0건이라 DB가 안 막아준다) 직접 조회하면 의존이 거꾸로 생긴다. 그래서 `mdm.prod.service.ProdRefChecker` 인터페이스를 두고 `WmsProdRefChecker`(재고 · 이력 · 입고예정 · 출고주문 · Lot) · `OmsIbProdRefChecker`(입고주문) · `OmsOutbProdRefChecker`(출고주문)가 각자 구현해 빈으로 등록하며, `ProdService`가 `@Order` 순으로 순회한다.

@@ -174,10 +174,11 @@ public class Prod extends BaseEntity {
     /**
      * 포장단위 수량을 재고 저장 단위인 낱개(EA)로 환산한다.
      * WMS의 모든 수량 컬럼은 EA이고, OMS 주문 라인만 입력 단위를 유지하므로
-     * 호출 지점은 OMS → WMS 경계 세 곳뿐이다 —
+     * 호출 지점은 OMS → WMS 경계 네 곳뿐이다 —
      * {@code OmsIbOrderService.confirm()}(발주 → ASN, 입고단위) ·
      * {@code ReceivingService.receiveLine()}(검수 입력, 입고단위) ·
-     * {@code OmsOutbOrderService.confirm()}(출고주문 → 창고 출고주문, 출고단위).
+     * {@code OmsOutbOrderService.confirm()}(출고주문 → 창고 출고주문, 출고단위) ·
+     * {@code AtoOdrService.plan()}(미확정 발주를 창고 재고와 더하려 EA로, 입고단위).
      * 이 밖에서 환산을 추가하지 말 것 — 환산 지점이 흩어지면 어느 행이 어느 단위인지
      * 사후에 복원할 방법이 없다.
      */

@@ -214,6 +214,19 @@ INSERT INTO fxng_loc (prod_id, loc_id, min_qty, max_qty)
 SELECT p.prod_id, l.loc_id, 20, 200 FROM prod p, loc l
 WHERE p.prod_nm = '왕교자 만두 1kg' AND l.loc_cd = 'PIK-FRZ-01-01' ON CONFLICT (loc_id) DO NOTHING;
 
+-- 상품 거래처 마스터 (상품×벤더). 자동발주의 기준값 — 발주점·상한은 낱개(EA), 최소주문수량은 입고단위.
+-- 왕교자 만두는 발주점을 창고 순재고보다 높게 잡아 첫 산정에서 제안이 나오게 했다 (검증용).
+-- 신라면은 입고단위가 파렛트(480 EA)라 MOQ 1이어도 한 번에 크게 들어온다 — 올림 환산 확인용.
+INSERT INTO prod_vndr (prod_id, vendor_id, min_qty, max_qty, min_odr_qty, lead_days, prty)
+SELECT p.prod_id, v.vendor_id, 400, 2400, 1, 3, 1 FROM prod p, vendor v
+WHERE p.prod_nm = '신라면 멀티팩 (5입)' AND v.vndr_cd = 'VD-0001' ON CONFLICT (prod_id, vendor_id) DO NOTHING;
+INSERT INTO prod_vndr (prod_id, vendor_id, min_qty, max_qty, min_odr_qty, lead_days, prty)
+SELECT p.prod_id, v.vendor_id, 200, 600, 10, 1, 1 FROM prod p, vendor v
+WHERE p.prod_nm = '서울우유 1L' AND v.vndr_cd = 'VD-0002' ON CONFLICT (prod_id, vendor_id) DO NOTHING;
+INSERT INTO prod_vndr (prod_id, vendor_id, min_qty, max_qty, min_odr_qty, lead_days, prty)
+SELECT p.prod_id, v.vendor_id, 300, 1000, 5, 2, 1 FROM prod p, vendor v
+WHERE p.prod_nm = '왕교자 만두 1kg' AND v.vndr_cd = 'VD-0002' ON CONFLICT (prod_id, vendor_id) DO NOTHING;
+
 -- 벤더 (입고 거래처). 코드는 VendorService의 채번 규칙(VD-0001)을 따른다.
 INSERT INTO vendor (vndr_cd, vndr_nm, pic_nm, tel_no)
 VALUES ('VD-0001', '서울식품', '김상현', '02-1234-5601') ON CONFLICT (vndr_cd) DO NOTHING;

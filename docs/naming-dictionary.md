@@ -4,7 +4,7 @@
 
 DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있다. 필드와 컬럼이 1:1로 붙어 있는 구조라 두 사전이 겹치는 자리가 생기는데, 어긋나는 항목은 아래 「이미 쓰고 있는 이름과 어긋나는 곳」에 모아뒀다.
 
-242개 단어이며 한글·약어 모두 중복이 없다. (2026-08-02 전략 시스템 설계에서 15개 추가 · 2026-08-03 재고조사 설계에서 `실사 STKTK` 1개 추가 · 2026-08-13 재고 로트변경 설계에서 `신규 NEW` 1개 추가 · 2026-08-21 로케이션 점유 맵 설계에서 `맵 MAP` 1개 추가 · 2026-08-23 상품 이미지 설계에서 `이미지 IMG` · `URL URL` 2개 추가)
+243개 단어이며 한글·약어 모두 중복이 없다. (2026-08-02 전략 시스템 설계에서 15개 추가 · 2026-08-03 재고조사 설계에서 `실사 STKTK` 1개 추가 · 2026-08-13 재고 로트변경 설계에서 `신규 NEW` 1개 추가 · 2026-08-21 로케이션 점유 맵 설계에서 `맵 MAP` 1개 추가 · 2026-08-23 상품 이미지 설계에서 `이미지 IMG` · `URL URL` 2개 추가 · 2026-08-25 자동발주 설계에서 `리드타임 LEAD` 1개 추가)
 
 > 개수는 두 표를 실측한 값이다. 2026-08-23에 맞췄다 — `MAP`이 가나다순 표에만 있고 역인덱스에 빠져 있었고, 머리말 숫자도 실제 행 수보다 낮게 밀려 있었다. 단어를 추가하면 **두 표에 모두** 넣고 이 숫자를 함께 올린다.
 
@@ -95,6 +95,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 로그 | `LOG` | Log |
 | 로케이션 | `LOC` | Location |
 | 로트 | `LOT` | Lot |
+| 리드타임 | `LEAD` | Lead Time |
 | 리비전 | `RVSN` | Revision |
 | 마감 | `CLOS` | Closing |
 | 마지막 | `LAST` | Last |
@@ -399,6 +400,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | `KY` | 키 | Key |
 | `LANG` | 언어 | Language |
 | `LAST` | 마지막 | Last |
+| `LEAD` | 리드타임 | Lead Time |
 | `LEN` | 길이 | Length |
 | `LGIST` | 물류 | Logistics |
 | `LN` | 라인 | Line |
@@ -552,7 +554,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 확정 | `CFM` | `converted_at` → `cfm_dt` (상태값도 `CONVERTED` → `CONFIRMED`). 「변환」은 사전에 없는 단어였고 `CNVR`(환산)과 헷갈렸다 — 사용자가 하는 행위가 「발주 확정」이라 사전의 확정을 쓴다.<br>이후 `ib_order.clos_dt` → `cfm_dt`도 같은 이유로 개명했다(`docs/migration-ib-clos-to-cfm.sql`) — 컬럼이 가리키는 사건이 마감이 아니라 「입고확정」이다. 미뤄뒀던 상태값도 상태 모델 개편 때 `CONFIRMED`로 정리했다(`docs/migration-ib-status-confirm.sql` — RECEIVED/COMPLETED 폐지) |
 | 사용 | `US` | ~~`use_yn` → `us_yn`~~ — 이후 사용여부 컬럼 자체를 전 테이블에서 제거했다(`docs/migration-drop-us-yn.sql`). 마스터는 물리삭제로 운용하므로 지금 이 단어를 쓰는 컬럼은 없다 |
 | 참조 | `REF` | ~~`ref_doc_no` → `rfn_doc_no`~~ — 이후 `REF`로 되돌렸다(아래 특기사항). 기존 `inv_hist.rfn_doc_typ`·`rfn_doc_no`는 아직 옛 표기다 |
-| 주문 | `ODR` | `order_qty`·`order_dt` → `odr_qty`·`odr_de` |
+| 주문 | `ODR` | `order_qty`·`order_dt` → `odr_qty`·`odr_de`.<br>**「발주」도 별도 약어 없이 이 단어를 쓴다** — `odr_dvsn`(발주구분) · `odr_qty`(발주수량)가 이미 그렇고, 자동발주가 더한 `min_odr_qty`(최소주문수량)도 같다. 발주점·발주 상한은 `min_qty`·`max_qty`로 `fxng_loc`(재보충점·보충 상한)의 선례를 따른다 |
 | 담당자 | `PIC` | `mgr_nm` → `pic_nm` |
 | 취소 | `CNCL` | `cancels_inv_hist_id` → `cncl_inv_hist_id` |
 | 일자 `DE` · 일시 `DT` | | `expct_dt` → `expct_de`(DATE), `closed_at`·`completed_at`·`shipped_at` → `clos_dt`·`cmpl_dt`·`shmt_dt` |
