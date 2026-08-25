@@ -1,6 +1,8 @@
 package com.project.omsback.inbound.entity;
 
 import com.project.common.entity.BaseEntity;
+import com.project.mdm.prod.entity.Prod;
+import com.project.mdm.store.entity.Store;
 import com.project.mdm.vendor.entity.Vendor;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -50,20 +52,25 @@ public class OmsIbOrder extends BaseEntity {
     @Column(name = "status", nullable = false, length = 15)
     private OmsIbStatus status;
 
-    /** 납품 벤더. 확정 시 ASN으로 그대로 넘어간다 */
+    /** 납품 벤더. 반품입고(odr_dvsn=RTNGS)는 null */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "vendor_id", nullable = false)
+    @JoinColumn(name = "vendor_id")
     private Vendor vendor;
+
+    /** 반품 점포. 반품입고만 — 벤더와 둘 중 정확히 하나 */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "store_id")
+    private Store store;
+
+    /** 원 출고번호 (느슨한 참조, 선택). 반품입고만 — 라인 미리채움의 출처를 남긴다 */
+    @Column(name = "ref_outb_no", length = 30)
+    private String refOutbNo;
 
     /** 입고 예정일. ASN의 입고번호 채번(IB-YYYYMMDD-NNN) 기준일이기도 하다 */
     @Column(name = "expct_de", nullable = false)
     private LocalDate expctDe;
 
-    /**
-     * 발주구분 (공통코드 {@code ODR_DVSN}: NRML 정상 / URGT 긴급 / RTNGS 반품입고).
-     * 지금은 표시·분류용이라 창고 작업 흐름을 바꾸지 않는다 — 긴급을 적치·피킹 우선순위에
-     * 반영하려면 확정 시 ASN까지 값을 넘겨야 하고, 그건 별개의 결정이다.
-     */
+    /** 발주구분 (공통코드 ODR_DVSN: NRML 정상 / URGT 긴급 / RTNGS 반품입고). 반품은 상대처(점포)·수량 단위(출고단위)·검수 판정(양품/불량)을 가른다 */
     @Column(name = "odr_dvsn", nullable = false, length = 10)
     private String odrDvsn;
 
@@ -82,16 +89,40 @@ public class OmsIbOrder extends BaseEntity {
     @OneToMany(mappedBy = "omsIbOrder", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OmsIbLine> lines = new ArrayList<>();
 
+    public static final String RTNGS = "RTNGS";
+
     @Builder
-    private OmsIbOrder(String omsIbNo, Vendor vendor, LocalDate expctDe,
+    private OmsIbOrder(String omsIbNo, Vendor vendor, Store store, String refOutbNo, LocalDate expctDe,
                        String odrDvsn, String picNm, String rmk) {
+        requirePartnerMatches(odrDvsn, vendor, store, omsIbNo);
         this.omsIbNo = omsIbNo;
         this.vendor = vendor;
+        this.store = store;
+        this.refOutbNo = RTNGS.equals(odrDvsn) ? refOutbNo : null;
         this.expctDe = expctDe;
         this.odrDvsn = odrDvsn;
         this.picNm = picNm;
         this.rmk = rmk;
         this.status = OmsIbStatus.CREATED;
+    }
+
+    private static void requirePartnerMatches(String odrDvsn, Vendor vendor, Store store, String no) {
+        boolean rtngs = RTNGS.equals(odrDvsn);
+        if (rtngs && (store == null || vendor != null)) {
+            throw new IllegalArgumentException("반품입고는 점포만 상대처로 둘 수 있습니다: " + no);
+        }
+        if (!rtngs && (vendor == null || store != null)) {
+            throw new IllegalArgumentException("정상 입고는 벤더만 상대처로 둘 수 있습니다: " + no);
+        }
+    }
+
+    public boolean isRtngs() {
+        return RTNGS.equals(odrDvsn);
+    }
+
+    /** 발주 수량의 단위 — 정상은 입고단위, 반품은 출고단위(점포가 받은 단위로 돌아온다) */
+    public String odrUomCd(Prod prod) {
+        return isRtngs() ? prod.getOutbUomCd() : prod.getInbUomCd();
     }
 
     public void addLines(List<OmsIbLine> newLines) {
@@ -115,14 +146,17 @@ public class OmsIbOrder extends BaseEntity {
      * 라인은 통째로 갈아끼운다. 어느 라인이 남고 어느 라인이 바뀌었는지를 클라이언트가
      * 알려주지 않아도 되게 하려는 것이고, orphanRemoval이 빠진 라인을 지운다.
      */
-    public void update(Vendor vendor, LocalDate expctDe, String odrDvsn, String picNm, String rmk,
-                       List<OmsIbLine> newLines) {
+    public void update(Vendor vendor, Store store, String refOutbNo, LocalDate expctDe, String odrDvsn,
+                       String picNm, String rmk, List<OmsIbLine> newLines) {
         if (status != OmsIbStatus.CREATED) {
             throw new IllegalStateException(
                     "작성 상태의 주문만 수정할 수 있습니다. 확정된 주문은 확정취소가 먼저입니다 ("
                             + status.getLabel() + "): " + omsIbNo);
         }
+        requirePartnerMatches(odrDvsn, vendor, store, omsIbNo);
         this.vendor = vendor;
+        this.store = store;
+        this.refOutbNo = RTNGS.equals(odrDvsn) ? refOutbNo : null;
         this.expctDe = expctDe;
         this.odrDvsn = odrDvsn;
         this.picNm = picNm;

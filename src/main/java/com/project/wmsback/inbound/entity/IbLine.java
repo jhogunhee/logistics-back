@@ -51,12 +51,17 @@ public class IbLine extends BaseEntity {
     @Column(name = "ptawy_qty", nullable = false)
     private Long ptawyQty;
 
+    /** 검수 불량 수량 누계 — 반품존에 받아 보류된 분. 반품입고만 0보다 크다. 적치 대상이 아니다 */
+    @Column(name = "rjct_qty", nullable = false)
+    private Long rjctQty;
+
     @Builder
     private IbLine(Prod prod, Long expctQty) {
         this.prod = prod;
         this.expctQty = expctQty;
         this.rcvdQty = 0L;
         this.ptawyQty = 0L;
+        this.rjctQty = 0L;
     }
 
     void assignOrder(IbOrder ibOrder) {
@@ -71,6 +76,15 @@ public class IbLine extends BaseEntity {
     /** 검수 취소 (검수 건 하나를 되돌림) */
     public void cancelReceive(long qty) {
         this.rcvdQty -= qty;
+    }
+
+    /** 불량 반영 (증분 누적). 반품존에 받아 보류된다 — rcvdQty와 별개 축이라 적치·확정 조건에 끼지 않는다 */
+    public void reject(long qty) {
+        this.rjctQty += qty;
+    }
+
+    public void cancelReject(long qty) {
+        this.rjctQty -= qty;
     }
 
     /** 적치 반영 (증분 누적). 어떤 Lot에서 왔는지는 상관없이 이동한 총량만 더한다 (rcvdQty와 동일한 패턴) */
@@ -94,8 +108,9 @@ public class IbLine extends BaseEntity {
      */
     public IbPrgr progressStatus() {
         if (ibOrder.getStatus() == IbStatus.CONFIRMED) return IbPrgr.CONFIRMED; // 닫힌 입고 — 결품 포함 확정
-        if (rcvdQty == 0) return IbPrgr.SCHEDULED;         // 아직 안 옴
-        if (rcvdQty < expctQty) return IbPrgr.RECEIVING;   // 덜 옴 (온 것을 다 적치했어도 여기다)
+        long arrived = rcvdQty + rjctQty;
+        if (arrived == 0) return IbPrgr.SCHEDULED;         // 아직 안 옴 (불량만 와도 온 것이다)
+        if (arrived < expctQty) return IbPrgr.RECEIVING;   // 덜 옴
         if (ptawyQty < rcvdQty) return IbPrgr.PTAWY_DRCT;  // 다 왔고 적치가 남음
         return IbPrgr.PTAWY_CMPL;                          // 다 오고 다 옮김 — 확정 대기
     }

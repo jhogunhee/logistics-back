@@ -109,7 +109,7 @@ public class OmsIbOrderService {
         validate(req);
         OmsIbOrder order = omsIbOrderRepository.findById(omsIbOrderId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고주문입니다: " + omsIbOrderId));
-        order.update(findVendor(req.getVendorId()), req.getExpctDe(),
+        order.update(findVendor(req.getVendorId()), null, null, req.getExpctDe(),
                 odrDvsnOf(req), req.getPicNm(), req.getRmk(), toLines(req));
     }
 

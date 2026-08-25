@@ -1,6 +1,7 @@
 package com.project.wmsback.inbound.entity;
 
 import com.project.mdm.prod.entity.Prod;
+import com.project.mdm.store.entity.Store;
 import com.project.mdm.vendor.entity.Vendor;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -13,7 +14,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * 입고 헤더의 상태 전이와 5단계 진행 파생.
@@ -186,6 +189,85 @@ class IbOrderTest {
             order.startReceiving();
 
             assertThrows(IllegalStateException.class, order::requireRevertible);
+        }
+    }
+
+    @Nested
+    @DisplayName("상대처 — 구분과 짝이 맞아야 한다")
+    class Partner {
+
+        private IbOrder.IbOrderBuilder base() {
+            return IbOrder.builder().ibNo("IB-1").omsIbOrderId(1L).expctDe(LocalDate.of(2026, 8, 25));
+        }
+
+        @Test
+        @DisplayName("정상 입고는 벤더, 반품입고는 점포")
+        void vendorForNormalStoreForRtngs() {
+            assertDoesNotThrow(() -> base().vendor(mock(Vendor.class)).odrDvsn("NRML").build());
+            IbOrder rtngs = base().store(mock(Store.class)).odrDvsn("RTNGS").build();
+            assertTrue(rtngs.isRtngs());
+        }
+
+        @Test
+        @DisplayName("반품인데 벤더 / 정상인데 점포 / 둘 다 / 둘 다 아님은 거부")
+        void rejectsMismatch() {
+            assertThrows(IllegalArgumentException.class, () -> base().vendor(mock(Vendor.class)).odrDvsn("RTNGS").build());
+            assertThrows(IllegalArgumentException.class, () -> base().store(mock(Store.class)).odrDvsn("NRML").build());
+            assertThrows(IllegalArgumentException.class, () -> base().vendor(mock(Vendor.class)).store(mock(Store.class)).odrDvsn("NRML").build());
+            assertThrows(IllegalArgumentException.class, () -> base().odrDvsn("NRML").build());
+        }
+
+        @Test
+        @DisplayName("검수 단위 — 정상은 입고단위, 반품은 출고단위")
+        void rcvUomCd() {
+            Prod prod = mock(Prod.class);
+            when(prod.getInbUomCd()).thenReturn("BOX");
+            when(prod.getOutbUomCd()).thenReturn("EA");
+            assertEquals("BOX", base().vendor(mock(Vendor.class)).odrDvsn("NRML").build().rcvUomCd(prod));
+            assertEquals("EA", base().store(mock(Store.class)).odrDvsn("RTNGS").build().rcvUomCd(prod));
+        }
+    }
+
+    @Nested
+    @DisplayName("IbLine — 불량(rjct)")
+    class LineReject {
+
+        @Test
+        @DisplayName("불량만 온 라인은 예정이 아니라 검수중이고, 양품+불량이 예정에 닿으면 적치 축으로 넘어간다")
+        void rjctCountsForProgress() {
+            IbOrder order = order(100, 100);
+            order.startReceiving();
+            line(order, 0).reject(30);                 // 불량만
+            line(order, 1).receive(60);
+            line(order, 1).reject(40);                 // 양품 60 + 불량 40 = 예정
+
+            assertEquals(IbPrgr.RECEIVING, line(order, 0).progressStatus());
+            assertEquals(IbPrgr.PTAWY_DRCT, line(order, 1).progressStatus());
+            assertEquals(30L, line(order, 0).getRjctQty());
+        }
+
+        @Test
+        @DisplayName("불량은 적치 대상이 아니다 — 양품만 적치되면 확정된다")
+        void confirmIgnoresRjct() {
+            IbOrder order = order(100);
+            order.startReceiving();
+            line(order, 0).receive(60);
+            line(order, 0).reject(40);
+            line(order, 0).putaway(60);
+
+            assertDoesNotThrow(order::confirm);
+        }
+
+        @Test
+        @DisplayName("불량 취소는 rjct만 줄인다")
+        void cancelReject() {
+            IbOrder order = order(100);
+            order.startReceiving();
+            line(order, 0).reject(40);
+            line(order, 0).cancelReject(40);
+
+            assertEquals(0L, line(order, 0).getRjctQty());
+            assertEquals(IbPrgr.SCHEDULED, line(order, 0).progressStatus());
         }
     }
 }

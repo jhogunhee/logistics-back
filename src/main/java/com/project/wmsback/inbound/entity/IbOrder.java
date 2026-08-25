@@ -1,6 +1,8 @@
 package com.project.wmsback.inbound.entity;
 
 import com.project.common.entity.BaseEntity;
+import com.project.mdm.prod.entity.Prod;
+import com.project.mdm.store.entity.Store;
 import com.project.mdm.vendor.entity.Vendor;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -58,14 +60,22 @@ public class IbOrder extends BaseEntity {
     @Column(name = "status", nullable = false, length = 15)
     private IbStatus status;
 
-    /** 납품 벤더. 상위 입고주문의 벤더가 확정 시 그대로 넘어온다 */
+    /** 납품 벤더. 반품입고(odr_dvsn=RTNGS)는 null — 그때는 store가 상대다 */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "vendor_id", nullable = false)
+    @JoinColumn(name = "vendor_id")
     private Vendor vendor;
+
+    /** 반품 점포. 반품입고만. 벤더와 둘 중 정확히 하나 — 생성자가 검증한다 (DB CHECK는 「둘 중 하나」까지) */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "store_id")
+    private Store store;
 
     /** 입고 예정일 */
     @Column(name = "expct_de", nullable = false)
     private LocalDate expctDe;
+
+    /** 반품입고 발주구분 (공통코드 ODR_DVSN). 상대처·검수 단위·검수 판정을 가른다 */
+    public static final String RTNGS = "RTNGS";
 
     /**
      * 발주구분 (공통코드 ODR_DVSN: NRML 정상 / URGT 긴급 / RTNGS 반품입고).
@@ -86,13 +96,35 @@ public class IbOrder extends BaseEntity {
     private List<IbLine> lines = new ArrayList<>();
 
     @Builder
-    private IbOrder(String ibNo, Long omsIbOrderId, Vendor vendor, LocalDate expctDe, String odrDvsn) {
+    private IbOrder(String ibNo, Long omsIbOrderId, Vendor vendor, Store store, LocalDate expctDe, String odrDvsn) {
+        requirePartnerMatches(odrDvsn, vendor, store, ibNo);
         this.ibNo = ibNo;
         this.omsIbOrderId = omsIbOrderId;
         this.vendor = vendor;
+        this.store = store;
         this.expctDe = expctDe;
         this.odrDvsn = odrDvsn;
         this.status = IbStatus.SCHEDULED;
+    }
+
+    /** 반품이면 점포, 아니면 벤더 — 둘 다거나 둘 다 아니면 거부 */
+    static void requirePartnerMatches(String odrDvsn, Vendor vendor, Store store, String no) {
+        boolean rtngs = RTNGS.equals(odrDvsn);
+        if (rtngs && (store == null || vendor != null)) {
+            throw new IllegalArgumentException("반품입고는 점포만 상대처로 둘 수 있습니다: " + no);
+        }
+        if (!rtngs && (vendor == null || store != null)) {
+            throw new IllegalArgumentException("정상 입고는 벤더만 상대처로 둘 수 있습니다: " + no);
+        }
+    }
+
+    public boolean isRtngs() {
+        return RTNGS.equals(odrDvsn);
+    }
+
+    /** 검수 입력 단위 — 정상은 입고단위(벤더 납품 단위), 반품은 출고단위(점포가 받은 단위로 돌아온다) */
+    public String rcvUomCd(Prod prod) {
+        return isRtngs() ? prod.getOutbUomCd() : prod.getInbUomCd();
     }
 
     public void addLine(IbLine line) {

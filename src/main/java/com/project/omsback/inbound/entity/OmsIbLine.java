@@ -43,10 +43,20 @@ public class OmsIbLine extends BaseEntity {
     @Column(name = "odr_qty", nullable = false)
     private Long odrQty;
 
+    /** 반품사유 (공통코드 RTNGS_RSN). 반품 라인만, 정상 발주는 null */
+    @Column(name = "rsn_cd", length = 10)
+    private String rsnCd;
+
+    /** 반품사유 상세. ETC일 때만 */
+    @Column(name = "rsn_dscr", length = 200)
+    private String rsnDscr;
+
     @Builder
-    private OmsIbLine(Prod prod, Long odrQty) {
+    private OmsIbLine(Prod prod, Long odrQty, String rsnCd, String rsnDscr) {
         this.prod = prod;
         this.odrQty = odrQty;
+        this.rsnCd = rsnCd;
+        this.rsnDscr = rsnDscr;
     }
 
     void assignOrder(OmsIbOrder omsIbOrder) {
