@@ -65,12 +65,13 @@ common  ← mdm ← wmsback ← omsback
 ### 재고 모델 (핵심 불변식)
 
 - 재고 키는 **상품 + Location + Lot**. `inv`가 현재고 스냅샷이고, `inv_hist`는 모든 물리 변동을 ±수량으로 기록하는 append-only 원장이다.
+- `ib_line.rcvd_qty`는 **양품만**이고 불량은 `rjct_qty`다 — 입고확정 조건(`ptawy == rcvd`)과 적치 대상 산출이 불량을 모르는 이유. 결품은 `expct − rcvd − rjct`.
 - **`inv_hist` 합계 = `inv` 스냅샷.** 재고를 건드리는 코드는 이력 1건 기록과 스냅샷 갱신을 **한 트랜잭션에서 함께** 한다. 둘 중 하나만 하는 코드를 쓰지 말 것.
 - **그 짝을 묶는 자리가 `inventory.service.InvStore`다.** 스냅샷 증감 · 이력 기록 · 수량이 모두 0이 된 행 삭제 셋을 한 메서드로 처리한다(`increase` / `decrease` / `move` / `pick` / `replenish` / `ship` / `reserve` / `release` / `hold` / `releaseHold`, 이력의 문서 참조 컬럼은 `InvDocRef`). **서비스에서 `Inv`의 증감 메서드나 `invRepository.save` · `delete`를 직접 부르지 말 것** — 그 셋을 손으로 맞추다 조건이 갈라진 적이 있어 포트로 모았다. **`inv` 행 락도 이 창구다**(2026-08-09 — 「락은 서비스 책임」 번복): 다건은 `lockAll`/`lockAllByIds`, 단건은 `lock`을 지나며, 순서(재고 키 오름차순)는 InvStore 내부에 하나뿐이다. 서비스에서 `invRepository.findByKeyForUpdate`를 직접 부르지 말 것. 전역 계층(문서 헤더 → prod → lot → inv → inv_hld · inv_mov_task → nbr_seq — 특히 **채번은 재고 락을 전부 잡은 뒤**)은 `docs/design.md` 「락 순서」 참고.
 - **수량이 모두 0이 된 `inv` 행은 삭제한다** — 재고 테이블엔 실물 · 예약 · 보류가 있는 행만 남긴다(이력 SUM=0 ↔ 행 없음). 판정은 `Inv#isEmpty()` 하나뿐이고 보유 · 예약 · 보류를 **모두** 본다. `ck_inv_qty`로 커밋 시점엔 보유수량 하나와 동치지만 그 제약은 flush 때만 평가되므로, 트랜잭션 중간 상태에서 예약이 남은 행을 지우지 않으려면 셋을 다 봐야 한다.
 - `MOVE`는 **`inv_hist` 2행**이다(출발지 −, 도착지 +). 두 행 모두 같은 `from_loc_id`/`to_loc_id`를 가져서 한 행만 봐도 이동 전체를 알 수 있다.
 - 정정은 append-only다 — 검수 취소는 원본을 지우지 않고 `ADJUST(-수량)` 행을 추가한다.
-- `RCV-STAGE`는 입고 스테이징 로케이션이다. 코드값이 `IbLineRepositoryImpl` · `ReceivingService` · `PutawayService` · `PutawayTaskService` 네 곳에 private 상수로 중복돼 있으니 바꿀 때 넷을 같이 고칠 것. 거울상인 출고 스테이징 `SHIP-STAGE`는 `PikngTaskService`(발행 시 존재 확인)·`PikngService`(쌓는 쪽)·`OutbShmtService`(비우는 쪽) 세 곳에 있다 — 같은 성격의 상수라 바꿀 때 함께 볼 것. 「피킹존」 판정(`BizDvsn.PIKNG`)은 `RplnDestinationResolver.inPikngZon` 한 곳이다 — 피킹은 피킹존에서만 하고, 보관존 할당분은 발행이 보충지시(`inv_mov_task` RPLN)를 짝으로 낸다(`docs/design.md` 「수시보충」).
+- `RCV-STAGE`는 입고 스테이징 로케이션이다. 코드값이 `IbLineRepositoryImpl` · `ReceivingService` · `PutawayService` · `PutawayTaskService` 네 곳에 private 상수로 중복돼 있으니 바꿀 때 넷을 같이 고칠 것. 거울상인 출고 스테이징 `SHIP-STAGE`는 `PikngTaskService`(발행 시 존재 확인)·`PikngService`(쌓는 쪽)·`OutbShmtService`(비우는 쪽) 세 곳에 있다 — 같은 성격의 상수라 바꿀 때 함께 볼 것. 「피킹존」 판정(`BizDvsn.PIKNG`)은 `RplnDestinationResolver.inPikngZon` 한 곳이다 — 피킹은 피킹존에서만 하고, 보관존 할당분은 발행이 보충지시(`inv_mov_task` RPLN)를 짝으로 낸다(`docs/design.md` 「수시보충」). 반품 검수의 불량 도착지(반품존)는 상수가 아니라 `RtngsLocResolver`가 「상품 온도대와 같은 `BIZ_DVSN.RTNGS` 존의 STORAGE 로케이션」으로 해석한다 — 반품존 판정(`inRtngsZon`)도 거기 한 곳이다.
 
 ### 상태와 수량의 분담
 

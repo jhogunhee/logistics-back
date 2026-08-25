@@ -90,13 +90,13 @@
 <tbody>
 <tr>
   <td class="name">입고주문</td>
-  <td>벤더 발주 <strong>등록·수정</strong> 폼. 벤더/입고예정일/발주구분/담당자/비고 + 라인(상품·수량) 입력. 주문번호는 서버 채번(<code>PO-YYYYMMDD-NNN</code>)이고 수정해도 바뀌지 않는다. 경로에 id가 있으면 수정 모드(<code>/oms/inbound-order/:id</code>) — <strong>작성(CREATED) 상태만 편집 가능</strong>하고 확정된 주문은 화면이 잠긴다</td>
+  <td>벤더 발주 <strong>등록·수정</strong> 폼. 발주구분을 <strong>반품입고</strong>로 고르면 상대가 점포로 바뀌고 원 출고(선택)에서 라인을 미리 채우며, 라인에 반품사유가 붙고 수량은 출고단위가 된다(2026-08-25). 벤더/입고예정일/발주구분/담당자/비고 + 라인(상품·수량) 입력. 주문번호는 서버 채번(<code>PO-YYYYMMDD-NNN</code>)이고 수정해도 바뀌지 않는다. 경로에 id가 있으면 수정 모드(<code>/oms/inbound-order/:id</code>) — <strong>작성(CREATED) 상태만 편집 가능</strong>하고 확정된 주문은 화면이 잠긴다</td>
   <td class="st"><span class="badge done">구현</span></td>
   <td><code>POST /oms/inbound-orders</code><br><code>/oms/inbound-order</code></td>
 </tr>
 <tr>
   <td class="name">입고주문 관리</td>
-  <td>목록 검색(주문번호/벤더/상태/기간), <strong>주문확정</strong>·확정취소·주문삭제. 확정이 <strong>ASN 생성의 유일한 기점</strong>이며, 목록에 생성된 입고번호와 창고 진행상태를 함께 표시. <strong>주문번호를 누르면 수정 화면으로</strong> 이동한다.
+  <td>목록 검색(주문번호/상대처/상태/기간), <strong>주문확정</strong>·확정취소·주문삭제. 확정이 <strong>ASN 생성의 유일한 기점</strong>이며, 목록에 생성된 입고번호와 창고 진행상태를 함께 표시. <strong>주문번호를 누르면 수정 화면으로</strong> 이동한다.
   <br>상태는 <code>CREATED ↔ CONFIRMED</code> 둘뿐이다 — <strong>취소 상태를 두지 않는다.</strong> 없앨 주문은 지우고(확정 전만), 확정된 주문은 확정취소로 되돌린 뒤 지운다. 삭제는 되돌릴 수 없으므로 확인 모달에 라인 건수를 함께 보여준다</td>
   <td class="st"><span class="badge done">구현</span></td>
   <td><code>GET /oms/inbound-orders</code>, <code>/{id}/lines</code><br><code>POST /{id}/confirm</code>, <code>/{id}/confirm-cancel</code><br><code>DELETE /{id}</code><br><code>/oms/inbound-orders</code></td>
@@ -129,13 +129,13 @@
 <tbody>
 <tr>
   <td class="name">입고예정(ASN) 관리</td>
-  <td>목록 검색(입고번호/벤더/상태/기간), 취소. 헤더–라인 2단 구조. <strong>등록 기능 없음</strong> — ASN은 OMS 입고주문 확정으로만 생성된다</td>
+  <td>목록 검색(입고번호/상대처/진행단계/구분/기간), 취소. 헤더–라인 2단 구조. <strong>등록 기능 없음</strong> — ASN은 OMS 입고주문 확정으로만 생성된다</td>
   <td class="st"><span class="badge done">구현</span></td>
   <td><code>GET /inbound/asns</code><br><code>/{id}/lines</code>, <code>/{id}/cancel</code></td>
 </tr>
 <tr>
   <td class="name">입고 검수</td>
-  <td>라인별 합격/불합격 수량 + 제조일자 입력 → Lot 채번 후 <code>RCV-STAGE</code> 입고. 하단에 검수 이력 + 건별 취소</td>
+  <td>라인별 합격/불합격 수량 + 제조일자 입력 → Lot 채번 후 <code>RCV-STAGE</code> 입고. 하단에 검수 이력 + 건별 취소. 반품입고는 라인별 <strong>양품/불량</strong>을 나눠 받는다 — 양품은 RCV-STAGE, 불량은 반품존에 받아 즉시 보류(HLD_RSN 사유). 검수 이력에 판정 열.</td>
   <td class="st"><span class="badge done">구현</span></td>
   <td><code>POST /{id}/receive</code><br><code>GET /{id}/lines/{lineId}/receipts</code><br><code>POST /{id}/receipts/{invHistId}/cancel</code></td>
 </tr>
@@ -153,7 +153,7 @@
 </tr>
 <tr>
   <td class="name">입고확정</td>
-  <td><strong>입고 흐름의 마지막 단계.</strong> 라인별 예정/검수/적치/결품 수량을 보여주고, 결품(<code>expctQty − rcvdQty</code>)을 확인 후 확정 → <code>RECEIVING → CONFIRMED</code>.<br><strong>선행 조건: 전 라인 미적치 잔량 0</strong> — 미적치가 남으면 확정 버튼 비활성 + 사유 표시(검수만 하고 확정하는 것은 업무적으로 성립하지 않음). 백엔드 구현 완료 — 결품 사유 텍스트 입력·저장은 미구현 잔여</td>
+  <td><strong>입고 흐름의 마지막 단계.</strong> 라인별 예정/검수/적치/결품 수량을 보여주고, 결품(<code>expctQty − rcvdQty</code>, 반품입고는 <strong>예정 − 양품 − 불량</strong>)을 확인 후 확정 → <code>RECEIVING → CONFIRMED</code>.<br><strong>선행 조건: 전 라인 미적치 잔량 0</strong> — 미적치가 남으면 확정 버튼 비활성 + 사유 표시(검수만 하고 확정하는 것은 업무적으로 성립하지 않음). 백엔드 구현 완료 — 결품 사유 텍스트 입력·저장은 미구현 잔여</td>
   <td class="st"><span class="badge todo">화면 미구현</span></td>
   <td><code>POST /{id}/confirm</code> (백엔드 구현 완료 — 전제 위반 시 400대 거부)</td>
 </tr>
