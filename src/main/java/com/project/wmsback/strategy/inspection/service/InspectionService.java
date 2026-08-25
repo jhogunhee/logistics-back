@@ -5,10 +5,13 @@ import com.project.wmsback.inbound.entity.IbLine;
 import com.project.wmsback.inbound.entity.IbOrder;
 import com.project.wmsback.inbound.repository.IbLineRepository;
 import com.project.mdm.prod.entity.Prod;
+import com.project.mdm.prod.repository.ProdRepository;
 import com.project.wmsback.strategy.core.entity.StgyTyp;
 import com.project.wmsback.strategy.core.entity.TrgrTyp;
 import com.project.wmsback.strategy.core.service.StgyExecLogService;
 import com.project.wmsback.strategy.inspection.dto.InspLineTrace;
+import com.project.wmsback.strategy.inspection.dto.InspMinMfgDtRequest;
+import com.project.wmsback.strategy.inspection.dto.InspMinMfgDtResponse;
 import com.project.wmsback.strategy.inspection.dto.InspPlcyDefinition;
 import com.project.wmsback.strategy.inspection.dto.InspRuleResult;
 import com.project.wmsback.strategy.inspection.entity.InspPlcy;
@@ -45,6 +48,7 @@ public class InspectionService {
     private final IbLineRepository ibLineRepository;
     private final InspectionQueryRepository inspectionQueryRepository;
     private final StgyExecLogService stgyExecLogService;
+    private final ProdRepository prodRepository;
 
     /**
      * 검수 저장 직전 훅. 정책이 없거나 규칙이 0건이면 제약 없이 통과 (검수 자체를 막지 않는다).
@@ -138,5 +142,47 @@ public class InspectionService {
                     .orElseGet(() -> InspRuleResult.pass(def.ruleCd(), ruleName)));
         }
         return results;
+    }
+
+    /**
+     * 검수 입력 전 힌트 — 상품·입고일자마다 규칙별 「입고 가능한 가장 이른 제조일자」와 그중 가장 늦은 날(전체 하한).
+     * 저장본 정책을 읽기만 한다 — 실행 로그를 남기지 않는다(판정이 아니라 안내다). 정책이 없으면 하한 없음.
+     * 검수 화면이 제조일자를 치기 전에 "어디까지 되는지"를 보여주는 데 쓴다 — 거부당한 뒤에야 기준을 알면
+     * 소급 등록·테스트 입력에서 날짜를 고르는 일이 헛걸음이 된다.
+     */
+    public InspMinMfgDtResponse minMfgDts(InspMinMfgDtRequest request) {
+        List<InspMinMfgDtRequest.Item> items = request.items() != null ? request.items() : List.of();
+        List<InspPlcyDefinition.RuleDef> ruleDefs = inspPlcyRepository.findFirstByOrderByIdAsc()
+                .map(plcy -> plcy.getRules().stream()
+                        .map(r -> new InspPlcyDefinition.RuleDef(r.getSrtSeq(), r.getRuleCd(), r.getPara()))
+                        .toList())
+                .orElse(List.of());
+
+        List<Long> prodIds = items.stream().map(InspMinMfgDtRequest.Item::prodId).filter(Objects::nonNull).distinct().toList();
+        Map<Long, Prod> prods = prodIds.isEmpty() ? Map.of()
+                : prodRepository.findAllById(prodIds).stream().collect(Collectors.toMap(Prod::getId, Function.identity()));
+
+        List<InspMinMfgDtResponse.Item> result = new ArrayList<>();
+        for (InspMinMfgDtRequest.Item item : items) {
+            Prod prod = prods.get(item.prodId());
+            if (prod == null) {
+                throw new IllegalArgumentException("존재하지 않는 상품입니다: " + item.prodId());
+            }
+            LocalDate receiptDt = item.receiptDt() != null ? item.receiptDt() : LocalDate.now();
+            InspectionContext ctx = new InspectionContext(prod, receiptDt, null, inspectionQueryRepository);
+
+            List<InspMinMfgDtResponse.RuleMin> ruleMins = new ArrayList<>();
+            LocalDate overall = null;
+            for (InspPlcyDefinition.RuleDef def : ruleDefs) {
+                InspectionRule rule = InspectionRule.of(def.ruleCd());
+                LocalDate min = rule.minMfgDt(ctx, def.para()).orElse(null);
+                ruleMins.add(new InspMinMfgDtResponse.RuleMin(def.ruleCd(), rule.label(), min));
+                if (min != null && (overall == null || min.isAfter(overall))) {
+                    overall = min;
+                }
+            }
+            result.add(new InspMinMfgDtResponse.Item(prod.getId(), receiptDt, overall, ruleMins));
+        }
+        return new InspMinMfgDtResponse(result);
     }
 }

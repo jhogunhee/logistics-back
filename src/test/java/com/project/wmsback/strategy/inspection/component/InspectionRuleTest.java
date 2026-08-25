@@ -83,6 +83,37 @@ class InspectionRuleTest {
         }
 
         @Test
+        @DisplayName("입고 가능한 가장 이른 제조일자 — 입고일자 − 허용 경과일수. 그 날로 검수하면 통과하고 하루 전이면 위반이어야 한다")
+        void minMfgDtIsEarliestPassingDate() {
+            when(prod.getShelfLifeDays()).thenReturn(100);
+            Map<String, Object> para = rule.validatePara(Map.of("minPercent", 80));
+
+            // 경과 허용 20일 → 2026-07-25
+            LocalDate min = rule.minMfgDt(ctx(null), para).orElseThrow();
+            assertEquals(LocalDate.of(2026, 7, 25), min);
+            assertTrue(rule.check(ctx(min), para).isEmpty());
+            assertTrue(rule.check(ctx(min.minusDays(1)), para).isPresent());
+        }
+
+        @Test
+        @DisplayName("기준에 소수가 있어도 하한은 실제 판정과 어긋나지 않는다 — 잔여율 절사 때문에 하루 밀릴 수 있다")
+        void minMfgDtStaysConsistentWithCheckRounding() {
+            when(prod.getShelfLifeDays()).thenReturn(7);
+            Map<String, Object> para = rule.validatePara(Map.of("minPercent", "70.55"));
+
+            LocalDate min = rule.minMfgDt(ctx(null), para).orElseThrow();
+            assertTrue(rule.check(ctx(min), para).isEmpty());
+            assertTrue(rule.check(ctx(min.minusDays(1)), para).isPresent());
+        }
+
+        @Test
+        @DisplayName("유통기한 미관리 상품은 하한이 없다")
+        void minMfgDtEmptyWhenUnmanaged() {
+            when(prod.getShelfLifeDays()).thenReturn(null);
+            assertTrue(rule.minMfgDt(ctx(null), rule.validatePara(Map.of("minPercent", 80))).isEmpty());
+        }
+
+        @Test
         @DisplayName("저장 검증 — minPercent는 필수, 0~100, 정의되지 않은 키는 거부한다 (P2)")
         void validateParaRejectsBadInput() {
             assertThrows(IllegalArgumentException.class, () -> rule.validatePara(Map.of()));
@@ -143,6 +174,23 @@ class InspectionRuleTest {
 
             rule.check(ctx(LocalDate.of(2026, 7, 15)), rule.validatePara(Map.of("excludeSameDay", false)));
             verify(lotQuery).latestMfgDtWithStock(1L, null);       // false → 제외 없음
+        }
+
+        @Test
+        @DisplayName("입고 가능한 가장 이른 제조일자 = 기존 재고의 최신 제조일자(같은 날 허용). 재고가 없으면 하한 없음")
+        void minMfgDtIsLatestStockMfgDt() {
+            when(prod.getShelfLifeDays()).thenReturn(100);
+            when(prod.getId()).thenReturn(1L);
+            Map<String, Object> para = rule.validatePara(Map.of());
+
+            when(lotQuery.latestMfgDtWithStock(1L, RECEIPT_DT)).thenReturn(LocalDate.of(2026, 7, 20));
+            assertEquals(LocalDate.of(2026, 7, 20), rule.minMfgDt(ctx(null), para).orElseThrow());
+
+            when(lotQuery.latestMfgDtWithStock(1L, RECEIPT_DT)).thenReturn(null);
+            assertTrue(rule.minMfgDt(ctx(null), para).isEmpty());
+
+            when(prod.getShelfLifeDays()).thenReturn(null);
+            assertTrue(rule.minMfgDt(ctx(null), para).isEmpty());
         }
 
         @Test

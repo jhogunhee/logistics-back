@@ -70,6 +70,26 @@ public enum InspectionRule {
             }
             return Optional.empty();
         }
+
+        @Override
+        public Optional<LocalDate> minMfgDt(InspectionContext ctx, Map<String, Object> para) {
+            if (ctx.prod().getShelfLifeDays() == null || ctx.prod().getShelfLifeDays() <= 0) {
+                return Optional.empty();
+            }
+            BigDecimal minPercent = number(para, "minPercent", BigDecimal.ZERO);
+            long maxElapsed = new BigDecimal(ctx.prod().getShelfLifeDays())
+                    .multiply(new BigDecimal(100).subtract(minPercent))
+                    .divide(new BigDecimal(100), 0, RoundingMode.DOWN)
+                    .longValue();
+            LocalDate candidate = ctx.receiptDt().minusDays(maxElapsed);
+            // 잔여율을 소수 첫째 자리에서 절사하므로 기준에 소수가 있으면 경계일이 하루 밀릴 수 있다 —
+            // 식을 한 번 더 세우지 않고 실제 판정(check)으로 맞춘다. 하한은 판정과 어긋나면 안 된다
+            while (candidate.isBefore(ctx.receiptDt())
+                    && check(new InspectionContext(ctx.prod(), ctx.receiptDt(), candidate, ctx.lotQuery()), para).isPresent()) {
+                candidate = candidate.plusDays(1);
+            }
+            return Optional.of(candidate);
+        }
     },
 
     /**
@@ -113,6 +133,16 @@ public enum InspectionRule {
             }
             return Optional.empty();
         }
+
+        @Override
+        public Optional<LocalDate> minMfgDt(InspectionContext ctx, Map<String, Object> para) {
+            if (ctx.prod().getShelfLifeDays() == null || ctx.prod().getShelfLifeDays() <= 0) {
+                return Optional.empty();
+            }
+            boolean excludeSameDay = bool(para, "excludeSameDay", true);
+            return Optional.ofNullable(ctx.lotQuery().latestMfgDtWithStock(
+                    ctx.prod().getId(), excludeSameDay ? ctx.receiptDt() : null));
+        }
     };
 
     private final String label;
@@ -148,6 +178,13 @@ public enum InspectionRule {
      * 스킵은 통과로 간주하되 trace에 사유가 남는다 — 조용히 건너뛰지 않는다.
      */
     public abstract Optional<String> skipReason(InspectionContext ctx);
+
+    /**
+     * 입력 전 힌트 — 이 상품·입고일자에서 이 규칙을 통과하는 <b>가장 이른 제조일자</b>(그날 포함).
+     * 상한을 내지 않는 규칙(미관리 상품, 기준 재고 없음)은 empty. ctx.mfgDt는 보지 않는다 — 아직 입력 전이다.
+     * 판정(check)과 어긋나면 안 된다: 여기서 준 날로 검수하면 통과하고, 하루 전이면 위반이어야 한다.
+     */
+    public abstract Optional<LocalDate> minMfgDt(InspectionContext ctx, Map<String, Object> para);
 
     /** 위반 없으면 empty, 위반 시 사유 반환. 예외를 흐름 제어에 쓰지 않는다 */
     public abstract Optional<Violation> check(InspectionContext ctx, Map<String, Object> para);
