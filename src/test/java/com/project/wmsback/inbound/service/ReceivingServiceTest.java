@@ -11,6 +11,7 @@ import com.project.wmsback.inventory.entity.InvHist;
 import com.project.wmsback.inventory.entity.TxTyp;
 import com.project.wmsback.inventory.repository.InvHistRepository;
 import com.project.wmsback.inventory.repository.InvRepository;
+import com.project.wmsback.inventory.service.InvHldService;
 import com.project.wmsback.inventory.service.InvStore;
 import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.Lot;
@@ -68,6 +69,8 @@ class ReceivingServiceTest {
     @Mock InvHistRepository invHistRepository;
     @Mock ProdRepository prodRepository;
     @Mock InspectionService inspectionService;
+    @Mock RtngsLocResolver rtngsLocResolver;
+    @Mock InvHldService invHldService;
 
     // 재고 쓰기 포트는 목이 아니라 실물을 쓴다 — 스냅샷 증감·이력 기록이 검증 대상이기 때문
     private ReceivingService receivingService;
@@ -84,7 +87,7 @@ class ReceivingServiceTest {
         // Lot 채번·재사용 포트도 실물을 쓴다 — 배치 재사용이 빗나갔을 때의 채번·저장이 검증 대상이기 때문
         receivingService = new ReceivingService(ibOrderRepository, ibLineRepository, new LotIssuer(lotRepository),
                 locRepository, invHistRepository, new InvStore(invRepository, invHistRepository),
-                prodRepository, inspectionService);
+                prodRepository, inspectionService, rtngsLocResolver, invHldService);
 
         prod = mock(Prod.class);
         when(prod.getId()).thenReturn(1L);
@@ -97,6 +100,8 @@ class ReceivingServiceTest {
         order = mock(IbOrder.class);
         when(order.getId()).thenReturn(10L);
         when(order.getIbNo()).thenReturn("IB-20260804-001");
+        when(order.isRtngs()).thenReturn(false);
+        when(order.rcvUomCd(prod)).thenReturn("BOX");
         when(ibOrderRepository.findById(10L)).thenReturn(Optional.of(order));
 
         ibLine = mock(IbLine.class);
@@ -105,6 +110,7 @@ class ReceivingServiceTest {
         when(ibLine.getProd()).thenReturn(prod);
         when(ibLine.getExpctQty()).thenReturn(240L); // 10박스 예정
         when(ibLine.getRcvdQty()).thenReturn(0L);
+        when(ibLine.getRjctQty()).thenReturn(0L);
         when(ibLineRepository.findById(100L)).thenReturn(Optional.of(ibLine));
         when(ibLineRepository.findProdIdsByOrderIdAndIdIn(eq(10L), any())).thenReturn(List.of(1L));
 
@@ -137,6 +143,27 @@ class ReceivingServiceTest {
         line.setInspectQty(inspectQty);
         line.setReceiptDt(LocalDate.of(2026, 8, 4));
         return line;
+    }
+
+    private ReceiveRequest.Line rtngsLine(long ibLineId, Long inspectQty, Long rjctQty, String rsnCd) {
+        ReceiveRequest.Line line = line(ibLineId, inspectQty != null ? inspectQty : 0);
+        line.setInspectQty(inspectQty);
+        line.setRjctQty(rjctQty);
+        line.setRjctRsnCd(rsnCd);
+        return line;
+    }
+
+    private Loc rtngsLoc;
+    private Inv rtngsInv;
+
+    private void stubRtngs() {
+        when(order.isRtngs()).thenReturn(true);
+        when(order.rcvUomCd(prod)).thenReturn("EA");
+        rtngsLoc = mock(Loc.class);
+        when(rtngsLoc.getId()).thenReturn(9L);
+        when(rtngsLocResolver.resolve(prod)).thenReturn(rtngsLoc);
+        rtngsInv = mock(Inv.class);
+        when(invRepository.findByKeyForUpdate(1L, 9L, 7L)).thenReturn(Optional.of(rtngsInv));
     }
 
     @Test
@@ -383,5 +410,81 @@ class ReceivingServiceTest {
         inOrder.verify(prodRepository).findByIdForUpdate(1L);
         inOrder.verify(inspectionService).checkReceive(any(), any());
         inOrder.verify(ibLineRepository).findById(100L);
+    }
+
+    @Test
+    @DisplayName("반품: 양품은 스테이징 RECEIVE, 불량은 반품존 RECEIVE + 보류 — 이력 2건, rcvd/rjct 각각 누계")
+    void rtngs_splitsGoodAndRjct() {
+        stubRtngs();
+
+        receivingService.receive(10L, request(rtngsLine(100L, 3L, 2L, "DAMG"))); // 3×24 양품, 2×24 불량
+
+        verify(ibLine).receive(72L);
+        verify(ibLine).reject(48L);
+        verify(inv).increaseOnHand(72L);
+        verify(rtngsInv).increaseOnHand(48L);
+        verify(invHldService).holdOn(rtngsInv, 48L, "DAMG", null);
+        verify(invHistRepository, times(2)).save(any());
+    }
+
+    @Test
+    @DisplayName("반품: 불량만 온 라인도 저장된다 (양품 0)")
+    void rtngs_rjctOnlyLine() {
+        stubRtngs();
+
+        receivingService.receive(10L, request(rtngsLine(100L, null, 2L, "QLTY")));
+
+        verify(ibLine, never()).receive(anyLong());
+        verify(ibLine).reject(48L);
+        verify(invHldService).holdOn(rtngsInv, 48L, "QLTY", null);
+    }
+
+    @Test
+    @DisplayName("반품: 양품+불량 합계가 잔량(예정 − 양품누계 − 불량누계)을 넘으면 거부")
+    void rtngs_rejectsOverRemaining() {
+        stubRtngs();
+        when(ibLine.getRcvdQty()).thenReturn(120L);
+        when(ibLine.getRjctQty()).thenReturn(96L);   // 잔량 24 = 1개
+
+        assertThrows(IllegalArgumentException.class,
+                () -> receivingService.receive(10L, request(rtngsLine(100L, 1L, 1L, "DAMG"))));
+        verify(ibLine, never()).receive(anyLong());
+    }
+
+    @Test
+    @DisplayName("반품: 불량수량이 있으면 사유가 필수")
+    void rtngs_requiresRjctRsn() {
+        stubRtngs();
+
+        assertThrows(IllegalArgumentException.class,
+                () -> receivingService.receive(10L, request(rtngsLine(100L, 1L, 1L, null))));
+    }
+
+    @Test
+    @DisplayName("정상 입고에 불량수량이 오면 거부 — 정상 검수는 불합격 수량을 두지 않는다")
+    void normal_rejectsRjctQty() {
+        assertThrows(IllegalArgumentException.class,
+                () -> receivingService.receive(10L, request(rtngsLine(100L, 1L, 1L, "DAMG"))));
+        verify(invHldService, never()).holdOn(any(), anyLong(), any(), any());
+    }
+
+    @Test
+    @DisplayName("반품: 보류는 모든 라인의 재고 처리가 끝난 뒤에 건다 (채번은 재고 락을 전부 잡은 뒤)")
+    void rtngs_holdsAfterAllLines() {
+        stubRtngs();
+        IbLine second = mock(IbLine.class);
+        when(second.getId()).thenReturn(101L);
+        when(second.getIbOrder()).thenReturn(order);
+        when(second.getProd()).thenReturn(prod);
+        when(second.getExpctQty()).thenReturn(240L);
+        when(second.getRcvdQty()).thenReturn(0L);
+        when(second.getRjctQty()).thenReturn(0L);
+        when(ibLineRepository.findById(101L)).thenReturn(Optional.of(second));
+
+        receivingService.receive(10L, request(rtngsLine(100L, 0L, 1L, "DAMG"), rtngsLine(101L, 0L, 1L, "DAMG")));
+
+        InOrder inOrder = inOrder(rtngsInv, invHldService);
+        inOrder.verify(rtngsInv, times(2)).increaseOnHand(24L);
+        inOrder.verify(invHldService, times(2)).holdOn(eq(rtngsInv), eq(24L), eq("DAMG"), any());
     }
 }

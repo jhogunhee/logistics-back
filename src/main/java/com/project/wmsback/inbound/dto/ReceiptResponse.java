@@ -20,7 +20,7 @@ public class ReceiptResponse {
     private final String prodNm;
     /** 상품 이미지 URL. NULL = 이미지 없음 — 화면이 폴백을 그린다 */
     private final String prodImgUrl;
-    /** 검수 입력 단위 = 입고단위. 수량을 「n BOX (m)」로 보여주는 재료 */
+    /** 검수 입력 단위 — 정상 입고단위 · 반품 출고단위. 수량을 「n BOX (m)」로 보여주는 재료 */
     private final String inbUomCd;
     /** 입고단위 1개 = 낱개(EA) 몇 개. qty가 낱개라 화면이 이 값으로 나눈다 */
     private final Long inbEaQty;
@@ -30,25 +30,28 @@ public class ReceiptResponse {
     private final Long qty;
     /** 이미 검수취소(ADJUST)됐는지 — true면 화면에서 취소 버튼을 다시 노출하면 안 된다 */
     private final boolean cancelled;
+    /** 판정 — GOOD 양품(스테이징) / RJCT 불량(반품존, 보류). 로케이션이 반품존인지로 파생 */
+    private final String dcsn;
     private final LocalDateTime createdAt;
 
-    private ReceiptResponse(InvHist hist, boolean cancelled) {
+    private ReceiptResponse(InvHist hist, boolean cancelled, String rcvUomCd, boolean rjct) {
         this.invHistId = hist.getId();
         this.ibLineId = hist.getIbLineId();
         this.prodCd = hist.getProd().getProdCd();
         this.prodNm = hist.getProd().getProdNm();
         this.prodImgUrl = hist.getProd().getImgUrl();
-        this.inbUomCd = hist.getProd().getInbUomCd();
-        this.inbEaQty = hist.getProd().eaQtyOf(this.inbUomCd);
+        this.inbUomCd = rcvUomCd;
+        this.inbEaQty = hist.getProd().eaQtyOf(rcvUomCd);
         this.lotNo = hist.getLot().getLotNo();
         this.receiptDt = hist.getLot().getReceiptDt();
         this.mfgDt = hist.getLot().getMfgDt();
         this.qty = hist.getQty();
         this.cancelled = cancelled;
+        this.dcsn = rjct ? "RJCT" : "GOOD";
         this.createdAt = hist.getCreatedAt();
     }
 
-    public static ReceiptResponse from(InvHist hist, boolean cancelled) {
-        return new ReceiptResponse(hist, cancelled);
+    public static ReceiptResponse from(InvHist hist, boolean cancelled, String rcvUomCd, boolean rjct) {
+        return new ReceiptResponse(hist, cancelled, rcvUomCd, rjct);
     }
 }

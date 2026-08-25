@@ -21,14 +21,17 @@ import com.project.mdm.prod.entity.Prod;
 import com.project.wmsback.warehouse.repository.LocRepository;
 import com.project.wmsback.warehouse.service.LotIssuer;
 import com.project.mdm.prod.repository.ProdRepository;
+import com.project.wmsback.inventory.service.InvHldService;
 import com.project.wmsback.strategy.inspection.service.InspectionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -52,6 +55,8 @@ public class ReceivingService {
     private final InvStore invStore;
     private final ProdRepository prodRepository;
     private final InspectionService inspectionService;
+    private final RtngsLocResolver rtngsLocResolver;
+    private final InvHldService invHldService;
 
     /** 검수 저장 (증분). 요청 라인 중 한 건이라도 실패하면 전체 롤백 */
     @Transactional
@@ -74,11 +79,19 @@ public class ReceivingService {
         Loc staging = locRepository.findByLocCd(STAGING_LOC_CD)
                 .orElseThrow(() -> new IllegalStateException("입고 스테이징 로케이션(RCV-STAGE)이 없습니다."));
 
+        // 불량분 보류는 라인 루프 뒤로 미룬다 — 보류 채번(HLD_NO)이 nbr_seq 락을 잡는데,
+        // 라인 사이에서 잡으면 뒤 라인의 재고 락이 채번 락 뒤에 와 락 순서(채번은 재고 락을 전부 잡은 뒤)를 어긴다
+        List<PendingHold> holds = new ArrayList<>();
         for (ReceiveRequest.Line line : req.getLines()) {
-            receiveLine(order, staging, line);
+            receiveLine(order, staging, line).ifPresent(holds::add);
+        }
+        for (PendingHold hold : holds) {
+            invHldService.holdOn(hold.inv(), hold.qty(), hold.rsnCd(), hold.rsnDscr());
         }
         // 전량 검수돼도 자동 전이는 없다 — 종결은 입고확정 버튼(confirm)만이 한다
     }
+
+    private record PendingHold(Inv inv, long qty, String rsnCd, String rsnDscr) {}
 
     /**
      * 요청 라인이 가리키는 상품을 <b>id 오름차순으로 한 건씩</b> 잠근다. 라인을 읽는 어떤 코드보다도
@@ -121,35 +134,51 @@ public class ReceivingService {
         return ibLine;
     }
 
-    private void receiveLine(IbOrder order, Loc staging, ReceiveRequest.Line line) {
+    private Optional<PendingHold> receiveLine(IbOrder order, Loc staging, ReceiveRequest.Line line) {
         IbLine ibLine = findLine(order, line.getIbLineId());
         Prod prod = ibLine.getProd();
         long inspectUomQty = line.getInspectQty() != null ? line.getInspectQty() : 0;
-        if (inspectUomQty < 1) {
-            throw new IllegalArgumentException("검수수량은 1 이상이어야 합니다: " + prod.getProdCd());
+        long rjctUomQty = line.getRjctQty() != null ? line.getRjctQty() : 0;
+        if (inspectUomQty < 0 || rjctUomQty < 0) {
+            throw new IllegalArgumentException("수량은 0 이상이어야 합니다: " + prod.getProdCd());
+        }
+        if (inspectUomQty + rjctUomQty < 1) {
+            throw new IllegalArgumentException("검수수량 또는 불량수량이 1 이상이어야 합니다: " + prod.getProdCd());
+        }
+        if (rjctUomQty > 0 && !order.isRtngs()) {
+            throw new IllegalArgumentException("정상 입고에는 불량수량을 입력할 수 없습니다: " + prod.getProdCd());
+        }
+        if (rjctUomQty > 0 && (line.getRjctRsnCd() == null || line.getRjctRsnCd().isBlank())) {
+            throw new IllegalArgumentException("불량사유를 선택해야 합니다: " + prod.getProdCd());
         }
 
-        // 검수는 입고단위(발주단위) 개수로 세고, 저장은 재고 저장 단위인 낱개(EA)로 환산한다.
-        // 입고단위 정수만 받으므로 부분 박스는 표현할 수 없다 — 딱 안 떨어지는 잔량은 입고확정으로 미입고 확정
-        long inspect = prod.toEaQty(inspectUomQty, prod.getInbUomCd());
+        // 검수는 입고단위(정상 발주단위 · 반품 출고단위) 개수로 세고, 저장은 재고 저장 단위인 낱개(EA)로 환산한다.
+        String uomCd = order.rcvUomCd(prod);
+        long inspect = prod.toEaQty(inspectUomQty, uomCd);
+        long rjct = prod.toEaQty(rjctUomQty, uomCd);
 
-        // 과입고 차단: 예정 잔량을 넘는 검수는 거부 (프론트도 같은 검증을 하지만 서버가 최종 방어선)
-        long remaining = ibLine.getExpctQty() - ibLine.getRcvdQty();
-        if (inspect > remaining) {
+        // 과입고 차단: 양품·불량 누계를 뺀 잔량 이내 (프론트도 같은 검증을 하지만 서버가 최종 방어선)
+        long remaining = ibLine.getExpctQty() - ibLine.getRcvdQty() - ibLine.getRjctQty();
+        if (inspect + rjct > remaining) {
             throw new IllegalArgumentException("검수수량이 예정 잔량을 초과합니다: " + prod.getProdCd()
-                    + " (잔량 " + remaining + ", 검수 환산 " + inspect + ")");
+                    + " (잔량 " + remaining + ", 검수 환산 " + (inspect + rjct) + ")");
         }
 
-        ibLine.receive(inspect);
-
-        // 입고일자: 소급 등록 대비 라인별 입력 (비우면 오늘 = 실시간 등록)
         LocalDate receiptDt = line.getReceiptDt() != null ? line.getReceiptDt() : LocalDate.now();
-
-        // 검수분: Lot 확보 → 스테이징 스냅샷 증가 → 재고 이력. 셋이 항상 한 트랜잭션.
-        // 배치 재사용·채번은 LotIssuer가 한다 — receive()가 미리 잡아 둔 상품 로우 락 안이다
         Lot lot = lotIssuer.findOrCreate(prod, receiptDt, validateMfgDt(prod, line.getMfgDt(), receiptDt));
-        invStore.increase(prod, staging, lot, inspect, TxTyp.RECEIVE,
-                InvDocRef.ofIbLine(RefDocTyp.INBOUND, order.getIbNo(), ibLine.getId()));
+        InvDocRef ref = InvDocRef.ofIbLine(RefDocTyp.INBOUND, order.getIbNo(), ibLine.getId());
+
+        if (inspect > 0) {
+            ibLine.receive(inspect);
+            invStore.increase(prod, staging, lot, inspect, TxTyp.RECEIVE, ref);
+        }
+        if (rjct == 0) {
+            return Optional.empty();
+        }
+        // 불량은 스테이징을 거치지 않는다 — 보류된 재고는 적치지시를 걸 수 없어 거기 갇힌다. 반품존에 바로 받는다
+        ibLine.reject(rjct);
+        Inv rtngsInv = invStore.increase(prod, rtngsLocResolver.resolve(prod), lot, rjct, TxTyp.RECEIVE, ref);
+        return Optional.of(new PendingHold(rtngsInv, rjct, line.getRjctRsnCd(), line.getRjctRsnDscr()));
     }
 
     /**
@@ -197,7 +226,8 @@ public class ReceivingService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
         return receiveRows.stream()
-                .map(r -> ReceiptResponse.from(r, cancelledIds.contains(r.getId())))
+                .map(r -> ReceiptResponse.from(r, cancelledIds.contains(r.getId()),
+                        order.rcvUomCd(r.getProd()), RtngsLocResolver.inRtngsZon(r.getLoc())))
                 .toList();
     }
 
@@ -208,6 +238,7 @@ public class ReceivingService {
         if (!ibLine.getIbOrder().getId().equals(ibOrderId)) {
             throw new IllegalArgumentException("다른 입고의 라인입니다: " + ibLineId);
         }
+        IbOrder order = ibLine.getIbOrder();
         List<InvHist> receiveRows = invHistRepository.findAllByIbLineIdAndTxTypeOrderByCreatedAtDesc(ibLineId, TxTyp.RECEIVE);
         Set<Long> cancelledIds = invHistRepository.findAllByIbLineIdAndTxTypeOrderByCreatedAtDesc(ibLineId, TxTyp.ADJUST)
                 .stream()
@@ -215,7 +246,8 @@ public class ReceivingService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
         return receiveRows.stream()
-                .map(r -> ReceiptResponse.from(r, cancelledIds.contains(r.getId())))
+                .map(r -> ReceiptResponse.from(r, cancelledIds.contains(r.getId()),
+                        order.rcvUomCd(r.getProd()), RtngsLocResolver.inRtngsZon(r.getLoc())))
                 .toList();
     }
 
@@ -253,15 +285,22 @@ public class ReceivingService {
         // 스테이징 행 락 — 락 없이 읽고 줄이면 같은 행의 동시 적치·검수와 서로 덮어쓴다.
         // 예약(적치지시)과도 경합한다 — 검증과 차감 사이에 지시가 끼어들면 예약분을 밑에서 빼가게 된다
         Inv inv = invStore.lock(new InvKey(prod.getId(), receipt.getLoc().getId(), receipt.getLot().getId()))
-                .orElseThrow(() -> new IllegalStateException("스테이징 재고를 찾을 수 없습니다: " + prod.getProdCd()));
+                .orElseThrow(() -> new IllegalStateException("검수 재고를 찾을 수 없습니다: " + prod.getProdCd()));
         // 가용재고 기준 — 적치지시가 예약한 몫은 취소로 빼갈 수 없다.
         // 「미완료 적치지시가 있으면 차단」 특례를 따로 두지 않고 이 한 줄로 처리한다 (docs/design.md 「검수 취소」)
+        boolean rjct = RtngsLocResolver.inRtngsZon(receipt.getLoc());
         if (inv.avalQty() < qty) {
-            throw new IllegalStateException("이미 적치됐거나 적치지시가 예약한 수량이 있어 검수를 취소할 수 없습니다 (가용 "
-                    + inv.avalQty() + "): " + prod.getProdCd());
+            throw new IllegalStateException(rjct
+                    ? "보류를 해제한 뒤 취소할 수 있습니다 (가용 " + inv.avalQty() + "): " + prod.getProdCd()
+                    : "이미 적치됐거나 적치지시가 예약한 수량이 있어 검수를 취소할 수 없습니다 (가용 "
+                            + inv.avalQty() + "): " + prod.getProdCd());
         }
 
-        ibLine.cancelReceive(qty);
+        if (rjct) {
+            ibLine.cancelReject(qty);
+        } else {
+            ibLine.cancelReceive(qty);
+        }
         invStore.decrease(inv, qty, TxTyp.ADJUST,
                 InvDocRef.ofIbLine(RefDocTyp.INBOUND, order.getIbNo(), ibLine.getId()).cancelling(receipt.getId()));
     }
