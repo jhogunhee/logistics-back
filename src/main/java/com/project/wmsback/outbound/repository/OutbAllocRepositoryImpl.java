@@ -67,8 +67,9 @@ public class OutbAllocRepositoryImpl implements OutbAllocRepositoryCustom {
      *
      * <p><b>주문 쪽 검색조건은 전부 EXISTS다</b> — 상품·출고번호·점포뿐 아니라 출고예정일도 그렇다.
      * 조건을 바깥 WHERE에 붙이면 조건에 맞는 라인만 합계에 들어가 「이 웨이브의 주문수량」이 실제보다
-     * 작게 나오는데, 할당 합계는 웨이브 전체를 세므로 <b>둘의 기준이 어긋나 잔량이 틀어진다</b>.
+     * 작게 나오는데, 할당 합계는 그 조건을 모르므로 <b>둘의 기준이 어긋나 잔량이 틀어진다</b>.
      * 실행 단위가 웨이브라 합계도 웨이브 전체여야 한다 — 조건은 「어느 웨이브를 보여줄지」만 정한다.
+     * 같은 이유로 <b>출고확정 제외는 두 합계가 함께</b> 건다 — 한쪽만 빼면 그 순간 기준이 갈라진다.
      */
     @Override
     public List<AllocWaveResponse> searchTargetWaves(AllocTargetSearchCond cond) {
@@ -125,7 +126,10 @@ public class OutbAllocRepositoryImpl implements OutbAllocRepositoryCustom {
                 .from(outbAlloc)
                 .join(outbAlloc.outbLine, outbLine)
                 .join(outbLine.outbOrder, outbOrder)
-                .where(outbOrder.wave.id.in(wavIds))
+                // 주문수량 합계와 같은 모수를 봐야 한다 — 출고확정된 주문은 저쪽에서 빠지는데
+                // 그 주문의 할당 행은 확정 후에도 남으므로(삭제는 할당해제뿐), 여기서 안 빼면
+                // 할당 합계만 부풀어 섞인 웨이브의 잔량이 실제보다 작게(때로는 음수로) 나온다
+                .where(outbOrder.wave.id.in(wavIds), outbOrder.status.ne(OutbStatus.SHIPPED))
                 .groupBy(outbOrder.wave.id)
                 .fetch();
         for (Tuple row : rows) {
