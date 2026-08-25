@@ -1,20 +1,25 @@
+# 로컬 개발용 PostgreSQL. 배포는 Supabase를 쓴다.
+# 기동하면 docs/schema.sql → docs/seed-dev.sql 순으로 자동 적용된다(최초 1회, 볼륨이 비어 있을 때).
 services:
-  oracle:
-    image: gvenzl/oracle-free:23-slim
-    container_name: wms-oracle
+  postgres:
+    image: postgres:17
+    container_name: wms-postgres
     ports:
-      - "1521:1521"
+      - "5432:5432"
     environment:
-      ORACLE_PASSWORD: oracle
-      APP_USER: wms
-      APP_USER_PASSWORD: wms1234
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      # application.properties의 로컬 기본값이 빈 비밀번호라 trust로 맞춘다 (로컬 전용).
+      POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
-      - oracle-data:/opt/oracle/oradata
+      - postgres-data:/var/lib/postgresql/data
+      - ./docs/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./docs/seed-dev.sql:/docker-entrypoint-initdb.d/02-seed-dev.sql:ro
     healthcheck:
-      test: ["CMD", "healthcheck.sh"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
       timeout: 5s
       retries: 20
 
 volumes:
-  oracle-data:
+  postgres-data:

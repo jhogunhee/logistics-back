@@ -27,7 +27,7 @@ PostgreSQL(Supabase). 접속 정보는 환경변수로 받고, 로컬 기본값�
 
 SQL은 Supabase 대시보드가 아니라 **DBeaver**로 돌린다. 그래서 마이그레이션은 `BEGIN;`/`COMMIT;`으로 감싸지 않고 **전체를 `DO $tag$ … $tag$` 블록 하나로** 쓴다 — `BEGIN;`을 쓰면 실패 시 연결에 죽은 트랜잭션이 남아 이후 모든 쿼리가 `25P02`를 뱉는다.
 
-**Oracle → PostgreSQL 전환 이전 상태로 남아 있는 파일이 둘 있다** — `docker-compose.yml`(아직 Oracle)과 `README.md`의 기술 스택·실행 절차. 현재 설정과 맞지 않으니 그대로 따르면 안 된다.
+로컬 개발용 PostgreSQL은 `docker-compose.yml`로 띄울 수 있다. 최초 기동 때 `docs/schema.sql`과 `docs/seed-dev.sql`이 자동 적용된다.
 
 ## 아키텍처
 
