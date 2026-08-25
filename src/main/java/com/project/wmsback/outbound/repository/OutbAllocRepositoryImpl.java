@@ -7,6 +7,7 @@ import com.project.wmsback.outbound.dto.AllocTargetSearchCond;
 import com.project.wmsback.outbound.dto.AllocWaveResponse;
 import com.project.wmsback.outbound.entity.OutbLine;
 import com.project.wmsback.outbound.entity.OutbStatus;
+import com.project.wmsback.outbound.entity.PikngTaskStatus;
 import com.project.wmsback.warehouse.entity.LocTyp;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.OrderSpecifier;
@@ -20,8 +21,10 @@ import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static com.project.mdm.prod.entity.QProd.prod;
 import static com.project.mdm.store.entity.QStore.store;
@@ -32,6 +35,7 @@ import static com.project.wmsback.outbound.entity.QOutbAlloc.outbAlloc;
 import static com.project.wmsback.outbound.entity.QOutbLine.outbLine;
 import static com.project.wmsback.outbound.entity.QOutbOrder.outbOrder;
 import static com.project.wmsback.outbound.entity.QOutbWave.outbWave;
+import static com.project.wmsback.outbound.entity.QPikngTask.pikngTask;
 
 @RequiredArgsConstructor
 public class OutbAllocRepositoryImpl implements OutbAllocRepositoryCustom {
@@ -50,7 +54,11 @@ public class OutbAllocRepositoryImpl implements OutbAllocRepositoryCustom {
     }
 
     /**
-     * 할당 대상 웨이브 목록.
+     * 할당 대상 웨이브 목록 — <b>잔량이 남았거나, 해제 가능한 할당이 남은 웨이브.</b>
+     *
+     * <p>잔량만 보면 전량 할당(작업의 정상 종착) 순간 웨이브가 목록에서 사라져, 방금 한 할당을
+     * 확인하고 해제할 곳이 없어진다. 그래서 해제 가능한 할당이 남은 동안은 잔량 0이어도 목록에
+     * 남기고, 지시가 전부 발행되고 나면 그때 뺀다 — 그 뒤의 되돌리기는 지시취소의 일이다.
      *
      * <p><b>쿼리를 둘로 나눈다.</b> 주문수량과 할당수량을 한 번에 뽑으려면 라인과 할당을 함께
      * 조인해야 하는데, 그러면 라인이 할당 행 수만큼 불어나 {@code odr_qty} 합계가 같이 부푼다
@@ -86,15 +94,16 @@ public class OutbAllocRepositoryImpl implements OutbAllocRepositoryCustom {
 
         List<Long> wavIds = waveRows.stream().map(row -> row.get(outbWave.id)).toList();
         Map<Long, Long> alocByWave = sumAlocQtyByWaveIds(wavIds);
+        Set<Long> releasableWavIds = findReleasableWaveIds(wavIds);
 
         List<AllocWaveResponse> result = new ArrayList<>(waveRows.size());
         for (Tuple row : waveRows) {
             Long wavId = row.get(outbWave.id);
             long odrQty = orZero(row.get(outbLine.odrQty.sum()));
             long alocQty = alocByWave.getOrDefault(wavId, 0L);
-            // 잔량이 남은 웨이브만. 라인별 과할당이 막혀 있어(SUM(aloc) <= odr_qty)
+            // 잔량 판정은 합계로 충분하다 — 라인별 과할당이 막혀 있어(SUM(aloc) <= odr_qty)
             // 합계 잔량 > 0 과 「잔량 있는 라인의 존재」가 같은 뜻이 된다.
-            if (odrQty <= alocQty) {
+            if (odrQty <= alocQty && !releasableWavIds.contains(wavId)) {
                 continue;
             }
             result.add(AllocWaveResponse.of(wavId, row.get(outbWave.wavNo),
@@ -123,6 +132,35 @@ public class OutbAllocRepositoryImpl implements OutbAllocRepositoryCustom {
             map.put(row.get(outbOrder.wave.id), orZero(row.get(outbAlloc.alocQty.sum())));
         }
         return map;
+    }
+
+    /**
+     * 해제 가능한 할당이 하나라도 남은 웨이브 — 조건은 해제 가드의 거울이다:
+     * 집힌 수량이 없고({@code pikng_qty = 0}) 살아 있는 지시도 없어야 한다(취소된 지시는
+     * 세지 않는다 — 부분 유니크 {@code uq_pikng_task_alloc}와 같은 기준). 출고확정된 주문의
+     * 할당도 세지 않는다 — 그 해제는 확정을 무르는 일이라 이 화면의 몫이 아니다(대상 선별의
+     * SHIPPED 제외와 한 쌍).
+     */
+    private Set<Long> findReleasableWaveIds(List<Long> wavIds) {
+        if (wavIds.isEmpty()) {
+            return Set.of();
+        }
+        return new HashSet<>(queryFactory
+                .select(outbOrder.wave.id).distinct()
+                .from(outbAlloc)
+                .join(outbAlloc.outbLine, outbLine)
+                .join(outbLine.outbOrder, outbOrder)
+                .where(
+                        outbOrder.wave.id.in(wavIds),
+                        outbOrder.status.ne(OutbStatus.SHIPPED),
+                        outbAlloc.pikngQty.eq(0L),
+                        JPAExpressions.selectOne()
+                                .from(pikngTask)
+                                .where(pikngTask.outbAlloc.eq(outbAlloc),
+                                        pikngTask.status.ne(PikngTaskStatus.CANCELLED))
+                                .exists().not()
+                )
+                .fetch());
     }
 
     @Override
@@ -164,6 +202,15 @@ public class OutbAllocRepositoryImpl implements OutbAllocRepositoryCustom {
                 .orderBy(outbOrder.outbNo.asc(), outbLine.id.asc(), outbAlloc.id.asc())
                 .fetch();
 
+        // 살아 있는 지시가 붙은 할당 — 해제 불가 표시용. 별도 쿼리로 뽑아 메모리에서 붙인다
+        // (수량 합계와 같은 방식 — 조인하면 행이 불어난다)
+        Set<Long> liveTaskAllocIds = new HashSet<>(queryFactory
+                .select(pikngTask.outbAlloc.id)
+                .from(pikngTask)
+                .where(pikngTask.wave.id.eq(wavId),
+                        pikngTask.status.ne(PikngTaskStatus.CANCELLED))
+                .fetch());
+
         List<AllocRowResponse> result = new ArrayList<>(rows.size());
         for (Tuple row : rows) {
             result.add(new AllocRowResponse(
@@ -171,7 +218,8 @@ public class OutbAllocRepositoryImpl implements OutbAllocRepositoryCustom {
                     row.get(inv.id), row.get(inv.loc.id), row.get(inv.loc.locCd),
                     row.get(inv.lot.id), row.get(inv.lot.lotNo), row.get(inv.lot.expiryDt),
                     orZero(row.get(outbAlloc.alocQty)), orZero(row.get(outbAlloc.pikngQty)),
-                    row.get(outbAlloc.alocStgyId)));
+                    row.get(outbAlloc.alocStgyId),
+                    liveTaskAllocIds.contains(row.get(outbAlloc.id))));
         }
         return result;
     }
