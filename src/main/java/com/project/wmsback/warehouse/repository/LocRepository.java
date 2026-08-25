@@ -53,6 +53,13 @@ public interface LocRepository extends JpaRepository<Loc, Long>, LocRepositoryCu
     List<Loc> findEmptyPikngLocs(@Param("tmpZon") TmpZon tmpZon,
                                  @Param("storage") LocTyp storage, @Param("pikng") BizDvsn pikng);
 
+    /** 반품 검수의 불량 도착지 후보 — 상품 온도대와 같은 반품존의 보관 로케이션 (적치 우선순위 순) */
+    @Query("select l from Loc l join l.zon z"
+            + " where l.locTyp = :storage and z.bizDvsn = :rtngs and l.tmpZon = :tmpZon"
+            + " order by l.ptawyPrty asc, l.locCd asc")
+    List<Loc> findRtngsLocs(@Param("tmpZon") TmpZon tmpZon,
+                            @Param("storage") LocTyp storage, @Param("rtngs") BizDvsn rtngs);
+
     /** 적치 대상 로케이션 후보 (상품 온도대와 일치하는 STORAGE, 적치 우선순위 오름차순 추천) */
     List<Loc> findAllByTmpZonAndLocTypOrderByPtawyPrtyAsc(TmpZon tmpZon, LocTyp locTyp);
 }
