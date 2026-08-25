@@ -34,9 +34,8 @@ public class StrategyOptionService {
                     .map(z -> new OptionResponse(z.name(), z.getLabel())).toList();
             case "bizDvsns" -> Arrays.stream(BizDvsn.values())
                     .map(b -> new OptionResponse(b.name(), b.getLabel())).toList();
-            // 적치 전략 적용대상. 반품(RTNGS)은 스코프 아웃이라 제외 — 재도입 시 필터만 풀면 된다
+            // 적치 전략 적용대상 — 반품(RTNGS)도 양품은 적치하므로 포함
             case "odrDvsns" -> codeDetailRepository.findByGrpCdOrderBySrtSeq("ODR_DVSN").stream()
-                    .filter(c -> !"RTNGS".equals(c.getCodeCd()))
                     .map(c -> new OptionResponse(c.getCodeCd(), c.getCodeNm())).toList();
             // 웨이브 편성 조건의 기준값. 값 목록의 주인이 코드관리 화면이라 코드가 늘면 화면도 함께 늘어난다
             case "outbTyps" -> codeDetailRepository.findByGrpCdOrderBySrtSeq("OUTB_TYP").stream()
