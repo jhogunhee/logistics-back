@@ -1,6 +1,8 @@
 package com.project.wmsback.strategy.core.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.project.common.dto.PageCond;
+import com.project.common.dto.PageResponse;
 import com.project.wmsback.strategy.core.dto.ExecLogResponse;
 import com.project.wmsback.strategy.core.entity.StgyExecLog;
 import com.project.wmsback.strategy.core.entity.StgyTyp;
@@ -9,6 +11,9 @@ import com.project.wmsback.strategy.core.repository.StgyExecLogRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -61,19 +66,24 @@ public class StgyExecLogService {
     }
 
     /**
-     * 최근 실행 로그. trgrTyps가 비면 실행 기록만 본다 — 미리보기는 결과를 반영하지 않은
-     * 산정이라 「무엇이 실제로 일어났나」를 묻는 기본 화면에 섞이면 안 되고, 100건 상한을
-     * 나눠 쓰면 실행 이력이 밀려나기 때문이다. 미리보기까지 보려면 호출부가 명시한다.
+     * 최근 실행 로그 한 페이지. trgrTyps가 비면 실행 기록만 본다 — 미리보기는 결과를 반영하지 않은
+     * 산정이라 「무엇이 실제로 일어났나」를 묻는 기본 화면에 섞이면 안 된다. 미리보기까지 보려면
+     * 호출부가 명시한다.
      */
-    public List<ExecLogResponse> list(StgyTyp stgyTyp, Long stgyId, Collection<TrgrTyp> trgrTyps) {
+    public PageResponse<ExecLogResponse> list(StgyTyp stgyTyp, Long stgyId, Collection<TrgrTyp> trgrTyps,
+                                              PageCond pageCond) {
         Collection<TrgrTyp> effective = trgrTyps == null || trgrTyps.isEmpty()
                 ? EnumSet.of(TrgrTyp.MANUAL, TrgrTyp.AUTO)
                 : trgrTyps;
-        List<StgyExecLog> rows = stgyId != null
-                ? stgyExecLogRepository.findTop100ByStgyTypAndStgyIdAndTrgrTypInOrderByCreatedAtDesc(
-                        stgyTyp, stgyId, effective)
-                : stgyExecLogRepository.findTop100ByStgyTypAndTrgrTypInOrderByCreatedAtDesc(
-                        stgyTyp, effective);
-        return rows.stream().map(row -> ExecLogResponse.from(row, objectMapper)).toList();
+        // createdAt만으로는 같은 밀리초 행의 순서가 흔들려 페이지 경계에서 행이 겹치거나 빠진다
+        PageRequest pageable = PageRequest.of(pageCond.getPage() - 1, pageCond.getSize(),
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
+        Page<StgyExecLog> page = stgyId != null
+                ? stgyExecLogRepository.findByStgyTypAndStgyIdAndTrgrTypIn(stgyTyp, stgyId, effective, pageable)
+                : stgyExecLogRepository.findByStgyTypAndTrgrTypIn(stgyTyp, effective, pageable);
+        List<ExecLogResponse> rows = page.getContent().stream()
+                .map(row -> ExecLogResponse.from(row, objectMapper))
+                .toList();
+        return PageResponse.of(rows, page.getTotalElements(), pageCond);
     }
 }

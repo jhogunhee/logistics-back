@@ -1,5 +1,7 @@
 package com.project.wmsback.inventory.service;
 
+import com.project.common.dto.PageCond;
+import com.project.common.dto.PageResponse;
 import com.project.wmsback.inventory.dto.InvHldAcrstResponse;
 import com.project.wmsback.inventory.dto.InvHldAcrstSearchCond;
 import com.project.wmsback.inventory.dto.InvHldRegisterRequest;
@@ -62,12 +64,12 @@ public class InvHldService {
         return invHldRepository.search(cond);
     }
 
-    public List<InvHldAcrstResponse> listAcrst(InvHldAcrstSearchCond cond) {
-        return invHldAcrstRepository.search(cond);
+    public PageResponse<InvHldAcrstResponse> listAcrst(InvHldAcrstSearchCond cond, PageCond pageCond) {
+        return invHldAcrstRepository.search(cond, pageCond);
     }
 
-    public List<InvHldAcrstResponse> listRlzAcrst(InvHldAcrstSearchCond cond) {
-        return invHldRlzAcrstRepository.search(cond);
+    public PageResponse<InvHldAcrstResponse> listRlzAcrst(InvHldAcrstSearchCond cond, PageCond pageCond) {
+        return invHldRlzAcrstRepository.search(cond, pageCond);
     }
 
     /**
