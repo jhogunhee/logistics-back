@@ -37,6 +37,7 @@ public class InvService {
         Map<Long, LocMapQueryRepository.QtySums> qtyByLoc = locMapQueryRepository.qtySumsByLoc();
         Map<Long, Long> fxngOnHandByLoc = locMapQueryRepository.fxngOnHandByLoc();
         Map<ProdLocKey, Long> inflowByProdLoc = locCapacityService.openInflowQtyByProdLoc();
+        Map<Long, Long> inflowByLoc = locCapacityService.openInflowQtyByLoc();
 
         return locMapQueryRepository.locRows().stream()
                 .map(row -> {
@@ -52,9 +53,11 @@ public class InvService {
                         long min = row.fxngMinQty() != null ? row.fxngMinQty() : 0L;
                         fxngShort = fxngOnHand + fxngInflow < min;
                     }
+                    long inflow = inflowByLoc.getOrDefault(row.locId(), 0L);
                     return new LocMapResponse(row.locId(), row.locCd(), row.zonCd(), row.zonNm(),
                             row.bizDvsn(), row.tmpZon(), row.maxQty(),
                             sums.onHandQty(), sums.alocQty(), sums.hldQty(),
+                            inflow, locCapacityService.availCapacity(row.maxQty(), sums.onHandQty() + inflow),
                             row.fxngProdCd(), row.fxngProdNm(), row.fxngProdImgUrl(),
                             row.fxngMinQty(), fxngOnHand, fxngInflow, fxngShort);
                 })

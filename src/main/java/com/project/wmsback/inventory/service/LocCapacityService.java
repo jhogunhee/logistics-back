@@ -28,12 +28,19 @@ public class LocCapacityService {
      * STORAGE는 max_qty NOT NULL이 DB 강제이지만(ck_loc_storage_capacity) 강제 이전의 옛 행이 있을 수 있다.
      */
     public Long availCapacity(Loc loc) {
-        if (loc.getMaxQty() == null) {
+        return availCapacity(loc.getMaxQty(), locCapacityQueryRepository.onHandQty(loc.getId())
+                + locCapacityQueryRepository.openInflowQty(loc.getId()));
+    }
+
+    /**
+     * 사용량을 이미 들고 있는 쪽을 위한 같은 식 — 점유 맵처럼 로케이션 수백 건의 현재고·유입을
+     * 한 번에 집계해 둔 자리가 쓴다. 로케이션마다 {@link #availCapacity(Loc)}를 부르면 그대로 N+1이다.
+     */
+    public Long availCapacity(Long maxQty, long usedQty) {
+        if (maxQty == null) {
             return null;
         }
-        long used = locCapacityQueryRepository.onHandQty(loc.getId())
-                + locCapacityQueryRepository.openInflowQty(loc.getId());
-        return Math.max(0, loc.getMaxQty() - used);
+        return Math.max(0, maxQty - usedQty);
     }
 
     /** 로케이션별 미완료 유입 잔량. 추천이 후보 전체의 용량을 한 번에 계산할 때 쓴다 */
