@@ -212,10 +212,15 @@ public class PutawayTaskService {
                 .build()).getId();
     }
 
-    /** 목적지 검증 (생성·변경 공용) — 보관 로케이션 + 상품 온도대 일치 */
+    /** 목적지 검증 (생성·변경 공용) — 보관 로케이션 + 반품존 제외 + 상품 온도대 일치 */
     private void validateToLoc(Loc toLoc, Prod prod) {
         if (toLoc.getLocTyp() != LocTyp.STORAGE) {
             throw new IllegalArgumentException("보관 로케이션으로만 적치할 수 있습니다: " + toLoc.getLocCd());
+        }
+        // 후보 산출(PutawayService.candidateLocs · PutawayQueryRepository)은 반품존을 이미 빼는데
+        // 여기만 안 봐서 수동 지시·지시 변경으로는 들어갈 수 있었다 — 반품존은 검수만 넣는 자리다
+        if (RtngsLocResolver.inRtngsZon(toLoc)) {
+            throw new IllegalArgumentException("반품존에는 적치할 수 없습니다: " + toLoc.getLocCd());
         }
         if (toLoc.getTmpZon() != prod.getTmpZon()) {
             throw new IllegalArgumentException("온도대가 일치하지 않습니다 (상품 " + prod.getTmpZon()
