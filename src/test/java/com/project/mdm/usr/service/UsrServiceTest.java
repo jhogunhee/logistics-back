@@ -176,10 +176,24 @@ class UsrServiceTest {
         assertEquals(before, usr.getPwd());
         assertEquals("재고담당김", usr.getUsrNm());
 
-        service.saveAll(List.of(row("U", 3L, "stock", "재고담당김", "5678", List.of("INV_PIC"))));
+        service.saveAll(List.of(row("U", 3L, "stock", "재고담당김", "NewPwd!2026", List.of("INV_PIC"))));
 
         assertNotEquals(before, usr.getPwd());
-        assertTrue(passwordEncoder.matches("5678", usr.getPwd()));
+        assertTrue(passwordEncoder.matches("NewPwd!2026", usr.getPwd()));
+    }
+
+    @Test
+    @DisplayName("8자 미만 비밀번호는 신규·수정 어느 쪽으로도 저장되지 않는다 — 화면에서 1234를 다시 넣는 길을 막는다")
+    void rejectsShortPassword() {
+        when(usrRepository.findById(3L)).thenReturn(Optional.of(usr("stock", "재고담당", Role.INV_PIC)));
+
+        assertTrue(assertThrows(IllegalArgumentException.class,
+                () -> service.saveAll(List.of(row("C", null, "newbie", "신규", "1234", List.of("INQ")))))
+                .getMessage().contains("8자 이상"));
+
+        assertTrue(assertThrows(IllegalArgumentException.class,
+                () -> service.saveAll(List.of(row("U", 3L, "stock", "재고담당", "1234", List.of("INV_PIC")))))
+                .getMessage().contains("8자 이상"));
     }
 
     @Test

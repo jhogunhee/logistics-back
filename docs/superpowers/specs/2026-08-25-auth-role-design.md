@@ -44,7 +44,7 @@ CREATE TABLE usr_role (
 
 - 프로젝트 규칙대로 FK 없음 · `us_yn` 없음. 퇴사자는 삭제한다. `created_by`엔 `login_id` 문자열이 남으므로 이력은 깨지지 않는다.
 - `login_id`는 「`_id`는 PK/FK」 관례와 겹친다. 사람이 「아이디」라 부르는 값이고 사전의 `아이디 ID`가 그 뜻이라 그대로 쓴다. 사전에 `로그인 LOGIN` · `역할 ROLE` 두 단어를 추가한다.
-- 시드: `admin`(ADMR) · `center`(CENT_ADMR) · `order`(ODR_PIC) · `inbound`(IB_PIC) · `stock`(INV_PIC) · `outbound`(OUTB_PIC) · `viewer`(INQ). 비밀번호는 전부 `1234`의 BCrypt 해시 리터럴. 마이그레이션은 `docs/migration-usr.sql` — DO 블록 하나, 존재 확인으로 재실행 안전.
+- 시드: `admin`(ADMR) · `center`(CENT_ADMR) · `order`(ODR_PIC) · `inbound`(IB_PIC) · `stock`(INV_PIC) · `outbound`(OUTB_PIC) · `viewer`(INQ). 비밀번호는 전부 같은 BCrypt 해시 리터럴(초안은 `1234`였으나 크롬 유출 경고 때문에 `wms!1234`으로 교체 — `docs/migration-usr-pwd.sql`). 마이그레이션은 `docs/migration-usr.sql` — DO 블록 하나, 존재 확인으로 재실행 안전.
 
 ## 3. 백엔드
 

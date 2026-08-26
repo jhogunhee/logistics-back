@@ -11,8 +11,10 @@
 --   고쳐야 한다 — 역할이 곧 URL 접두(업무 구역)라 데이터로만 늘려도 그 접두를 아는
 --   코드가 따라 바뀌어야 하고, 그러면 두 벌을 맞추는 일만 남기 때문에 마스터로 빼지 않았다.
 --
---   시드 8명의 비밀번호는 전부 1234의 BCrypt 해시다. 운영 DB에 적용한다면 이 블록의
---   사용자 시드를 지우거나, 적용 직후 화면에서 비밀번호를 바꿀 것.
+--   시드 8명의 비밀번호는 전부 wms!1234의 BCrypt 해시다(개발용 · 레포에 공개된 값).
+--   공개 배포본이라면 적용 직후 사용자 관리 화면에서 바꿀 것 — 조회 계정(viewer)만 데모용으로
+--   남기고 나머지 7계정은 레포에 없는 값으로 둔다. 이 파일은 이미 있는 행을 갱신하지 않는다
+--   (ON CONFLICT DO NOTHING) — 옛 비밀번호를 바꾸려면 docs/migration-usr-pwd.sql 을 쓸 것.
 --
 --   실행(DBeaver): 이 파일을 열고 Alt+X (Execute script).
 --     - NOTICE 는 결과 패널의 Server Output 탭에서 볼 것
@@ -63,16 +65,16 @@ BEGIN
         RAISE NOTICE 'usr_role 테이블 이미 존재 — 건너뜀';
     END IF;
 
-    -- 2. 사용자 시드 (비밀번호는 전부 1234) --------------------------------
+    -- 2. 사용자 시드 (비밀번호는 전부 wms!1234) -------------------------
     INSERT INTO usr (login_id, usr_nm, pwd) VALUES
-        ('admin',    '시스템관리자', '$2a$10$ndeRZj62lK2QZkSiUQYXl.WwdmHIAXLu8OBmy3D6DMqw2UaWLdBSq'),
-        ('center',   '센터관리자',   '$2a$10$ndeRZj62lK2QZkSiUQYXl.WwdmHIAXLu8OBmy3D6DMqw2UaWLdBSq'),
-        ('order',    '주문담당',     '$2a$10$ndeRZj62lK2QZkSiUQYXl.WwdmHIAXLu8OBmy3D6DMqw2UaWLdBSq'),
-        ('inbound',  '입고담당',     '$2a$10$ndeRZj62lK2QZkSiUQYXl.WwdmHIAXLu8OBmy3D6DMqw2UaWLdBSq'),
-        ('stock',    '재고담당',     '$2a$10$ndeRZj62lK2QZkSiUQYXl.WwdmHIAXLu8OBmy3D6DMqw2UaWLdBSq'),
-        ('outbound', '출고담당',     '$2a$10$ndeRZj62lK2QZkSiUQYXl.WwdmHIAXLu8OBmy3D6DMqw2UaWLdBSq'),
-        ('manager',  '입고재고겸직', '$2a$10$ndeRZj62lK2QZkSiUQYXl.WwdmHIAXLu8OBmy3D6DMqw2UaWLdBSq'),
-        ('viewer',   '조회전용',     '$2a$10$ndeRZj62lK2QZkSiUQYXl.WwdmHIAXLu8OBmy3D6DMqw2UaWLdBSq')
+        ('admin',    '시스템관리자', '$2a$10$WNropDEgION6AlnCetLkMOCeJpJ0GBuruB9Buo91q9Pc/GwS7wMQG'),
+        ('center',   '센터관리자',   '$2a$10$WNropDEgION6AlnCetLkMOCeJpJ0GBuruB9Buo91q9Pc/GwS7wMQG'),
+        ('order',    '주문담당',     '$2a$10$WNropDEgION6AlnCetLkMOCeJpJ0GBuruB9Buo91q9Pc/GwS7wMQG'),
+        ('inbound',  '입고담당',     '$2a$10$WNropDEgION6AlnCetLkMOCeJpJ0GBuruB9Buo91q9Pc/GwS7wMQG'),
+        ('stock',    '재고담당',     '$2a$10$WNropDEgION6AlnCetLkMOCeJpJ0GBuruB9Buo91q9Pc/GwS7wMQG'),
+        ('outbound', '출고담당',     '$2a$10$WNropDEgION6AlnCetLkMOCeJpJ0GBuruB9Buo91q9Pc/GwS7wMQG'),
+        ('manager',  '입고재고겸직', '$2a$10$WNropDEgION6AlnCetLkMOCeJpJ0GBuruB9Buo91q9Pc/GwS7wMQG'),
+        ('viewer',   '조회전용',     '$2a$10$WNropDEgION6AlnCetLkMOCeJpJ0GBuruB9Buo91q9Pc/GwS7wMQG')
     ON CONFLICT (login_id) DO NOTHING;
 
     INSERT INTO usr_role (usr_id, role)

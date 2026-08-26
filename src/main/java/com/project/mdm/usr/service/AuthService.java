@@ -53,6 +53,7 @@ public class AuthService {
         if (request.newPwd() == null || request.newPwd().isBlank()) {
             throw new IllegalArgumentException("새 비밀번호는 필수입니다.");
         }
+        Usr.validateRawPwd(request.newPwd());
         Usr usr = usrRepository.findByLoginId(me.loginId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다: " + me.loginId()));
         if (!passwordEncoder.matches(request.curPwd(), usr.getPwd())) {

@@ -392,19 +392,13 @@
   <td class="name">로그인</td>
   <td>아이디·비밀번호로 로그인하면 <strong>세션 쿠키</strong>가 발급된다(HttpOnly라 스크립트가 못 읽는다). 새로고침 때 <code>GET /auth/me</code>로 세션이 살아 있는지 확인한다 — 쿠키를 읽을 수 없으니 로그인 여부는 서버에 묻는 수밖에 없다</td>
   <td class="st"><span class="badge done">구현</span></td>
-  <td><code>POST /auth/login</code> · <code>/auth/logout</code> · <code>pages/auth/Login.jsx</code> · <code>auth/AuthContext.jsx</code> · <code>auth/RequireAuth.jsx</code>. 데스크톱(<code>Layout</code>)과 PDA(<code>/m</code>) <strong>두 라우트 트리를 각각</strong> 감싼다 — 하나만 감싸면 나머지가 무인증으로 남는다. 로그인 실패는 400이다(401이면 인터셉터가 이 화면으로 되돌려 사유가 묻힌다). <strong>CSRF 토큰은 응답 본문으로 받아 메모리에 두고</strong> 저장 요청에 <code>X-XSRF-TOKEN</code>으로 붙인다 — 백엔드가 다른 도메인이라 쿠키 방식으로는 읽지 못한다</td>
+  <td><code>POST /auth/login</code> · <code>/auth/logout</code> · <code>pages/auth/Login.jsx</code> · <code>auth/AuthContext.jsx</code> · <code>auth/RequireAuth.jsx</code>. 데스크톱(<code>Layout</code>)과 PDA(<code>/m</code>) <strong>두 라우트 트리를 각각</strong> 감싼다 — 하나만 감싸면 나머지가 무인증으로 남는다. 로그인 실패는 400이다(401이면 인터셉터가 이 화면으로 되돌려 사유가 묻힌다). <strong>CSRF 토큰은 응답 본문으로 받아 메모리에 두고</strong> 저장 요청에 <code>X-CSRF-TOKEN</code>으로 붙인다 — 백엔드가 다른 도메인이라 쿠키 방식으로는 읽지 못한다. <strong>헤더 이름을 바꾸면 전 저장 요청이 403</strong>이 되므로 <code>SecurityRulesTest.writeWithCsrfHeaderPasses</code>가 이름을 리터럴로 고정하고 있다(세션 저장소 기본값이 <code>X-CSRF-TOKEN</code>, 쿠키 저장소였다면 <code>X-XSRF-TOKEN</code>이다)</td>
 </tr>
 <tr>
   <td class="name">대시보드</td>
   <td>오늘 입고예정 / 미적치 / 미출고 건수, 재고 회전, 유통기한 임박 Lot</td>
   <td class="st">높음</td>
   <td>설계 문서 진행순서 5번</td>
-</tr>
-<tr>
-  <td class="name">로그인 / 권한</td>
-  <td>인증 + 메뉴 권한</td>
-  <td class="st">중간</td>
-  <td>현재 인증 없음. 포트폴리오용으로 권장</td>
 </tr>
 </tbody>
 </table>

@@ -42,6 +42,7 @@ public class UsrSaveRequest {
         if (pwd == null || pwd.isBlank()) {
             throw new IllegalArgumentException("신규 사용자는 비밀번호가 필수입니다.");
         }
+        Usr.validateRawPwd(pwd);
         return Usr.builder()
                 .loginId(loginId.trim())
                 .usrNm(usrNm)
@@ -53,7 +54,9 @@ public class UsrSaveRequest {
     public void updateEntity(Usr usr, PasswordEncoder passwordEncoder) {
         validateFields();
         usr.update(usrNm, toRoles());
+        // 빈 값은 「바꾸지 않는다」는 뜻이라 통과시킨다 — 값이 들어온 경우에만 규칙을 본다
         if (pwd != null && !pwd.isBlank()) {
+            Usr.validateRawPwd(pwd);
             usr.changePwd(passwordEncoder.encode(pwd));
         }
     }

@@ -262,18 +262,21 @@ VALUES ('ST-0004', '한마음마트 일산점', 'HANMAUM', 'MART', 40) ON CONFLI
 INSERT INTO store (store_cd, store_nm, store_grp, store_typ, outb_life_rate)
 VALUES ('ST-0005', '행복급식센터', 'HAENGBOK', 'FDSVC', 30) ON CONFLICT (store_cd) DO NOTHING;
 
--- 사용자 — 역할별로 한 명씩. 비밀번호는 전부 1234 (같은 BCrypt 해시를 공유한다 — 개발용).
+-- 사용자 — 역할별로 한 명씩. 비밀번호는 전부 wms!1234 (같은 BCrypt 해시를 공유한다 — 개발용).
+-- 1234에서 바꾼 이유는 크롬이 유출 목록에 있는 비밀번호를 경고하기 때문이다. 값이 흔한가가
+-- 아니라 유출된 적 있는가가 기준이라, 복잡도를 올리는 게 아니라 안 쓰이던 문자열로 바꿔야 한다.
+-- 공개 배포본은 이 값을 그대로 두지 말 것 — 조회 계정(viewer)만 남기고 나머지는 화면에서 바꾼다.
 -- 아이디는 채번 대상이 아니다(사람이 정한다). manager는 입고+재고 겸직 예시로, 다중 역할이
 -- 실제로 도는지 시드만으로 확인할 수 있게 넣었다.
 INSERT INTO usr (login_id, usr_nm, pwd) VALUES
-    ('admin',    '시스템관리자', '$2a$10$ndeRZj62lK2QZkSiUQYXl.WwdmHIAXLu8OBmy3D6DMqw2UaWLdBSq'),
-    ('center',   '센터관리자',   '$2a$10$ndeRZj62lK2QZkSiUQYXl.WwdmHIAXLu8OBmy3D6DMqw2UaWLdBSq'),
-    ('order',    '주문담당',     '$2a$10$ndeRZj62lK2QZkSiUQYXl.WwdmHIAXLu8OBmy3D6DMqw2UaWLdBSq'),
-    ('inbound',  '입고담당',     '$2a$10$ndeRZj62lK2QZkSiUQYXl.WwdmHIAXLu8OBmy3D6DMqw2UaWLdBSq'),
-    ('stock',    '재고담당',     '$2a$10$ndeRZj62lK2QZkSiUQYXl.WwdmHIAXLu8OBmy3D6DMqw2UaWLdBSq'),
-    ('outbound', '출고담당',     '$2a$10$ndeRZj62lK2QZkSiUQYXl.WwdmHIAXLu8OBmy3D6DMqw2UaWLdBSq'),
-    ('manager',  '입고재고겸직', '$2a$10$ndeRZj62lK2QZkSiUQYXl.WwdmHIAXLu8OBmy3D6DMqw2UaWLdBSq'),
-    ('viewer',   '조회전용',     '$2a$10$ndeRZj62lK2QZkSiUQYXl.WwdmHIAXLu8OBmy3D6DMqw2UaWLdBSq')
+    ('admin',    '시스템관리자', '$2a$10$WNropDEgION6AlnCetLkMOCeJpJ0GBuruB9Buo91q9Pc/GwS7wMQG'),
+    ('center',   '센터관리자',   '$2a$10$WNropDEgION6AlnCetLkMOCeJpJ0GBuruB9Buo91q9Pc/GwS7wMQG'),
+    ('order',    '주문담당',     '$2a$10$WNropDEgION6AlnCetLkMOCeJpJ0GBuruB9Buo91q9Pc/GwS7wMQG'),
+    ('inbound',  '입고담당',     '$2a$10$WNropDEgION6AlnCetLkMOCeJpJ0GBuruB9Buo91q9Pc/GwS7wMQG'),
+    ('stock',    '재고담당',     '$2a$10$WNropDEgION6AlnCetLkMOCeJpJ0GBuruB9Buo91q9Pc/GwS7wMQG'),
+    ('outbound', '출고담당',     '$2a$10$WNropDEgION6AlnCetLkMOCeJpJ0GBuruB9Buo91q9Pc/GwS7wMQG'),
+    ('manager',  '입고재고겸직', '$2a$10$WNropDEgION6AlnCetLkMOCeJpJ0GBuruB9Buo91q9Pc/GwS7wMQG'),
+    ('viewer',   '조회전용',     '$2a$10$WNropDEgION6AlnCetLkMOCeJpJ0GBuruB9Buo91q9Pc/GwS7wMQG')
 ON CONFLICT (login_id) DO NOTHING;
 
 INSERT INTO usr_role (usr_id, role)

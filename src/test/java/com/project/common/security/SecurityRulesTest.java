@@ -8,6 +8,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.mock.web.MockHttpSession;
+import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -50,7 +52,8 @@ class SecurityRulesTest {
     static class ProbeController {
         @GetMapping("/health") void health() {}
         @PostMapping("/auth/login") void login() {}
-        @GetMapping("/auth/me") void me() {}
+        // 실제 AuthController.me와 같이 CSRF 토큰을 돌려준다 — 프론트가 이 값을 헤더로 되던진다
+        @GetMapping("/auth/me") String me(CsrfToken token) { return token.getToken(); }
         @GetMapping("/master/vendors") void vendorList() {}
         @PostMapping("/master/vendors/bulk") void vendorSave() {}
         @GetMapping("/master/usrs") void usrList() {}
@@ -94,6 +97,24 @@ class SecurityRulesTest {
     void writeWithoutCsrfIsForbidden() throws Exception {
         mvc.perform(post("/inbound/receivings").with(user("tester").roles("IB_PIC")))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("저장 요청은 X-CSRF-TOKEN 헤더로 통과한다 — 이름이 바뀌면 프론트의 전 저장이 403이 된다")
+    void writeWithCsrfHeaderPasses() throws Exception {
+        MockHttpSession session = new MockHttpSession();
+
+        // 토큰은 세션 저장소에 있다. /auth/me가 그 값을 본문으로 주고, 프론트는 그걸 헤더에 싣는다
+        String token = mvc.perform(get("/auth/me").session(session).with(user("tester").roles("IB_PIC")))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        // 헤더 이름을 리터럴로 박는 것이 이 테스트의 전부다 — .with(csrf())는 서버 설정에서 방식을
+        // 읽어 알아서 넣어주므로 이름이 어긋나도 통과한다(실제로 X-XSRF-TOKEN 오기를 못 잡았다)
+        mvc.perform(post("/inbound/receivings").session(session)
+                        .with(user("tester").roles("IB_PIC"))
+                        .header("X-CSRF-TOKEN", token))
+                .andExpect(status().isOk());
     }
 
     @Test

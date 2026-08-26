@@ -33,6 +33,8 @@ import java.util.Set;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Usr extends BaseEntity {
 
+    public static final int MIN_PWD_LENGTH = 8;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "usr_id")
@@ -80,6 +82,20 @@ public class Usr extends BaseEntity {
 
     public void changePwd(String encodedPwd) {
         this.pwd = encodedPwd;
+    }
+
+    /**
+     * 비밀번호 규칙. 저장 경로가 둘이라(관리자의 사용자 저장 · 본인의 비밀번호 변경) 한 자리에 둔다 —
+     * 한쪽에만 걸면 나머지로 샌다.
+     *
+     * <p>길이만 본다. 복잡도 규칙을 더하지 않는 이유는 크롬이 경고하는 기준이 복잡도가 아니라
+     * 「유출된 적 있는가」여서다 — 규칙을 늘려도 흔한 비밀번호를 막지 못한다.
+     * 시드는 해시를 직접 INSERT하므로 이 검사를 타지 않는다.
+     */
+    public static void validateRawPwd(String rawPwd) {
+        if (rawPwd == null || rawPwd.length() < MIN_PWD_LENGTH) {
+            throw new IllegalArgumentException("비밀번호는 " + MIN_PWD_LENGTH + "자 이상이어야 합니다.");
+        }
     }
 
     public boolean hasRole(Role role) {
