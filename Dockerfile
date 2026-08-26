@@ -15,7 +15,7 @@ WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 
 # Render free 인스턴스(512MB)에서 힙이 컨테이너 한도를 넘지 않도록 제한
-ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75.0"
+ENV JAVA_TOOL_OPTIONS="-Xmx256m -XX:MaxMetaspaceSize=128m -XX:ReservedCodeCacheSize=48m -Xss512k"
 
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]
