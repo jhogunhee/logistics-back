@@ -425,6 +425,44 @@ CREATE TABLE usr_role (
 COMMENT ON TABLE  usr_role IS '사용자 역할 (사용자당 다건)';
 COMMENT ON COLUMN usr_role.role IS 'ADMR 시스템관리자 / CENT_ADMR 센터관리자 / *_PIC 업무담당 / INQ 조회';
 
+-- ---------------------------------------------------------------------
+-- 세션 저장소 (spring-session-jdbc)
+--
+--   ▣ 이 두 테이블만 예외다 — 컬럼 구성도 이름도 라이브러리가 정하고, 아래 FK 하나가
+--     이 스키마의 유일한 FK다. 그래서 「이름은 약어 사전을 따른다」·「FK를 두지 않는다」
+--     두 규칙 밖에 있다. 우리가 읽고 쓰는 테이블이 아니라 프레임워크의 것이라 그대로 둔다.
+--     FK를 지우면 세션 만료 정리(DELETE FROM spring_session)가 속성 행을 남겨 쓰레기가 쌓인다.
+--
+--   생성은 애플리케이션에 맡기지 않는다 (spring.session.jdbc.initialize-schema=never) —
+--   스키마의 주인은 이 파일 하나다.
+-- ---------------------------------------------------------------------
+CREATE TABLE spring_session (
+    primary_id            CHAR(36)     NOT NULL,
+    session_id            CHAR(36)     NOT NULL,
+    creation_time         BIGINT       NOT NULL,
+    last_access_time      BIGINT       NOT NULL,
+    max_inactive_interval INT          NOT NULL,
+    expiry_time           BIGINT       NOT NULL,
+    principal_name        VARCHAR(100),
+    CONSTRAINT spring_session_pk PRIMARY KEY (primary_id)
+);
+
+CREATE UNIQUE INDEX spring_session_ix1 ON spring_session (session_id);
+CREATE INDEX spring_session_ix2 ON spring_session (expiry_time);
+CREATE INDEX spring_session_ix3 ON spring_session (principal_name);
+
+CREATE TABLE spring_session_attributes (
+    session_primary_id CHAR(36)     NOT NULL,
+    attribute_name     VARCHAR(200) NOT NULL,
+    attribute_bytes    BYTEA        NOT NULL,
+    CONSTRAINT spring_session_attributes_pk PRIMARY KEY (session_primary_id, attribute_name),
+    CONSTRAINT spring_session_attributes_fk FOREIGN KEY (session_primary_id)
+        REFERENCES spring_session (primary_id) ON DELETE CASCADE
+);
+
+COMMENT ON TABLE  spring_session IS '로그인 세션 (spring-session-jdbc 소유)';
+COMMENT ON COLUMN spring_session.principal_name IS '로그인 아이디. 역할이 바뀐 사용자의 세션을 찾아 끊는 축';
+
 -- 공통코드 시드 (참조 데이터 — 테이블 정의와 한 몸이므로 여기서 함께 관리)
 INSERT INTO code_group (grp_cd, grp_nm, dscr) VALUES
     ('TEMP_ZONE', '온도대', '보관 온도 구분 (상품/로케이션 공용)');

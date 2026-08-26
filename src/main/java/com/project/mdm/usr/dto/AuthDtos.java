@@ -11,10 +11,14 @@ public final class AuthDtos {
     public record LoginRequest(String loginId, String pwd) {
     }
 
-    public record LoginResponse(String token, String loginId, String usrNm, List<String> roles) {
+    /**
+     * 인증 자체는 세션 쿠키가 나른다. 본문의 {@code csrfToken}은 이후 저장 요청에 헤더로 붙일
+     * 값이다 — 프론트가 백엔드와 다른 도메인이라 쿠키 방식 CSRF 토큰을 읽지 못해 본문으로 준다.
+     */
+    public record LoginResponse(String loginId, String usrNm, List<String> roles, String csrfToken) {
     }
 
-    public record MeResponse(String loginId, String usrNm, List<String> roles) {
+    public record MeResponse(String loginId, String usrNm, List<String> roles, String csrfToken) {
     }
 
     public record PwdChangeRequest(String curPwd, String newPwd) {

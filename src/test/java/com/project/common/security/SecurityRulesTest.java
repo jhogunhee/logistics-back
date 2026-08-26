@@ -14,8 +14,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -28,16 +28,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * DB를 올리지 않으려고 {@code @WebMvcTest} 슬라이스를 쓴다 — {@code @SpringBootTest}는
  * DataSource와 EntityManagerFactory를 올려 Supabase 접속을 요구한다.
  * <p>
- * {@code /health}와 preflight 케이스는 회귀 방지용이다. 둘 다 「인증을 켠 순간 로그인 화면에조차
- * 못 간다」로 이어지는 자리라, 규칙을 손볼 때 먼저 깨져야 한다.
+ * {@code /health} · preflight · CSRF 케이스는 회귀 방지용이다. 셋 다 「인증을 켠 순간 화면이
+ * 안 돈다」거나 「켰는데 안 막힌다」로 이어지는 자리라, 규칙을 손볼 때 먼저 깨져야 한다.
  */
 @WebMvcTest(controllers = SecurityRulesTest.ProbeController.class)
-@Import({SecurityConfig.class, JwtTokenProvider.class, CorsConfig.class, SecurityRulesTest.ProbeController.class})
-@TestPropertySource(properties = {
-        "jwt.secret=wms-test-secret-key-32-bytes-or-longer!",
-        "jwt.expiry-hours=12",
-        "cors.allowed-origins=http://localhost:5173"
-})
+@Import({SecurityConfig.class, CorsConfig.class, SecurityRulesTest.ProbeController.class})
+@TestPropertySource(properties = "cors.allowed-origins=http://localhost:5173")
 class SecurityRulesTest {
 
     /**
@@ -65,26 +61,21 @@ class SecurityRulesTest {
     }
 
     @Autowired MockMvc mvc;
-    @Autowired JwtTokenProvider tokenProvider;
-
-    private String token(String... roles) {
-        return "Bearer " + tokenProvider.issue(new AuthUser("tester", "테스터", List.of(roles)));
-    }
 
     @Test
-    @DisplayName("/health는 토큰 없이 열려 있다 — 프론트 기동 대기 게이트와 슬립 방지 크론이 로그인 전에 부른다")
+    @DisplayName("/health는 로그인 없이 열려 있다 — 프론트 기동 대기 게이트와 슬립 방지 크론이 로그인 전에 부른다")
     void healthIsOpen() throws Exception {
         mvc.perform(get("/health")).andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("로그인은 토큰 없이 열려 있다")
+    @DisplayName("로그인은 세션도 CSRF 토큰도 없이 열려 있다 — 둘 다 로그인이 만들어 주는 것이다")
     void loginIsOpen() throws Exception {
         mvc.perform(post("/auth/login")).andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("CORS preflight(OPTIONS)는 토큰 없이 통과한다 — 막히면 모든 비GET이 브라우저에서 CORS 오류가 된다")
+    @DisplayName("CORS preflight(OPTIONS)는 로그인 없이 통과한다 — 막히면 모든 비GET이 브라우저에서 CORS 오류가 된다")
     void preflightPasses() throws Exception {
         mvc.perform(options("/master/vendors")
                         .header("Origin", "http://localhost:5173")
@@ -93,63 +84,70 @@ class SecurityRulesTest {
     }
 
     @Test
-    @DisplayName("토큰이 없으면 401이다")
-    void noTokenIsUnauthorized() throws Exception {
+    @DisplayName("로그인하지 않으면 401이다")
+    void anonymousIsUnauthorized() throws Exception {
         mvc.perform(get("/master/vendors")).andExpect(status().isUnauthorized());
     }
 
     @Test
-    @DisplayName("깨진 토큰도 401이다 — 필터는 통과시키고 인가가 거절한다")
-    void brokenTokenIsUnauthorized() throws Exception {
-        mvc.perform(get("/master/vendors").header("Authorization", "Bearer not-a-token"))
-                .andExpect(status().isUnauthorized());
+    @DisplayName("CSRF 토큰이 없는 저장 요청은 로그인했어도 막힌다 — 쿠키 인증의 전제")
+    void writeWithoutCsrfIsForbidden() throws Exception {
+        mvc.perform(post("/inbound/receivings").with(user("tester").roles("IB_PIC")))
+                .andExpect(status().isForbidden());
     }
 
     @Test
     @DisplayName("조회 역할은 모든 GET을 볼 수 있다")
     void inqCanRead() throws Exception {
-        mvc.perform(get("/master/vendors").header("Authorization", token("INQ")))
+        mvc.perform(get("/master/vendors").with(user("tester").roles("INQ")))
                 .andExpect(status().isOk());
     }
 
     @Test
     @DisplayName("조회 역할은 저장을 못 한다")
     void inqCannotWrite() throws Exception {
-        mvc.perform(post("/master/vendors/bulk").header("Authorization", token("INQ")))
+        mvc.perform(post("/master/vendors/bulk").with(user("tester").roles("INQ")).with(csrf()))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     @DisplayName("입고담당은 /inbound 저장이 되고 /outbound 저장은 안 된다")
     void ibPicIsScopedToInbound() throws Exception {
-        mvc.perform(post("/inbound/receivings").header("Authorization", token("IB_PIC")))
+        mvc.perform(post("/inbound/receivings").with(user("tester").roles("IB_PIC")).with(csrf()))
                 .andExpect(status().isOk());
-        mvc.perform(post("/outbound/waves").header("Authorization", token("IB_PIC")))
+        mvc.perform(post("/outbound/waves").with(user("tester").roles("IB_PIC")).with(csrf()))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("여러 역할을 가지면 그중 하나만 맞아도 통과한다 (입고+재고 겸직)")
+    void multipleRolesPassIfAnyMatches() throws Exception {
+        mvc.perform(post("/inbound/receivings").with(user("manager").roles("IB_PIC", "INV_PIC")).with(csrf()))
+                .andExpect(status().isOk());
     }
 
     @Test
     @DisplayName("사용자 관리는 조회도 시스템관리자만이다")
     void usrMasterIsAdmrOnly() throws Exception {
-        mvc.perform(get("/master/usrs").header("Authorization", token("INQ")))
+        mvc.perform(get("/master/usrs").with(user("tester").roles("INQ")))
                 .andExpect(status().isForbidden());
-        mvc.perform(get("/master/usrs").header("Authorization", token("ADMR")))
+        mvc.perform(get("/master/usrs").with(user("tester").roles("ADMR")))
                 .andExpect(status().isOk());
-        mvc.perform(post("/master/usrs/bulk").header("Authorization", token("ADMR")))
+        mvc.perform(post("/master/usrs/bulk").with(user("tester").roles("ADMR")).with(csrf()))
                 .andExpect(status().isOk());
     }
 
     @Test
     @DisplayName("센터관리자는 전략을 만지지만 마스터는 못 만진다")
     void centAdmrCannotTouchMaster() throws Exception {
-        mvc.perform(post("/master/vendors/bulk").header("Authorization", token("CENT_ADMR")))
+        mvc.perform(post("/master/vendors/bulk").with(user("tester").roles("CENT_ADMR")).with(csrf()))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     @DisplayName("규칙표에 없는 접두의 비GET은 관리자라도 막힌다 (denyAll) — 새 컨트롤러가 접두를 어기면 여기서 걸린다")
     void unlistedPrefixIsDenied() throws Exception {
-        mvc.perform(post("/nowhere").header("Authorization", token("ADMR")))
+        mvc.perform(post("/nowhere").with(user("tester").roles("ADMR")).with(csrf()))
                 .andExpect(status().isForbidden());
     }
 }

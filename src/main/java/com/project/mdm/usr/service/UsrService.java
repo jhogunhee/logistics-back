@@ -9,10 +9,13 @@ import com.project.mdm.usr.entity.Usr;
 import com.project.mdm.usr.repository.UsrRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.session.FindByIndexNameSessionRepository;
+import org.springframework.session.Session;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -21,6 +24,8 @@ public class UsrService {
 
     private final UsrRepository usrRepository;
     private final PasswordEncoder passwordEncoder;
+    /** 역할이 바뀐 사용자를 즉시 내보내는 창구. 세션 저장소가 DB라 다른 인스턴스의 세션도 같이 끊긴다 */
+    private final FindByIndexNameSessionRepository<? extends Session> sessionRepository;
 
     public List<UsrResponse> list(UsrSearchCond cond) {
         return usrRepository.search(cond).stream()
@@ -53,10 +58,18 @@ public class UsrService {
 
     private void update(UsrSaveRequest row) {
         Usr usr = find(row.getUsrId());
-        if (usr.hasRole(Role.ADMR) && !row.toRoles().contains(Role.ADMR)) {
+        Set<Role> before = Set.copyOf(usr.getRoles());
+        Set<Role> after = row.toRoles();
+        if (before.contains(Role.ADMR) && !after.contains(Role.ADMR)) {
             requireNotLastAdmr("역할을 해제할 수 없습니다");
         }
         row.updateEntity(usr, passwordEncoder);
+
+        // 역할이 바뀌면 그 사람의 세션을 끊는다 — 세션에 실린 권한은 로그인 시점 것이라,
+        // 끊지 않으면 관리자가 방금 뺏은 권한으로 계속 돈다(다시 로그인하면 새 역할로 들어온다)
+        if (!before.equals(after)) {
+            expireSessionsOf(usr.getLoginId());
+        }
     }
 
     private void delete(UsrSaveRequest row) {
@@ -70,6 +83,7 @@ public class UsrService {
             requireNotLastAdmr("삭제할 수 없습니다");
         }
         usrRepository.delete(usr);
+        expireSessionsOf(usr.getLoginId());
     }
 
     /** 시스템관리자가 0명이 되면 사용자 관리 화면 자체에 들어갈 수 없다 — 마지막 한 명은 남긴다 */
@@ -77,6 +91,11 @@ public class UsrService {
         if (usrRepository.countByRole(Role.ADMR) <= 1) {
             throw new IllegalArgumentException("마지막 시스템관리자입니다 — " + action + ".");
         }
+    }
+
+    private void expireSessionsOf(String loginId) {
+        sessionRepository.findByPrincipalName(loginId).keySet()
+                .forEach(sessionRepository::deleteById);
     }
 
     private Usr find(Long usrId) {

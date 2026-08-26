@@ -18,8 +18,11 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.session.FindByIndexNameSessionRepository;
+import org.springframework.session.Session;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -27,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -43,13 +47,14 @@ import static org.mockito.Mockito.when;
 class UsrServiceTest {
 
     @Mock UsrRepository usrRepository;
+    @Mock FindByIndexNameSessionRepository<Session> sessionRepository;
 
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private UsrService service;
 
     @BeforeEach
     void setUp() {
-        service = new UsrService(usrRepository, passwordEncoder);
+        service = new UsrService(usrRepository, passwordEncoder, sessionRepository);
     }
 
     @AfterEach
@@ -118,6 +123,45 @@ class UsrServiceTest {
         service.saveAll(List.of(row("U", 2L, "admin2", "부관리자", null, List.of("INQ"))));
 
         assertEquals(Set.of(Role.INQ), usr.getRoles());
+    }
+
+    @Test
+    @DisplayName("역할이 바뀌면 그 사람의 세션을 끊는다 — 안 끊으면 방금 뺏은 권한으로 계속 돈다")
+    void roleChangeExpiresSessions() {
+        Usr usr = usr("admin2", "부관리자", Role.ADMR);
+        when(usrRepository.findById(2L)).thenReturn(Optional.of(usr));
+        when(usrRepository.countByRole(Role.ADMR)).thenReturn(2L);
+        when(sessionRepository.findByPrincipalName("admin2"))
+                .thenReturn(Map.of("sess-1", mock(Session.class), "sess-2", mock(Session.class)));
+
+        service.saveAll(List.of(row("U", 2L, "admin2", "부관리자", null, List.of("INQ"))));
+
+        verify(sessionRepository).deleteById("sess-1");
+        verify(sessionRepository).deleteById("sess-2");
+    }
+
+    @Test
+    @DisplayName("역할이 그대로면 세션은 건드리지 않는다 — 이름만 고쳤다고 내보낼 이유가 없다")
+    void nameOnlyChangeKeepsSessions() {
+        Usr usr = usr("stock", "재고담당", Role.INV_PIC);
+        when(usrRepository.findById(3L)).thenReturn(Optional.of(usr));
+
+        service.saveAll(List.of(row("U", 3L, "stock", "재고담당김", null, List.of("INV_PIC"))));
+
+        verify(sessionRepository, never()).findByPrincipalName(org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    @DisplayName("삭제된 사용자의 세션도 끊는다 — 계정이 없는데 세션이 살아 있으면 안 된다")
+    void deleteExpiresSessions() {
+        Usr usr = usr("viewer", "조회전용", Role.INQ);
+        when(usrRepository.findById(9L)).thenReturn(Optional.of(usr));
+        when(sessionRepository.findByPrincipalName("viewer")).thenReturn(Map.of("sess-9", mock(Session.class)));
+
+        service.saveAll(List.of(row("D", 9L, "viewer", "조회전용", null, List.of("INQ"))));
+
+        verify(usrRepository).delete(usr);
+        verify(sessionRepository).deleteById("sess-9");
     }
 
     @Test

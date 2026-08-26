@@ -371,7 +371,7 @@
   <td class="name">사용자 관리</td>
   <td>로그인 계정 그리드 편집(아이디·사용자명·역할 다중선택·비밀번호). 아이디는 신규 행에서만 입력받고, 비밀번호는 <strong>입력한 경우에만</strong> 초기화된다(빈 값 = 유지)</td>
   <td class="st"><span class="badge done">구현</span></td>
-  <td><code>/master/usrs</code>, <code>/bulk</code> · <code>pages/master/UsrMaster.jsx</code>(프론트 라우트는 <code>/master/usr</code>). <strong>조회까지 시스템관리자만</strong>이라 사이드바에서도 ADMR에게만 보인다. 서버 가드 셋 — 아이디 중복 · 자기 자신 삭제 · <strong>마지막 시스템관리자의 삭제·역할 해제</strong>. 역할 목록은 마스터가 아니라 <code>Role</code> enum + <code>ck_usr_role</code> CHECK다(<code>docs/design.md</code> 「인증과 역할」)</td>
+  <td><code>/master/usrs</code>, <code>/bulk</code> · <code>pages/master/UsrMaster.jsx</code>(프론트 라우트는 <code>/master/usr</code>). <strong>조회까지 시스템관리자만</strong>이라 사이드바에서도 ADMR에게만 보인다. 서버 가드 셋 — 아이디 중복 · 자기 자신 삭제 · <strong>마지막 시스템관리자의 삭제·역할 해제</strong>. <strong>역할을 바꾸거나 계정을 지우면 그 사용자의 세션이 즉시 끊긴다</strong> — 세션에 실린 권한은 로그인 시점 것이라 끊지 않으면 방금 뺏은 권한으로 계속 돈다(다시 로그인하면 새 역할로 들어온다). 역할 목록은 마스터가 아니라 <code>Role</code> enum + <code>ck_usr_role</code> CHECK다(<code>docs/design.md</code> 「인증과 역할」)</td>
 </tr>
 </tbody>
 </table>
@@ -384,9 +384,9 @@
 <tbody>
 <tr>
   <td class="name">로그인</td>
-  <td>아이디·비밀번호로 로그인해 JWT를 받는다. 토큰과 <code>{loginId, usrNm, roles}</code>를 <code>localStorage</code>에 두고, 새로고침 때 <code>GET /auth/me</code>로 유효성을 다시 확인한다</td>
+  <td>아이디·비밀번호로 로그인하면 <strong>세션 쿠키</strong>가 발급된다(HttpOnly라 스크립트가 못 읽는다). 새로고침 때 <code>GET /auth/me</code>로 세션이 살아 있는지 확인한다 — 쿠키를 읽을 수 없으니 로그인 여부는 서버에 묻는 수밖에 없다</td>
   <td class="st"><span class="badge done">구현</span></td>
-  <td><code>POST /auth/login</code> · <code>pages/auth/Login.jsx</code> · <code>auth/AuthContext.jsx</code> · <code>auth/RequireAuth.jsx</code>. 데스크톱(<code>Layout</code>)과 PDA(<code>/m</code>) <strong>두 라우트 트리를 각각</strong> 감싼다 — 하나만 감싸면 나머지가 무인증으로 남는다. 로그인 실패는 400이다(401이면 인터셉터가 이 화면으로 되돌려 사유가 묻힌다)</td>
+  <td><code>POST /auth/login</code> · <code>/auth/logout</code> · <code>pages/auth/Login.jsx</code> · <code>auth/AuthContext.jsx</code> · <code>auth/RequireAuth.jsx</code>. 데스크톱(<code>Layout</code>)과 PDA(<code>/m</code>) <strong>두 라우트 트리를 각각</strong> 감싼다 — 하나만 감싸면 나머지가 무인증으로 남는다. 로그인 실패는 400이다(401이면 인터셉터가 이 화면으로 되돌려 사유가 묻힌다). <strong>CSRF 토큰은 응답 본문으로 받아 메모리에 두고</strong> 저장 요청에 <code>X-XSRF-TOKEN</code>으로 붙인다 — 백엔드가 다른 도메인이라 쿠키 방식으로는 읽지 못한다</td>
 </tr>
 <tr>
   <td class="name">대시보드</td>

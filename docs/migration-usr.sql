@@ -16,8 +16,9 @@
 --
 --   실행(DBeaver): 이 파일을 열고 Alt+X (Execute script).
 --     - NOTICE 는 결과 패널의 Server Output 탭에서 볼 것
+--     - 세션 테이블은 여기 없다 — docs/migration-session.sql 을 이어서 적용할 것.
 --     - 이 스크립트를 적용하는 배포에는 애플리케이션 코드 변경(SecurityConfig 규칙,
---       JwtAuthFilter, AuditorAware)도 같이 나가야 한다. 반대로 코드가 먼저 나가면
+--       세션 로그인, AuditorAware)도 같이 나가야 한다. 반대로 코드가 먼저 나가면
 --       로그인 자체가 불가능해 전 화면이 401이 된다.
 -- =====================================================================
 
