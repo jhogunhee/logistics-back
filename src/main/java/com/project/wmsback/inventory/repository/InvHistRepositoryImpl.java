@@ -1,5 +1,7 @@
 package com.project.wmsback.inventory.repository;
 
+import com.project.common.dto.PageCond;
+import com.project.common.dto.PageResponse;
 import com.project.wmsback.inventory.dto.InvHistResponse;
 import com.project.wmsback.inventory.dto.InvHistSearchCond;
 import com.project.wmsback.inventory.entity.InvHist;
@@ -50,12 +52,12 @@ public class InvHistRepositoryImpl implements InvHistRepositoryCustom {
     }
 
     @Override
-    public List<InvHistResponse> search(InvHistSearchCond cond) {
+    public PageResponse<InvHistResponse> search(InvHistSearchCond cond, PageCond pageCond) {
         // MOVE는 from_loc/to_loc가 양쪽 다리 모두에 채워져 있어 조인만 붙이면 된다 (상대 건을 다시 찾을 필요 없음)
         QLoc fromLocAlias = new QLoc("fromLocAlias");
         QLoc toLocAlias = new QLoc("toLocAlias");
 
-        return queryFactory
+        List<InvHistResponse> rows = queryFactory
                 .select(Projections.constructor(InvHistResponse.class,
                         invHist.id, invHist.txTyp,
                         prod.prodCd, prod.prodNm,
@@ -72,18 +74,38 @@ public class InvHistRepositoryImpl implements InvHistRepositoryCustom {
                 // from_loc_id/to_loc_id는 FK 없는 느슨한 참조라 연관관계 조인이 아니라 값으로 직접 붙인다
                 .leftJoin(fromLocAlias).on(fromLocAlias.id.eq(invHist.fromLocId))
                 .leftJoin(toLocAlias).on(toLocAlias.id.eq(invHist.toLocId))
-                .where(
-                        prodCdContains(cond.getProdCd()),
-                        prodNmContains(cond.getProdNm()),
-                        locCdContains(cond.getLocCd()),
-                        lotNoContains(cond.getLotNo()),
-                        txTypEq(cond.getTxTyp()),
-                        rfnDocNoContains(cond.getRfnDocNo()),
-                        createdAtGoe(cond.getDateFrom()),
-                        createdAtLt(cond.getDateTo())
-                )
+                .where(searchConds(cond))
+                // createdAt만으로는 같은 밀리초 행의 순서가 흔들려 페이지 경계에서 행이 겹치거나 빠진다
                 .orderBy(invHist.createdAt.desc(), invHist.id.desc())
+                .offset(pageCond.getOffset())
+                .limit(pageCond.getSize())
                 .fetch();
+
+        // 셈에는 MOVE 짝 조인이 필요 없다 — 조건이 걸리는 것은 상품·로케이션·Lot뿐이다
+        Long totCnt = queryFactory
+                .select(invHist.count())
+                .from(invHist)
+                .innerJoin(invHist.prod, prod)
+                .innerJoin(invHist.loc, loc)
+                .innerJoin(invHist.lot, lot)
+                .where(searchConds(cond))
+                .fetchOne();
+
+        return PageResponse.of(rows, totCnt, pageCond);
+    }
+
+    /** 목록과 셈이 같은 조건을 쓰도록 한자리에 모은다 */
+    private BooleanExpression[] searchConds(InvHistSearchCond cond) {
+        return new BooleanExpression[]{
+                prodCdContains(cond.getProdCd()),
+                prodNmContains(cond.getProdNm()),
+                locCdContains(cond.getLocCd()),
+                lotNoContains(cond.getLotNo()),
+                txTypEq(cond.getTxTyp()),
+                rfnDocNoContains(cond.getRfnDocNo()),
+                createdAtGoe(cond.getDateFrom()),
+                createdAtLt(cond.getDateTo())
+        };
     }
 
     // 조건 메서드가 null을 반환하면 where()가 그 조건을 무시한다 — QueryDSL 동적 쿼리 관례

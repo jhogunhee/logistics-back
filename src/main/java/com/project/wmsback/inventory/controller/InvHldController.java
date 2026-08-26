@@ -1,5 +1,7 @@
 package com.project.wmsback.inventory.controller;
 
+import com.project.common.dto.PageCond;
+import com.project.common.dto.PageResponse;
 import com.project.wmsback.inventory.dto.InvHldAcrstResponse;
 import com.project.wmsback.inventory.dto.InvHldAcrstSearchCond;
 import com.project.wmsback.inventory.dto.InvHldRegisterRequest;
@@ -43,13 +45,15 @@ public class InvHldController {
 
     /** 보류 실적 조회 (등록 로그) */
     @GetMapping("/acrsts")
-    public List<InvHldAcrstResponse> listAcrst(@ModelAttribute InvHldAcrstSearchCond cond) {
-        return invHldService.listAcrst(cond);
+    public PageResponse<InvHldAcrstResponse> listAcrst(@ModelAttribute InvHldAcrstSearchCond cond,
+                                                       @ModelAttribute PageCond pageCond) {
+        return invHldService.listAcrst(cond, pageCond);
     }
 
     /** 해제 실적 조회 */
     @GetMapping("/rlz-acrsts")
-    public List<InvHldAcrstResponse> listRlzAcrst(@ModelAttribute InvHldAcrstSearchCond cond) {
-        return invHldService.listRlzAcrst(cond);
+    public PageResponse<InvHldAcrstResponse> listRlzAcrst(@ModelAttribute InvHldAcrstSearchCond cond,
+                                                          @ModelAttribute PageCond pageCond) {
+        return invHldService.listRlzAcrst(cond, pageCond);
     }
 }

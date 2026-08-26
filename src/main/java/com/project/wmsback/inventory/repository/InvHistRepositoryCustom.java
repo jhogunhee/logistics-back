@@ -1,5 +1,7 @@
 package com.project.wmsback.inventory.repository;
 
+import com.project.common.dto.PageCond;
+import com.project.common.dto.PageResponse;
 import com.project.wmsback.inventory.dto.InvHistResponse;
 import com.project.wmsback.inventory.dto.InvHistSearchCond;
 import com.project.wmsback.inventory.entity.InvHist;
@@ -19,6 +21,9 @@ public interface InvHistRepositoryCustom {
      */
     List<InvHist> findAllByIbLineIdInAndTxTypeOrderByCreatedAtDesc(Collection<Long> ibLineIds, TxTyp txTyp);
 
-    /** 재고이력 조회 화면용 검색 (최근 순). MOVE 짝의 로케이션(pairedLocCd)까지 자기 조인으로 함께 채운다 */
-    List<InvHistResponse> search(InvHistSearchCond cond);
+    /**
+     * 재고이력 조회 화면용 검색 (최근 순, 서버 페이징). MOVE 짝의 로케이션(pairedLocCd)까지 자기 조인으로 함께 채운다.
+     * append-only 원장이라 전량 조회를 두지 않는다 — 화면은 페이지 단위로만 가져간다.
+     */
+    PageResponse<InvHistResponse> search(InvHistSearchCond cond, PageCond pageCond);
 }

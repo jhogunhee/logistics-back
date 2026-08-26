@@ -90,6 +90,8 @@ public class OmsIbOrder extends BaseEntity {
     private List<OmsIbLine> lines = new ArrayList<>();
 
     public static final String RTNGS = "RTNGS";
+    /** 자동발주가 만든 주문. 사람이 낸 발주와 목록에서 갈리는 유일한 표시다 (담당자는 비어 있다) */
+    public static final String ATO = "ATO";
 
     @Builder
     private OmsIbOrder(String omsIbNo, Vendor vendor, Store store, String refOutbNo, LocalDate expctDe,
