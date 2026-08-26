@@ -1,0 +1,155 @@
+package com.project.common.security;
+
+import com.project.common.config.CorsConfig;
+import com.project.common.config.SecurityConfig;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.SpringBootConfiguration;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+/**
+ * SecurityConfig의 URL 규칙표를 그대로 검증한다. 규칙이 한 곳에 모여 있는 것이 이 설계의 전제라,
+ * 그 한 곳이 무너지는지를 보는 테스트도 하나여야 한다.
+ * <p>
+ * DB를 올리지 않으려고 {@code @WebMvcTest} 슬라이스를 쓴다 — {@code @SpringBootTest}는
+ * DataSource와 EntityManagerFactory를 올려 Supabase 접속을 요구한다.
+ * <p>
+ * {@code /health}와 preflight 케이스는 회귀 방지용이다. 둘 다 「인증을 켠 순간 로그인 화면에조차
+ * 못 간다」로 이어지는 자리라, 규칙을 손볼 때 먼저 깨져야 한다.
+ */
+@WebMvcTest(controllers = SecurityRulesTest.ProbeController.class)
+@Import({SecurityConfig.class, JwtTokenProvider.class, CorsConfig.class, SecurityRulesTest.ProbeController.class})
+@TestPropertySource(properties = {
+        "jwt.secret=wms-test-secret-key-32-bytes-or-longer!",
+        "jwt.expiry-hours=12",
+        "cors.allowed-origins=http://localhost:5173"
+})
+class SecurityRulesTest {
+
+    /**
+     * 슬라이스의 루트 설정. 앱 클래스가 {@code com.project.wmsback}에 있어 이 패키지에서 위로
+     * 올라가도 안 나오고, 그렇다고 앱 클래스를 쓰면 컴포넌트 스캔이 서비스·리포지토리를 전부
+     * 끌어와 DB를 요구한다. 스캔 없는 빈 설정을 두고 필요한 것만 {@code @Import}한다.
+     */
+    @SpringBootConfiguration
+    static class TestApp {
+    }
+
+    /** 규칙표의 접두마다 하나씩. 실제 컨트롤러는 서비스 빈을 요구해 슬라이스에 올릴 수 없다 */
+    @RestController
+    static class ProbeController {
+        @GetMapping("/health") void health() {}
+        @PostMapping("/auth/login") void login() {}
+        @GetMapping("/auth/me") void me() {}
+        @GetMapping("/master/vendors") void vendorList() {}
+        @PostMapping("/master/vendors/bulk") void vendorSave() {}
+        @GetMapping("/master/usrs") void usrList() {}
+        @PostMapping("/master/usrs/bulk") void usrSave() {}
+        @PostMapping("/inbound/receivings") void receive() {}
+        @PostMapping("/outbound/waves") void wave() {}
+        @PostMapping("/nowhere") void unlistedPrefix() {}
+    }
+
+    @Autowired MockMvc mvc;
+    @Autowired JwtTokenProvider tokenProvider;
+
+    private String token(String... roles) {
+        return "Bearer " + tokenProvider.issue(new AuthUser("tester", "테스터", List.of(roles)));
+    }
+
+    @Test
+    @DisplayName("/health는 토큰 없이 열려 있다 — 프론트 기동 대기 게이트와 슬립 방지 크론이 로그인 전에 부른다")
+    void healthIsOpen() throws Exception {
+        mvc.perform(get("/health")).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("로그인은 토큰 없이 열려 있다")
+    void loginIsOpen() throws Exception {
+        mvc.perform(post("/auth/login")).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("CORS preflight(OPTIONS)는 토큰 없이 통과한다 — 막히면 모든 비GET이 브라우저에서 CORS 오류가 된다")
+    void preflightPasses() throws Exception {
+        mvc.perform(options("/master/vendors")
+                        .header("Origin", "http://localhost:5173")
+                        .header("Access-Control-Request-Method", "POST"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("토큰이 없으면 401이다")
+    void noTokenIsUnauthorized() throws Exception {
+        mvc.perform(get("/master/vendors")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("깨진 토큰도 401이다 — 필터는 통과시키고 인가가 거절한다")
+    void brokenTokenIsUnauthorized() throws Exception {
+        mvc.perform(get("/master/vendors").header("Authorization", "Bearer not-a-token"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("조회 역할은 모든 GET을 볼 수 있다")
+    void inqCanRead() throws Exception {
+        mvc.perform(get("/master/vendors").header("Authorization", token("INQ")))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("조회 역할은 저장을 못 한다")
+    void inqCannotWrite() throws Exception {
+        mvc.perform(post("/master/vendors/bulk").header("Authorization", token("INQ")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("입고담당은 /inbound 저장이 되고 /outbound 저장은 안 된다")
+    void ibPicIsScopedToInbound() throws Exception {
+        mvc.perform(post("/inbound/receivings").header("Authorization", token("IB_PIC")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/outbound/waves").header("Authorization", token("IB_PIC")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("사용자 관리는 조회도 시스템관리자만이다")
+    void usrMasterIsAdmrOnly() throws Exception {
+        mvc.perform(get("/master/usrs").header("Authorization", token("INQ")))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/master/usrs").header("Authorization", token("ADMR")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/master/usrs/bulk").header("Authorization", token("ADMR")))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("센터관리자는 전략을 만지지만 마스터는 못 만진다")
+    void centAdmrCannotTouchMaster() throws Exception {
+        mvc.perform(post("/master/vendors/bulk").header("Authorization", token("CENT_ADMR")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("규칙표에 없는 접두의 비GET은 관리자라도 막힌다 (denyAll) — 새 컨트롤러가 접두를 어기면 여기서 걸린다")
+    void unlistedPrefixIsDenied() throws Exception {
+        mvc.perform(post("/nowhere").header("Authorization", token("ADMR")))
+                .andExpect(status().isForbidden());
+    }
+}

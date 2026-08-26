@@ -367,6 +367,12 @@
   <td class="st"><span class="badge done">구현</span></td>
   <td><code>/master/nbr-rules</code>, <code>/bulk</code>, <code>/{ruleCd}/seqs</code>, <code>/{ruleCd}/issue</code>, <code>/preview</code> · <code>pages/master/NbrRuleMaster.jsx</code>. 등록 후 동적키유형 변경 불가 — 이미 발급된 번호와 어긋난다</td>
 </tr>
+<tr>
+  <td class="name">사용자 관리</td>
+  <td>로그인 계정 그리드 편집(아이디·사용자명·역할 다중선택·비밀번호). 아이디는 신규 행에서만 입력받고, 비밀번호는 <strong>입력한 경우에만</strong> 초기화된다(빈 값 = 유지)</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>/master/usrs</code>, <code>/bulk</code> · <code>pages/master/UsrMaster.jsx</code>(프론트 라우트는 <code>/master/usr</code>). <strong>조회까지 시스템관리자만</strong>이라 사이드바에서도 ADMR에게만 보인다. 서버 가드 셋 — 아이디 중복 · 자기 자신 삭제 · <strong>마지막 시스템관리자의 삭제·역할 해제</strong>. 역할 목록은 마스터가 아니라 <code>Role</code> enum + <code>ck_usr_role</code> CHECK다(<code>docs/design.md</code> 「인증과 역할」)</td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -376,6 +382,12 @@
 <table>
 <thead><tr><th style="width:150px">화면</th><th>주요 기능</th><th style="width:100px">우선순위</th><th style="width:260px">비고</th></tr></thead>
 <tbody>
+<tr>
+  <td class="name">로그인</td>
+  <td>아이디·비밀번호로 로그인해 JWT를 받는다. 토큰과 <code>{loginId, usrNm, roles}</code>를 <code>localStorage</code>에 두고, 새로고침 때 <code>GET /auth/me</code>로 유효성을 다시 확인한다</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>POST /auth/login</code> · <code>pages/auth/Login.jsx</code> · <code>auth/AuthContext.jsx</code> · <code>auth/RequireAuth.jsx</code>. 데스크톱(<code>Layout</code>)과 PDA(<code>/m</code>) <strong>두 라우트 트리를 각각</strong> 감싼다 — 하나만 감싸면 나머지가 무인증으로 남는다. 로그인 실패는 400이다(401이면 인터셉터가 이 화면으로 되돌려 사유가 묻힌다)</td>
+</tr>
 <tr>
   <td class="name">대시보드</td>
   <td>오늘 입고예정 / 미적치 / 미출고 건수, 재고 회전, 유통기한 임박 Lot</td>
@@ -393,7 +405,7 @@
 </div>
 
 <h2 id="sidebar">7. 프론트 사이드바 구조 (2026-07-23 반영)</h2>
-<p class="note"><code>wms-front/src/layout/Sidebar.jsx</code> · <code>src/App.jsx</code>. 업무 흐름(OMS → 입고 → 재고 → 출고) 순으로 배치하고 마스터를 맨 아래로 내렸다. <strong>사이드바 항목 39개가 전부 실제 화면이다</strong>(대시보드 포함, 로그인 제외) — 예전에 <code>Placeholder</code>로 라우트만 잡아두었던 8개는 모두 구현되어 남아 있지 않다. 라우트는 41개로, 위 39개에 <code>/login</code>과 주문 상세 2개(<code>/oms/inbound-order/:omsIbOrderId</code> · <code>/oms/outbound-order/:omsOutbOrderId</code>)가 더 있다. (2026-08-23 실측)</p>
+<p class="note"><code>wms-front/src/layout/Sidebar.jsx</code> · <code>src/App.jsx</code>. 업무 흐름(OMS → 입고 → 재고 → 출고) 순으로 배치하고 마스터를 맨 아래로 내렸다. <strong>사이드바 항목 40개가 전부 실제 화면이다</strong>(대시보드 포함, 로그인 제외) — 예전에 <code>Placeholder</code>로 라우트만 잡아두었던 8개는 모두 구현되어 남아 있지 않다. 라우트는 42개로, 위 40개에 <code>/login</code>과 주문 상세 2개(<code>/oms/inbound-order/:omsIbOrderId</code> · <code>/oms/outbound-order/:omsOutbOrderId</code>)가 더 있다. (2026-08-26 실측 — 사용자 관리 1개 추가)<br><strong>메뉴는 역할로 걸러진다</strong>(<code>MENU</code> 항목의 <code>roles</code> + <code>hasRole</code>) — 조회(INQ)는 전 메뉴를 보고, 각 담당은 모니터링 + 자기 섹션, 센터관리자는 입고·재고·출고 + 전략, 사용자 관리는 시스템관리자만. 숨김은 편의일 뿐이고 막는 것은 백엔드다(URL로 들어가도 401/403).</p>
 <div class="tablebox">
 <table>
 <thead><tr><th style="width:110px">그룹</th><th style="width:170px">메뉴</th><th style="width:230px">라우트</th><th>화면 파일 / 상태</th></tr></thead>
@@ -430,12 +442,13 @@
 <tr><td>수시보충</td><td><code>/outbound/replenishment</code></td><td><code>pages/outbound/Replenishment.jsx</code> — 보충이 있는 발행 웨이브(미확정 건수 강조) + 보충지시(보관존 → 피킹존 · 수량 · 상태) 2단, 지시 상태 행만 체크, 확정(전량)·취소. 피킹지시·피킹 화면에 「보충」 열 — 피킹은 보충 미완료 행을 체크하지 못한다</td></tr>
 <tr><td>출고확정</td><td><code>/outbound/shipping</code></td><td><code>pages/outbound/Shipping.jsx</code> — 발행 웨이브(확정대상·작업중·확정완료 건수) + 주문(상태·주문/할당/피킹/결품 수량) 2단, 확정 가능 행만 체크, 확인 모달이 결품·웨이브 종료를 짚는다</td></tr>
 
-<tr><td class="name" rowspan="6">마스터</td><td>상품 관리</td><td><code>/master/prod</code></td><td><code>pages/master/ProdMaster.jsx</code></td></tr>
+<tr><td class="name" rowspan="7">마스터</td><td>상품 관리</td><td><code>/master/prod</code></td><td><code>pages/master/ProdMaster.jsx</code></td></tr>
 <tr><td>존 관리</td><td><code>/master/zone</code></td><td><code>pages/master/ZonMaster.jsx</code></td></tr>
 <tr><td>로케이션 관리</td><td><code>/master/location</code></td><td><code>pages/master/LocMaster.jsx</code></td></tr>
 <tr><td>고정 로케이션 관리</td><td><code>/master/fxng-loc</code></td><td><code>pages/master/FxngLocMaster.jsx</code> — 상품×로케이션 지정 + 보충 기준(min/max)</td></tr>
 <tr><td>상품 거래처 관리</td><td><code>/master/prod-vndr</code></td><td><code>pages/master/ProdVndrMaster.jsx</code> — 상품×거래처 발주 기준(발주점/상한/MOQ/리드타임/우선순위)</td></tr>
 <tr><td>점포 관리</td><td><code>/master/store</code></td><td><code>pages/master/StoreMaster.jsx</code></td></tr>
+<tr><td>사용자 관리</td><td><code>/master/usr</code></td><td><code>pages/master/UsrMaster.jsx</code> — 계정·역할. 백엔드 접두는 복수형(<code>/master/usrs</code>)이고 프론트 라우트는 다른 마스터와 같은 단수형이다. 시스템관리자에게만 보인다</td></tr>
 
 <tr><td class="name" rowspan="4">전략</td><td>검수 정책관리</td><td><code>/strategy/inspection</code></td><td><code>pages/strategy/InspectionPolicy.jsx</code> — 규칙 목록·미리보기·리비전</td></tr>
 <tr><td>적치 전략관리</td><td><code>/strategy/putaway</code></td><td><code>pages/strategy/PutawayStrategy.jsx</code> — 목록·단계 편집·미리보기·리비전 (SC-02)</td></tr>

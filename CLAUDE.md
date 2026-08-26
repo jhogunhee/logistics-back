@@ -53,6 +53,8 @@ common  ← mdm ← wmsback ← omsback
 
 같은 이유로 **`@RestControllerAdvice`도 두 개다** — 공통은 `common.exception.GlobalExceptionHandler`, 검수 위반은 `wmsback.strategy.inspection.exception.InspectionExceptionHandler`. 후자를 공통으로 올리면 `common`이 `wmsback`을 import하게 된다.
 
+같은 이유로 **`common.security`는 DB를 보지 않는다** — 토큰 claim(`login_id`·`usr_nm`·`roles`)만으로 권한을 세우고 사용자 마스터(`mdm.usr`)를 모른다. 접근 규칙은 `SecurityConfig` 한 곳의 URL 접두 표이고 컨트롤러에 `@PreAuthorize`를 흩뿌리지 않는다 — 규칙표에 없는 접두의 비GET은 `denyAll`이라 **새 컨트롤러가 접두를 어기면 막힌다**(`docs/design.md` 「인증과 역할」).
+
 각 도메인 패키지는 `controller / dto / entity / repository / service` 구성을 따른다. `strategy`는 예외다 — 전략 커널이라 `condition / field / component / exception`이 추가로 있고(`component`는 유형별 구성요소 enum과 그 입출력이 사는 자리 — 검수 규칙·적치 방식·할당 구현체), `InspectionQueryRepository` · `PutawayQueryRepository` · `AlocQueryRepository`는 Spring Data 인터페이스 없이 `JPAQueryFactory`만 드는 **읽기 전용 조회 포트**로 아래 「QueryDSL 리포지토리 패턴」의 3파일 삼각형을 따르지 않는다.
 
 **마스터 그리드 저장(C/U/D 일괄)의 검증 경계** — `XxxSaveRequest`가 자기 필드만으로 판정할 수 있는 검사(필수·범위)와 엔티티 생성·반영을 맡고(`toEntity()` · `updateEntity(entity)`), DB를 봐야 하는 검사(채번 · 코드 중복 · 존재 · 참조 · 재고)는 서비스가 한다. 상품 · 거래처 · 점포 · 존 · 로케이션 · 공통코드 · 채번규칙이 이 틀이고, 새 마스터도 같은 자리에 같은 것을 둔다.
@@ -97,7 +99,7 @@ date→de(일자)  datetime→dt(일시)  cancel→cncl  close→clos  complete�
 unit of measure→uom(계량단위)  each→ea(낱개)  weight→wgt(중량)
 ```
 
-**사전의 주인은 `docs/naming-dictionary.md`(238단어) 하나이고, `schema.sql` 머리말의 것은 그 발췌다.** 예전에 두 벌이 충돌하던 항목(`ptwy` vs `PTAWY`, `alloc` vs `ALOC` 등)은 `docs/migration-catchup-to-schema.sql`의 컬럼 개명 루프가 사전 쪽으로 통일했다. 새 이름은 반드시 `docs/naming-dictionary.md`에서 단어를 찾아 조합하고, **사전에 없는 단어는 사전에 먼저 추가한 뒤 쓴다.**
+**사전의 주인은 `docs/naming-dictionary.md`(247단어) 하나이고, `schema.sql` 머리말의 것은 그 발췌다.** 예전에 두 벌이 충돌하던 항목(`ptwy` vs `PTAWY`, `alloc` vs `ALOC` 등)은 `docs/migration-catchup-to-schema.sql`의 컬럼 개명 루프가 사전 쪽으로 통일했다. 새 이름은 반드시 `docs/naming-dictionary.md`에서 단어를 찾아 조합하고, **사전에 없는 단어는 사전에 먼저 추가한 뒤 쓴다.**
 
 의도적으로 사전을 따르지 않는 예외가 셋 있다. 바꾸지 말 것:
 
@@ -126,6 +128,6 @@ unit of measure→uom(계량단위)  each→ea(낱개)  weight→wgt(중량)
 
 ## 명명규칙
 
-`docs/naming-dictionary.md`의 표준 단어 사전(238개)을 기준으로 변수명·필드명을 생성한다. 이름의 재료는 **약어**이고(`예정 EXPCT` + `수량 QTY` → `expctQty` / `expct_qty`), 사전에 없는 단어는 사전에 먼저 추가한 뒤 쓴다.
+`docs/naming-dictionary.md`의 표준 단어 사전(247개)을 기준으로 변수명·필드명을 생성한다. 이름의 재료는 **약어**이고(`예정 EXPCT` + `수량 QTY` → `expctQty` / `expct_qty`), 사전에 없는 단어는 사전에 먼저 추가한 뒤 쓴다.
 
 **두 벌이던 약어 사전은 통일됐다.** 예전에 `적치`(`ptwy` vs `PTAWY`)·`할당`(`alloc` vs `ALOC`) 등에서 충돌하던 것을 `docs/migration-catchup-to-schema.sql`의 컬럼 개명 루프가 사전 쪽으로 개명했다. 남은 예외 셋(`status` · `code_cd`/`code_nm` · 감사 컬럼)은 위 「네이밍」에 이유와 함께 적어뒀고, **이 셋은 사전을 따르지 않는 것이 결정된 사항이다.**

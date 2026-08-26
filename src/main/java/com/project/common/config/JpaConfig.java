@@ -1,5 +1,6 @@
 package com.project.common.config;
 
+import com.project.common.security.AuthUser;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.domain.AuditorAware;
@@ -11,9 +12,12 @@ import java.util.Optional;
 @EnableJpaAuditing
 public class JpaConfig {
 
-    /** created_by/updated_by 작성자. 인증 도입 전까지 'admin' 고정, 로그인 붙이면 SecurityContext에서 꺼내도록 교체 */
+    /**
+     * created_by/updated_by 작성자. 로그인한 사용자의 아이디를 쓰고, 인증 없이 도는 실행
+     * (정기보충·자동발주 스케줄러)은 'system'으로 남긴다.
+     */
     @Bean
     public AuditorAware<String> auditorProvider() {
-        return () -> Optional.of("admin");
+        return () -> Optional.of(AuthUser.current().map(AuthUser::loginId).orElse("system"));
     }
 }
