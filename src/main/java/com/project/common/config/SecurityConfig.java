@@ -58,8 +58,9 @@ public class SecurityConfig {
                     // 컨트롤러 밖에서 터진 예외의 /error forward까지 denyAll에 걸리면 진짜 원인이 403으로 덮인다
                     .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.ASYNC).permitAll()
                     .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
-                    // /health는 로그인 전에 불린다 — 프론트의 서버 기동 대기 게이트와 슬립 방지 크론이 쓴다
-                    .requestMatchers(HttpMethod.GET, "/health").permitAll()
+                    // /health는 로그인 전에 불린다 — 프론트의 기동 대기 게이트와 슬립 방지 크론이 쓴다.
+                    // 메서드를 걸지 않는 이유는 크론의 HEAD가 GET 매처에 안 걸려 denyAll까지 흘러서다
+                    .requestMatchers("/health").permitAll()
                     // 사용자 목록은 조회도 관리자만이라 GET 규칙보다 앞에 둔다
                     .requestMatchers("/master/usrs/**").hasRole("ADMR")
                     .requestMatchers(HttpMethod.GET, "/**").authenticated()
