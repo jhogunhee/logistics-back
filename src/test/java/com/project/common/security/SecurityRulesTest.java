@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.head;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -66,9 +67,12 @@ class SecurityRulesTest {
     @Autowired MockMvc mvc;
 
     @Test
-    @DisplayName("/health는 로그인 없이 열려 있다 — 프론트 기동 대기 게이트와 슬립 방지 크론이 로그인 전에 부른다")
+    @DisplayName("/health는 로그인 없이 열려 있다 — GET만이 아니라 HEAD도. 슬립 방지 크론이 HEAD로 부른다")
     void healthIsOpen() throws Exception {
         mvc.perform(get("/health")).andExpect(status().isOk());
+        // 메서드를 GET으로 한정했다가 크론의 HEAD가 401로 막혀 keep-alive가 죽은 적이 있다.
+        // GET만 검증하던 이 테스트가 그걸 통과시켰다 — 그래서 메서드를 나눠 본다
+        mvc.perform(head("/health")).andExpect(status().isOk());
     }
 
     @Test
