@@ -378,7 +378,9 @@ INSERT INTO code_group (grp_cd, grp_nm, dscr) VALUES
 INSERT INTO code_group (grp_cd, grp_nm, dscr) VALUES
     ('HLD_RLZ_RSN', '보류 해제사유', '재고 보류 해제 사유 (inv_hld_rlz_acrst.rsn_cd). 등록 사유와 별개 그룹 — 「왜 묶었나」와 「왜 풀었나」는 다른 질문이다. ETC(기타)일 때만 자유 텍스트 rsn_dscr를 받는다');
 INSERT INTO code_group (grp_cd, grp_nm, dscr) VALUES
-    ('ADJ_RSN', '재고조정 사유', '재고조사 확정 시 차이 라인의 조정 사유 (inv_stktk_ln.rsn_cd). 차이가 0이 아닌 라인만 필수이며, ETC(기타)일 때만 자유 텍스트 rsn_dscr를 받는다');
+    ('ADJ_RSN', '재고조사 조정사유', '재고조사 확정 시 차이 라인의 조정 사유 (inv_stktk_ln.rsn_cd). 차이가 0이 아닌 라인만 필수이며, ETC(기타)일 때만 자유 텍스트 rsn_dscr를 받는다. 재고조정(inv_adj)의 사유는 별개 그룹 INV_ADJ_RSN이다 — 조사는 「장부가 틀렸다」의 정정이고 조정은 「이만큼 처분했다」의 기록이라 사유 집합이 겹치지 않는다');
+INSERT INTO code_group (grp_cd, grp_nm, dscr) VALUES
+    ('INV_ADJ_RSN', '재고조정 사유', '재고조정 라인의 사유 (inv_adj.rsn_cd). 장부와 실물을 함께 증감시키는 처분의 근거다. ETC(기타)일 때만 자유 텍스트 rsn_dscr를 받는다');
 INSERT INTO code_group (grp_cd, grp_nm, dscr) VALUES
     ('LOT_ATTR_RSN', 'Lot 속성정정 사유', 'Lot 속성(제조일자·유통기한) 정정 사유 (lot_attr_chng.rsn_cd · inv_lot_chng.rsn_cd — 재고 로트변경도 사유 성격이 같아 그룹을 재사용한다). ETC(기타)일 때만 자유 텍스트 rsn_dscr를 받는다');
 INSERT INTO code_group (grp_cd, grp_nm, dscr) VALUES
@@ -466,14 +468,27 @@ INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('RTNGS_RSN',
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('HLD_RLZ_RSN', 'NRML', '정상 확인', 1);
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('HLD_RLZ_RSN', 'ERR_REG', '오등록', 2);
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('HLD_RLZ_RSN', 'ETC', '기타', 3);
+-- 재고조정이 보류분을 폐기할 때 남기는 해제 실적의 사유. 트랜잭션이 넣는 값이라 화면 콤보에서는
+-- 빼고 서버(InvHldService.release)도 수동 해제 요청에 이 코드가 오면 거부한다 —
+-- 고르면 조정 없이 사유만 조정인 해제가 되어, 「등록은 되는데 동작하지 않는 옵션」이 된다.
+INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('HLD_RLZ_RSN', 'ADJ', '재고조정', 4);
 
--- 재고조정 사유 (재고조사 확정 시 차이 라인). 여기도 ETC가 자유 텍스트 규칙의 트리거라 지우면 안 된다.
+-- 재고조사 조정사유 (조사 확정 시 차이 라인). 여기도 ETC가 자유 텍스트 규칙의 트리거라 지우면 안 된다.
 -- 세트화·단위대체 같은 타 업무 사유는 넣지 않는다 — 조사 전용만 담아 화면이 거를 필요가 없게 한다.
+-- 조사의 사유는 「어디로 갔는지 모른다」 계열이다 — 누가 버렸는지 아는 수량은 재고조정(INV_ADJ_RSN)이 맡는다.
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('ADJ_RSN', 'DAMG', '파손', 1);
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('ADJ_RSN', 'LOSS', '분실', 2);
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('ADJ_RSN', 'ERR_WRK', '작업오류', 3);
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('ADJ_RSN', 'INIT', '기초재고', 4);
 INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('ADJ_RSN', 'ETC', '기타', 5);
+
+-- 재고조정 사유. 장부와 실물이 맞는 상태에서 둘을 함께 움직이는 처분의 근거라 조사와 값이 겹치지 않는다.
+-- 기초재고·발견재고를 넣지 않는 이유: 「장부에 없던 것을 올린다」는 장부/실물 차이의 정정이라 조사 소관이다.
+-- (+) 조정의 주 용도는 ERR_ADJ — append-only라 취소 경로가 없어 반대 부호 조정이 유일한 복구다.
+INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('INV_ADJ_RSN', 'SCRP', '폐기', 1);
+INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('INV_ADJ_RSN', 'SMPL', '견본출고', 2);
+INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('INV_ADJ_RSN', 'ERR_ADJ', '조정오류 정정', 3);
+INSERT INTO code_detail (grp_cd, code_cd, code_nm, srt_seq) VALUES ('INV_ADJ_RSN', 'ETC', '기타', 4);
 
 -- Lot 속성정정 사유 (재고 속성변경). 여기도 ETC가 자유 텍스트 규칙의 트리거라 지우면 안 된다.
 -- 「왜 날짜가 틀렸나」의 출처를 나누는 값들이다 — 검수 입력 오류 / 실물 표기와 상이 / 거래처 통보.
@@ -498,7 +513,8 @@ INSERT INTO nbr_rule (rule_cd, rule_nm, prfx, prfx_dlmt, de_dlmt, seq_dgt, dync_
     ('SPMT_NO',     '보충지시 번호',    'SP',   '-', '-', 3, 'DAY'),
     ('HLD_NO',      '보류 번호',        'HD',   '-', '-', 3, 'DAY'),
     ('STKTK_NO',    '재고조사 번호',    'ST',   '-', '-', 3, 'DAY'),
-    ('LOT_CHNG_NO', '재고 로트변경 번호', 'LC', '-', '-', 3, 'DAY');
+    ('LOT_CHNG_NO', '재고 로트변경 번호', 'LC', '-', '-', 3, 'DAY'),
+    ('INV_ADJ_NO',  '재고조정 번호',    'AJ',   '-', '-', 3, 'DAY');
 COMMIT;
 
 
@@ -796,7 +812,7 @@ CREATE TABLE inv_hist (
 COMMENT ON TABLE  inv_hist IS '재고 이력 (append-only 원장)';
 COMMENT ON COLUMN inv_hist.tx_typ      IS '거래유형. TxTyp enum';
 COMMENT ON COLUMN inv_hist.qty          IS '변동 수량';
-COMMENT ON COLUMN inv_hist.rfn_doc_typ IS '참조 문서 유형. RefDocTyp enum. NULL = 수동조정';
+COMMENT ON COLUMN inv_hist.rfn_doc_typ IS '참조 문서 유형. RefDocTyp enum (INBOUND / OUTBOUND / INV_MOV 이동지시 / INV_STKTK 재고조사 / INV_ADJ 재고조정 / LOT_CHNG 재고 로트변경). NULL = 참조 문서 없음. ADJUST 이력은 rfn_doc_typ이 조사·조정·로트변경 중 무엇인지를 가른다 — tx_typ만으로는 구분되지 않는다';
 COMMENT ON COLUMN inv_hist.rfn_doc_no   IS '참조 문서 번호';
 COMMENT ON COLUMN inv_hist.ib_line_id   IS '입고 라인 ID';
 COMMENT ON COLUMN inv_hist.from_loc_id  IS 'MOVE의 출발지. MOVE가 아니면 NULL';
@@ -948,8 +964,10 @@ COMMENT ON TABLE  inv_hld_rlz_acrst IS '보류 해제 실적 (append-only)';
 CREATE INDEX ix_inv_hld_rlz_acrst_no ON inv_hld_rlz_acrst (hld_no);
 
 -- 재고조사(실사). 조사 범위를 잡아 라인을 만들고(전산수량 스냅샷), 실사수량을 입력한 뒤
--- 확정 시점에 차이를 ADJUST로 보정한다. 건별 수동 조정 화면을 따로 두지 않는다 —
--- 특정 재고 하나의 정정도 범위를 좁게 잡은 조사로 수행한다(입고 확정 후 수량 정정 포함).
+-- 확정 시점에 차이를 ADJUST로 보정한다. 장부와 실물이 어긋났을 때 장부를 실물에 맞추는 경로이고,
+-- 조정수량은 실사수량에서 파생된다 — 실물을 그대로 둔 채 장부만 줄이는 처분(폐기·견본출고)은
+-- 재고조정(inv_adj)의 몫이다. 특정 재고 하나의 차이 정정도 범위를 좁게 잡은 조사로 수행한다
+-- (입고 확정 후 수량 정정 포함).
 -- 실적 테이블은 없다 — 실적의 실체는 inv_hist의 ADJUST 행(rfn_doc_no = 조사번호)이다
 -- (inv_mov_task와 같은 판단. 「실적 테이블 없음」의 예외는 보류와 피킹 둘이다 — pikng_acrst 참고).
 CREATE TABLE inv_stktk (
@@ -968,7 +986,7 @@ CREATE TABLE inv_stktk (
     CONSTRAINT ck_inv_stktk_status CHECK (status IN ('CREATED', 'CONFIRMED', 'CANCELLED'))
 );
 
-COMMENT ON TABLE  inv_stktk IS '재고조사(실사) 헤더';
+COMMENT ON TABLE  inv_stktk IS '재고조사(실사) 헤더. 장부와 실물이 어긋났을 때 장부를 실물에 맞춘다 — 실물을 그대로 둔 채 장부만 줄이는 처분(폐기·견본출고)은 재고조정(inv_adj)의 몫이다. 상태는 워크플로 단계만(작성 → 확정) — 「부분확정」은 두지 않는다. 확정 후 재정정은 조사를 되열지 않고 새 조사를 만든다(append-only). 확정이 남기는 것은 inv_hist의 ADJUST 행(rfn_doc_typ=INV_STKTK, rfn_doc_no=stktk_no)';
 COMMENT ON COLUMN inv_stktk.stktk_no IS '재고조사 번호';
 COMMENT ON COLUMN inv_stktk.zon_cd   IS '조사 범위 — 존 코드. NULL = 조건 없음';
 COMMENT ON COLUMN inv_stktk.loc_id   IS '조사 범위 — 로케이션. NULL = 조건 없음';
@@ -1113,6 +1131,52 @@ COMMENT ON COLUMN inv_lot_chng.rsn_dscr       IS '기타 사유 텍스트';
 
 CREATE INDEX ix_inv_lot_chng_from_lot     ON inv_lot_chng (from_lot_id);
 CREATE INDEX ix_inv_lot_chng_prod_created ON inv_lot_chng (prod_id, created_at);
+
+
+-- 재고조정. 장부와 실물이 맞는 상태에서 둘을 함께 증감시키는 의도된 처분(폐기·견본출고)의 기록이다.
+-- 재고조사와 갈리는 지점은 「실물이 그 자리에 있느냐」 하나다 — 조사는 어긋난 것을 실물에 맞추고
+-- (조정수량이 실사수량에서 파생), 조정은 맞는 것을 함께 줄인다(조정수량이 입력값). 불량 반품을
+-- 폐기하는데 실사수량 0으로 적으면 「세어보니 없었다」는 거짓 기록이 되므로 경로를 나눈다.
+-- 실적 테이블을 따로 두지 않는 자기완결 로그다 (inv_lot_chng과 같은 형태, append-only · 취소 없음).
+-- 재고 실체는 inv_hist의 ADJUST 1행(부호 있음, rfn_doc_typ=INV_ADJ, rfn_doc_no=adj_no).
+CREATE TABLE inv_adj (
+    inv_adj_id  BIGINT          GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    adj_no      VARCHAR(30)     NOT NULL,
+    prod_id     BIGINT          NOT NULL,
+    loc_id      BIGINT          NOT NULL,
+    lot_id      BIGINT          NOT NULL,
+    adj_bfr_qty BIGINT          NOT NULL,
+    adj_qty     BIGINT          NOT NULL,
+    hld_no      VARCHAR(30),
+    rsn_cd      VARCHAR(10)     NOT NULL,
+    rsn_dscr    VARCHAR(200),
+    created_at  TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by  VARCHAR(30)     DEFAULT 'admin' NOT NULL,
+    updated_at  TIMESTAMP,
+    updated_by  VARCHAR(30),
+    CONSTRAINT uq_inv_adj_no UNIQUE (adj_no),
+    -- 조정후수량이 음수가 될 수 없다. ck_invh_qty(변동 0 금지)와 짝을 이루는 최후 방어 —
+    -- 서비스가 가용·보류 잔량으로 이미 막지만 DB도 스스로 성립한다
+    CONSTRAINT ck_inv_adj_qty CHECK (adj_qty <> 0 AND adj_bfr_qty >= 0 AND adj_bfr_qty + adj_qty >= 0),
+    -- 보류 라인은 감소 전용 — 보류를 늘리는 조정은 없다(그건 재고 보류 등록이다)
+    CONSTRAINT ck_inv_adj_hld CHECK (hld_no IS NULL OR adj_qty < 0)
+);
+
+COMMENT ON TABLE  inv_adj IS '재고조정 원장 (append-only 자기완결 로그). 취소 경로 없음 — 되돌리는 것도 새 조정 1건(사유 ERR_ADJ)이다';
+COMMENT ON COLUMN inv_adj.adj_no      IS '재고조정 번호 (nbr_rule INV_ADJ_NO, 건당 유일 — 라인 구조 없음). inv_hist.rfn_doc_no로 실려 실적 ↔ 이력이 1:1로 매칭된다';
+COMMENT ON COLUMN inv_adj.prod_id     IS '조정 대상 상품';
+COMMENT ON COLUMN inv_adj.loc_id      IS '조정 대상 보관 로케이션 (스테이징은 대상이 아니다 — 보류·이동·조사와 같은 경계)';
+COMMENT ON COLUMN inv_adj.lot_id      IS '조정 대상 Lot';
+COMMENT ON COLUMN inv_adj.adj_bfr_qty IS '조정전수량 — 화면 입력값이 아니라 재고 행 락을 걸고 다시 읽은 on_hand_qty다 (재고조사 cfm_sys_qty와 같은 성격). 조정후수량은 adj_bfr_qty + adj_qty로 파생되므로 담지 않는다';
+COMMENT ON COLUMN inv_adj.adj_qty     IS '조정수량 (부호 있음 — 양수 증가 / 음수 감소). 0은 금지';
+COMMENT ON COLUMN inv_adj.hld_no      IS '소진한 보류 건 (보류 라인). NULL이면 가용 라인 — 라인 종류의 유일한 판별자라 별도 구분 컬럼을 두지 않는다. 보류 라인은 이 조정이 inv_hld_rlz_acrst 해제 실적(사유 ADJ)을 함께 남긴다';
+COMMENT ON COLUMN inv_adj.rsn_cd      IS '조정사유 코드 (공통코드 INV_ADJ_RSN). ETC(기타)일 때만 rsn_dscr 필수';
+COMMENT ON COLUMN inv_adj.rsn_dscr    IS '기타 사유 텍스트. rsn_cd = ETC일 때만 사용';
+
+CREATE INDEX ix_inv_adj_prod_created ON inv_adj (prod_id, created_at);
+-- 보류 건에서 「무엇으로 소진됐나」를 찾는 역방향 추적. 해제 실적(inv_hld_rlz_acrst)에는
+-- 조정번호를 실을 컬럼이 없어(보류의 원장이다) 조정이 자기 로그에 상대를 적는 쪽으로 잇는다
+CREATE INDEX ix_inv_adj_hld ON inv_adj (hld_no) WHERE hld_no IS NOT NULL;
 
 
 -- =====================================================================

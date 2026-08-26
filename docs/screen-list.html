@@ -204,9 +204,15 @@
 </tr>
 <tr>
   <td class="name">재고조사 (실사)</td>
-  <td>조사 대상 지정(존/로케이션/상품 범위) → 라인별 전산수량 스냅샷 → 실사수량·사유 입력 → 확정 시 차이를 <code>ADJUST</code>로 보정. <strong>재고 수량 정정의 유일한 경로</strong>(건별 조정 화면 없음 — 재고 하나만 고치려면 범위를 좁게 잡는다). <strong>조정수량 = 실사수량 − 확정시점 전산수량</strong>이라 확정 후 전산수량은 실사수량과 정확히 일치한다(확정이 재고 행 락을 걸고 다시 읽는다). 차이 0 라인은 이력·사유 없음, 미입력(NULL)은 「미조사」로 건너뜀. 장부에 없는 재고는 라인 수동 추가로 등록(기초재고·발견재고 — Lot은 기존 것만). 실적 테이블 없음 — 조정실적 조회는 재고 이력 조회에서 조사번호로</td>
+  <td>조사 대상 지정(존/로케이션/상품 범위) → 라인별 전산수량 스냅샷 → 실사수량·사유 입력 → 확정 시 차이를 <code>ADJUST</code>로 보정. <strong>장부와 실물의 차이를 정정하는 경로</strong>(재고 하나만 고치려면 범위를 좁게 잡는다 — 실물이 있는 채로 장부만 줄이는 폐기·견본출고는 <strong>재고조정</strong>이 맡는다). <strong>조정수량 = 실사수량 − 확정시점 전산수량</strong>이라 확정 후 전산수량은 실사수량과 정확히 일치한다(확정이 재고 행 락을 걸고 다시 읽는다). 차이 0 라인은 이력·사유 없음, 미입력(NULL)은 「미조사」로 건너뜀. 장부에 없는 재고는 라인 수동 추가로 등록(기초재고·발견재고 — Lot은 기존 것만). 실적 테이블 없음 — 조정실적 조회는 재고 이력 조회에서 조사번호로</td>
   <td class="st"><span class="badge done">구현</span></td>
   <td><code>POST·GET /inventory/stocktakes</code><br><code>GET·PUT·POST /inventory/stocktakes/{id}/lines</code><br><code>POST /inventory/stocktakes/{id}/confirm</code> · <code>/cancel</code> · <code>/resync</code></td>
+</tr>
+<tr>
+  <td class="name">재고조정</td>
+  <td>장부와 실물을 <strong>함께</strong> 증감시키는 의도된 처분(불량 반품 폐기·견본출고). 재고조사와 갈리는 기준은 <strong>「실물이 그 자리에 있느냐」</strong> 하나 — 조사는 어긋난 것을 실물에 맞추고(조정수량이 실사수량에서 파생), 조정은 맞는 것을 함께 줄인다(조정수량이 입력값). <strong>메뉴는 하나, 화면 안 탭 2개</strong> — ① <strong>재고조정</strong>: 위 그리드가 <strong>가용재고 / 보류 건</strong> 2탭이고 담아서 부호 있는 조정수량·사유를 넣는다(조정수량 ↔ 조정후수량 양방향 계산, 「직접 추가」로 장부에 없는 조합을 (+) 조정). <strong>보류 라인은 보류 「건」을 지목</strong>해 해제(사유 <code>ADJ</code>)와 장부 차감을 한 트랜잭션에 묶는다 — 보류를 먼저 풀면 그 사이 폐기 대기분이 가용재고로 떠서 재고이동이 보관존으로 옮겨 버릴 수 있다. ② <strong>조정 실적</strong>: append-only 로그(조정전/조정수량/조정후, 보류분 구분). 취소 경로 없음 — 되돌리는 것도 반대 부호 조정 1건(사유 <code>ERR_ADJ</code>). 실적의 재고 실체는 <code>inv_hist</code>의 부호 있는 <code>ADJUST</code> 1행(<code>rfn_doc_typ=INV_ADJ</code>)</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>GET /inventory/adjs/targets</code> · <code>/hld-targets</code><br><code>POST /inventory/adjs</code> · <code>GET /inventory/adjs</code></td>
 </tr>
 <tr>
   <td class="name">재고 이동</td>
@@ -407,6 +413,7 @@
 <tr><td>재고 이동</td><td><code>/stock/move</code></td><td><code>pages/stock/StockMove.jsx</code> — 탭 2개(이동지시등록 <code>StockMoveOrder.jsx</code> / 이동지시 관리 <code>StockMoveTaskList.jsx</code>)</td></tr>
 <tr><td>정기 보충</td><td><code>/stock/spmt</code></td><td><code>pages/stock/StockSpmt.jsx</code></td></tr>
 <tr><td>재고조사</td><td><code>/stock/count</code></td><td><code>pages/stock/StockCount.jsx</code> — 탭 2개(조사 목록 <code>StockCountList.jsx</code> / 실사 입력·확정 <code>StockCountDetail.jsx</code>)</td></tr>
+<tr><td>재고조정</td><td><code>/stock/adjust</code></td><td><code>pages/stock/StockAdj.jsx</code> — 탭 2개(재고조정 <code>StockAdjExec.jsx</code> / 조정 실적 <code>StockAdjAcrst.jsx</code>)</td></tr>
 
 <tr><td class="name" rowspan="6">출고</td><td>출고예정 관리</td><td><code>/outbound/order</code></td><td><code>pages/outbound/OutbOrderList.jsx</code> — 헤더–라인 2단 조회 전용. 입고예정(<code>AsnList.jsx</code>)과 같은 구조에 웨이브 편성 여부와 할당 진행이 더 붙는다</td></tr>
 <tr><td>웨이브 편성</td><td><code>/outbound/wave</code></td><td><code>pages/outbound/Wave.jsx</code> — 웨이브 목록 + 미편성/소속 주문 2단, 담기·빼기·해체, 전략 선택·자동 실행과 미리보기</td></tr>
@@ -440,6 +447,7 @@
   <li><s><strong>할당</strong></s> — <strong>완료 2026-08-03.</strong> 진입 단위는 <strong>웨이브</strong>이고 계산·결과는 라인 단위다(재번복 — 위 표 참조). v1의 유일한 할당 경로</li>
   <li><s><strong>피킹지시</strong>(웨이브 단위) → <strong>피킹</strong></s> — <strong>완료(2026-08-20).</strong> 지시(<code>pikng_task</code>)+실행실적(<code>pikng_acrst</code>) 2테이블, 지시는 적치지시·이동지시와 동등한 위치. 남은 것은 <strong>출고확정</strong> — 출고 흐름 완성</li>
   <li><s>재고 속성변경</s> — 완료 2026-08-03 (<s>재고조사</s> — 완료 2026-08-03)</li>
+  <li><s><strong>재고조정</strong></s> — 완료(2026-08-26). 불량 반품 폐기가 나갈 문이 없던 것을 메웠다 — 보류 건을 지목해 해제와 장부 차감을 한 트랜잭션에 묶는다</li>
   <li><s>점포 관리</s> — 완료(2026-08-14). 벤더와 같은 일괄 저장 + 서버 채번(<code>STORE_CD</code>), 삭제는 출고주문 참조 가드</li>
   <li>대시보드</li>
 </ol>
@@ -456,6 +464,7 @@
 <tr><td class="name">"입고 마감 UI는 백로그, 버튼 미노출"</td><td><strong>입고확정으로 재정의하고 흐름의 마지막 단계로 이동.</strong> 검수 직후가 아니라 적치가 진행된 뒤 결품을 확정한다. <strong>반영 완료(2026-08-14)</strong> — <code>POST /{id}/confirm</code></td></tr>
 <tr><td class="name">"COMPLETED는 RECEIVED 상태 and 전 라인 putawayQty == rcvdQty 두 조건이 충족된 시점에 자동 전이"</td><td>자동 전이 제거. <strong>사용자의 명시적 확정 액션</strong>으로만 종료하며, 전 라인 적치 완료가 확정의 선행 조건이 된다. <strong>반영 완료(2026-08-14)</strong></td></tr>
 <tr><td class="name">백로그(v1 제외): "폐기/홀드(재고 상태 + 만료 Lot 자동 홀드 배치)"</td><td><strong>재고 보류를 v1에 포함.</strong> <code>inv</code>에 재고상태를 추가하고 할당 후보에서 보류 재고를 제외한다. 만료 Lot 자동 보류 배치와 폐기는 계속 백로그</td></tr>
+<tr><td class="name">"재고 수량 정정의 유일한 경로는 재고조사" · "건별 즉시 조정 화면을 두지 않는다"</td><td><strong>번복(2026-08-26) — 재고조정 도입.</strong> 반품 검수의 불량분이 반품존에 보류된 채 나갈 문이 없었다(양품 재판정만 있고 폐기가 없다). 재고조사로 우회하려 해도 확정 가드 <code>실사수량 &gt;= aloc + hld</code>에 막히고, 보류를 먼저 풀면 <strong>실물이 있는데 「세어보니 없었다」로 적는</strong> 거짓 기록이 된다. 경계를 「실물이 그 자리에 있느냐」로 다시 그어, 차이 정정은 조사가·의도된 처분은 조정이 맡는다. 조사 대상에서 반품존을 빼는 안은 <strong>채택하지 않았다</strong> — 빼면 그 존의 진짜 분실이 나갈 문을 잃는다</td></tr>
 <tr><td class="name">재고조사: "차이 = 실사수량 − 조사 생성 시점 전산수량"</td><td><strong>번복(2026-08-03) — 확정시점 전산수량 기준.</strong> 확정이 라인별 재고 행 락을 걸고 전산수량을 다시 읽어(<code>cfm_sys_qty</code>) 조정하므로 확정 후 전산수량이 실사수량과 정확히 일치한다. 조사 생성부터 확정까지의 시간차를 스냅샷 기준으로 두면 확정 후에도 전산 ≠ 실사가 되어 실사의 목적이 무너지기 때문 — 대가는 실사 이후 입고분이 덮이는 것</td></tr>
 <tr><td class="name">"보류는 수량이 아니라 행 단위 재고상태"</td><td><strong>번복(2026-08-03) — 보류는 수량이다.</strong> 재고상태 컬럼 대신 <code>inv.hld_qty</code>(가용 = 보유 − 예약 − 보류, 예약과 배타) + 보류 3테이블(<code>inv_hld</code>/<code>inv_hld_acrst</code>/<code>inv_hld_rlz_acrst</code>). 부분수량 보류와 등록/해제 사유별 히스토리 보존 요구 때문</td></tr>
 <tr><td class="name">보류: "동일 사유의 미해제 중복은 부분 UNIQUE 인덱스로 막는다"</td><td><strong>번복(2026-08-09) — 같은 재고 행에 같은 사유의 미해제 보류가 여러 건 병존한다.</strong> 그 규칙엔 기간 개념이 없어 「같은 Lot이 다른 날 같은 사유로 또 걸리는」 정당한 업무를 해제 전까지 영구히 막았다. 기존 건에 합산하지도 않는다 — 보류 건은 보류번호·사유 텍스트·등록 시각·부분해제 이력을 각자 갖는 독립 단위라 합치면 첫 건에 흡수된다. 중복 제출 실수는 해제(사유: 오등록)로 되돌린다(<code>migration-inv-hld-multi-open.sql</code>)</td></tr>

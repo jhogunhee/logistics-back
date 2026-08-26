@@ -50,6 +50,8 @@ public class InvHldService {
     private static final String HLD_NO_RULE_CD = "HLD_NO";
     private static final String HLD_RSN_GRP_CD = "HLD_RSN";
     private static final String HLD_RLZ_RSN_GRP_CD = "HLD_RLZ_RSN";
+    /** 재고조정(보류 라인)이 보류분을 폐기하며 남기는 해제사유. 화면 해제로는 고를 수 없다 — {@link #release} 참고 */
+    public static final String RLZ_RSN_ADJ = "ADJ";
 
     private final InvStore invStore;
     private final InvHldRepository invHldRepository;
@@ -168,6 +170,10 @@ public class InvHldService {
      * 그 행의 보류 둘을 함께 해제하는 요청이 앞 건에서 재고 행을 쥔 채 뒤 건의 보류 건을 기다리는
      * 동안, 그 보류 건 하나만 해제하는 요청이 반대로 물린다. 그래서 재고 행을 먼저 모두
      * 선락하고(InvStore가 키 오름차순으로 잠근다), 보류 건은 id 오름차순으로 잡아 순서를 맞춘다.
+     *
+     * 해제사유 ADJ(재고조정)는 여기서만 거부한다 — 재고조정이 {@link #releaseOn}에 고정으로 넘기는
+     * 값이라 그 아래(releaseOn·RsnValidator)에 두면 조정이 자기 사유에 걸려 막힌다. 화면에서 고르면
+     * 조정 없이 사유만 조정인 해제가 되어 「등록은 되는데 동작하지 않는 옵션」이 된다.
      */
     @Transactional
     public void release(InvHldReleaseRequest request) {
@@ -179,6 +185,9 @@ public class InvHldService {
             Long hldId = item.getHldId();
             if (hldId == null) {
                 throw new IllegalArgumentException("해제할 보류 건이 지정되지 않았습니다.");
+            }
+            if (RLZ_RSN_ADJ.equals(item.getRsnCd())) {
+                throw new IllegalArgumentException("「재고조정」은 조정이 남기는 해제사유라 해제 화면에서 고를 수 없습니다 — 보류분을 폐기하려면 재고조정 화면을 쓰십시오.");
             }
             // 같은 건을 두 번 실으면 잔량을 두 번 깎으면서 실적만 두 줄 남는다 — 애초에 거부한다
             if (!hldIds.add(hldId)) {
@@ -211,16 +220,8 @@ public class InvHldService {
         if (item.getQty() == null || item.getQty() < 1) {
             throw new IllegalArgumentException("해제수량은 1 이상이어야 합니다.");
         }
-        String rsnDscr = rsnValidator.validate(HLD_RLZ_RSN_GRP_CD, "해제사유", item.getRsnCd(), item.getRsnDscr());
-
         InvHld hld = invHldRepository.findByIdForUpdate(item.getHldId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 보류 건입니다: " + item.getHldId()));
-        if (hld.getStatus() != InvHldStatus.HELD) {
-            throw new IllegalArgumentException("보류중 상태의 건만 해제할 수 있습니다 (현재 " + hld.getStatus().getLabel() + "): " + hld.getHldNo());
-        }
-        if (item.getQty() > hld.remainingQty()) {
-            throw new IllegalArgumentException("해제수량이 미해제 잔량을 초과했습니다 (잔량 " + hld.remainingQty() + "): " + hld.getHldNo());
-        }
 
         // 보류 잔량이 있는 한 inv 행은 삭제되지 않으므로(ck_inv_qty: hld <= onHand → onHand > 0) 없으면 정합성 오류다.
         // 선락 단계에서 잠근 행을 꺼내 쓴다 (보류 건의 재고 키는 생성 후 바뀌지 않는다)
@@ -228,18 +229,46 @@ public class InvHldService {
         if (inv == null) {
             throw new IllegalStateException("보류 건이 잡아둔 재고가 없습니다 (정합성 오류): " + hld.getHldNo());
         }
-        if (inv.getHldQty() < item.getQty()) {
+
+        releaseOn(hld, inv, item.getQty(), item.getRsnCd(), item.getRsnDscr());
+    }
+
+    /**
+     * 보류 건 하나를 잔량 이내로 해제 — 검증 · hld 소진 · 건 갱신 · 해제 실적.
+     * 화면 해제({@link #release})와 재고조정의 보류 라인({@code InvAdjService})이 같이 쓴다 —
+     * 등록 쪽 {@link #holdOn}과 대칭이다. 복사하면 항등식(inv.hld_qty = SUM(미해제 잔량))을
+     * 지키는 코드가 두 벌이 된다.
+     *
+     * <p>호출자가 그 재고 행의 락과 보류 건 락(findByIdForUpdate)을 <b>이미 잡고 있어야 한다</b> —
+     * 여기서 잡지 않는 이유는 락 순서가 「재고 행 전부 → 보류 건」이라 이 메서드 안에서는 그 순서를
+     * 세울 수 없기 때문이다(다건에서 교착이 난다 — {@link #release} javadoc 참고).
+     * 채번을 하지 않으므로 등록({@code holdOn})과 달리 재고 락이 더 남아 있어도 부를 수 있다.
+     */
+    @Transactional
+    public void releaseOn(InvHld hld, Inv inv, long qty, String rsnCd, String rsnDscr) {
+        if (qty < 1) {
+            throw new IllegalArgumentException("해제수량은 1 이상이어야 합니다.");
+        }
+        String dscr = rsnValidator.validate(HLD_RLZ_RSN_GRP_CD, "해제사유", rsnCd, rsnDscr);
+
+        if (hld.getStatus() != InvHldStatus.HELD) {
+            throw new IllegalArgumentException("보류중 상태의 건만 해제할 수 있습니다 (현재 " + hld.getStatus().getLabel() + "): " + hld.getHldNo());
+        }
+        if (qty > hld.remainingQty()) {
+            throw new IllegalArgumentException("해제수량이 미해제 잔량을 초과했습니다 (잔량 " + hld.remainingQty() + "): " + hld.getHldNo());
+        }
+        if (inv.getHldQty() < qty) {
             throw new IllegalStateException("보류 잔량보다 재고의 보류 수량이 적습니다 (정합성 오류 — 보류 " + inv.getHldQty()
-                    + " / 해제 " + item.getQty() + "): " + hld.getHldNo());
+                    + " / 해제 " + qty + "): " + hld.getHldNo());
         }
 
-        hld.release(item.getQty());
-        invStore.releaseHold(inv, item.getQty());
+        hld.release(qty);
+        invStore.releaseHold(inv, qty);
         invHldRlzAcrstRepository.save(InvHldRlzAcrst.builder()
                 .hldNo(hld.getHldNo())
                 .prod(hld.getProd()).loc(hld.getLoc()).lot(hld.getLot())
-                .rlzQty(item.getQty())
-                .rsnCd(item.getRsnCd()).rsnDscr(rsnDscr)
+                .rlzQty(qty)
+                .rsnCd(rsnCd).rsnDscr(dscr)
                 .build());
     }
 }
