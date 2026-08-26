@@ -1,5 +1,7 @@
 package com.project.wmsback.inventory.controller;
 
+import com.project.common.dto.PageCond;
+import com.project.common.dto.PageResponse;
 import com.project.wmsback.inventory.dto.InvAdjHldTargetResponse;
 import com.project.wmsback.inventory.dto.InvAdjRequest;
 import com.project.wmsback.inventory.dto.InvAdjResponse;
@@ -46,9 +48,9 @@ public class InvAdjController {
         return invAdjService.adjust(request);
     }
 
-    /** 실적 조회 (append-only 로그) */
+    /** 실적 조회 (append-only 로그 — 서버 페이징. 조건과 페이지를 따로 받는다) */
     @GetMapping
-    public List<InvAdjResponse> list(@ModelAttribute InvAdjSearchCond cond) {
-        return invAdjService.list(cond);
+    public PageResponse<InvAdjResponse> list(@ModelAttribute InvAdjSearchCond cond, @ModelAttribute PageCond pageCond) {
+        return invAdjService.list(cond, pageCond);
     }
 }

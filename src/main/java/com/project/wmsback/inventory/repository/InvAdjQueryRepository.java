@@ -4,6 +4,7 @@ import com.project.wmsback.inventory.dto.InvAdjHldTargetResponse;
 import com.project.wmsback.inventory.dto.InvAdjTargetResponse;
 import com.project.wmsback.inventory.dto.InvAdjTargetSearchCond;
 import com.project.wmsback.inventory.entity.InvHldStatus;
+import com.project.wmsback.warehouse.entity.BizDvsn;
 import com.project.wmsback.warehouse.entity.LocTyp;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
@@ -30,6 +31,8 @@ import static com.project.wmsback.warehouse.entity.QZon.zon;
  *
  * 불변 전제가 여기서 강제된다 (조건과 무관하게 — 서비스도 저장 시 같은 조건을 재검증한다):
  * - 보관(STORAGE) 로케이션만 — 스테이징은 적치·출고확정이 소진 중이라 대상이 아니다
+ * - 대기 구역 존({@link BizDvsn#STAGING} — 입고대기·출고대기)의 재고는 제외. 유형 필터와 겹쳐
+ *   보이지만 서로를 대신하지 않는다 (대기존에 STORAGE 로케이션을 등록하면 유형만으로는 통과한다)
  * - 보류 라인 대상은 미해제 잔량이 남은 HELD 건만
  *
  * 가용수량 0인 재고 행을 <b>거르지 않는 것</b>이 로트변경 대상 조회와 갈리는 지점이다 —
@@ -59,6 +62,7 @@ public class InvAdjQueryRepository {
                 .leftJoin(loc.zon, zon)
                 .where(
                         loc.locTyp.eq(LocTyp.STORAGE),
+                        notStagingZon(),
                         prodCdContains(cond.getProdCd()),
                         prodNmContains(cond.getProdNm()),
                         locCdContains(cond.getLocCd()),
@@ -101,6 +105,7 @@ public class InvAdjQueryRepository {
                         invHld.status.eq(InvHldStatus.HELD),
                         remainingQty.gt(0L),
                         loc.locTyp.eq(LocTyp.STORAGE),
+                        notStagingZon(),
                         prodCdContains(cond.getProdCd()),
                         prodNmContains(cond.getProdNm()),
                         locCdContains(cond.getLocCd()),
@@ -110,6 +115,14 @@ public class InvAdjQueryRepository {
                 )
                 .orderBy(prod.prodCd.asc(), loc.locCd.asc(), invHld.id.asc())
                 .fetch();
+    }
+
+    /**
+     * 대기 구역 존 제외 — 조건이 아니라 언제나 걸리는 전제다.
+     * 존 미등록 로케이션(FK가 없어 있을 수 있다)은 대기존이 아니므로 남긴다.
+     */
+    private BooleanExpression notStagingZon() {
+        return zon.bizDvsn.notIn(BizDvsn.STAGING).or(zon.bizDvsn.isNull());
     }
 
     // 조건 메서드가 null을 반환하면 where()가 그 조건을 무시한다 — QueryDSL 동적 쿼리 관례

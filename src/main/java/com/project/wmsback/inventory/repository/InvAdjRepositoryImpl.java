@@ -1,5 +1,7 @@
 package com.project.wmsback.inventory.repository;
 
+import com.project.common.dto.PageCond;
+import com.project.common.dto.PageResponse;
 import com.project.wmsback.inventory.dto.InvAdjResponse;
 import com.project.wmsback.inventory.dto.InvAdjSearchCond;
 import com.querydsl.core.types.Projections;
@@ -22,8 +24,8 @@ public class InvAdjRepositoryImpl implements InvAdjRepositoryCustom {
     private final JPAQueryFactory queryFactory;
 
     @Override
-    public List<InvAdjResponse> search(InvAdjSearchCond cond) {
-        return queryFactory
+    public PageResponse<InvAdjResponse> search(InvAdjSearchCond cond, PageCond pageCond) {
+        List<InvAdjResponse> rows = queryFactory
                 .select(Projections.constructor(InvAdjResponse.class,
                         invAdj.id, invAdj.adjNo,
                         prod.prodCd, prod.prodNm,
@@ -35,19 +37,37 @@ public class InvAdjRepositoryImpl implements InvAdjRepositoryCustom {
                 .innerJoin(invAdj.prod, prod)
                 .innerJoin(invAdj.loc, loc)
                 .innerJoin(invAdj.lot, lot)
-                .where(
-                        adjNoContains(cond.getAdjNo()),
-                        prodCdContains(cond.getProdCd()),
-                        prodNmContains(cond.getProdNm()),
-                        locCdContains(cond.getLocCd()),
-                        lotNoContains(cond.getLotNo()),
-                        rsnCdEq(cond.getRsnCd()),
-                        hldOnlyEq(cond.getHldOnly()),
-                        createdAtGoe(cond.getDateFrom()),
-                        createdAtLt(cond.getDateTo())
-                )
+                .where(searchConds(cond))
                 .orderBy(invAdj.id.desc())
+                .offset(pageCond.getOffset())
+                .limit(pageCond.getSize())
                 .fetch();
+
+        Long totCnt = queryFactory
+                .select(invAdj.count())
+                .from(invAdj)
+                .innerJoin(invAdj.prod, prod)
+                .innerJoin(invAdj.loc, loc)
+                .innerJoin(invAdj.lot, lot)
+                .where(searchConds(cond))
+                .fetchOne();
+
+        return PageResponse.of(rows, totCnt, pageCond);
+    }
+
+    /** 목록과 셈이 같은 조건을 쓰도록 한자리에 모은다 */
+    private BooleanExpression[] searchConds(InvAdjSearchCond cond) {
+        return new BooleanExpression[]{
+                adjNoContains(cond.getAdjNo()),
+                prodCdContains(cond.getProdCd()),
+                prodNmContains(cond.getProdNm()),
+                locCdContains(cond.getLocCd()),
+                lotNoContains(cond.getLotNo()),
+                rsnCdEq(cond.getRsnCd()),
+                hldOnlyEq(cond.getHldOnly()),
+                createdAtGoe(cond.getDateFrom()),
+                createdAtLt(cond.getDateTo())
+        };
     }
 
     // 조건 메서드가 null을 반환하면 where()가 그 조건을 무시한다 — QueryDSL 동적 쿼리 관례

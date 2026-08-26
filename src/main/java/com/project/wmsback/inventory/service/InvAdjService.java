@@ -1,5 +1,7 @@
 package com.project.wmsback.inventory.service;
 
+import com.project.common.dto.PageCond;
+import com.project.common.dto.PageResponse;
 import com.project.mdm.nbr.service.NbrService;
 import com.project.mdm.prod.entity.Prod;
 import com.project.mdm.prod.repository.ProdRepository;
@@ -17,6 +19,7 @@ import com.project.wmsback.inventory.entity.TxTyp;
 import com.project.wmsback.inventory.repository.InvAdjQueryRepository;
 import com.project.wmsback.inventory.repository.InvAdjRepository;
 import com.project.wmsback.inventory.repository.InvHldRepository;
+import com.project.wmsback.warehouse.entity.BizDvsn;
 import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.LocTyp;
 import com.project.wmsback.warehouse.entity.Lot;
@@ -33,6 +36,7 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -89,9 +93,9 @@ public class InvAdjService {
         return invAdjQueryRepository.searchHldTargets(cond);
     }
 
-    /** 실적 조회 (append-only 로그) */
-    public List<InvAdjResponse> list(InvAdjSearchCond cond) {
-        return invAdjRepository.search(cond);
+    /** 실적 조회 (append-only 로그 — 무한히 자라므로 서버 페이징, 전량 조회를 두지 않는다) */
+    public PageResponse<InvAdjResponse> list(InvAdjSearchCond cond, PageCond pageCond) {
+        return invAdjRepository.search(cond, pageCond);
     }
 
     /**
@@ -142,7 +146,7 @@ public class InvAdjService {
 
         // 2) 보류 건 락 — id 오름차순 (InvHldService.release와 같은 순서)
         Map<Long, InvHld> lockedHld = new HashMap<>();
-        ctxs.stream().map(c -> c.item.getHldId()).filter(java.util.Objects::nonNull)
+        ctxs.stream().map(c -> c.item.getHldId()).filter(Objects::nonNull)
                 .distinct().sorted()
                 .forEach(hldId -> lockedHld.put(hldId, invHldRepository.findByIdForUpdate(hldId)
                         .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 보류 건입니다: " + hldId))));
@@ -166,7 +170,8 @@ public class InvAdjService {
         // 직전 조정을 되돌리는 것(ERR_ADJ)이 주 용도다. 발견재고·기초재고는 재고조사 소관
         if (inv == null) {
             if (adjQty < 0) {
-                throw new IllegalArgumentException("존재하지 않는 재고는 감소 조정할 수 없습니다: " + ctx.key);
+                throw new IllegalArgumentException("존재하지 않는 재고는 감소 조정할 수 없습니다 (상품 " + ctx.item.getProdId()
+                        + " / 로케이션 " + ctx.item.getLocId() + " / Lot " + ctx.item.getLotId() + ")");
             }
             if (hld != null) {
                 throw new IllegalStateException("보류 건이 잡아둔 재고가 없습니다 (정합성 오류): " + hld.getHldNo());
@@ -185,40 +190,57 @@ public class InvAdjService {
         if (loc.getLocTyp() != LocTyp.STORAGE) {
             throw new IllegalArgumentException("보관 로케이션의 재고만 조정할 수 있습니다: " + loc.getLocCd());
         }
+        // 대기 구역 존 제외 — 로케이션 유형과 겹쳐 보이지만 서로를 대신하지 않는다. 유형은 로케이션마다
+        // 자유롭게 정해지므로 입고대기·출고대기 존에 STORAGE 로케이션을 하나 등록하면 위 검사를 통과한다.
+        // 존은 FK가 없어 미등록일 수 있다 — 그때는 대기존이 아니다 (RtngsLocResolver.inRtngsZon과 같은 방어)
+        if (loc.getZon() != null && loc.getZon().getBizDvsn() != null && loc.getZon().getBizDvsn().staging()) {
+            throw new IllegalArgumentException("대기 구역(" + loc.getZon().getBizDvsn().getLabel()
+                    + ") 재고는 조정할 수 없습니다: " + loc.getLocCd()
+                    + " — 적치·출고확정이 소진 중이라 세는 시점이 불안정합니다.");
+        }
         // 재고조사 라인 수동 추가와 같은 검증 — Lot은 상품에 종속이라 어긋난 조합이면 키 자체가 틀렸다
         if (!lot.getProd().getId().equals(prod.getId())) {
             throw new IllegalArgumentException("Lot이 해당 상품의 것이 아닙니다 (" + lot.getLotNo() + " ↔ " + prod.getProdCd() + ")");
+        }
+
+        // 수량 검증은 채번보다 앞이다 — 롤백이 번호를 되돌리긴 하지만, 실패할 요청이 날짜별 공유
+        // 카운터 행 락을 쥐고 있는 구간만큼 모든 조정이 직렬화된다 (로트변경·보류 등록과 같은 순서)
+        if (hld != null) {
+            if (!hld.getProd().getId().equals(prod.getId())
+                    || !hld.getLoc().getId().equals(loc.getId())
+                    || !hld.getLot().getId().equals(lot.getId())) {
+                throw new IllegalArgumentException("보류 건이 가리키는 재고와 조정 대상이 다릅니다: " + hld.getHldNo());
+            }
+            // 잔량·상태의 판정 기준은 보류 원장의 주인이 가지므로 여기서 복제하지 않는다 —
+            // releaseOn이 같은 검사를 하고, 이 위치에서는 「담을 수 있는 건인가」만 앞당겨 본다
+            if (-adjQty > hld.remainingQty()) {
+                throw new IllegalArgumentException("조정수량이 보류 미해제 잔량을 초과했습니다 (잔량 "
+                        + hld.remainingQty() + "): " + hld.getHldNo());
+            }
+        } else if (adjQty < 0 && -adjQty > inv.avalQty()) {
+            // 예약·보류를 침범하면 outb_alloc(inv_id 참조)·inv_hld가 가리키는 재고가 사라진다.
+            // 보류분을 없애려면 보류 라인으로 담아야 한다 — 그래야 해제 실적이 함께 남는다
+            throw new IllegalArgumentException("조정수량이 가용재고를 초과했습니다 (가용 " + inv.avalQty()
+                    + " / 예약 " + inv.getAlocQty() + " / 보류 " + inv.getHldQty() + "): "
+                    + prod.getProdCd() + " @ " + loc.getLocCd()
+                    + " — 할당 해제·이동지시 취소로 먼저 정리하거나, 보류분이라면 보류 건을 담아 조정하세요.");
         }
 
         // 조정전수량은 화면 입력값이 아니라 락을 잡고 다시 읽은 값이다 (조사의 cfmSysQty와 같은 성격)
         long adjBfrQty = inv != null ? inv.getOnHandQty() : 0L;
         String adjNo = nbrService.issue(INV_ADJ_NO_RULE_CD, LocalDate.now());
         InvDocRef ref = InvDocRef.of(RefDocTyp.INV_ADJ, adjNo);
-        String hldNo = null;
+        String hldNo = hld != null ? hld.getHldNo() : null;
 
         if (hld != null) {
-            hldNo = hld.getHldNo();
-            if (!hld.getProd().getId().equals(prod.getId())
-                    || !hld.getLoc().getId().equals(loc.getId())
-                    || !hld.getLot().getId().equals(lot.getId())) {
-                throw new IllegalArgumentException("보류 건이 가리키는 재고와 조정 대상이 다릅니다: " + hld.getHldNo());
-            }
             // 보류 소진을 물리 감소보다 먼저 — 반대 순서면 aloc + hld <= on_hand 를 위반하는 중간
             // 상태가 이후 조회의 auto-flush에 실려 DB에 닿을 수 있다 (move()·pick()과 같은 함정).
-            // 잔량·상태 검증과 해제 실적(사유 ADJ)은 보류 원장의 주인이 진다
+            // 해제 실적(사유 ADJ)과 건 상태 전이는 보류 원장의 주인이 진다
             invHldService.releaseOn(hld, inv, -adjQty, InvHldService.RLZ_RSN_ADJ, null);
             invStore.decrease(inv, -adjQty, TxTyp.ADJUST, ref);
         } else if (adjQty > 0) {
             invStore.increase(prod, loc, lot, adjQty, TxTyp.ADJUST, ref);
         } else {
-            // 예약·보류를 침범하면 outb_alloc(inv_id 참조)·inv_hld가 가리키는 재고가 사라진다.
-            // 보류분을 없애려면 보류 라인으로 담아야 한다 — 그래야 해제 실적이 함께 남는다
-            if (-adjQty > inv.avalQty()) {
-                throw new IllegalArgumentException("조정수량이 가용재고를 초과했습니다 (가용 " + inv.avalQty()
-                        + " / 예약 " + inv.getAlocQty() + " / 보류 " + inv.getHldQty() + "): "
-                        + prod.getProdCd() + " @ " + loc.getLocCd()
-                        + " — 할당 해제·이동지시 취소로 먼저 정리하거나, 보류분이라면 보류 건을 담아 조정하세요.");
-            }
             invStore.decrease(inv, -adjQty, TxTyp.ADJUST, ref);
         }
 

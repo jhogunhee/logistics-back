@@ -1200,7 +1200,7 @@ CREATE TABLE inv_adj (
 COMMENT ON TABLE  inv_adj IS '재고조정 원장 (append-only 자기완결 로그). 취소 경로 없음 — 되돌리는 것도 새 조정 1건(사유 ERR_ADJ)이다';
 COMMENT ON COLUMN inv_adj.adj_no      IS '재고조정 번호 (nbr_rule INV_ADJ_NO, 건당 유일 — 라인 구조 없음). inv_hist.rfn_doc_no로 실려 실적 ↔ 이력이 1:1로 매칭된다';
 COMMENT ON COLUMN inv_adj.prod_id     IS '조정 대상 상품';
-COMMENT ON COLUMN inv_adj.loc_id      IS '조정 대상 보관 로케이션 (스테이징은 대상이 아니다 — 보류·이동·조사와 같은 경계)';
+COMMENT ON COLUMN inv_adj.loc_id      IS '조정 대상 보관 로케이션. 스테이징은 대상이 아니고(보류·이동·조사와 같은 경계), 대기 구역 존(zon.biz_dvsn = INB 입고대기 / OUTB 출고대기)도 로케이션 유형과 별도로 제외한다 — 유형은 로케이션마다 자유롭게 정해져 대기존에 STORAGE 로케이션이 등록되면 유형 필터만으로는 통과한다';
 COMMENT ON COLUMN inv_adj.lot_id      IS '조정 대상 Lot';
 COMMENT ON COLUMN inv_adj.adj_bfr_qty IS '조정전수량 — 화면 입력값이 아니라 재고 행 락을 걸고 다시 읽은 on_hand_qty다 (재고조사 cfm_sys_qty와 같은 성격). 조정후수량은 adj_bfr_qty + adj_qty로 파생되므로 담지 않는다';
 COMMENT ON COLUMN inv_adj.adj_qty     IS '조정수량 (부호 있음 — 양수 증가 / 음수 감소). 0은 금지';

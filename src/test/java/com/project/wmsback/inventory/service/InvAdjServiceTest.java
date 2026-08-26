@@ -20,7 +20,9 @@ import com.project.wmsback.inventory.repository.InvHldAcrstRepository;
 import com.project.wmsback.inventory.repository.InvHldRepository;
 import com.project.wmsback.inventory.repository.InvHldRlzAcrstRepository;
 import com.project.wmsback.inventory.repository.InvRepository;
+import com.project.wmsback.warehouse.entity.BizDvsn;
 import com.project.wmsback.warehouse.entity.Loc;
+import com.project.wmsback.warehouse.entity.Zon;
 import com.project.wmsback.warehouse.entity.LocTyp;
 import com.project.wmsback.warehouse.entity.Lot;
 import com.project.wmsback.warehouse.repository.LocRepository;
@@ -324,6 +326,31 @@ class InvAdjServiceTest {
     }
 
     @Test
+    @DisplayName("입고대기·출고대기 존 재고는 로케이션 유형이 보관이어도 조정 대상이 아니다")
+    void adjust_rejectsStagingZonEvenWhenStorageLocType() {
+        for (BizDvsn dvsn : BizDvsn.STAGING) {
+            Zon stagingZon = mock(Zon.class);
+            when(stagingZon.getBizDvsn()).thenReturn(dvsn);
+            when(loc.getZon()).thenReturn(stagingZon);
+            when(loc.getLocTyp()).thenReturn(LocTyp.STORAGE);   // 유형 필터는 통과하는 상태
+
+            assertThrows(IllegalArgumentException.class,
+                    () -> invAdjService.adjust(request(item(-5L, null))));
+        }
+        verify(invHistRepository, never()).save(any(InvHist.class));
+    }
+
+    @Test
+    @DisplayName("존이 등록되지 않은 로케이션은 대기존이 아니다 — FK가 없어 생길 수 있는 상태")
+    void adjust_allowsLocWithoutZon() {
+        when(loc.getZon()).thenReturn(null);
+
+        invAdjService.adjust(request(item(-5L, null)));
+
+        assertEquals(45L, inv.getOnHandQty());
+    }
+
+    @Test
     @DisplayName("존재하지 않는 재고는 감소 조정할 수 없다")
     void adjust_rejectsDecreaseOnMissingRow() {
         when(invRepository.findByKeyForUpdate(PROD_ID, LOC_ID, LOT_ID)).thenReturn(Optional.empty());
@@ -343,6 +370,42 @@ class InvAdjServiceTest {
         order.verify(invRepository).findByKeyForUpdate(PROD_ID, LOC_ID, LOT_ID);
         order.verify(invHldRepository).findByIdForUpdate(HLD_ID);
         order.verify(nbrService).issue(eq("INV_ADJ_NO"), any());
+    }
+
+    @Test
+    @DisplayName("수량 검증에 걸리면 채번하지 않는다 — 실패할 요청이 공유 카운터 락을 쥐고 있으면 안 된다")
+    void adjust_doesNotIssueNumberWhenValidationFails() {
+        inv.hold(45L);   // 가용 5
+
+        assertThrows(IllegalArgumentException.class,
+                () -> invAdjService.adjust(request(item(-6L, null))));
+        verify(nbrService, never()).issue(eq("INV_ADJ_NO"), any());
+    }
+
+    @Test
+    @DisplayName("보류 잔량 검증에 걸려도 채번하지 않는다")
+    void adjust_doesNotIssueNumberWhenHoldRemainingExceeded() {
+        heldOn(20L);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> invAdjService.adjust(request(item(-21L, HLD_ID))));
+        verify(nbrService, never()).issue(eq("INV_ADJ_NO"), any());
+    }
+
+    @Test
+    @DisplayName("보류 건이 가리키는 재고와 조정 대상이 다르면 거부하고 아무것도 건드리지 않는다")
+    void adjust_rejectsHoldPointingElsewhere() {
+        Loc otherLoc = mock(Loc.class);
+        when(otherLoc.getId()).thenReturn(999L);
+        InvHld hld = InvHld.builder()
+                .hldNo("HD-20260826-009").prod(prod).loc(otherLoc).lot(lot)
+                .hldQty(5L).rsnCd("QLTY").build();
+        when(invHldRepository.findByIdForUpdate(HLD_ID)).thenReturn(Optional.of(hld));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> invAdjService.adjust(request(item(-1L, HLD_ID))));
+        verify(invHldRlzAcrstRepository, never()).save(any(InvHldRlzAcrst.class));
+        verify(invHistRepository, never()).save(any(InvHist.class));
     }
 
     @Test
