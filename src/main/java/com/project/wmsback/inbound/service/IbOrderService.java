@@ -5,13 +5,16 @@ import com.project.wmsback.inbound.dto.IbOrderCfmResponse;
 import com.project.wmsback.inbound.dto.IbOrderInspResponse;
 import com.project.wmsback.inbound.dto.IbOrderResponse;
 import com.project.wmsback.inbound.dto.IbOrderSearchCond;
+import com.project.wmsback.inbound.entity.IbLine;
 import com.project.wmsback.inbound.repository.IbLineRepository;
 import com.project.wmsback.inbound.repository.IbOrderRepository;
+import com.project.wmsback.inbound.repository.PutawayTaskQueryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -20,6 +23,7 @@ public class IbOrderService {
 
     private final IbOrderRepository ibOrderRepository;
     private final IbLineRepository ibLineRepository;
+    private final PutawayTaskQueryRepository putawayTaskQueryRepository;
 
     // 목록은 화면별로 세 벌이다 — 수량 집계 · 최종 검수일시 · 진행 파생과 필터가 전부 쿼리 안에 있어
     // 서비스가 뒤에 붙일 것이 없다. 왜 하나로 합치지 않았는지는 IbOrderRepositoryImpl 주석 참고.
@@ -43,8 +47,12 @@ public class IbOrderService {
         if (!ibOrderRepository.existsById(ibOrderId)) {
             throw new IllegalArgumentException("존재하지 않는 입고예정입니다: " + ibOrderId);
         }
-        return ibLineRepository.findAllByOrderIdWithProd(ibOrderId).stream()
-                .map(IbLineResponse::from)
+        List<IbLine> lines = ibLineRepository.findAllByOrderIdWithProd(ibOrderId);
+        // 진행단계가 「지시가 나갔는가」를 보므로 라인 id를 모아 한 번에 묻는다 (라인마다 물으면 N+1)
+        Set<Long> openDrctLineIds = putawayTaskQueryRepository.openIbLineIds(
+                lines.stream().map(IbLine::getId).toList());
+        return lines.stream()
+                .map(line -> IbLineResponse.from(line, openDrctLineIds.contains(line.getId())))
                 .toList();
     }
 

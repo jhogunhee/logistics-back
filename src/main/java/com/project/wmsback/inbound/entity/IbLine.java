@@ -99,19 +99,23 @@ public class IbLine extends BaseEntity {
      * 상태를 안 바꾸면 바로 어긋나는데, 수량은 어차피 갱신되므로 거기서 따라 만들면 어긋날 자리가 없다.
      * ({@code docs/design.md} 「상태와 수량의 분담」 — 부분입고를 상태값으로 만들지 않는다)
      * <p>
-     * 헤더의 5단계 파생({@code IbOrder#progress})과 같은 {@link IbPrgr} 어휘를 돌려준다 —
-     * 화면이 헤더와 같은 뱃지를 그대로 쓰고, 헤더 진행이 왜 그 값인지 라인에서 바로 읽힌다.
-     * 단 라인은 적치지시 존재를 모르므로 PTAWY_DRCT를 「적치 진행 중(ptawy &lt; rcvd)」의 뜻으로 쓴다.
+     * <b>판정의 주인은 여기다</b> — 헤더는 라인 단계를 모아 만든다(검수까지 max, 그 위는 min).
+     * 헤더 쪽은 SQL이라 이 메서드를 부를 수 없어 {@code IbOrderRepositoryImpl#lineStage()}가
+     * 같은 사다리를 CASE로 옮겨 놓았다. 한쪽을 고치면 반드시 다른 쪽도 고칠 것.
      * <p>
-     * 검수 축을 먼저 본다 — 적치는 부분검수분에도 할 수 있어 검수와 나란히 굴러가므로, 둘을 한 값에
-     * 합치면 뜻이 뭉개진다. 그래서 "아직 더 올 것이 있다"(검수 &lt; 예정)가 적치 진행보다 앞선다.
+     * "덜 왔으면 검수"를 두지 않는다 — 부분 도착 여부는 진행단계가 아니라 수량 칸(예정·검수·미적치)이
+     * 말한다. 그걸 단계에 섞으면 「40개 받아 40개 다 옮겼다」가 영영 검수에 머물러, 확정을 눌러도 되는
+     * 상태를 화면이 감춘다.
+     *
+     * @param hasOpenPtawyDrct 이 라인에 미완료(DIRECTED) 적치지시가 있는가. 라인 스스로는 알 수 없어
+     *                         호출부가 넣어준다 — 모른 채 판정하면 조용히 틀리므로 무인자 버전은 두지 않는다
      */
-    public IbPrgr progressStatus() {
+    public IbPrgr progressStatus(boolean hasOpenPtawyDrct) {
         if (ibOrder.getStatus() == IbStatus.CONFIRMED) return IbPrgr.CONFIRMED; // 닫힌 입고 — 결품 포함 확정
-        long arrived = rcvdQty + rjctQty;
-        if (arrived == 0) return IbPrgr.SCHEDULED;         // 아직 안 옴 (불량만 와도 온 것이다)
-        if (arrived < expctQty) return IbPrgr.RECEIVING;   // 덜 옴
-        if (ptawyQty < rcvdQty) return IbPrgr.PTAWY_DRCT;  // 다 왔고 적치가 남음
-        return IbPrgr.PTAWY_CMPL;                          // 다 오고 다 옮김 — 확정 대기
+        if (rcvdQty + rjctQty == 0) return IbPrgr.SCHEDULED;   // 아직 안 옴 (불량만 와도 온 것이다)
+        // 온 것을 다 옮겼다 = 확정 전제조건 충족. 불량만 온 라인도 여기 걸린다 (적치할 양품이 0)
+        if (ptawyQty.equals(rcvdQty)) return IbPrgr.PTAWY_CMPL;
+        if (hasOpenPtawyDrct || ptawyQty > 0) return IbPrgr.PTAWY_DRCT;
+        return IbPrgr.RECEIVING;
     }
 }

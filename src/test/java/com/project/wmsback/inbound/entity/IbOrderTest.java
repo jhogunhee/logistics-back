@@ -143,19 +143,54 @@ class IbOrderTest {
     class LineProgress {
 
         @Test
-        @DisplayName("검수 전 SCHEDULED / 덜 옴 RECEIVING / 적치 남음 PTAWY_DRCT / 다 옮김 PTAWY_CMPL")
+        @DisplayName("검수 전 SCHEDULED / 지시 전 RECEIVING / 다 옮김 PTAWY_CMPL")
         void quantityBranches() {
             IbOrder order = order(100, 100, 100, 100);
             order.startReceiving();
-            line(order, 1).receive(30);                          // 덜 옴
-            line(order, 2).receive(100);                         // 다 왔고 적치 남음
+            line(order, 1).receive(30);                          // 덜 옴, 지시 없음
+            line(order, 2).receive(100);                         // 다 왔지만 지시 전
             line(order, 3).receive(100);
             line(order, 3).putaway(100);                         // 다 오고 다 옮김
 
-            assertEquals(IbPrgr.SCHEDULED, line(order, 0).progressStatus());
-            assertEquals(IbPrgr.RECEIVING, line(order, 1).progressStatus());
-            assertEquals(IbPrgr.PTAWY_DRCT, line(order, 2).progressStatus());
-            assertEquals(IbPrgr.PTAWY_CMPL, line(order, 3).progressStatus());
+            assertEquals(IbPrgr.SCHEDULED, line(order, 0).progressStatus(false));
+            assertEquals(IbPrgr.RECEIVING, line(order, 1).progressStatus(false));
+            // 지시가 없으면 다 왔어도 아직 「검수」다 — 예전엔 여기서 PTAWY_DRCT가 나와
+            // 지시가 존재하지도 않는데 화면이 「적치지시」라고 말했다
+            assertEquals(IbPrgr.RECEIVING, line(order, 2).progressStatus(false));
+            assertEquals(IbPrgr.PTAWY_CMPL, line(order, 3).progressStatus(false));
+        }
+
+        @Test
+        @DisplayName("지시가 나가면 부분 검수여도 PTAWY_DRCT — 헤더가 말하는 것과 같아야 한다")
+        void openDirectiveMovesLineForward() {
+            IbOrder order = order(100);
+            order.startReceiving();
+            line(order, 0).receive(40);                          // 40만 옴
+
+            assertEquals(IbPrgr.RECEIVING, line(order, 0).progressStatus(false));
+            assertEquals(IbPrgr.PTAWY_DRCT, line(order, 0).progressStatus(true));
+        }
+
+        @Test
+        @DisplayName("일부라도 옮겼으면 지시가 닫혔어도 PTAWY_DRCT")
+        void partialPutawayKeepsDirectiveStage() {
+            IbOrder order = order(100);
+            order.startReceiving();
+            line(order, 0).receive(100);
+            line(order, 0).putaway(40);                          // 40만 옮김, 지시는 완료됨
+
+            assertEquals(IbPrgr.PTAWY_DRCT, line(order, 0).progressStatus(false));
+        }
+
+        @Test
+        @DisplayName("온 걸 다 옮겼으면 부분 검수여도 PTAWY_CMPL — 확정 눌러도 되는 상태다")
+        void partiallyReceivedButFullyPutaway() {
+            IbOrder order = order(100);
+            order.startReceiving();
+            line(order, 0).receive(40);
+            line(order, 0).putaway(40);                          // 온 40을 다 옮김 (예정 100)
+
+            assertEquals(IbPrgr.PTAWY_CMPL, line(order, 0).progressStatus(false));
         }
 
         @Test
@@ -167,8 +202,8 @@ class IbOrderTest {
             line(order, 0).putaway(80);                          // 결품 20
             order.confirm();
 
-            assertEquals(IbPrgr.CONFIRMED, line(order, 0).progressStatus());
-            assertEquals(IbPrgr.CONFIRMED, line(order, 1).progressStatus());
+            assertEquals(IbPrgr.CONFIRMED, line(order, 0).progressStatus(false));
+            assertEquals(IbPrgr.CONFIRMED, line(order, 1).progressStatus(false));
         }
     }
 
@@ -233,16 +268,16 @@ class IbOrderTest {
     class LineReject {
 
         @Test
-        @DisplayName("불량만 온 라인은 예정이 아니라 검수중이고, 양품+불량이 예정에 닿으면 적치 축으로 넘어간다")
+        @DisplayName("불량만 온 라인은 예정이 아니다 — 적치할 양품이 0이라 이미 확정 대기(PTAWY_CMPL)다")
         void rjctCountsForProgress() {
             IbOrder order = order(100, 100);
             order.startReceiving();
-            line(order, 0).reject(30);                 // 불량만
+            line(order, 0).reject(30);                 // 불량만 — 적치할 게 없다
             line(order, 1).receive(60);
-            line(order, 1).reject(40);                 // 양품 60 + 불량 40 = 예정
+            line(order, 1).reject(40);                 // 양품 60 + 불량 40, 아직 안 옮김
 
-            assertEquals(IbPrgr.RECEIVING, line(order, 0).progressStatus());
-            assertEquals(IbPrgr.PTAWY_DRCT, line(order, 1).progressStatus());
+            assertEquals(IbPrgr.PTAWY_CMPL, line(order, 0).progressStatus(false));
+            assertEquals(IbPrgr.RECEIVING, line(order, 1).progressStatus(false));
             assertEquals(30L, line(order, 0).getRjctQty());
         }
 
@@ -267,7 +302,7 @@ class IbOrderTest {
             line(order, 0).cancelReject(40);
 
             assertEquals(0L, line(order, 0).getRjctQty());
-            assertEquals(IbPrgr.SCHEDULED, line(order, 0).progressStatus());
+            assertEquals(IbPrgr.SCHEDULED, line(order, 0).progressStatus(false));
         }
     }
 }

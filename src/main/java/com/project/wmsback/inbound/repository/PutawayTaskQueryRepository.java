@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -69,6 +70,25 @@ public class PutawayTaskQueryRepository {
                 )
                 .orderBy(openFirst.asc(), lot.expiryDt.asc().nullsLast(), putawayTask.id.asc())
                 .fetch();
+    }
+
+    /**
+     * 미완료(DIRECTED) 지시가 걸려 있는 라인 id. 라인 진행단계({@code IbLine#progressStatus})가
+     * 「지시가 나갔는가」를 알아야 해서, 라인마다 묻지 않고 한 번에 받아 나눠 준다.
+     */
+    public Set<Long> openIbLineIds(Collection<Long> ibLineIds) {
+        if (ibLineIds.isEmpty()) {
+            return Set.of();
+        }
+        return Set.copyOf(queryFactory
+                .select(putawayTask.ibLine.id)
+                .distinct()
+                .from(putawayTask)
+                .where(
+                        putawayTask.ibLine.id.in(ibLineIds),
+                        putawayTask.status.eq(PutawayTaskStatus.DIRECTED)
+                )
+                .fetch());
     }
 
     /** (입고라인, Lot) 배치별 미완료 지시 잔량. 목록에 「미지시 수량」을 붙일 때 한 번에 받는다 */
