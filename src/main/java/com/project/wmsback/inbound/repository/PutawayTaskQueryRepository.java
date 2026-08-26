@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -27,6 +28,8 @@ import static com.project.wmsback.inventory.entity.QInvHist.invHist;
 import static com.project.wmsback.warehouse.entity.QLoc.loc;
 import static com.project.wmsback.warehouse.entity.QLot.lot;
 import static com.project.mdm.prod.entity.QProd.prod;
+import static com.project.mdm.store.entity.QStore.store;
+import static com.project.mdm.vendor.entity.QVendor.vendor;
 
 /**
  * 적치지시 조회 — 목록과 잔량 집계.
@@ -48,9 +51,10 @@ public class PutawayTaskQueryRepository {
 
         return queryFactory
                 .select(Projections.constructor(PutawayTaskResponse.class,
-                        putawayTask.id, ibLine.id, ibOrder.ibNo,
+                        putawayTask.id, ibLine.id, ibOrder.id, ibOrder.ibNo,
+                        vendor.vndrNm, store.storeNm,
                         prod.prodCd, prod.prodNm, prod.tmpZon,
-                        lot.id, lot.lotNo, lot.expiryDt,
+                        lot.id, lot.lotNo, lot.receiptDt, lot.expiryDt,
                         loc.id, loc.locCd,
                         putawayTask.drctQty, putawayTask.cmplQty,
                         putawayTask.drctQty.subtract(putawayTask.cmplQty),
@@ -58,15 +62,21 @@ public class PutawayTaskQueryRepository {
                 .from(putawayTask)
                 .innerJoin(putawayTask.ibLine, ibLine)
                 .innerJoin(ibLine.ibOrder, ibOrder)
+                // 상대처는 둘 중 하나만 있다(벤더 또는 점포) — FK가 없어 leftJoin (IbLineRepositoryImpl과 같다)
+                .leftJoin(ibOrder.vendor, vendor)
+                .leftJoin(ibOrder.store, store)
                 .innerJoin(ibLine.prod, prod)
                 .innerJoin(putawayTask.lot, lot)
                 .innerJoin(putawayTask.toLoc, loc)
                 .where(
                         ibNoContains(cond.getIbNo()),
+                        vndrNmContains(cond.getVndrNm()),
                         prodCdContains(cond.getProdCd()),
                         prodNmContains(cond.getProdNm()),
                         toLocCdContains(cond.getToLocCd()),
-                        statusEq(cond.getStatus())
+                        statusEq(cond.getStatus()),
+                        receiptDtGoe(cond.getDateFrom()),
+                        receiptDtLoe(cond.getDateTo())
                 )
                 .orderBy(openFirst.asc(), lot.expiryDt.asc().nullsLast(), putawayTask.id.asc())
                 .fetch();
@@ -152,6 +162,21 @@ public class PutawayTaskQueryRepository {
 
     private BooleanExpression ibNoContains(String ibNo) {
         return StringUtils.hasText(ibNo) ? ibOrder.ibNo.containsIgnoreCase(ibNo) : null;
+    }
+
+    /** 상대처 — 벤더명 또는 점포명 한 칸으로 검색 (IbLineRepositoryImpl과 같은 판정) */
+    private BooleanExpression vndrNmContains(String vndrNm) {
+        return StringUtils.hasText(vndrNm)
+                ? vendor.vndrNm.containsIgnoreCase(vndrNm).or(store.storeNm.containsIgnoreCase(vndrNm))
+                : null;
+    }
+
+    private BooleanExpression receiptDtGoe(LocalDate dateFrom) {
+        return dateFrom != null ? lot.receiptDt.goe(dateFrom) : null;
+    }
+
+    private BooleanExpression receiptDtLoe(LocalDate dateTo) {
+        return dateTo != null ? lot.receiptDt.loe(dateTo) : null;
     }
 
     private BooleanExpression prodCdContains(String prodCd) {

@@ -16,12 +16,17 @@ public class PutawayTaskResponse {
 
     private final Long putawayTaskId;
     private final Long ibLineId;
+    private final Long ibOrderId;
     private final String ibNo;
+    /** 상대처 — 정상 발주는 벤더, 반품입고는 점포. 둘 중 하나만 채워진다 (ck_ib_order_vndr_store) */
+    private final String vndrNm;
+    private final String storeNm;
     private final String prodCd;
     private final String prodNm;
     private final TmpZon tmpZon;
     private final Long lotId;
     private final String lotNo;
+    private final LocalDate receiptDt;
     private final LocalDate expiryDt;
     private final Long toLocId;
     private final String toLocCd;
@@ -33,20 +38,25 @@ public class PutawayTaskResponse {
     private final LocalDateTime createdAt;
     private final LocalDateTime cmplDt;
 
-    public PutawayTaskResponse(Long putawayTaskId, Long ibLineId, String ibNo,
+    public PutawayTaskResponse(Long putawayTaskId, Long ibLineId, Long ibOrderId, String ibNo,
+                               String vndrNm, String storeNm,
                                String prodCd, String prodNm, TmpZon tmpZon,
-                               Long lotId, String lotNo, LocalDate expiryDt,
+                               Long lotId, String lotNo, LocalDate receiptDt, LocalDate expiryDt,
                                Long toLocId, String toLocCd,
                                Long drctQty, Long cmplQty, Long remainingQty,
                                PutawayTaskStatus status, LocalDateTime createdAt, LocalDateTime cmplDt) {
         this.putawayTaskId = putawayTaskId;
         this.ibLineId = ibLineId;
+        this.ibOrderId = ibOrderId;
         this.ibNo = ibNo;
+        this.vndrNm = vndrNm;
+        this.storeNm = storeNm;
         this.prodCd = prodCd;
         this.prodNm = prodNm;
         this.tmpZon = tmpZon;
         this.lotId = lotId;
         this.lotNo = lotNo;
+        this.receiptDt = receiptDt;
         this.expiryDt = expiryDt;
         this.toLocId = toLocId;
         this.toLocCd = toLocCd;
