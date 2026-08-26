@@ -20,7 +20,7 @@
 --   재고:       inv, inv_hist, lot, inv_mov_task, inv_hld(+acrst/rlz_acrst), inv_stktk(+ln), lot_attr_chng
 --   전략 실행로그: stgy_exec_log (참조하던 문서들이 사라지므로 함께 비운다)
 --
--- 남기는 것: 마스터(prod, prod_uom, zon, loc, store, vendor, code_*, nbr_*)와
+-- 남기는 것: 마스터(prod, prod_uom, zon, loc, store, vendor, usr(+usr_role), code_*, nbr_*)와
 --   전략 정의(insp_plcy*, ptawy_stgy*, wav_stgy, aloc_stgy*, stgy_rvsn).
 --   nbr_seq도 그대로 둔다 — 문서번호가 이어서 채번될 뿐 충돌하지 않는다.
 --

@@ -34,14 +34,14 @@ public class IbLineResponse {
      */
     private final Long inbEaQty;
 
-    private IbLineResponse(IbLine line) {
+    private IbLineResponse(IbLine line, boolean hasOpenPtawyDrct) {
         this.ibLineId = line.getId();
         this.prodId = line.getProd().getId();
         this.prodCd = line.getProd().getProdCd();
         this.prodNm = line.getProd().getProdNm();
         this.prodImgUrl = line.getProd().getImgUrl();
         this.tmpZon = line.getProd().getTmpZon();
-        this.status = line.progressStatus();
+        this.status = line.progressStatus(hasOpenPtawyDrct);
         this.shelfLifeDays = line.getProd().getShelfLifeDays();
         this.expctQty = line.getExpctQty();
         this.rcvdQty = line.getRcvdQty();
@@ -52,7 +52,8 @@ public class IbLineResponse {
         this.inbEaQty = line.getProd().eaQtyOf(this.inbUomCd);
     }
 
-    public static IbLineResponse from(IbLine line) {
-        return new IbLineResponse(line);
+    /** @param hasOpenPtawyDrct 이 라인에 미완료 적치지시가 있는가 — 진행단계 판정에 필요하다 */
+    public static IbLineResponse from(IbLine line, boolean hasOpenPtawyDrct) {
+        return new IbLineResponse(line, hasOpenPtawyDrct);
     }
 }

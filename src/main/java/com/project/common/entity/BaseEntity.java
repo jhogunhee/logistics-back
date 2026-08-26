@@ -8,7 +8,7 @@ import org.springframework.data.annotation.LastModifiedBy;
 
 /**
  * 감사 컬럼 4종(created_at/by, updated_at/by) 공통화. 모든 엔티티가 상속한다.
- * 작성자 값은 JpaConfig의 AuditorAware가 채운다 (인증 도입 전까지 'admin' 고정).
+ * 작성자 값은 JpaConfig의 AuditorAware가 채운다 (로그인 아이디, 스케줄러 실행은 'system').
  */
 @Getter
 @MappedSuperclass

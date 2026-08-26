@@ -136,11 +136,12 @@ public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {
     }
 
     /**
-     * 화면 표시용 5단계 진행({@link IbPrgr}) — 저장하지 않고 상태 · 라인 수량 · 적치지시 존재에서 파생한다.
-     * 판정 순서는 {@code IbLine#progressStatus}와 같은 어휘를 헤더 단위로 옮긴 것이다.
+     * 화면 표시용 5단계 진행({@link IbPrgr}) — 저장하지 않고 <b>라인 단계를 모아</b> 만든다.
      * <p>
-     * SCHEDULED 판정(Σrcvd = 0)이 적치완료 판정보다 먼저다 — 검수가 하나도 없으면
-     * 전 라인이 0 = 0으로 「전량 적치」를 헛통과하기 때문.
+     * <b>검수까지는 라인의 max, 그 위로는 라인의 min이다.</b> 하나라도 왔으면 「검수」에는 닿고(max),
+     * 그 위 단계로 올라가려면 전 라인이 도달해야 한다(min). 순수 min으로 두면 A라인이 적치완료여도
+     * B라인이 미도착일 때 헤더가 「입고예정」으로 되돌아가 「아직 아무것도 안 왔다」는 거짓을 말한다 —
+     * 그래서 바닥을 검수로 고정한다. 자세한 근거는 docs/design.md 「진행 5단계」.
      * <p>
      * <b>enum이 아니라 이름 문자열을 만든다.</b> {@code then(IbPrgr.X)}로 enum을 넣으면 그 값이
      * 바인딩 파라미터로 나가는데, IbPrgr는 어느 컬럼에도 매핑되지 않아 Hibernate가 타입을 정하지 못하고
@@ -148,30 +149,44 @@ public class IbOrderRepositoryImpl implements IbOrderRepositoryCustom {
      * 숫자를 넣으면 Hibernate가 타입을 추론하므로 이름으로 받아 응답 DTO 생성자가 enum으로 되돌린다.
      */
     private StringExpression progressCode() {
+        NumberExpression<Integer> maxStage = lineStage().max();
+        NumberExpression<Integer> minStage = lineStage().min();
         return new CaseBuilder()
                 .when(ibOrder.status.eq(IbStatus.CONFIRMED)).then(IbPrgr.CONFIRMED.name())
-                // 라인이 없으면 이 합이 0이라 여기서 걸린다 (빈 라인 목록의 Java 합계와 같다) — 검수 착수는 양품+불량 모두 센다
-                .when(sumOrZero(ibLine.rcvdQty).add(sumOrZero(ibLine.rjctQty)).eq(0L)).then(IbPrgr.SCHEDULED.name())
-                .when(notFullyPutawayLines().eq(0)).then(IbPrgr.PTAWY_CMPL.name())
-                .when(hasOpenPtawyDrct().or(sumOrZero(ibLine.ptawyQty).gt(0L))).then(IbPrgr.PTAWY_DRCT.name())
-                .otherwise(IbPrgr.RECEIVING.name());
+                .when(maxStage.loe(IbPrgr.SCHEDULED.getRank())).then(IbPrgr.SCHEDULED.name())
+                // 바닥 고정 — 하나라도 왔으면 못 온 라인이 있어도 최소 「검수」
+                .when(minStage.loe(IbPrgr.RECEIVING.getRank())).then(IbPrgr.RECEIVING.name())
+                .when(minStage.eq(IbPrgr.PTAWY_DRCT.getRank())).then(IbPrgr.PTAWY_DRCT.name())
+                .otherwise(IbPrgr.PTAWY_CMPL.name());
     }
 
-    /** 적치가 덜 된 라인 수 — 0이면 전량 적치(IbOrder#allLinesFullyPutaway와 같은 판정) */
-    private NumberExpression<Integer> notFullyPutawayLines() {
+    /**
+     * 라인 한 줄의 단계 — {@code IbLine#progressStatus}를 SQL로 옮긴 것이다(번호는 {@link IbPrgr#getRank}).
+     * SQL이 Java 메서드를 부를 수 없어 사다리가 두 벌 존재한다. <b>한쪽을 고치면 반드시 다른 쪽도 고칠 것</b> —
+     * 둘이 갈리는 것은 통합 테스트(IbOrderProgressRepositoryTest)의 대사 케이스만이 잡는다.
+     * <p>
+     * 첫 분기가 라인 없는 주문을 받는다 — 라인을 left join하므로 라인이 없으면 null 행 하나가 남고,
+     * 그대로 두면 뒤 분기들이 전부 unknown이 되어 otherwise(「검수」)로 떨어진다.
+     */
+    private NumberExpression<Integer> lineStage() {
         return new CaseBuilder()
-                .when(ibLine.ptawyQty.ne(ibLine.rcvdQty)).then(1).otherwise(0).sum();
+                .when(ibLine.id.isNull()).then(IbPrgr.SCHEDULED.getRank())
+                .when(ibLine.rcvdQty.add(ibLine.rjctQty).eq(0L)).then(IbPrgr.SCHEDULED.getRank())
+                .when(ibLine.ptawyQty.eq(ibLine.rcvdQty)).then(IbPrgr.PTAWY_CMPL.getRank())
+                .when(hasOpenPtawyDrct().or(ibLine.ptawyQty.gt(0L))).then(IbPrgr.PTAWY_DRCT.getRank())
+                .otherwise(IbPrgr.RECEIVING.getRank());
     }
 
-    /** 미완료(DIRECTED) 적치지시가 걸려 있는가 — 「검수」와 「적치지시」를 가르는 유일한 재료 */
+    /**
+     * 이 <b>라인</b>에 미완료(DIRECTED) 적치지시가 걸려 있는가 — 「검수」와 「적치지시」를 가르는 재료.
+     * 집계 전 라인 행마다 평가되며 {@code ix_ptawy_task_line (ib_line_id)}를 탄다.
+     */
     private BooleanExpression hasOpenPtawyDrct() {
-        QIbLine taskLine = new QIbLine("taskLine");
         return JPAExpressions
                 .selectOne()
                 .from(putawayTask)
-                .innerJoin(putawayTask.ibLine, taskLine)
                 .where(
-                        taskLine.ibOrder.id.eq(ibOrder.id),
+                        putawayTask.ibLine.id.eq(ibLine.id),
                         putawayTask.status.eq(PutawayTaskStatus.DIRECTED)
                 )
                 .exists();
