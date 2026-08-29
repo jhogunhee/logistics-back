@@ -3,6 +3,7 @@ services:
     name: wms-back
     runtime: docker
     plan: free
+    region: singapore
     envVars:
       - key: DB_URL
         sync: false
