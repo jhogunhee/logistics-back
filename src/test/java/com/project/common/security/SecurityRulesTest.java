@@ -54,6 +54,7 @@ class SecurityRulesTest {
         @GetMapping("/health") void health() {}
         @PostMapping("/auth/login") void login() {}
         @PostMapping("/auth/scan-login") void scanLogin() {}
+        @GetMapping("/wrkr/acrst/summary") void wrkrAcrst() {}
         // 실제 AuthController.me와 같이 CSRF 토큰을 돌려준다 — 프론트가 이 값을 헤더로 되던진다
         @GetMapping("/auth/me") String me(CsrfToken token) { return token.getToken(); }
         @GetMapping("/master/vendors") void vendorList() {}
@@ -89,6 +90,20 @@ class SecurityRulesTest {
     @DisplayName("PDA 간편 로그인도 세션·CSRF 없이 열려 있다 — 로그인과 같은 자리다")
     void scanLoginIsOpen() throws Exception {
         mvc.perform(post("/auth/scan-login")).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("작업자 실적은 조회도 관리자·센터관리자만이다 — GET 규칙보다 먼저 걸려야 한다")
+    void wrkrAcrstIsCenterOnly() throws Exception {
+        mvc.perform(get("/wrkr/acrst/summary").with(user("tester").roles("INQ")))
+                .andExpect(status().isForbidden());
+        // 현장 담당에게도 열리면 안 된다 — 개인별 생산성이라 업무 권한과 다른 축이다
+        mvc.perform(get("/wrkr/acrst/summary").with(user("tester").roles("OUTB_PIC")))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/wrkr/acrst/summary").with(user("tester").roles("CENT_ADMR")))
+                .andExpect(status().isOk());
+        mvc.perform(get("/wrkr/acrst/summary").with(user("tester").roles("ADMR")))
+                .andExpect(status().isOk());
     }
 
     @Test

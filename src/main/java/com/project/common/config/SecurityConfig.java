@@ -66,6 +66,9 @@ public class SecurityConfig {
                     .requestMatchers("/health").permitAll()
                     // 사용자 목록은 조회도 관리자만이라 GET 규칙보다 앞에 둔다
                     .requestMatchers("/master/usrs/**").hasRole("ADMR")
+                    // 작업자 실적도 조회부터 좁힌다 — 개인별 생산성이라 조회 역할에까지 열지 않는다.
+                    // 같은 이유로 GET 규칙보다 앞이다(뒤에 두면 로그인한 누구나 보게 된다)
+                    .requestMatchers("/wrkr/**").hasAnyRole("ADMR", "CENT_ADMR")
                     .requestMatchers(HttpMethod.GET, "/**").authenticated()
                     .requestMatchers("/auth/**").authenticated()
                     // 아래 둘은 /master 접두를 쓰지만 마스터 권한(ADMR)과 성격이 다르다.
