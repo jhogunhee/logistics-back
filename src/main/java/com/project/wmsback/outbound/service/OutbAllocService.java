@@ -366,7 +366,8 @@ public class OutbAllocService {
      * 같은 칸이지만 같은 뜻이 아니다. {@code waveCount} 도 요청 경로상 항상 1이다.
      */
     @Transactional
-    public AllocExecuteResponse allocateManual(Long wavId, ManualAllocRequest request) {
+    public AllocExecuteResponse allocateManual(ManualAllocRequest request) {
+        Long wavId = request.getWavId();
         List<ManualAllocRequest.Item> items = request.getItems();
         if (items == null || items.isEmpty()) {
             throw new IllegalArgumentException("할당할 대상이 없습니다.");

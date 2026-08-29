@@ -18,6 +18,9 @@ import java.util.List;
 @NoArgsConstructor
 public class ManualAllocRequest {
 
+    /** 2026-08-29: 경로가 /outbound/waves/{wavId}/... 를 벗어나며 본문 필드로 내려왔다 */
+    private Long wavId;
+
     private List<Item> items;
 
     @Getter

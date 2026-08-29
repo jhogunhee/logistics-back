@@ -380,7 +380,7 @@ class OutbAllocServiceTest {
         OutbLine line = line(1L, 10);
         when(outbLineRepository.findById(1L)).thenReturn(Optional.of(line));
 
-        AllocExecuteResponse result = outbAllocService.allocateManual(100L, manual(1L, 1L, 10L));
+        AllocExecuteResponse result = outbAllocService.allocateManual(manual(1L, 1L, 10L));
 
         assertEquals(10, result.alocQty());
         assertEquals(10, aged.getAlocQty());
@@ -400,7 +400,7 @@ class OutbAllocServiceTest {
         when(outbLineRepository.findById(1L)).thenReturn(Optional.of(line));
 
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                () -> outbAllocService.allocateManual(100L, manual(1L, 1L, 10L)));
+                () -> outbAllocService.allocateManual(manual(1L, 1L, 10L)));
 
         assertTrue(e.getMessage().contains("출고확정된 주문"));
     }
@@ -418,7 +418,7 @@ class OutbAllocServiceTest {
         request.getItems().add(item(1L, 2L, 6L));
 
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                () -> outbAllocService.allocateManual(100L, request));
+                () -> outbAllocService.allocateManual(request));
         assertTrue(e.getMessage().contains("주문수량을 초과"));
     }
 
@@ -435,7 +435,7 @@ class OutbAllocServiceTest {
         request.getItems().add(item(2L, 1L, 6L));
 
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                () -> outbAllocService.allocateManual(100L, request));
+                () -> outbAllocService.allocateManual(request));
         assertTrue(e.getMessage().contains("가용재고를 초과"));
     }
 
@@ -451,7 +451,7 @@ class OutbAllocServiceTest {
         when(outbLineRepository.findById(1L)).thenReturn(Optional.of(line));
 
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                () -> outbAllocService.allocateManual(100L, manual(1L, 1L, 10L)));
+                () -> outbAllocService.allocateManual(manual(1L, 1L, 10L)));
         assertTrue(e.getMessage().contains("이 웨이브에 편성된"));
     }
 
@@ -603,6 +603,7 @@ class OutbAllocServiceTest {
 
     private ManualAllocRequest manual(long lineId, long invId, long qty) {
         ManualAllocRequest request = new ManualAllocRequest();
+        request.setWavId(100L);
         request.setItems(new ArrayList<>(List.of(item(lineId, invId, qty))));
         return request;
     }

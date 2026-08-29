@@ -59,11 +59,10 @@ public class OutbAllocController {
         return outbAllocService.candidates(outbLineId);
     }
 
-    /** 수동할당 — 라인 ↔ 재고 직접 지정 */
-    @PostMapping("/outbound/waves/{wavId}/allocations/manual")
-    public AllocExecuteResponse allocateManual(@PathVariable Long wavId,
-                                               @RequestBody ManualAllocRequest request) {
-        return outbAllocService.allocateManual(wavId, request);
+    /** 수동할당 — 라인 ↔ 재고 직접 지정. 2026-08-29 웨이브 접두에서 이 이름공간으로 옮겼다 */
+    @PostMapping("/outbound/allocations/manual")
+    public AllocExecuteResponse allocateManual(@RequestBody ManualAllocRequest request) {
+        return outbAllocService.allocateManual(request);
     }
 
     /** 할당해제 — 피킹이 시작된 행은 거부된다 */
