@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: wms-back
+    name: logistics-back
     runtime: docker
     plan: free
     region: singapore
