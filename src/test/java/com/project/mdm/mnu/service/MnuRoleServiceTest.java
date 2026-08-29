@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.stream.StreamSupport;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -60,8 +61,11 @@ class MnuRoleServiceTest {
         MnuRoleGridResponse row = service.roleGrid(MnuDvsn.WEB).get(0);
 
         assertEquals(List.of("INV_PIC"), row.roles());
-        // /master/locs는 ADMR·CENT_ADMR만 쓴다 — INV_PIC은 열리지만 저장은 못 한다
-        assertEquals(List.of("INV_PIC"), row.readOnlyRoles());
+        // /master/locs는 ADMR·CENT_ADMR만 쓴다 — INV_PIC은 열려도 저장은 못 한다
+        assertTrue(row.readOnlyRoles().contains("INV_PIC"));
+        assertFalse(row.readOnlyRoles().contains("CENT_ADMR"));
+        // 지금 꺼져 있는 역할도 담는다 — 화면에서 방금 켠 칸에도 같은 표시가 나와야 한다
+        assertTrue(row.readOnlyRoles().contains("IB_PIC"));
     }
 
     @Test

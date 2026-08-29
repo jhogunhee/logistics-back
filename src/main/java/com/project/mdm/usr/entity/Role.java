@@ -18,7 +18,7 @@ public enum Role {
     IB_PIC("입고담당"),
     INV_PIC("재고담당"),
     OUTB_PIC("출고담당"),
-    INQ("조회");
+    INQ("조회전용");
 
     private final String label;
 }
