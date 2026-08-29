@@ -425,6 +425,56 @@ CREATE TABLE usr_role (
 COMMENT ON TABLE  usr_role IS '사용자 역할 (사용자당 다건)';
 COMMENT ON COLUMN usr_role.role IS 'ADMR 시스템관리자 / CENT_ADMR 센터관리자 / *_PIC 업무담당 / INQ 조회';
 
+-- 메뉴 카탈로그. 사이드바(WEB)·PDA 홈(PDA)의 주인 — docs/seed-mnu.sql이 시드의 주인이다.
+-- 아이콘은 컴포넌트라 DB에 못 담고(이름표만), 라우트는 페이지 코드가 있어야 존재하므로
+-- 둘 다 프론트 코드에 그대로 남고 이 테이블은 이름표·경로 "문자열"만 가진다.
+CREATE TABLE mnu (
+    mnu_cd      VARCHAR(30)     NOT NULL,   -- STK_SPMT · PDA_PIKNG
+    mnu_nm      VARCHAR(50)     NOT NULL,   -- 사이드바와 관리 화면에 뜨는 이름
+    dvsn        VARCHAR(10)     NOT NULL,   -- WEB · PDA
+    grp_nm      VARCHAR(30)     NOT NULL,   -- 모니터링 · 입고 · 재고 · 창고 …
+    srt_seq     INTEGER         NOT NULL,   -- 그룹 안 순서. 프론트가 그룹 순서도 이 값의 최소치로 매긴다
+    icon_nm     VARCHAR(30)     NOT NULL,   -- lucide 아이콘 이름. 프론트 menuIcons.js가 컴포넌트로 바꾼다
+    scrn_pth    VARCHAR(60)     NOT NULL,   -- 프론트 라우트. App.jsx에 같은 경로가 있어야 한다
+    api_prfx    VARCHAR(50),                -- 이 화면의 쓰기 API 이름공간. NULL이면 조회 전용 화면이라 메뉴 권한이 관여하지 않는다
+    kywd        VARCHAR(200),               -- 검색 보조어. 초성·영문 별칭
+    created_at  TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by  VARCHAR(30)     DEFAULT 'admin' NOT NULL,
+    updated_at  TIMESTAMP,
+    updated_by  VARCHAR(30),
+    CONSTRAINT pk_mnu PRIMARY KEY (mnu_cd),
+    CONSTRAINT uq_mnu_scrn_pth UNIQUE (scrn_pth),
+    CONSTRAINT uq_mnu_api_prfx UNIQUE (api_prfx),
+    CONSTRAINT ck_mnu_dvsn CHECK (dvsn IN ('WEB', 'PDA'))
+);
+
+COMMENT ON TABLE  mnu IS '메뉴 카탈로그 (사이드바·PDA 홈의 주인)';
+COMMENT ON COLUMN mnu.dvsn IS 'WEB 데스크톱 / PDA 현장 단말';
+COMMENT ON COLUMN mnu.icon_nm IS 'lucide 아이콘 이름. 프론트 menuIcons.js가 컴포넌트로 바꾼다';
+COMMENT ON COLUMN mnu.scrn_pth IS '프론트 라우트. App.jsx에 같은 경로가 있어야 한다';
+COMMENT ON COLUMN mnu.api_prfx IS '이 화면의 쓰기 API 이름공간. NULL이면 조회 전용 화면이라 메뉴 권한이 관여하지 않는다';
+
+-- 역할별 메뉴 권한. usr_role을 본떴다 — 복합 PK, 감사 4종, FK 없음, us_yn 없음(물리삭제).
+-- 켜진 것만 행으로 있다 — 그룹에는 권한을 두지 않는다(항목만 걸러지고 항목이 하나도 안 남은
+-- 그룹은 제목째 빠진다). 인가는 두 단계 — 업무 구역 상한은 SecurityConfig(코드), 이 테이블은
+-- 그 안에서 화면 단위로 배포 없이 조정하는 실제값이다(docs/design.md 「인가 — 두 단계」).
+CREATE TABLE mnu_role (
+    mnu_cd      VARCHAR(30)     NOT NULL,
+    role        VARCHAR(20)     NOT NULL,
+    created_at  TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by  VARCHAR(30)     DEFAULT 'admin' NOT NULL,
+    updated_at  TIMESTAMP,
+    updated_by  VARCHAR(30),
+    CONSTRAINT pk_mnu_role PRIMARY KEY (mnu_cd, role),
+    -- ADMR이 빠져 있다. 시스템관리자는 매핑 대상이 아니라 항상 전 메뉴를 보므로,
+    -- 실수로도 행이 생기지 않게 DB가 막는다
+    CONSTRAINT ck_mnu_role_role CHECK (role IN
+        ('CENT_ADMR', 'ODR_PIC', 'IB_PIC', 'INV_PIC', 'OUTB_PIC', 'INQ'))
+);
+
+COMMENT ON TABLE  mnu_role IS '역할별 메뉴 권한. 켜진 것만 행으로 있다';
+COMMENT ON COLUMN mnu_role.role IS 'ADMR은 매핑 대상이 아니다 — 항상 전 메뉴를 보므로 CHECK에서 뺐다';
+
 -- ---------------------------------------------------------------------
 -- 세션 저장소 (spring-session-jdbc)
 --

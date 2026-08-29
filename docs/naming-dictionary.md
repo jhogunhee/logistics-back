@@ -4,7 +4,7 @@
 
 DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있다. 필드와 컬럼이 1:1로 붙어 있는 구조라 두 사전이 겹치는 자리가 생기는데, 어긋나는 항목은 아래 「이미 쓰고 있는 이름과 어긋나는 곳」에 모아뒀다.
 
-247개 단어이며 한글·약어 모두 중복이 없다. (2026-08-02 전략 시스템 설계에서 15개 추가 · 2026-08-03 재고조사 설계에서 `실사 STKTK` 1개 추가 · 2026-08-13 재고 로트변경 설계에서 `신규 NEW` 1개 추가 · 2026-08-21 로케이션 점유 맵 설계에서 `맵 MAP` 1개 추가 · 2026-08-23 상품 이미지 설계에서 `이미지 IMG` · `URL URL` 2개 추가 · 2026-08-25 자동발주 설계에서 `리드타임 LEAD` 1개 추가 · 2026-08-26 서버 페이징 설계에서 `페이지 PAGE` · `크기 SIZE` 2개 추가 · 2026-08-26 인증·역할 설계에서 `로그인 LOGIN` · `역할 ROLE` 2개 추가)
+251개 단어이며 한글·약어 모두 중복이 없다. (2026-08-02 전략 시스템 설계에서 15개 추가 · 2026-08-03 재고조사 설계에서 `실사 STKTK` 1개 추가 · 2026-08-13 재고 로트변경 설계에서 `신규 NEW` 1개 추가 · 2026-08-21 로케이션 점유 맵 설계에서 `맵 MAP` 1개 추가 · 2026-08-23 상품 이미지 설계에서 `이미지 IMG` · `URL URL` 2개 추가 · 2026-08-25 자동발주 설계에서 `리드타임 LEAD` 1개 추가 · 2026-08-26 서버 페이징 설계에서 `페이지 PAGE` · `크기 SIZE` 2개 추가 · 2026-08-26 인증·역할 설계에서 `로그인 LOGIN` · `역할 ROLE` 2개 추가 · 2026-08-29 메뉴 권한 설계에서 화면 SCRN · 아이콘 ICON · 키워드 KYWD · API API 4개 추가)
 
 > 개수는 두 표를 실측한 값이다. 2026-08-23에 맞췄다 — `MAP`이 가나다순 표에만 있고 역인덱스에 빠져 있었고, 머리말 숫자도 실제 행 수보다 낮게 밀려 있었다. 단어를 추가하면 **두 표에 모두** 넣고 이 숫자를 함께 올린다.
 
@@ -37,6 +37,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 
 | 단어 | 약어 | 영문명 |
 |---|---|---|
+| API | `API` | Application Programming Interface |
 | ID | `ID` | Identification |
 | URL | `URL` | Uniform Resource Locator |
 | 가능 | `PSBL` | Possible |
@@ -161,6 +162,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 실적 | `ACRST` | Actual Result |
 | 실패 | `FAIL` | Failure |
 | 실행 | `EXEC` | Execution |
+| 아이콘 | `ICON` | Icon |
 | 암호화 | `ENCR` | Encryption |
 | 앞 | `FNT` | Front |
 | 약어 | `ABRV` | Abbreviation |
@@ -254,6 +256,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 쿼리 | `QRY` | Query |
 | 크기 | `SIZE` | Size |
 | 키 | `KY` | Key |
+| 키워드 | `KYWD` | Keyword |
 | 통합 | `INTG` | Integration |
 | 툴팁 | `TLTP` | Tooltip |
 | 트리거 | `TRGR` | Trigger |
@@ -275,6 +278,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | 행 | `ROW` | Row |
 | 현재 | `NOW` | Now |
 | 혼적 | `MXLOD` | Mixed Loading |
+| 화면 | `SCRN` | Screen |
 | 화물 | `CAGO` | Cargo |
 | 화주 | `CNSG` | Consignor |
 | 확정 | `CFM` | Confirm |
@@ -301,6 +305,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | `AFT` | 후 | After |
 | `ALGN` | 좌우정렬 | Align |
 | `ALOC` | 할당 | Allocation |
+| `API` | API | Application Programming Interface |
 | `APLY` | 적용 | Apply |
 | `ARA` | 구역 | Area |
 | `ATO` | 자동 | Automatic |
@@ -390,6 +395,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | `HLD` | 보류 | Holding |
 | `HOP` | 희망 | Hope |
 | `HP` | 휴대전화 | HandPhone |
+| `ICON` | 아이콘 | Icon |
 | `ID` | ID | Identification |
 | `IF` | 연계 | Interface |
 | `IMG` | 이미지 | Image |
@@ -402,6 +408,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | `INVN` | 재고 | Inventory |
 | `KOR` | 국문 | Korean |
 | `KY` | 키 | Key |
+| `KYWD` | 키워드 | Keyword |
 | `LANG` | 언어 | Language |
 | `LAST` | 마지막 | Last |
 | `LEAD` | 리드타임 | Lead Time |
@@ -480,6 +487,7 @@ DB 컬럼명은 `docs/schema.sql`이 자체 약어 사전을 이미 들고 있�
 | `RTNGS` | 반품 | Returning Goods |
 | `RULE` | 규칙 | Rule |
 | `RVSN` | 리비전 | Revision |
+| `SCRN` | 화면 | Screen |
 | `SEQ` | 순서 | Sequence |
 | `SHMT` | 출하 | Shipment |
 | `SHOTGE` | 결품 | Shortage |
