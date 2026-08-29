@@ -42,7 +42,7 @@ public class SecurityConfig {
             // 쿠키 인증이라 CSRF를 켠다 — SameSite=None이면 다른 사이트의 요청에도 쿠키가 실린다.
             // 토큰은 세션에 두고 응답 본문으로 내보낸다(쿠키 방식은 프론트가 다른 도메인이라 읽지 못한다).
             // 로그인만 예외 — 세션이 아직 없어 받을 토큰도 없다
-            .csrf(csrf -> csrf.ignoringRequestMatchers("/auth/login"))
+            .csrf(csrf -> csrf.ignoringRequestMatchers("/auth/login", "/auth/scan-login"))
             .sessionManagement(session -> session
                     .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                     .sessionFixation().newSession())
@@ -58,6 +58,9 @@ public class SecurityConfig {
                     // 컨트롤러 밖에서 터진 예외의 /error forward까지 denyAll에 걸리면 진짜 원인이 403으로 덮인다
                     .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.ASYNC).permitAll()
                     .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
+                    // PDA 간편 로그인 — 로그인과 같은 자리다(세션도 토큰도 이게 만들어 준다).
+                    // 아이디만으로 세션이 열리는 문이라 누구에게 열지는 AuthService가 역할로 가른다
+                    .requestMatchers(HttpMethod.POST, "/auth/scan-login").permitAll()
                     // /health는 로그인 전에 불린다 — 프론트의 기동 대기 게이트와 슬립 방지 크론이 쓴다.
                     // 메서드를 걸지 않는 이유는 크론의 HEAD가 GET 매처에 안 걸려 denyAll까지 흘러서다
                     .requestMatchers("/health").permitAll()

@@ -53,6 +53,7 @@ class SecurityRulesTest {
     static class ProbeController {
         @GetMapping("/health") void health() {}
         @PostMapping("/auth/login") void login() {}
+        @PostMapping("/auth/scan-login") void scanLogin() {}
         // 실제 AuthController.me와 같이 CSRF 토큰을 돌려준다 — 프론트가 이 값을 헤더로 되던진다
         @GetMapping("/auth/me") String me(CsrfToken token) { return token.getToken(); }
         @GetMapping("/master/vendors") void vendorList() {}
@@ -82,6 +83,12 @@ class SecurityRulesTest {
     @DisplayName("로그인은 세션도 CSRF 토큰도 없이 열려 있다 — 둘 다 로그인이 만들어 주는 것이다")
     void loginIsOpen() throws Exception {
         mvc.perform(post("/auth/login")).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("PDA 간편 로그인도 세션·CSRF 없이 열려 있다 — 로그인과 같은 자리다")
+    void scanLoginIsOpen() throws Exception {
+        mvc.perform(post("/auth/scan-login")).andExpect(status().isOk());
     }
 
     @Test
