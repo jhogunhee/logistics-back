@@ -436,7 +436,7 @@ CREATE TABLE mnu (
     srt_seq     INTEGER         NOT NULL,   -- 그룹 안 순서. 프론트가 그룹 순서도 이 값의 최소치로 매긴다
     icon_nm     VARCHAR(30)     NOT NULL,   -- lucide 아이콘 이름. 프론트 menuIcons.js가 컴포넌트로 바꾼다
     scrn_pth    VARCHAR(60)     NOT NULL,   -- 프론트 라우트. App.jsx에 같은 경로가 있어야 한다
-    api_prfx    VARCHAR(50),                -- 이 화면의 쓰기 API 이름공간. NULL이면 조회 전용 화면이라 메뉴 권한이 관여하지 않는다
+    api_prfx    VARCHAR(50),                -- 이 화면의 쓰기 API 이름공간. 화면 여럿이 같은 값을 가질 수 있다(UNIQUE 없음)
     kywd        VARCHAR(200),               -- 검색 보조어. 초성·영문 별칭
     created_at  TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
     created_by  VARCHAR(30)     DEFAULT 'admin' NOT NULL,
@@ -444,7 +444,9 @@ CREATE TABLE mnu (
     updated_by  VARCHAR(30),
     CONSTRAINT pk_mnu PRIMARY KEY (mnu_cd),
     CONSTRAINT uq_mnu_scrn_pth UNIQUE (scrn_pth),
-    CONSTRAINT uq_mnu_api_prfx UNIQUE (api_prfx),
+    -- api_prfx에는 UNIQUE가 없다 — 화면 둘이 같은 API를 진짜로 나눠 쓰는 자리가 여럿이라
+    -- (입고검수·입고확정, WEB·PDA 실행 화면 7쌍 등) 한쪽만 주인으로 두면 나머지가 조회 전용인 척하게 된다.
+    -- 주인이 여럿이면 「하나라도 켜져 있으면 통과」다 (docs/design.md 「인가 — 두 단계」)
     CONSTRAINT ck_mnu_dvsn CHECK (dvsn IN ('WEB', 'PDA'))
 );
 
@@ -452,7 +454,7 @@ COMMENT ON TABLE  mnu IS '메뉴 카탈로그 (사이드바·PDA 홈의 주인)'
 COMMENT ON COLUMN mnu.dvsn IS 'WEB 데스크톱 / PDA 현장 단말';
 COMMENT ON COLUMN mnu.icon_nm IS 'lucide 아이콘 이름. 프론트 menuIcons.js가 컴포넌트로 바꾼다';
 COMMENT ON COLUMN mnu.scrn_pth IS '프론트 라우트. App.jsx에 같은 경로가 있어야 한다';
-COMMENT ON COLUMN mnu.api_prfx IS '이 화면의 쓰기 API 이름공간. NULL이면 조회 전용 화면이라 메뉴 권한이 관여하지 않는다';
+COMMENT ON COLUMN mnu.api_prfx IS '이 화면의 쓰기 API 이름공간. 여러 화면이 같은 값을 가질 수 있고 NULL이면 조회 전용이다';
 
 -- 역할별 메뉴 권한. usr_role을 본떴다 — 복합 PK, 감사 4종, FK 없음, us_yn 없음(물리삭제).
 -- 켜진 것만 행으로 있다 — 그룹에는 권한을 두지 않는다(항목만 걸러지고 항목이 하나도 안 남은

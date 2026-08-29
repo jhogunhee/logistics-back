@@ -57,7 +57,8 @@ CREATE TABLE mnu (
     icon_nm     VARCHAR(30)     NOT NULL,   -- lucide 아이콘 이름. 프론트 이름표가 컴포넌트로 바꾼다
     scrn_pth    VARCHAR(60)     NOT NULL,   -- 프론트 라우트. /stock/spmt
     api_prfx    VARCHAR(50),                -- 이 화면의 쓰기 API 이름공간. /inventory/adjs
-                                            -- NULL = 조회 전용 화면(대시보드 · 현재고 조회 · 라벨 인쇄)
+                                            -- NULL = 조회 전용 화면. UNIQUE가 아니다 — 같은 API를
+                                            -- 나눠 쓰는 화면이 여럿이다(아래 5장)
     kywd        VARCHAR(200),               -- 검색 보조어. 초성·영문 별칭
     created_at  TIMESTAMP       DEFAULT CURRENT_TIMESTAMP NOT NULL,
     created_by  VARCHAR(30)     DEFAULT 'admin' NOT NULL,
@@ -65,7 +66,6 @@ CREATE TABLE mnu (
     updated_by  VARCHAR(30),
     CONSTRAINT pk_mnu PRIMARY KEY (mnu_cd),
     CONSTRAINT uq_mnu_scrn_pth UNIQUE (scrn_pth),
-    CONSTRAINT uq_mnu_api_prfx UNIQUE (api_prfx),
     CONSTRAINT ck_mnu_dvsn CHECK (dvsn IN ('WEB', 'PDA'))
 );
 
@@ -85,7 +85,11 @@ CREATE TABLE mnu_role (
 ```
 
 - **`uq_mnu_scrn_pth`** — 같은 화면을 가리키는 메뉴가 둘이면 사이드바에 중복으로 뜬다. DB가 막는다.
-- **`uq_mnu_api_prfx`** — 아래 5장의 불변식(「한 접두는 한 메뉴」)을 DB가 절반 지킨다. PostgreSQL은 `NULL`을 서로 다른 값으로 보므로 조회 전용 화면 여럿이 `NULL`인 것은 걸리지 않는다.
+- **`api_prfx`에는 UNIQUE가 없다** — 2026-08-29 실측으로 뒤집었다. 화면 둘이 같은 쓰기 API를
+  진짜로 나눠 쓰는 자리가 여럿이라(입고검수·입고확정, OMS 주문 폼·관리 목록, 적치지시·적치,
+  WEB 실행 화면과 같은 동작의 PDA 화면 7쌍) 한쪽만 주인으로 두면 나머지가 조회 전용인 척하게 되고,
+  **메뉴는 켜져 있는데 저장이 403 나는 조합**이 생긴다. 주인이 여럿인 것을 정상으로 받아들이고,
+  판정을 「하나라도 켜져 있으면 통과」로 한다(아래 5장).
 - **`mnu_role`에는 켜진 것만** 행으로 있다. 52메뉴 × 평균 3역할 ≈ 150행.
 - **그룹에는 권한을 두지 않는다.** 항목만 걸러지고, 항목이 하나도 안 남은 그룹은 제목째 빠진다(지금 사이드바가 이미 그렇게 동작한다).
 
@@ -153,22 +157,36 @@ public final class SecurityRules {
 
 - **메뉴가 관장하지 않는 경로는 통과시킨다.** 차단하는 쪽으로 만들면 시드에 접두 하나만 빠져도 화면이 통째로 죽는데, 그건 ①이 이미 보고 있으므로 안전한 통과다.
 - **접두가 겹치면 가장 긴 것이 이긴다.** 겹침은 정상이다 — 관리 화면 둘이 `/master/mnus`와 `/master/mnus/roles`로 포개져 있다.
+- **가장 긴 접두를 가진 메뉴가 여럿이면 하나라도 켜져 있을 때 통과다.** 같은 API를 나눠 쓰는 화면들이라
+  HTTP 요청만 봐서는 어느 화면이 보낸 것인지 구분할 수 없다. 「입고검수만 끄고 입고확정은 살린다」는
+  이 설계로 안 된다 — 그 구분이 필요해지면 컨트롤러를 먼저 갈라야 한다.
 
 ### 불변식 — 주인 없는 엔드포인트가 없다
 
 > **모든 비GET 엔드포인트는 적어도 한 메뉴의 `api_prfx` 아래 있다** (예외: `/auth/**`).
-> **겹치면 가장 긴 접두를 가진 메뉴가 그 엔드포인트의 주인이다.**
+> **겹치면 가장 긴 접두를 가진 메뉴들이 그 엔드포인트의 주인이고, 그중 하나라도 켜져 있으면 통과다.**
 
 이걸 **두 겹으로** 지킨다. 메뉴 목록이 DB에 있는데 테스트는 DB를 올리지 않으므로(`@WebMvcTest`로 Supabase 접속을 피하는 것이 이 프로젝트 방식) 한 겹으로는 안 된다.
 
 1. **빌드 시** — 시드가 모든 엔드포인트를 덮는지 검사한다. 시드를 `docs/seed-mnu.sql` 한 파일로 떼어내고 **한 줄에 한 행**인 형식으로 고정하면, 테스트가 그 파일에서 `api_prfx`를 뽑아 `RequestMappingHandlerMapping`과 대조할 수 있다. DB가 필요 없다. **새 컨트롤러를 만들고 시드에 메뉴를 안 넣으면 빌드가 깨진다** — 잡고 싶은 것이 정확히 이것이다.
 2. **실행 중** — 라이브 DB는 관리자가 편집하므로 시드와 갈라질 수 있다. 기동 시 주인 없는 비GET 엔드포인트를 **경고 로그**로 남기고, 메뉴 관리 화면에 **「주인 없는 엔드포인트」 패널**로 띄운다. 관리자가 배포 없이 메뉴를 고쳐 해결할 수 있다.
 
-「정확히 하나」가 아니라 「적어도 하나 + 가장 긴 것이 주인」인 이유는 접두가 **포개지는 것이 정상**이기 때문이다. `POST /master/mnus/roles`는 `/master/mnus`(메뉴 관리)와 `/master/mnus/roles`(권한별 메뉴 관리) 둘 다에 걸리지만, 긴 쪽이 주인이라 판정은 하나로 정해진다.
+「정확히 하나」가 아니라 「적어도 하나 + 가장 긴 것이 주인」인 이유는 접두가 **포개지는 것이 정상**이기 때문이다. `POST /master/mnus/roles`는 `/master/mnus`(메뉴 관리)와 `/master/mnus/roles`(권한별 메뉴 관리) 둘 다에 걸리지만, 긴 쪽이 주인이라 어느 메뉴를 볼지가 정해진다. 그 자리에 메뉴가 여럿이면(같은 접두를 나눠 쓰는 화면들) 그 여럿을 함께 보고 하나라도 켜져 있으면 통과다.
 
-실측해 보니 컨트롤러가 이미 화면별로 갈려 있어(`/inventory/adjs` · `/holds` · `/moves` · `/spmt` · `/stocktakes`, `/outbound/allocations` · `/picking-tasks` · `/picking` · `/replenishment` · `/shipping`) 이 불변식은 **거의 이미 참**이다.
+실측해 보니 컨트롤러가 이미 화면별로 갈려 있어(`/inventory/adjs` · `/holds` · `/moves` · `/spmt` · `/stocktakes`, `/outbound/allocations` · `/picking-tasks` · `/picking` · `/replenishment` · `/shipping`) 이 불변식은 **엔드포인트 쪽에서는 거의 이미 참**이다.
+
+**다만 「한 화면 = 한 접두」는 참이 아니었다** (2026-08-29, 시드를 실제로 만들면서 드러났다). 화면 둘이 같은
+컨트롤러를 나눠 쓰는 자리가 여섯 군데다 — OMS 입고·출고주문의 폼과 관리 목록, 적치지시와 적치, 입고검수와
+입고확정, 공통코드 관리의 그룹·코드 두 API, 그리고 WEB 실행 화면과 같은 동작의 PDA 화면 7쌍. 마지막 것은
+「PDA는 실행만 한다」는 설계 의도 자체가 낳는 중복이라 컨트롤러를 갈라서 없앨 수 있는 종류가 아니다.
+그래서 `uq_mnu_api_prfx`를 버리고 위 4장처럼 접두를 여럿이 나눠 갖게 했다.
 
 **어긋나는 곳이 하나 있다.** 수동할당이 `POST /outbound/waves/{wavId}/allocations/manual`인데, 할당 화면의 기능이면서 주소는 웨이브 편성 아래다. 그대로 두면 할당 메뉴를 꺼도 이 요청이 웨이브 접두로 통과하고, 반대로 웨이브 편성을 끄면 수동할당이 막힌다. **`POST /outbound/allocations/manual`로 옮긴다**(프론트 `AllocCandidateModal` 호출부도 함께).
+
+**옮긴 곳이 하나 더 있다.** 공통코드 관리 화면은 그룹 저장과 코드 저장 두 API를 쓰는데 `api_prfx`는 한 화면에
+하나뿐이라, 밖에 있던 `POST /master/code-groups/bulk`가 주인 없는 엔드포인트가 됐다. `CodeGroupController`의
+이름공간을 **`/master/codes/groups`로 들여왔다**(프론트 `codeApi.js`도 함께). 원래 나눠 뒀던 이유(리터럴
+`groups`가 `{grpCd}` 패턴과 경쟁한다)는 그룹코드가 전부 대문자라 실제로는 부딪히지 않는다.
 
 ### 캐시
 

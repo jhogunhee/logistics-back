@@ -381,7 +381,7 @@ CREATE TABLE mnu (
     updated_by  VARCHAR(30),
     CONSTRAINT pk_mnu PRIMARY KEY (mnu_cd),
     CONSTRAINT uq_mnu_scrn_pth UNIQUE (scrn_pth),
-    CONSTRAINT uq_mnu_api_prfx UNIQUE (api_prfx),
+    -- api_prfx에는 UNIQUE가 없다 — 같은 API를 나눠 쓰는 화면이 여럿이다(2026-08-29 판정)
     CONSTRAINT ck_mnu_dvsn CHECK (dvsn IN ('WEB', 'PDA'))
 );
 
@@ -422,6 +422,7 @@ INSERT INTO mnu (mnu_cd, mnu_nm, dvsn, grp_nm, srt_seq, icon_nm, scrn_pth, api_p
 -- … MENU 44행 + PDA 8행. 아래는 반드시 채운다:
 --   * api_prfx는 그 화면이 부르는 비GET 컨트롤러 접두. 조회 전용이면 NULL
 --   * scrn_pth는 App.jsx에 실제로 있는 라우트
+--   * 같은 접두를 화면 둘이 가져도 된다 — 실제로 그런 자리가 여섯 군데다(2026-08-29 판정)
 ('MNU_MST', '메뉴 관리', 'WEB', '마스터', 90, 'List', '/master/menu', '/master/mnus', 'menu 메뉴 등록 순서'),
 ('MNU_AUTH', '권한별 메뉴 관리', 'WEB', '마스터', 91, 'ShieldCheck', '/master/menu-auth', '/master/mnus/roles', 'auth 권한 역할 메뉴'),
 ('PDA_PICKING', '피킹', 'PDA', '출고', 20, 'PackageOpen', '/m/picking', '/outbound/picking', 'pikng 집품');
@@ -486,7 +487,7 @@ git commit -m "메뉴 권한 테이블과 시드 — 사전에 화면·아이콘
 - Test: `src/test/java/com/project/mdm/mnu/MnuSeedCoverageTest.java`
 
 **Interfaces:**
-- Produces: `Mnu` (getters: `getMnuCd` `getMnuNm` `getDvsn` `getGrpNm` `getSrtSeq` `getIconNm` `getScrnPth` `getApiPrfx` `getKywd`; `Mnu.builder()`; `update(String mnuNm, MnuDvsn dvsn, String grpNm, int srtSeq, String iconNm, String scrnPth, String apiPrfx, String kywd)`), `MnuRole(String mnuCd, Role role)`, `enum MnuDvsn { WEB, PDA }`, `MnuRepository.findAllByOrderByGrpNmAscSrtSeqAsc()`, `MnuRoleRepository.findAllByMnuCdIn(Collection<String>)`, `MnuRoleRepository.deleteByMnuCdIn(Collection<String>)`
+- Produces: `Mnu` (getters: `getMnuCd` `getMnuNm` `getDvsn` `getGrpNm` `getSrtSeq` `getIconNm` `getScrnPth` `getApiPrfx` `getKywd`; `Mnu.builder()`; `update(String mnuNm, MnuDvsn dvsn, String grpNm, int srtSeq, String iconNm, String scrnPth, String apiPrfx, String kywd)`), `MnuRole(String mnuCd, Role role)`, `enum MnuDvsn { WEB, PDA }`, `MnuRepository.findAllByOrderByGrpNmAscSrtSeqAsc()`, `MnuRoleRepository.findAllByMnuCdIn(Collection<String>)`, `MnuRoleRepository.deleteByMnuCdIn(Collection<String>)`. **`existsByApiPrfx`는 두지 않는다** — 접두 중복이 정상이다
 
 - [ ] **Step 1: `MnuDvsn`과 엔티티 셋을 쓴다**
 
@@ -543,7 +544,6 @@ public class MnuRoleId implements Serializable {
 public interface MnuRepository extends JpaRepository<Mnu, String> {
     List<Mnu> findAllByOrderByGrpNmAscSrtSeqAsc();
     boolean existsByScrnPth(String scrnPth);
-    boolean existsByApiPrfx(String apiPrfx);
 }
 ```
 
@@ -622,7 +622,8 @@ class MnuSeedCoverageTest {
     private List<String> writeEndpointPaths() throws IOException {
         // 구현: src/main/java 아래 *Controller.java를 읽어
         // 클래스의 @RequestMapping("...") 과 메서드의 @Post/@Put/@Delete/@PatchMapping("...")을 합친다.
-        // 메서드 애노테이션 값이 "/"로 시작하면 절대경로라 클래스 접두를 붙이지 않는다.
+        // 클래스 접두 + 메서드 값을 항상 이어 붙인다 — 스프링은 메서드 값이 "/"로 시작해도
+        // 절대경로로 보지 않는다. 클래스 매핑이 없는 컨트롤러(OutbAllocController 등)만 메서드 값이 전체 경로다.
         // 경로변수 {..} 구간은 그대로 두되 접두 판정에는 영향이 없다.
         throw new UnsupportedOperationException("Step 4에서 구현한다");
     }
@@ -631,7 +632,7 @@ class MnuSeedCoverageTest {
 
 - [ ] **Step 4: `writeEndpointPaths()`를 구현한다**
 
-`src/main/java` 아래를 걸어 `*Controller.java`를 읽고, 클래스 레벨 `@RequestMapping("x")`와 메서드 레벨 `@PostMapping`/`@PutMapping`/`@DeleteMapping`/`@PatchMapping`의 값을 조합한다. 값이 `/`로 시작하면 절대경로로 취급하고, 없으면 클래스 접두만 쓴다.
+`src/main/java` 아래를 걸어 `*Controller.java`를 읽고, 클래스 레벨 `@RequestMapping("x")`와 메서드 레벨 `@PostMapping`/`@PutMapping`/`@DeleteMapping`/`@PatchMapping`의 값을 **항상 이어 붙인다**(`//`는 하나로 줄인다). 메서드 값이 `/`로 시작해도 절대경로가 아니다 — 스프링이 그렇게 안 본다. 클래스 매핑이 없는 컨트롤러(`OutbAllocController` · `PikngController` 등)에서만 메서드 값이 곧 전체 경로다.
 
 - [ ] **Step 5: 테스트를 돌린다**
 
@@ -681,14 +682,12 @@ Expected: `EXIT=0`. 실패하면 **실패 메시지가 알려주는 엔드포인
     }
 
     @Test
-    @DisplayName("API 접두가 겹치면 거부한다 — 한 접두는 한 메뉴여야 판정이 하나로 정해진다")
-    void rejectsDuplicateApiPrfx() {
-        when(mnuRepository.existsByApiPrfx("/inventory/adjs")).thenReturn(true);
-
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+    @DisplayName("API 접두가 겹쳐도 받는다 — 같은 API를 나눠 쓰는 화면이 정상적으로 여럿이다")
+    void allowsDuplicateApiPrfx() {
+        assertDoesNotThrow(
                 () -> service.saveAll(List.of(row("C", "NEW", "새 화면", "/stock/new", "/inventory/adjs"))));
 
-        assertTrue(e.getMessage().contains("API 접두"));
+        verify(mnuRepository).save(any(Mnu.class));
     }
 
     @Test
@@ -726,9 +725,7 @@ Expected: 컴파일 실패 또는 FAIL.
         if (mnuRepository.existsByScrnPth(mnu.getScrnPth())) {
             throw new IllegalArgumentException("이미 쓰이는 화면 경로입니다: " + mnu.getScrnPth());
         }
-        if (mnu.getApiPrfx() != null && mnuRepository.existsByApiPrfx(mnu.getApiPrfx())) {
-            throw new IllegalArgumentException("이미 쓰이는 API 접두입니다: " + mnu.getApiPrfx());
-        }
+        // api_prfx는 중복을 막지 않는다 — 같은 API를 나눠 쓰는 화면이 여럿이다(설계 5장)
         mnuRepository.save(mnu);
     }
 
@@ -998,6 +995,18 @@ public interface MnuAccessSource {
     }
 
     @Test
+    @DisplayName("같은 접두를 가진 메뉴가 여럿이면 하나라도 켜져 있을 때 통과한다")
+    void anyOwnerOpensThePrefix() {
+        // 입고검수(IB_PIC만 켜짐)와 입고확정(아무도 안 켜짐)이 /inbound/asns를 나눠 쓴다
+        MnuAccessCache cache = cacheOfMenus(
+                menu("IB_RECEIVING", "/inbound/asns", List.of(Role.IB_PIC)),
+                menu("IB_CONFIRM", "/inbound/asns", List.of()));
+
+        assertTrue(cache.allows(List.of("IB_PIC"), "/inbound/asns/1/receive"));
+        assertFalse(cache.allows(List.of("OUTB_PIC"), "/inbound/asns/1/receive"));
+    }
+
+    @Test
     @DisplayName("접두는 세그먼트 경계를 지킨다 — /inventory/stock이 /inventory/stocktakes를 먹지 않는다")
     void respectsSegmentBoundary() {
         MnuAccessCache cache = cacheOf(Map.of("/inventory/stock", List.of()));
@@ -1039,7 +1048,7 @@ public class MnuAccessCache implements MnuAccessSource {
     private final MnuRepository mnuRepository;
     private final MnuRoleRepository mnuRoleRepository;
 
-    /** 접두 → 그 메뉴가 켜진 역할 이름들. 긴 접두 우선으로 정렬해 둔다 */
+    /** 접두 → 그 접두를 가진 메뉴들이 켜진 역할 이름을 모두 합친 것. 긴 접두 우선으로 정렬해 둔다 */
     private volatile List<Entry> entries = List.of();
 
     private record Entry(String prefix, Set<String> roles) {
@@ -1053,11 +1062,15 @@ public class MnuAccessCache implements MnuAccessSource {
                     + "지금은 시스템관리자만 정상 동작한다");
         }
         Map<String, List<Role>> byMnu = /* Task 6의 groupingBy와 같은 방식 */;
+        // 같은 접두를 가진 메뉴가 여럿일 수 있다(입고검수·입고확정 등) — 역할을 합쳐 한 Entry로 만든다.
+        // 합집합이 곧 「하나라도 켜져 있으면 통과」다
         this.entries = menus.stream()
                 .filter(m -> m.getApiPrfx() != null)
-                .map(m -> new Entry(m.getApiPrfx(),
-                        byMnu.getOrDefault(m.getMnuCd(), List.<Role>of()).stream()
-                                .map(Enum::name).collect(toSet())))
+                .collect(groupingBy(Mnu::getApiPrfx,
+                        flatMapping(m -> byMnu.getOrDefault(m.getMnuCd(), List.<Role>of()).stream()
+                                .map(Enum::name), toSet())))
+                .entrySet().stream()
+                .map(e -> new Entry(e.getKey(), e.getValue()))
                 .sorted(comparing((Entry e) -> e.prefix().length()).reversed())
                 .toList();
         warnUncoveredEndpoints();
@@ -1065,7 +1078,7 @@ public class MnuAccessCache implements MnuAccessSource {
 
     @Override
     public boolean allows(List<String> roles, String path) {
-        for (Entry entry : entries) {          // 긴 접두부터 — 첫 매칭이 그 경로의 주인이다
+        for (Entry entry : entries) {          // 긴 접두부터 — 첫 매칭이 그 경로의 주인이다(접두당 Entry 하나)
             if (under(entry.prefix(), path)) {
                 return roles.stream().anyMatch(entry.roles()::contains);
             }

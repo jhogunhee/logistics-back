@@ -3,22 +3,23 @@
 -- 형식 고정: VALUES 뒤 한 줄에 한 행, 컬럼 순서는 CREATE TABLE과 같게, 주석은 행 끝 -- 만.
 --
 -- api_prfx는 그 화면이 실제로 부르는 비GET 컨트롤러 접두다. 조회 전용이면 NULL.
--- 한 접두를 화면 여럿이 나눠 쓰는 자리(OMS 입고/출고주문 단건 폼 vs 관리 목록, 적치지시 vs 적치,
--- WEB 실행 화면 vs 같은 동작의 PDA 화면, 공통코드 관리의 그룹/코드 두 API)는 한쪽만 접두를 갖고
--- 나머지는 NULL이다 — uq_mnu_api_prfx가 화면당 접두 하나만 허용해서다. task-3-report.md에 전부 적었다.
+-- 한 접두를 화면 여럿이 나눠 쓰는 자리가 있다(OMS 주문 폼 vs 관리 목록, 적치지시 vs 적치,
+-- 입고검수 vs 입고확정, WEB 실행 화면 vs 같은 동작의 PDA 화면 7쌍). 그 화면들은 전부 같은 값을
+-- 갖는다 — 한쪽만 주인으로 두면 나머지가 조회 전용인 척하게 되고, 메뉴는 보이는데 저장이
+-- 403 나는 조합이 생긴다. 주인이 여럿이면 하나라도 켜져 있을 때 통과다.
 
 INSERT INTO mnu (mnu_cd, mnu_nm, dvsn, grp_nm, srt_seq, icon_nm, scrn_pth, api_prfx, kywd) VALUES
 ('DASHBOARD', '대시보드', 'WEB', '모니터링', 10, 'LayoutDashboard', '/', NULL, 'dashboard 홈 메인'),
-('OMS_IB_ODR', '입고주문', 'WEB', 'OMS', 100, 'FileInput', '/oms/inbound-order', NULL, '발주 po purchase order 등록'),
+('OMS_IB_ODR', '입고주문', 'WEB', 'OMS', 100, 'FileInput', '/oms/inbound-order', '/oms/inbound-orders', '발주 po purchase order 등록'),
 ('OMS_IB_ODR_LIST', '입고주문 관리', 'WEB', 'OMS', 110, 'ClipboardList', '/oms/inbound-orders', '/oms/inbound-orders', '발주 목록 확정 취소 삭제'),
 ('OMS_ATO_ODR', '자동발주 산정', 'WEB', 'OMS', 120, 'Sparkles', '/oms/ato-odr', '/oms/ato-odr', 'ato auto 자동 발주점 순재고 제안 스케줄'),
-('OMS_OUTB_ODR', '출고주문', 'WEB', 'OMS', 130, 'FileOutput', '/oms/outbound-order', NULL, '수주 so 점포 등록'),
+('OMS_OUTB_ODR', '출고주문', 'WEB', 'OMS', 130, 'FileOutput', '/oms/outbound-order', '/oms/outbound-orders', '수주 so 점포 등록'),
 ('OMS_OUTB_ODR_LIST', '출고주문 관리', 'WEB', 'OMS', 140, 'FilePlus', '/oms/outbound-orders', '/oms/outbound-orders', '수주 목록 취소'),
 ('IB_ASN', '입고예정(ASN) 관리', 'WEB', '입고', 200, 'Truck', '/inbound/asn', NULL, 'asn 예정 inbound'),
 ('IB_RECEIVING', '입고검수', 'WEB', '입고', 210, 'ClipboardCheck', '/inbound/receiving', '/inbound/asns', '검수 수령 receiving lot 제조일자'),
-('IB_PTAWY_ODR', '적치지시', 'WEB', '입고', 220, 'ListChecks', '/inbound/putaway-order', NULL, 'putaway 지시 로케이션 배정'),
+('IB_PTAWY_ODR', '적치지시', 'WEB', '입고', 220, 'ListChecks', '/inbound/putaway-order', '/inbound/putaway', 'putaway 지시 로케이션 배정'),
 ('IB_PTAWY', '적치', 'WEB', '입고', 230, 'PackageOpen', '/inbound/putaway', '/inbound/putaway', 'putaway 이동 보관'),
-('IB_CONFIRM', '입고확정', 'WEB', '입고', 240, 'CheckCircle2', '/inbound/confirm', NULL, '확정 confirm 결품 마감'),
+('IB_CONFIRM', '입고확정', 'WEB', '입고', 240, 'CheckCircle2', '/inbound/confirm', '/inbound/asns', '확정 confirm 결품 마감'),
 ('STK_STATUS', '현재고 조회', 'WEB', '재고', 300, 'Box', '/stock/status', NULL, 'inventory 재고 현황 수량 map 맵 점유 로케이션 평면도 구조도 랙 베이 레벨 빈자리 occupancy'),
 ('STK_HIST', '재고 이력 조회', 'WEB', '재고', 310, 'History', '/stock/history', NULL, 'inventory history 원장 입출고'),
 ('STK_ATTR', '재고 속성변경', 'WEB', '재고', 320, 'Tags', '/stock/attribute', '/inventory/lot-attrs', 'lot 유통기한 제조일자 정정 변경 전량 라벨 유지'),
@@ -54,14 +55,14 @@ INSERT INTO mnu (mnu_cd, mnu_nm, dvsn, grp_nm, srt_seq, icon_nm, scrn_pth, api_p
 ('STGY_WAV', '웨이브 전략관리', 'WEB', '전략', 720, 'Waves', '/strategy/wave', '/strategy/wave-strategies', 'wave strategy 웨이브 편성 출고 조건그룹 출고유형 차량편수 전략'),
 ('STGY_ALOC', '할당 전략관리', 'WEB', '전략', 730, 'Shuffle', '/strategy/allocation', '/strategy/allocation-strategies', 'allocation strategy 할당 분배 재고 배정 fefo 전략 출고'),
 ('PDA_ENTRY', '현장 작업', 'WEB', 'PDA', 800, 'Smartphone', '/m', NULL, 'pda 모바일 mobile 스캐너 barcode rf 현장 실행 피킹 적치 재고이동 재고조사'),
-('PDA_RECEIVING', '입고검수', 'PDA', '입고', 810, 'ClipboardCheck', '/m/receiving', NULL, '검수 수령 receiving 스캔 제조일자'),
-('PDA_PTAWY', '적치', 'PDA', '입고', 815, 'Layers', '/m/putaway', NULL, 'putaway 이동 보관 스캔'),
+('PDA_RECEIVING', '입고검수', 'PDA', '입고', 810, 'ClipboardCheck', '/m/receiving', '/inbound/asns', '검수 수령 receiving 스캔 제조일자'),
+('PDA_PTAWY', '적치', 'PDA', '입고', 815, 'Layers', '/m/putaway', '/inbound/putaway', 'putaway 이동 보관 스캔'),
 ('PDA_STK_INQ', '현재고 조회', 'PDA', '재고', 820, 'Search', '/m/stock-inquiry', NULL, 'inventory 재고 조회 스캔'),
-('PDA_STK_MOVE', '재고이동', 'PDA', '재고', 824, 'ArrowLeftRight', '/m/stock-move', NULL, 'move 이동 확정 스캔'),
-('PDA_STKTK', '재고조사', 'PDA', '재고', 828, 'Calculator', '/m/stock-count', NULL, '실사 count 블라인드 스캔'),
-('PDA_RPLN', '보충', 'PDA', '출고', 830, 'PackagePlus', '/m/replenishment', NULL, 'replenishment 보충 확정 스캔'),
-('PDA_PIKNG', '피킹', 'PDA', '출고', 834, 'PackageOpen', '/m/picking', NULL, 'pikng 집품'),
-('PDA_SHMT', '출고확정', 'PDA', '출고', 838, 'Send', '/m/shipping', NULL, 'shipping 상차 확정 스캔');
+('PDA_STK_MOVE', '재고이동', 'PDA', '재고', 824, 'ArrowLeftRight', '/m/stock-move', '/inventory/moves', 'move 이동 확정 스캔'),
+('PDA_STKTK', '재고조사', 'PDA', '재고', 828, 'Calculator', '/m/stock-count', '/inventory/stocktakes', '실사 count 블라인드 스캔'),
+('PDA_RPLN', '보충', 'PDA', '출고', 830, 'PackagePlus', '/m/replenishment', '/outbound/replenishment', 'replenishment 보충 확정 스캔'),
+('PDA_PIKNG', '피킹', 'PDA', '출고', 834, 'PackageOpen', '/m/picking', '/outbound/picking', 'pikng 집품'),
+('PDA_SHMT', '출고확정', 'PDA', '출고', 838, 'Send', '/m/shipping', '/outbound/shipping', 'shipping 상차 확정 스캔');
 
 INSERT INTO mnu_role (mnu_cd, role) VALUES
 ('DASHBOARD', 'CENT_ADMR'),

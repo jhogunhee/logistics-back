@@ -1,6 +1,7 @@
 package com.project.mdm.usr.controller;
 
 import com.project.common.security.AuthUser;
+import com.project.mdm.mnu.service.MnuService;
 import com.project.mdm.usr.dto.AuthDtos.LoginRequest;
 import com.project.mdm.usr.dto.AuthDtos.LoginResponse;
 import com.project.mdm.usr.dto.AuthDtos.MeResponse;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final MnuService mnuService;
 
     @PostMapping("/login")
     public LoginResponse login(@RequestBody LoginRequest request,
@@ -33,13 +35,15 @@ public class AuthController {
                                CsrfToken csrfToken) {
         AuthUser user = authService.login(request, httpRequest, httpResponse);
         // 토큰은 세션이 만들어진 뒤에 읽는다 — 새 세션에 저장돼야 이후 요청과 짝이 맞는다
-        return new LoginResponse(user.loginId(), user.usrNm(), user.roles(), csrfToken.getToken());
+        return new LoginResponse(user.loginId(), user.usrNm(), user.roles(), csrfToken.getToken(),
+                mnuService.menusOf(user.roles()));
     }
 
-    /** 새로고침 시 세션 유효성 확인을 겸한다. DB를 타지 않고 세션의 인증 정보를 그대로 돌려준다 */
+    /** 새로고침 시 세션 유효성 확인을 겸한다. 사용자 정보는 세션에서, 메뉴는 그때그때 DB에서 읽는다 */
     @GetMapping("/me")
     public MeResponse me(@AuthenticationPrincipal AuthUser user, CsrfToken csrfToken) {
-        return new MeResponse(user.loginId(), user.usrNm(), user.roles(), csrfToken.getToken());
+        return new MeResponse(user.loginId(), user.usrNm(), user.roles(), csrfToken.getToken(),
+                mnuService.menusOf(user.roles()));
     }
 
     @PutMapping("/pwd")

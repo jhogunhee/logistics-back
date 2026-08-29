@@ -365,7 +365,7 @@
   <td class="name">공통코드 관리</td>
   <td>상하 2단 — 위에서 코드그룹을 고르면 아래에 그 그룹의 코드가 열린다. 양쪽 다 그리드 편집(행추가/삭제/일괄저장). 미저장 상태로 그룹을 바꾸려 하면 되묻는다</td>
   <td class="st"><span class="badge done">구현</span></td>
-  <td><code>/master/code-groups</code>, <code>/master/codes/{grpCd}</code>, <code>/{grpCd}/bulk</code> · <code>pages/master/CodeMaster.jsx</code>. 코드 값은 로직이 리터럴로 참조하므로 등록 후 변경 불가</td>
+  <td><code>/master/codes/groups</code>, <code>/master/codes/{grpCd}</code>, <code>/{grpCd}/bulk</code> · <code>pages/master/CodeMaster.jsx</code>. 코드 값은 로직이 리터럴로 참조하므로 등록 후 변경 불가</td>
 </tr>
 <tr>
   <td class="name">채번규칙 관리</td>
@@ -374,10 +374,16 @@
   <td><code>/master/nbr-rules</code>, <code>/bulk</code>, <code>/{ruleCd}/seqs</code>, <code>/{ruleCd}/issue</code>, <code>/preview</code> · <code>pages/master/NbrRuleMaster.jsx</code>. 등록 후 동적키유형 변경 불가 — 이미 발급된 번호와 어긋난다</td>
 </tr>
 <tr>
+  <td class="name">메뉴 관리 / 권한별 메뉴 관리</td>
+  <td>메뉴 카탈로그 그리드 편집(코드·이름·구분·그룹·순서·아이콘·화면 경로·API 접두)과, 행=메뉴 열=역할 체크박스 격자. 격자는 그룹 단위·열 단위 일괄 토글이 있고, 켜져 있어도 업무 구역 상한에 막히는 칸은 눈 아이콘으로 표시만 한다</td>
+  <td class="st"><span class="badge done">구현</span></td>
+  <td><code>/master/mnus</code>, <code>/bulk</code>, <code>/roles</code> · <code>pages/master/MnuMaster.jsx</code> · <code>MnuAuthMaster.jsx</code>. 사이드바·PDA 홈이 이 데이터로 그려지고, 저장하면 <strong>다음 요청부터 인가에 반영된다</strong>(재로그인 불필요). 상세는 <code>docs/design.md</code> 「메뉴·역할 권한」</td>
+</tr>
+<tr>
   <td class="name">사용자 관리</td>
   <td>로그인 계정 그리드 편집(아이디·사용자명·역할 다중선택·비밀번호). 아이디는 신규 행에서만 입력받고, 비밀번호는 <strong>입력한 경우에만</strong> 초기화된다(빈 값 = 유지)</td>
   <td class="st"><span class="badge done">구현</span></td>
-  <td><code>/master/usrs</code>, <code>/bulk</code> · <code>pages/master/UsrMaster.jsx</code>(프론트 라우트는 <code>/master/usr</code>). <strong>조회까지 시스템관리자만</strong>이라 사이드바에서도 ADMR에게만 보인다. 서버 가드 셋 — 아이디 중복 · 자기 자신 삭제 · <strong>마지막 시스템관리자의 삭제·역할 해제</strong>. <strong>역할을 바꾸거나 계정을 지우면 그 사용자의 세션이 즉시 끊긴다</strong> — 세션에 실린 권한은 로그인 시점 것이라 끊지 않으면 방금 뺏은 권한으로 계속 돈다(다시 로그인하면 새 역할로 들어온다). 역할 목록은 마스터가 아니라 <code>Role</code> enum + <code>ck_usr_role</code> CHECK다(<code>docs/design.md</code> 「인증과 역할」)</td>
+  <td><code>/master/usrs</code>, <code>/bulk</code> · <code>pages/master/UsrMaster.jsx</code>(프론트 라우트는 <code>/master/usr</code>). <strong>조회까지 시스템관리자만</strong>이라 사이드바에서도 ADMR에게만 보인다(2026-08-29부터 그 판정은 <code>mnu_role</code>이 한다). 서버 가드 셋 — 아이디 중복 · 자기 자신 삭제 · <strong>마지막 시스템관리자의 삭제·역할 해제</strong>. <strong>역할을 바꾸거나 계정을 지우면 그 사용자의 세션이 즉시 끊긴다</strong> — 세션에 실린 권한은 로그인 시점 것이라 끊지 않으면 방금 뺏은 권한으로 계속 돈다(다시 로그인하면 새 역할로 들어온다). 역할 목록은 마스터가 아니라 <code>Role</code> enum + <code>ck_usr_role</code> CHECK다(<code>docs/design.md</code> 「인증과 역할」)</td>
 </tr>
 </tbody>
 </table>
@@ -405,7 +411,7 @@
 </div>
 
 <h2 id="sidebar">7. 프론트 사이드바 구조 (2026-07-23 반영)</h2>
-<p class="note"><code>wms-front/src/layout/Sidebar.jsx</code> · <code>src/App.jsx</code>. 업무 흐름(OMS → 입고 → 재고 → 출고) 순으로 배치하고 마스터를 맨 아래로 내렸다. <strong>사이드바 항목 40개가 전부 실제 화면이다</strong>(대시보드 포함, 로그인 제외) — 예전에 <code>Placeholder</code>로 라우트만 잡아두었던 8개는 모두 구현되어 남아 있지 않다. 라우트는 42개로, 위 40개에 <code>/login</code>과 주문 상세 2개(<code>/oms/inbound-order/:omsIbOrderId</code> · <code>/oms/outbound-order/:omsOutbOrderId</code>)가 더 있다. (2026-08-26 실측 — 사용자 관리 1개 추가)<br><strong>메뉴는 역할로 걸러진다</strong>(<code>MENU</code> 항목의 <code>roles</code> + <code>hasRole</code>) — 조회(INQ)는 전 메뉴를 보고, 각 담당은 모니터링 + 자기 섹션, 센터관리자는 입고·재고·출고 + 전략 <strong>+ 창고</strong>(존·로케이션 — 랙을 늘리는 것은 센터 운영 업무라 2026-08-29에 마스터에서 떼어냈다), 마스터와 사용자 관리는 시스템관리자만. 고정 로케이션은 재보충점이라 창고가 아니라 <strong>재고</strong> 그룹이고 재고담당도 만진다. 숨김은 편의일 뿐이고 막는 것은 백엔드다(URL로 들어가도 401/403).<br><strong>PDA 홈(<code>MobileHome.jsx</code>)도 2026-08-29부터 역할로 걸러진다</strong> — 항목이 여덟뿐이라 그룹 단위 <code>roles</code> 없이 항목별로만 거르고, 빈 그룹은 제목째 뺀다. <strong>조회(INQ)에게는 PDA를 전부 닫았다</strong>(백엔드는 GET을 막지 않으므로 화면만의 판단이다) — PDA는 실물을 앞에 두는 현장 단말이고 INQ는 감사·교육처럼 창고에 들어가지 않는 사람의 역할이라, <code>/m</code>에 오면 데스크톱으로 보내는 안내가 뜬다.</p>
+<p class="note"><code>wms-front/src/layout/Sidebar.jsx</code> · <code>src/App.jsx</code>. 업무 흐름(OMS → 입고 → 재고 → 출고) 순으로 배치하고 마스터를 맨 아래로 내렸다. <strong>사이드바 항목 42개가 전부 실제 화면이다</strong>(대시보드 포함, 로그인 제외) — 예전에 <code>Placeholder</code>로 라우트만 잡아두었던 8개는 모두 구현되어 남아 있지 않다. 라우트는 44개로, 위 42개에 <code>/login</code>과 주문 상세 2개(<code>/oms/inbound-order/:omsIbOrderId</code> · <code>/oms/outbound-order/:omsOutbOrderId</code>)가 더 있다. (2026-08-29 실측 — 메뉴 관리 · 권한별 메뉴 관리 2개 추가)<br><strong>메뉴 목록과 역할 매핑이 2026-08-29부터 DB에 있다</strong>(<code>mnu</code> · <code>mnu_role</code>) — 프론트의 하드코딩 <code>MENU</code> 배열을 걷어내고 <code>/auth/me</code>가 준 <code>menus</code>만 그린다(아이콘은 컴포넌트라 이름표 <code>layout/menuIcons.js</code>만 남았다). 어느 역할이 무엇을 보는지는 <strong>권한별 메뉴 관리 화면</strong>에서 바꾸고, 시드 기준은 예전 배열과 같다 — 조회(INQ)는 전 메뉴, 각 담당은 모니터링 + 자기 섹션, 센터관리자는 입고·재고·출고 + 전략 <strong>+ 창고</strong>(존·로케이션 — 랙을 늘리는 것은 센터 운영 업무라 마스터에서 떼어냈다), 마스터와 사용자 관리는 시스템관리자만. 고정 로케이션은 재보충점이라 창고가 아니라 <strong>재고</strong> 그룹이고 재고담당도 만진다. 숨김은 편의일 뿐이고 막는 것은 백엔드다(URL로 들어가면 화면은 열리지만 저장은 403 — <code>docs/design.md</code> 「메뉴·역할 권한」).<br><strong>PDA 홈(<code>MobileHome.jsx</code>)도 같은 메뉴를 쓴다</strong> — <code>dvsn='PDA'</code> 항목을 그리고, 하나도 없으면 안내 화면이 뜬다. <strong>조회(INQ)에게는 PDA를 전부 닫았다</strong>(백엔드는 GET을 막지 않으므로 화면만의 판단이다) — PDA는 실물을 앞에 두는 현장 단말이고 INQ는 감사·교육처럼 창고에 들어가지 않는 사람의 역할이라, <code>/m</code>에 오면 데스크톱으로 보내는 안내가 뜬다.</p>
 <div class="tablebox">
 <table>
 <thead><tr><th style="width:110px">그룹</th><th style="width:170px">메뉴</th><th style="width:230px">라우트</th><th>화면 파일 / 상태</th></tr></thead>
@@ -456,6 +462,8 @@
 <tr><td>공통코드 관리</td><td><code>/master/codes</code></td><td><code>pages/master/CodeMaster.jsx</code> — 코드그룹·코드값 2단</td></tr>
 <tr><td>라벨 인쇄</td><td><code>/master/labels</code></td><td><code>pages/master/LabelPrint.jsx</code> — 로케이션·상품·Lot 바코드(Code128) 발행. PDA 스캔의 짝이고 조회 API만 쓴다</td></tr>
 <tr><td>사용자 관리</td><td><code>/master/usr</code></td><td><code>pages/master/UsrMaster.jsx</code> — 계정·역할. 백엔드 접두는 복수형(<code>/master/usrs</code>)이고 프론트 라우트는 다른 마스터와 같은 단수형이다. 시스템관리자에게만 보인다</td></tr>
+<tr><td>메뉴 관리</td><td><code>/master/menu</code></td><td><code>pages/master/MnuMaster.jsx</code> — 사이드바·PDA 홈이 그리는 메뉴 카탈로그. 화면 경로·아이콘은 드롭다운이고, 주인 없는 저장 API가 있으면 배너로 알린다</td></tr>
+<tr><td>권한별 메뉴 관리</td><td><code>/master/menu-auth</code></td><td><code>pages/master/MnuAuthMaster.jsx</code> — 행=메뉴, 열=역할 체크박스 격자. 저장은 그 구분(WEB/PDA)을 통째로 교체한다</td></tr>
 
 <tr><td class="name" rowspan="4">전략</td><td>검수 정책관리</td><td><code>/strategy/inspection</code></td><td><code>pages/strategy/InspectionPolicy.jsx</code> — 규칙 목록·미리보기·리비전</td></tr>
 <tr><td>적치 전략관리</td><td><code>/strategy/putaway</code></td><td><code>pages/strategy/PutawayStrategy.jsx</code> — 목록·단계 편집·미리보기·리비전 (SC-02)</td></tr>

@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/** 그룹 관련 엔드포인트는 CodeGroupController(/master/code-groups)에 있다 — 분리 이유도 거기에 */
+/** 그룹 관련 엔드포인트는 CodeGroupController(/master/codes/groups)에 있다 — 컨트롤러를 나눈 이유도 거기에 */
 @RestController
 @RequestMapping("/master/codes")
 @RequiredArgsConstructor

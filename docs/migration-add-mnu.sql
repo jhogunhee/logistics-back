@@ -9,9 +9,8 @@
 --   관리자가 메뉴 관리 화면에서 편집한 값을 덮지 않는다.
 --
 --   시드 내용은 docs/seed-mnu.sql과 완전히 같다(그 파일이 시드의 주인이고,
---   docs/seed-dev.sql · MnuSeedCoverageTest도 같은 내용을 쓴다). 화면 하나에
---   API 접두 하나만 붙는다(uq_mnu_api_prfx) — 자세한 근거는 seed-mnu.sql 머리말과
---   task-3-report.md 참고.
+--   docs/seed-dev.sql · MnuSeedCoverageTest도 같은 내용을 쓴다). 화면 여럿이 같은
+--   API 접두를 가질 수 있다 — 그 경우 하나라도 켜져 있으면 통과다.
 --
 --   실행(DBeaver): 이 파일을 열고 Alt+X (Execute script).
 --     - NOTICE 는 결과 패널의 Server Output 탭에서 볼 것
@@ -22,6 +21,14 @@
 DO $mnu$
 BEGIN
     -- 1. 테이블 -------------------------------------------------------
+    -- 옛 초안이 남긴 mnu가 있으면 여기서 끊는다 — CREATE를 건너뛴 채 시드 INSERT가
+    -- 42703(없는 컬럼)으로 깨지면 원인이 안 보인다
+    IF to_regclass('mnu') IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM pg_attribute
+             WHERE attrelid = to_regclass('mnu') AND attname = 'icon_nm' AND NOT attisdropped) THEN
+        RAISE EXCEPTION 'mnu 테이블이 이 스크립트와 다른 모양이다(icon_nm 없음). 비어 있으면 DROP TABLE mnu_role, mnu; 후 다시 실행할 것';
+    END IF;
+
     IF to_regclass('mnu') IS NULL THEN
         CREATE TABLE mnu (
             mnu_cd      VARCHAR(30)     NOT NULL,
@@ -39,17 +46,25 @@ BEGIN
             updated_by  VARCHAR(30),
             CONSTRAINT pk_mnu PRIMARY KEY (mnu_cd),
             CONSTRAINT uq_mnu_scrn_pth UNIQUE (scrn_pth),
-            CONSTRAINT uq_mnu_api_prfx UNIQUE (api_prfx),
+            -- api_prfx에는 UNIQUE가 없다 — 같은 API를 나눠 쓰는 화면이 여럿이다
+            -- (입고 검수·입고확정, WEB·PDA 실행 화면 7쌍 등)
             CONSTRAINT ck_mnu_dvsn CHECK (dvsn IN ('WEB', 'PDA'))
         );
         COMMENT ON TABLE  mnu IS '메뉴 카탈로그 (사이드바·PDA 홈의 주인)';
         COMMENT ON COLUMN mnu.dvsn IS 'WEB 데스크톱 / PDA 현장 단말';
         COMMENT ON COLUMN mnu.icon_nm IS 'lucide 아이콘 이름. 프론트 menuIcons.js가 컴포넌트로 바꾼다';
         COMMENT ON COLUMN mnu.scrn_pth IS '프론트 라우트. App.jsx에 같은 경로가 있어야 한다';
-        COMMENT ON COLUMN mnu.api_prfx IS '이 화면의 쓰기 API 이름공간. NULL이면 조회 전용 화면이라 메뉴 권한이 관여하지 않는다';
+        COMMENT ON COLUMN mnu.api_prfx IS '이 화면의 쓰기 API 이름공간. 여러 화면이 같은 값을 가질 수 있고 NULL이면 조회 전용이다';
         RAISE NOTICE 'mnu 테이블 생성';
     ELSE
         RAISE NOTICE 'mnu 테이블 이미 존재 — 건너뜀';
+    END IF;
+
+    -- 옛 판으로 이미 만든 DB 보정 — api_prfx의 UNIQUE는 걷어낸다.
+    -- 같은 API를 나눠 쓰는 화면이 여럿이라(입고검수·입고확정, WEB·PDA 7쌍) 화면당 하나로 묶을 수 없다
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_mnu_api_prfx') THEN
+        ALTER TABLE mnu DROP CONSTRAINT uq_mnu_api_prfx;
+        RAISE NOTICE 'uq_mnu_api_prfx 제거 — 접두를 화면 여럿이 나눠 가진다';
     END IF;
 
     IF to_regclass('mnu_role') IS NULL THEN
@@ -75,16 +90,16 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM mnu) THEN
         INSERT INTO mnu (mnu_cd, mnu_nm, dvsn, grp_nm, srt_seq, icon_nm, scrn_pth, api_prfx, kywd) VALUES
         ('DASHBOARD', '대시보드', 'WEB', '모니터링', 10, 'LayoutDashboard', '/', NULL, 'dashboard 홈 메인'),
-        ('OMS_IB_ODR', '입고주문', 'WEB', 'OMS', 100, 'FileInput', '/oms/inbound-order', NULL, '발주 po purchase order 등록'),
+        ('OMS_IB_ODR', '입고주문', 'WEB', 'OMS', 100, 'FileInput', '/oms/inbound-order', '/oms/inbound-orders', '발주 po purchase order 등록'),
         ('OMS_IB_ODR_LIST', '입고주문 관리', 'WEB', 'OMS', 110, 'ClipboardList', '/oms/inbound-orders', '/oms/inbound-orders', '발주 목록 확정 취소 삭제'),
         ('OMS_ATO_ODR', '자동발주 산정', 'WEB', 'OMS', 120, 'Sparkles', '/oms/ato-odr', '/oms/ato-odr', 'ato auto 자동 발주점 순재고 제안 스케줄'),
-        ('OMS_OUTB_ODR', '출고주문', 'WEB', 'OMS', 130, 'FileOutput', '/oms/outbound-order', NULL, '수주 so 점포 등록'),
+        ('OMS_OUTB_ODR', '출고주문', 'WEB', 'OMS', 130, 'FileOutput', '/oms/outbound-order', '/oms/outbound-orders', '수주 so 점포 등록'),
         ('OMS_OUTB_ODR_LIST', '출고주문 관리', 'WEB', 'OMS', 140, 'FilePlus', '/oms/outbound-orders', '/oms/outbound-orders', '수주 목록 취소'),
         ('IB_ASN', '입고예정(ASN) 관리', 'WEB', '입고', 200, 'Truck', '/inbound/asn', NULL, 'asn 예정 inbound'),
         ('IB_RECEIVING', '입고검수', 'WEB', '입고', 210, 'ClipboardCheck', '/inbound/receiving', '/inbound/asns', '검수 수령 receiving lot 제조일자'),
-        ('IB_PTAWY_ODR', '적치지시', 'WEB', '입고', 220, 'ListChecks', '/inbound/putaway-order', NULL, 'putaway 지시 로케이션 배정'),
+        ('IB_PTAWY_ODR', '적치지시', 'WEB', '입고', 220, 'ListChecks', '/inbound/putaway-order', '/inbound/putaway', 'putaway 지시 로케이션 배정'),
         ('IB_PTAWY', '적치', 'WEB', '입고', 230, 'PackageOpen', '/inbound/putaway', '/inbound/putaway', 'putaway 이동 보관'),
-        ('IB_CONFIRM', '입고확정', 'WEB', '입고', 240, 'CheckCircle2', '/inbound/confirm', NULL, '확정 confirm 결품 마감'),
+        ('IB_CONFIRM', '입고확정', 'WEB', '입고', 240, 'CheckCircle2', '/inbound/confirm', '/inbound/asns', '확정 confirm 결품 마감'),
         ('STK_STATUS', '현재고 조회', 'WEB', '재고', 300, 'Box', '/stock/status', NULL, 'inventory 재고 현황 수량 map 맵 점유 로케이션 평면도 구조도 랙 베이 레벨 빈자리 occupancy'),
         ('STK_HIST', '재고 이력 조회', 'WEB', '재고', 310, 'History', '/stock/history', NULL, 'inventory history 원장 입출고'),
         ('STK_ATTR', '재고 속성변경', 'WEB', '재고', 320, 'Tags', '/stock/attribute', '/inventory/lot-attrs', 'lot 유통기한 제조일자 정정 변경 전량 라벨 유지'),
@@ -120,14 +135,14 @@ BEGIN
         ('STGY_WAV', '웨이브 전략관리', 'WEB', '전략', 720, 'Waves', '/strategy/wave', '/strategy/wave-strategies', 'wave strategy 웨이브 편성 출고 조건그룹 출고유형 차량편수 전략'),
         ('STGY_ALOC', '할당 전략관리', 'WEB', '전략', 730, 'Shuffle', '/strategy/allocation', '/strategy/allocation-strategies', 'allocation strategy 할당 분배 재고 배정 fefo 전략 출고'),
         ('PDA_ENTRY', '현장 작업', 'WEB', 'PDA', 800, 'Smartphone', '/m', NULL, 'pda 모바일 mobile 스캐너 barcode rf 현장 실행 피킹 적치 재고이동 재고조사'),
-        ('PDA_RECEIVING', '입고검수', 'PDA', '입고', 810, 'ClipboardCheck', '/m/receiving', NULL, '검수 수령 receiving 스캔 제조일자'),
-        ('PDA_PTAWY', '적치', 'PDA', '입고', 815, 'Layers', '/m/putaway', NULL, 'putaway 이동 보관 스캔'),
+        ('PDA_RECEIVING', '입고검수', 'PDA', '입고', 810, 'ClipboardCheck', '/m/receiving', '/inbound/asns', '검수 수령 receiving 스캔 제조일자'),
+        ('PDA_PTAWY', '적치', 'PDA', '입고', 815, 'Layers', '/m/putaway', '/inbound/putaway', 'putaway 이동 보관 스캔'),
         ('PDA_STK_INQ', '현재고 조회', 'PDA', '재고', 820, 'Search', '/m/stock-inquiry', NULL, 'inventory 재고 조회 스캔'),
-        ('PDA_STK_MOVE', '재고이동', 'PDA', '재고', 824, 'ArrowLeftRight', '/m/stock-move', NULL, 'move 이동 확정 스캔'),
-        ('PDA_STKTK', '재고조사', 'PDA', '재고', 828, 'Calculator', '/m/stock-count', NULL, '실사 count 블라인드 스캔'),
-        ('PDA_RPLN', '보충', 'PDA', '출고', 830, 'PackagePlus', '/m/replenishment', NULL, 'replenishment 보충 확정 스캔'),
-        ('PDA_PIKNG', '피킹', 'PDA', '출고', 834, 'PackageOpen', '/m/picking', NULL, 'pikng 집품'),
-        ('PDA_SHMT', '출고확정', 'PDA', '출고', 838, 'Send', '/m/shipping', NULL, 'shipping 상차 확정 스캔');
+        ('PDA_STK_MOVE', '재고이동', 'PDA', '재고', 824, 'ArrowLeftRight', '/m/stock-move', '/inventory/moves', 'move 이동 확정 스캔'),
+        ('PDA_STKTK', '재고조사', 'PDA', '재고', 828, 'Calculator', '/m/stock-count', '/inventory/stocktakes', '실사 count 블라인드 스캔'),
+        ('PDA_RPLN', '보충', 'PDA', '출고', 830, 'PackagePlus', '/m/replenishment', '/outbound/replenishment', 'replenishment 보충 확정 스캔'),
+        ('PDA_PIKNG', '피킹', 'PDA', '출고', 834, 'PackageOpen', '/m/picking', '/outbound/picking', 'pikng 집품'),
+        ('PDA_SHMT', '출고확정', 'PDA', '출고', 838, 'Send', '/m/shipping', '/outbound/shipping', 'shipping 상차 확정 스캔');
 
         INSERT INTO mnu_role (mnu_cd, role) VALUES
         ('DASHBOARD', 'CENT_ADMR'),
@@ -275,9 +290,20 @@ $mnu$;
 --   2) 역할 CHECK가 걸려 있는지 (ADMR 거부 확인)
 --      INSERT INTO mnu_role (mnu_cd, role) VALUES ('DASHBOARD', 'ADMR');
 --      -- ck_mnu_role_role 위반으로 실패해야 한다.
---   3) api_prfx 유일성
---      SELECT api_prfx, COUNT(*) FROM mnu WHERE api_prfx IS NOT NULL GROUP BY api_prfx HAVING COUNT(*) > 1;
---      -- 0행이어야 한다.
+--   3) 접두를 나눠 쓰는 화면 (정상이다 — 어느 화면들이 묶여 있는지 확인용)
+--      SELECT api_prfx, COUNT(*), string_agg(mnu_cd, ', ') FROM mnu WHERE api_prfx IS NOT NULL
+--       GROUP BY api_prfx HAVING COUNT(*) > 1;
+--      -- 입고검수·입고확정 등 위 머리말이 적은 쌍만 나와야 한다.
 --   4) FK는 여전히 0건
 --      SELECT COUNT(*) FROM pg_constraint WHERE contype = 'f';
+--   5) 옛 시드(접두를 한쪽에만 주던 판)로 이미 채운 DB라면 아래를 한 번만 돌린다.
+--      시드 재실행은 mnu가 비어 있을 때만 도므로 자동으로는 안 채워진다.
+--      UPDATE mnu SET api_prfx = v.prfx FROM (VALUES
+--        ('OMS_IB_ODR','/oms/inbound-orders'), ('OMS_OUTB_ODR','/oms/outbound-orders'),
+--        ('IB_PTAWY_ODR','/inbound/putaway'), ('IB_CONFIRM','/inbound/asns'),
+--        ('PDA_RECEIVING','/inbound/asns'), ('PDA_PTAWY','/inbound/putaway'),
+--        ('PDA_STK_MOVE','/inventory/moves'), ('PDA_STKTK','/inventory/stocktakes'),
+--        ('PDA_RPLN','/outbound/replenishment'), ('PDA_PIKNG','/outbound/picking'),
+--        ('PDA_SHMT','/outbound/shipping')) AS v(cd, prfx)
+--       WHERE mnu.mnu_cd = v.cd AND mnu.api_prfx IS NULL;
 -- =====================================================================

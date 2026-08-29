@@ -15,12 +15,14 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * 코드 그룹을 코드와 다른 리소스로 나눈 이유 — CodeController는 /master/codes/{grpCd}
- * 패턴을 쓰는데, 그룹 엔드포인트를 그 밑에 두면 리터럴 경로(groups)가 {grpCd} 패턴과
- * 한 자리를 두고 경쟁한다(GROUPS라는 그룹 코드는 만들 수 없게 된다).
+ * 코드 그룹을 코드와 다른 컨트롤러로 나눈 이유 — CodeController는 /master/codes/{grpCd}
+ * 패턴을 쓰는데, 그룹 엔드포인트가 그 밑에 들어가면 리터럴 groups가 {grpCd} 패턴과 한 자리를
+ * 두고 경쟁한다. 그래도 2026-08-29에 이름공간만은 /master/codes 아래로 들여왔다 — 한 화면이
+ * 쓰기 API 접두를 하나만 가질 수 있어서(mnu.api_prfx), 밖에 두면 주인 없는 엔드포인트가 된다.
+ * 경쟁은 실제로는 안 일어난다: 그룹코드는 전부 대문자이고 경로 매칭은 대소문자를 가린다.
  */
 @RestController
-@RequestMapping("/master/code-groups")
+@RequestMapping("/master/codes/groups")
 @RequiredArgsConstructor
 public class CodeGroupController {
 

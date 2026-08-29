@@ -2,6 +2,7 @@ package com.project.common.security;
 
 import com.project.common.config.CorsConfig;
 import com.project.common.config.SecurityConfig;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,11 +12,15 @@ import org.springframework.context.annotation.Import;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.BDDMockito.given;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -68,6 +73,14 @@ class SecurityRulesTest {
     }
 
     @Autowired MockMvc mvc;
+
+    /** 메뉴 권한(②단계)은 MnuAccessFilterTest가 본다 — 여기서는 상한만 보게 늘 통과시킨다 */
+    @MockitoBean MnuAccessSource mnuAccessSource;
+
+    @BeforeEach
+    void allowEveryMenu() {
+        given(mnuAccessSource.allows(anyList(), any())).willReturn(true);
+    }
 
     @Test
     @DisplayName("/health는 로그인 없이 열려 있다 — GET만이 아니라 HEAD도. 슬립 방지 크론이 HEAD로 부른다")

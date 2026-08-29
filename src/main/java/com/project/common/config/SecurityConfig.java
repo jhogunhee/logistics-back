@@ -1,5 +1,7 @@
 package com.project.common.config;
 
+import com.project.common.security.MnuAccessFilter;
+import com.project.common.security.MnuAccessSource;
 import com.project.common.security.SecurityRules;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
@@ -14,6 +16,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 
@@ -35,7 +38,7 @@ public class SecurityConfig {
     public static final String SESSION_COOKIE = "WMSSESSION";
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http, MnuAccessSource mnuAccessSource) throws Exception {
         http
             // CorsConfig(WebMvcConfigurer)의 설정을 시큐리티가 읽어 인가보다 먼저 preflight를 끝낸다.
             // 이게 없으면 Authorization/쿠키 없는 OPTIONS가 인가 단계에서 막혀 모든 비GET이 CORS 오류가 된다
@@ -73,7 +76,9 @@ public class SecurityConfig {
                     auth.requestMatchers(rule.patterns().toArray(String[]::new)).hasAnyRole(roleNames);
                 }
                 auth.anyRequest().denyAll();
-            });
+            })
+            // ② 메뉴 권한. 상한을 통과한 요청에만 「이 역할에 이 화면이 켜져 있나」를 더 묻는다
+            .addFilterAfter(new MnuAccessFilter(mnuAccessSource), AuthorizationFilter.class);
         return http.build();
     }
 

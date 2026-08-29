@@ -53,7 +53,9 @@ common  ← mdm ← wmsback ← omsback
 
 같은 이유로 **`@RestControllerAdvice`도 두 개다** — 공통은 `common.exception.GlobalExceptionHandler`, 검수 위반은 `wmsback.strategy.inspection.exception.InspectionExceptionHandler`. 후자를 공통으로 올리면 `common`이 `wmsback`을 import하게 된다.
 
-같은 이유로 **`common.security`는 DB를 보지 않는다** — 세션에 실린 `AuthUser`(`login_id`·`usr_nm`·`roles`)만으로 권한을 세우고 사용자 마스터(`mdm.usr`)를 모른다. 접근 규칙은 `SecurityConfig` 한 곳의 URL 접두 표이고 컨트롤러에 `@PreAuthorize`를 흩뿌리지 않는다 — 규칙표에 없는 접두의 비GET은 `denyAll`이라 **새 컨트롤러가 접두를 어기면 막힌다**. 인증은 토큰이 아니라 **세션**이다(권한을 화면에서 편집할 예정이라 「역할이 바뀌면 그 사람 세션을 끊는다」가 필요했다). 세션 테이블 `spring_session` 2개는 **약어 사전과 「FK 없음」 규칙의 유일한 예외**다 — 라이브러리 소유라 그대로 둔다(`docs/design.md` 「인증과 역할」).
+같은 이유로 **`common.security`는 DB를 보지 않는다** — 세션에 실린 `AuthUser`(`login_id`·`usr_nm`·`roles`)만으로 권한을 세우고 사용자 마스터(`mdm.usr`)를 모른다. 접근 규칙은 `SecurityConfig` 한 곳의 URL 접두 표이고 컨트롤러에 `@PreAuthorize`를 흩뿌리지 않는다 — 규칙표에 없는 접두의 비GET은 `denyAll`이라 **새 컨트롤러가 접두를 어기면 막힌다**(쓰기 규칙 자체는 `common.security.SecurityRules`가 데이터로 갖는다 — 메뉴 권한 화면이 같은 표를 읽어야 해서다).
+
+**인가는 두 단계다**(2026-08-29). ① 위 접두 표가 업무 구역 경계를 **상한**으로 지키고, ② `MnuAccessFilter`가 DB(`mnu`·`mnu_role`)를 보고 **화면 단위 실제 열림**을 정한다. 둘 다 통과해야 열린다. ②는 GET을 보지 않고(화면 여럿이 같은 조회 API를 쓴다) ADMR을 우회시킨다(잠김 방지). `common`은 인터페이스 `MnuAccessSource`만 알고 구현(`mdm.mnu.service.MnuAccessCache`)은 아래 층에 있다 — 위 「포트로 뒤집는다」와 같은 형태다. **새 컨트롤러를 만들면 `docs/seed-mnu.sql`에 그 화면의 메뉴(`api_prfx`)를 넣어야 한다** — 모든 비GET 엔드포인트가 어느 메뉴에 속하는지 `MnuSeedCoverageTest`가 빌드 시에 검사해서, 빠뜨리면 테스트가 깨진다. 근거는 `docs/design.md` 「메뉴·역할 권한」. 인증은 토큰이 아니라 **세션**이다(권한을 화면에서 편집할 예정이라 「역할이 바뀌면 그 사람 세션을 끊는다」가 필요했다). 세션 테이블 `spring_session` 2개는 **약어 사전과 「FK 없음」 규칙의 유일한 예외**다 — 라이브러리 소유라 그대로 둔다(`docs/design.md` 「인증과 역할」).
 
 각 도메인 패키지는 `controller / dto / entity / repository / service` 구성을 따른다. `strategy`는 예외다 — 전략 커널이라 `condition / field / component / exception`이 추가로 있고(`component`는 유형별 구성요소 enum과 그 입출력이 사는 자리 — 검수 규칙·적치 방식·할당 구현체), `InspectionQueryRepository` · `PutawayQueryRepository` · `AlocQueryRepository`는 Spring Data 인터페이스 없이 `JPAQueryFactory`만 드는 **읽기 전용 조회 포트**로 아래 「QueryDSL 리포지토리 패턴」의 3파일 삼각형을 따르지 않는다.
 
