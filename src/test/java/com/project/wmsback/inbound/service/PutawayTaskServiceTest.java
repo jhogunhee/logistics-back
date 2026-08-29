@@ -2,6 +2,7 @@ package com.project.wmsback.inbound.service;
 
 import com.project.mdm.prod.entity.Prod;
 import com.project.mdm.prod.entity.TmpZon;
+import com.project.mdm.prod.repository.ProdRepository;
 import com.project.wmsback.inbound.entity.IbLine;
 import com.project.wmsback.inbound.entity.PutawayTask;
 import com.project.wmsback.inbound.entity.PutawayTaskStatus;
@@ -24,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.mockito.ArgumentCaptor;
@@ -52,6 +54,7 @@ class PutawayTaskServiceTest {
     @Mock IbLineRepository ibLineRepository;
     @Mock LotRepository lotRepository;
     @Mock LocRepository locRepository;
+    @Mock ProdRepository prodRepository;
     @Mock InvStore invStore;
     @Mock LocCapacityService locCapacityService;
 
@@ -63,7 +66,7 @@ class PutawayTaskServiceTest {
     @BeforeEach
     void setUp() {
         service = new PutawayTaskService(putawayTaskRepository, putawayTaskQueryRepository,
-                ibLineRepository, lotRepository, locRepository, invStore, locCapacityService);
+                ibLineRepository, lotRepository, locRepository, prodRepository, invStore, locCapacityService);
 
         Prod prod = mock(Prod.class);
         when(prod.getProdCd()).thenReturn("PROD-0001");
@@ -83,7 +86,10 @@ class PutawayTaskServiceTest {
 
         ReflectionTestUtils.setField(task, "id", 1L);
 
-        when(putawayTaskRepository.findById(1L)).thenReturn(Optional.of(task));
+        // 변경·취소는 상품 락을 먼저 잡고 지시를 그 뒤에 읽는다 (실행과 같은 순서)
+        when(putawayTaskRepository.findLockKeysByIdIn(List.of(1L)))
+                .thenReturn(List.of(new PutawayLockKey(1L, 7L, 3L, 100L)));
+        when(putawayTaskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(task));
         when(locRepository.findById(200L)).thenReturn(Optional.of(newLoc));
         when(locCapacityService.availCapacity(newLoc)).thenReturn(100L);
         // 분할이 저장하는 새 지시 — DB가 채울 id를 대신 채워 돌려준다

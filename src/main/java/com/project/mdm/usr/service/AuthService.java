@@ -37,7 +37,12 @@ public class AuthService {
      * 보고 /login으로 보내버려서, 로그인 화면에서 401이 나면 사유 토스트 없이 화면만 새로 뜬다.
      */
     public AuthUser login(LoginRequest request, HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
-        Usr usr = usrRepository.findByLoginId(request.loginId() == null ? "" : request.loginId().trim())
+        // 아이디·비밀번호 누락은 실패와 같은 문구로 끊는다 — null을 그대로 넘기면 PasswordEncoder가
+        // 내부 예외 문구("rawPassword cannot be null")를 뱉고, 그게 미인증 경로의 응답으로 나간다
+        if (request == null || request.loginId() == null || request.loginId().isBlank() || request.pwd() == null) {
+            throw new IllegalArgumentException("아이디 또는 비밀번호가 올바르지 않습니다.");
+        }
+        Usr usr = usrRepository.findByLoginId(request.loginId().trim())
                 .filter(found -> passwordEncoder.matches(request.pwd(), found.getPwd()))
                 .orElseThrow(() -> new IllegalArgumentException("아이디 또는 비밀번호가 올바르지 않습니다."));
 

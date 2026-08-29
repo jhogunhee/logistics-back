@@ -739,7 +739,7 @@ Lot의 **제조일자·유통기한 오입력**을 정정한다. 구현은 `LotA
 - **전역 락 계층** — 한 트랜잭션이 여러 종류를 잠글 때는 이 순서만 허용한다:
 
   ```
-  문서 헤더(inv_stktk · outb_wave) → prod → lot → loc (id 오름차순) → inv (키 오름차순) → inv_hld · inv_mov_task (id 오름차순) → nbr_seq
+  문서 헤더(inv_stktk · outb_wave) → prod → lot → loc (id 오름차순) → inv (키 오름차순) → inv_hld · inv_mov_task · putaway_task (id 오름차순) → nbr_seq
   ```
 
   채번(`nbr_seq` 행 락, 커밋까지 유지)이 마지막인 것이 요점이다 — 같은 날짜의 카운터는 한 행을

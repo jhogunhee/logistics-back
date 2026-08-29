@@ -2,6 +2,7 @@ package com.project.wmsback.inbound.service;
 
 import com.project.mdm.prod.entity.Prod;
 import com.project.mdm.prod.entity.TmpZon;
+import com.project.mdm.prod.repository.ProdRepository;
 import com.project.wmsback.inbound.entity.IbLine;
 import com.project.wmsback.inbound.entity.PutawayTask;
 import com.project.wmsback.inbound.repository.IbLineRepository;
@@ -25,13 +26,17 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -46,6 +51,7 @@ class PutawayServiceTest {
     @Mock PutawayTaskRepository putawayTaskRepository;
     @Mock IbLineRepository ibLineRepository;
     @Mock LocRepository locRepository;
+    @Mock ProdRepository prodRepository;
     @Mock InvStore invStore;
     @Mock LocCapacityService locCapacityService;
 
@@ -56,26 +62,38 @@ class PutawayServiceTest {
     @BeforeEach
     void setUp() {
         service = new PutawayService(putawayTaskRepository, ibLineRepository,
-                locRepository, invStore, locCapacityService);
+                locRepository, prodRepository, invStore, locCapacityService);
 
         Prod prod = mock(Prod.class);
+        when(prod.getId()).thenReturn(7L);
         when(prod.getProdCd()).thenReturn("PROD-0014");
         when(prod.getTmpZon()).thenReturn(TmpZon.DRY);
         ibLine = mock(IbLine.class);
         when(ibLine.getProd()).thenReturn(prod);
 
         Loc toLoc = mock(Loc.class);
+        when(toLoc.getId()).thenReturn(20L);
         when(toLoc.getLocTyp()).thenReturn(LocTyp.STORAGE);
         when(toLoc.getTmpZon()).thenReturn(TmpZon.DRY);
         when(toLoc.getLocCd()).thenReturn("DRY-C-01-01");
 
+        Lot lot = mock(Lot.class);
+        when(lot.getId()).thenReturn(3L);
         task = PutawayTask.builder()
                 .ibLine(ibLine)
-                .lot(mock(Lot.class))
+                .lot(lot)
                 .toLoc(toLoc)
                 .drctQty(38L)
                 .build();
-        when(putawayTaskRepository.findById(1L)).thenReturn(Optional.of(task));
+
+        // 락 순서(상품 → 재고 → 지시)를 지나는 선조회 — 지시는 락을 잡은 뒤에 읽는다
+        Loc staging = mock(Loc.class);
+        when(staging.getId()).thenReturn(99L);
+        when(locRepository.findByLocCd("RCV-STAGE")).thenReturn(Optional.of(staging));
+        when(putawayTaskRepository.findLockKeysByIdIn(any()))
+                .thenReturn(List.of(new PutawayLockKey(1L, 7L, 3L, 20L)));
+        when(invStore.lockAll(any())).thenReturn(Map.of());
+        when(putawayTaskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(task));
     }
 
     @Test
@@ -88,7 +106,9 @@ class PutawayServiceTest {
                 () -> service.execute(1L, 38L));
         assertTrue(e.getMessage().contains("검수"));
         assertTrue(e.getMessage().contains("22"));
-        verifyNoInteractions(invStore);
+        // 락은 읽기보다 먼저라 lockAll은 지나지만, 재고를 움직이는 호출까지는 가지 않는다
+        verify(invStore, never()).release(any(), anyLong());
+        verify(invStore, never()).move(any(), any(), anyLong(), any());
     }
 
     @Test

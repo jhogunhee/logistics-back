@@ -17,6 +17,7 @@ import com.project.wmsback.inventory.service.InvKey;
 import com.project.wmsback.inventory.service.InvStore;
 import com.project.wmsback.inventory.service.LocCapacityService;
 import com.project.mdm.prod.entity.Prod;
+import com.project.mdm.prod.repository.ProdRepository;
 import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.LocTyp;
 import com.project.wmsback.warehouse.entity.Lot;
@@ -29,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * 적치지시 생성·취소와 지시 대기 목록.
@@ -51,6 +53,7 @@ public class PutawayTaskService {
     private final IbLineRepository ibLineRepository;
     private final LotRepository lotRepository;
     private final LocRepository locRepository;
+    private final ProdRepository prodRepository;
     private final InvStore invStore;
     private final LocCapacityService locCapacityService;
 
@@ -169,10 +172,17 @@ public class PutawayTaskService {
      * 분할로 원 지시에 실행분만 남으면 완료로 전이하므로, 부분 실행된 지시의 잔여분도 이 창구로 빠져나간다.
      * 예약은 스테이징 재고에 (상품, 로케이션, Lot) 단위로 걸려 있어 분할해도 총량이 그대로다 — 재고 무접촉.
      * 목적지 검증은 생성 때와 같은 식이되, 적재가능수량은 옮기는 수량 기준이다.
+     *
+     * <p>재고를 건드리지 않아도 <b>상품 락은 잡는다</b> — 잔여수량 판정과 분할이 실행({@link PutawayService})과
+     * 같은 지시 행을 읽고 쓰기 때문이다. 락 없이 먼저 읽으면 그 사이에 커밋된 실행분을 못 본 채 잔여를
+     * 계산하고, 전체 컬럼을 쓰는 UPDATE가 방금 오른 {@code cmpl_qty}를 되돌린다. 실행과 같은 순서
+     * (상품 → 지시)라 교착도 없다.
      */
     @Transactional
     public Long changeLoc(Long taskId, Long locId, Long qty) {
-        PutawayTask task = putawayTaskRepository.findById(taskId)
+        lockProdOf(taskId);
+        // 지시는 락을 잡은 뒤에 읽는다 — 먼저 읽으면 뒤에 거는 락이 낡은 인스턴스를 그대로 돌려준다
+        PutawayTask task = putawayTaskRepository.findByIdForUpdate(taskId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 적치지시입니다: " + taskId));
         if (task.getStatus() != PutawayTaskStatus.DIRECTED) {
             throw new IllegalArgumentException("지시 상태의 적치지시만 로케이션을 변경할 수 있습니다 (현재 "
@@ -212,6 +222,18 @@ public class PutawayTaskService {
                 .build()).getId();
     }
 
+    /**
+     * 지시가 걸린 상품 행을 잠그고 그 지시의 재고 키를 돌려준다 — 변경·취소가 실행과 공유하는 첫 락이다.
+     * 키를 <b>스칼라 조회</b>로 읽는 이유는 실행 쪽과 같다: 지시를 엔티티로 먼저 읽으면 영속성 컨텍스트에
+     * 올라가 뒤에 거는 락이 낡은 인스턴스를 돌려준다 ({@link PutawayLockKey}).
+     */
+    private PutawayLockKey lockProdOf(Long taskId) {
+        PutawayLockKey key = putawayTaskRepository.findLockKeysByIdIn(List.of(taskId)).stream().findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 적치지시입니다: " + taskId));
+        prodRepository.findByIdForUpdate(key.prodId());
+        return key;
+    }
+
     /** 목적지 검증 (생성·변경 공용) — 보관 로케이션 + 반품존 제외 + 상품 온도대 일치 */
     private void validateToLoc(Loc toLoc, Prod prod) {
         if (toLoc.getLocTyp() != LocTyp.STORAGE) {
@@ -231,10 +253,20 @@ public class PutawayTaskService {
     /**
      * 적치지시 취소 — 예약 해제. 물리 이동이 없으므로 inv_hist 기록도 없다.
      * 실행 실적이 있는 지시는 취소하지 않는다 (이미 옮긴 실물은 재고이동 화면의 소관).
+     *
+     * <p>락 순서는 실행과 같다 — 상품 → 스테이징 재고 → 지시. 지시를 락보다 먼저 읽으면
+     * 그 사이에 커밋된 실행분을 못 본 「완료 0」으로 취소 가드를 통과해, 이미 소진된 예약을
+     * 다시 풀고 전체 컬럼 UPDATE가 {@code cmpl_qty}를 0으로 되돌린다.
      */
     @Transactional
     public void cancel(Long taskId) {
-        PutawayTask task = putawayTaskRepository.findById(taskId)
+        PutawayLockKey lockKey = lockProdOf(taskId);
+        Loc staging = locRepository.findByLocCd(STAGING_LOC_CD)
+                .orElseThrow(() -> new IllegalStateException("입고 스테이징 로케이션(RCV-STAGE)이 없습니다."));
+        // 없는 행을 여기서 문제 삼지 않는다 — 상태 가드가 「지시 상태의 지시만 취소할 수 있다」로 먼저 잡아야 할 몫이다
+        Optional<Inv> lockedStaging = invStore.lock(lockKey.stagingKey(staging.getId()));
+
+        PutawayTask task = putawayTaskRepository.findByIdForUpdate(taskId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 적치지시입니다: " + taskId));
         if (task.getStatus() != PutawayTaskStatus.DIRECTED) {
             throw new IllegalArgumentException("지시 상태의 적치지시만 취소할 수 있습니다 (현재 "
@@ -244,11 +276,8 @@ public class PutawayTaskService {
             throw new IllegalArgumentException("이미 적치된 수량이 있어 취소할 수 없습니다 (완료 " + task.getCmplQty()
                     + ") — 되돌리려면 재고이동으로 처리합니다: " + taskId);
         }
-        Loc staging = locRepository.findByLocCd(STAGING_LOC_CD)
-                .orElseThrow(() -> new IllegalStateException("입고 스테이징 로케이션(RCV-STAGE)이 없습니다."));
 
-        Prod prod = task.getIbLine().getProd();
-        Inv stagingInv = invStore.lock(new InvKey(prod.getId(), staging.getId(), task.getLot().getId()))
+        Inv stagingInv = lockedStaging
                 .orElseThrow(() -> new IllegalStateException("적치지시가 예약한 재고가 없습니다 (정합성 오류): " + taskId));
         if (stagingInv.getAlocQty() < task.getDrctQty()) {
             throw new IllegalStateException("예약 잔량보다 재고의 예약 수량이 적습니다 (정합성 오류 — 예약 "

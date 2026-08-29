@@ -15,13 +15,17 @@ import com.project.wmsback.inventory.service.InvStore;
 import com.project.wmsback.inventory.service.LocCapacityService;
 import com.project.wmsback.warehouse.entity.Loc;
 import com.project.wmsback.warehouse.entity.LocTyp;
-import com.project.wmsback.warehouse.entity.Lot;
 import com.project.mdm.prod.entity.Prod;
+import com.project.mdm.prod.repository.ProdRepository;
 import com.project.wmsback.warehouse.repository.LocRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -33,6 +37,10 @@ import java.util.Map;
  * 지시의 로케이션을 먼저 변경한다 ({@link PutawayTaskService#changeLoc}).
  * 한 트랜잭션에서 예약 소진 · 스냅샷 갱신 · 이력 2행 · 지시 누계를 함께 처리한다
  * (불변식: inv_hist 합계 = inv 스냅샷).
+ * <p>
+ * 락은 <b>읽기보다 먼저</b>다 — 상품 → 재고 행 → 지시 순으로 잡고 그 뒤에 지시·라인을 읽는다
+ * (아래 {@code lockRows} 참고). 누계 둘({@code cmpl_qty} · {@code ptawy_qty})을 낡은 스냅샷에서
+ * 올리면 동시 실행의 절반이 사라진다.
  */
 @Service
 @RequiredArgsConstructor
@@ -45,6 +53,7 @@ public class PutawayService {
     private final PutawayTaskRepository putawayTaskRepository;
     private final IbLineRepository ibLineRepository;
     private final LocRepository locRepository;
+    private final ProdRepository prodRepository;
     private final InvStore invStore;
     private final LocCapacityService locCapacityService;
 
@@ -67,7 +76,10 @@ public class PutawayService {
     /** 적치 실행 (부분 허용). 지시받은 로케이션으로만 옮긴다 */
     @Transactional
     public void execute(Long taskId, Long qty) {
-        executeOne(taskId, qty);
+        if (taskId == null) {
+            throw new IllegalArgumentException("실행할 적치지시가 지정되지 않았습니다.");
+        }
+        executeOne(taskId, qty, lockRows(List.of(taskId)));
     }
 
     /**
@@ -79,16 +91,79 @@ public class PutawayService {
         if (request.getItems() == null || request.getItems().isEmpty()) {
             throw new IllegalArgumentException("실행할 적치지시가 없습니다.");
         }
+        List<Long> taskIds = new ArrayList<>();
         for (PutawayBulkExecuteRequest.Item item : request.getItems()) {
-            executeOne(item.getTaskId(), item.getQty());
+            if (item.getTaskId() == null) {
+                throw new IllegalArgumentException("실행할 적치지시가 지정되지 않았습니다.");
+            }
+            taskIds.add(item.getTaskId());
         }
+        LockedRows locked = lockRows(taskIds);
+        // 지시 락은 id 오름차순으로 잡는다 — 요청 순서대로 잡으면 겹치는 두 일괄 실행이 서로 반대 순서가 된다
+        request.getItems().stream()
+                .sorted(Comparator.comparing(PutawayBulkExecuteRequest.Item::getTaskId))
+                .forEach(item -> executeOne(item.getTaskId(), item.getQty(), locked));
     }
 
-    private void executeOne(Long taskId, Long qty) {
+    /**
+     * 실행이 건드리는 행을 <b>읽기 전에 전부 잠근다</b> — 상품 → 재고(스테이징 · 도착지) 순서로,
+     * 지시 자체는 건별 처리가 id 오름차순으로 잡는다(전역 락 계층: prod → inv → 지시).
+     *
+     * <p><b>상품 락이 필요한 이유.</b> 실행은 재고뿐 아니라 {@code putaway_task.cmpl_qty} ·
+     * {@code ib_line.ptawy_qty} 두 누계를 올리는데, 재고 행 락은 그 둘을 지켜주지 못한다 —
+     * 같은 입고라인의 지시가 Lot마다 다른 스테이징 행을 잡으면 라인 누계가 락 없이 겹치고,
+     * 같은 라인을 동시에 검수하는 트랜잭션은 아예 다른 행을 만진다. {@code ib_line}에는
+     * {@code @Version}이 없어 둘이 각자 읽은 값에 더한 뒤 절대값으로 덮어써 한쪽이 증발한다
+     * (실물은 옮겨졌는데 누계만 모자라 적치 잔여가 유령으로 남고 입고확정이 영구히 막힌다).
+     * 검수가 같은 이유로 상품 행을 잠그므로({@code ReceivingService.lockProds}), 적치도 같은
+     * 락을 지나야 검수와 직렬화된다.
+     *
+     * <p>그래서 잠글 키를 <b>스칼라 조회</b>로 고른다 — 지시를 엔티티로 미리 읽으면 영속성
+     * 컨텍스트에 올라가 뒤에 거는 락이 낡은 인스턴스를 돌려줘 이 방어선이 그대로 무너진다.
+     */
+    private LockedRows lockRows(List<Long> taskIds) {
+        Map<Long, PutawayLockKey> keyByTaskId = new HashMap<>();
+        for (PutawayLockKey key : putawayTaskRepository.findLockKeysByIdIn(new LinkedHashSet<>(taskIds))) {
+            keyByTaskId.put(key.taskId(), key);
+        }
+        for (Long taskId : taskIds) {
+            if (!keyByTaskId.containsKey(taskId)) {
+                throw new IllegalArgumentException("존재하지 않는 적치지시입니다: " + taskId);
+            }
+        }
+
+        // 상품 락 (id 오름차순 — 요청 순서대로 잡으면 상품이 겹치는 두 실행이 서로 반대 순서가 된다)
+        keyByTaskId.values().stream()
+                .map(PutawayLockKey::prodId)
+                .distinct()
+                .sorted()
+                .forEach(prodRepository::findByIdForUpdate);
+
+        Loc staging = locRepository.findByLocCd(STAGING_LOC_CD)
+                .orElseThrow(() -> new IllegalStateException("입고 스테이징 로케이션(RCV-STAGE)이 없습니다."));
+
+        // 스테이징·도착 행을 함께 선락한다 (InvStore가 키 오름차순으로 잠근다). 락 없이 읽고 옮기면
+        // 같은 스테이징 행의 동시 적치·검수취소가 각자 읽은 수량 기준으로 서로 덮어쓴다.
+        // 도착 행이 아직 없으면 빠지고 move가 만든다 (동시 생성은 uq_inv가 방어)
+        List<InvKey> invKeys = new ArrayList<>();
+        for (Long taskId : taskIds) {
+            PutawayLockKey key = keyByTaskId.get(taskId);
+            invKeys.add(key.stagingKey(staging.getId()));
+            invKeys.add(key.targetKey());
+        }
+        return new LockedRows(staging, keyByTaskId, invStore.lockAll(invKeys));
+    }
+
+    /** 선락 결과 — 잠근 재고 행과 그 키, 스테이징 로케이션 */
+    private record LockedRows(Loc staging, Map<Long, PutawayLockKey> keyByTaskId, Map<InvKey, Inv> inv) {}
+
+    private void executeOne(Long taskId, Long qty, LockedRows locked) {
         if (qty == null || qty < 1) {
             throw new IllegalArgumentException("적치수량은 1 이상이어야 합니다.");
         }
-        PutawayTask task = putawayTaskRepository.findById(taskId)
+        PutawayLockKey lockKey = locked.keyByTaskId().get(taskId);
+        // 락을 모두 잡은 뒤에 지시를 읽는다 — 이 락이 잔여 검증과 완료수량 누적을 직렬화한다
+        PutawayTask task = putawayTaskRepository.findByIdForUpdate(taskId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 적치지시입니다: " + taskId));
         if (task.getStatus() != PutawayTaskStatus.DIRECTED) {
             throw new IllegalArgumentException("지시 상태의 적치지시만 실행할 수 있습니다 (현재 "
@@ -109,23 +184,19 @@ public class PutawayService {
                     + " / 미적치 " + lineRemaining + "): " + ibLine.getProd().getProdCd());
         }
         Prod prod = ibLine.getProd();
-        Lot lot = task.getLot();
         Loc target = task.getToLoc();
-        Loc staging = locRepository.findByLocCd(STAGING_LOC_CD)
-                .orElseThrow(() -> new IllegalStateException("입고 스테이징 로케이션(RCV-STAGE)이 없습니다."));
 
+        // 선락 이후 지시의 로케이션이 바뀌었으면(지시 변경·분할) 잠근 도착 행이 지시와 어긋난다 —
+        // 여기서 새 도착지를 잠그면 락 순서가 무너지므로 이번 실행을 되돌리고 다시 부르게 한다
+        if (!target.getId().equals(lockKey.toLocId())) {
+            throw new IllegalStateException("적치지시의 로케이션이 방금 변경됐습니다 — 다시 실행해 주세요: " + taskId);
+        }
         // 지시 발행 이후 로케이션 마스터가 바뀌었을 수 있다 — 어긋났으면 취소 후 재지시가 정답이라 여기서 막는다
         if (target.getLocTyp() != LocTyp.STORAGE || target.getTmpZon() != prod.getTmpZon()) {
             throw new IllegalStateException("지시받은 로케이션이 적치 조건과 어긋납니다 (취소 후 재지시 필요): " + target.getLocCd());
         }
 
-        // 스테이징·대상 행을 함께 선락한다 (InvStore가 키 오름차순으로 잠근다). 락 없이 읽고 옮기면
-        // 같은 스테이징 행의 동시 적치·검수취소가 각자 읽은 수량 기준으로 서로 덮어쓴다.
-        // 대상 행이 아직 없으면 빠지고 move가 만든다 (동시 생성은 uq_inv가 방어)
-        InvKey stagingKey = new InvKey(prod.getId(), staging.getId(), lot.getId());
-        Map<InvKey, Inv> locked = invStore.lockAll(List.of(
-                stagingKey, new InvKey(prod.getId(), target.getId(), lot.getId())));
-        Inv stagingInv = locked.get(stagingKey);
+        Inv stagingInv = locked.inv().get(lockKey.stagingKey(locked.staging().getId()));
         if (stagingInv == null) {
             throw new IllegalStateException("적치지시가 예약한 재고가 없습니다 (정합성 오류): " + taskId);
         }

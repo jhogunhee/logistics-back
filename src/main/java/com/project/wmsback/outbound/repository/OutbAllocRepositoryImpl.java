@@ -8,6 +8,7 @@ import com.project.wmsback.outbound.dto.AllocWaveResponse;
 import com.project.wmsback.outbound.entity.OutbLine;
 import com.project.wmsback.outbound.entity.OutbStatus;
 import com.project.wmsback.outbound.entity.PikngTaskStatus;
+import com.project.wmsback.warehouse.entity.BizDvsn;
 import com.project.wmsback.warehouse.entity.LocTyp;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.OrderSpecifier;
@@ -36,6 +37,9 @@ import static com.project.wmsback.outbound.entity.QOutbLine.outbLine;
 import static com.project.wmsback.outbound.entity.QOutbOrder.outbOrder;
 import static com.project.wmsback.outbound.entity.QOutbWave.outbWave;
 import static com.project.wmsback.outbound.entity.QPikngTask.pikngTask;
+import static com.project.wmsback.warehouse.entity.QLoc.loc;
+import static com.project.wmsback.warehouse.entity.QLot.lot;
+import static com.project.wmsback.warehouse.entity.QZon.zon;
 
 @RequiredArgsConstructor
 public class OutbAllocRepositoryImpl implements OutbAllocRepositoryCustom {
@@ -277,10 +281,11 @@ public class OutbAllocRepositoryImpl implements OutbAllocRepositoryCustom {
     public List<Inv> findCandidates(Long prodId) {
         return queryFactory
                 .selectFrom(inv)
-                .join(inv.loc).fetchJoin()
-                .join(inv.lot).fetchJoin()
+                .join(inv.loc, loc).fetchJoin()
+                .join(inv.lot, lot).fetchJoin()
+                .leftJoin(loc.zon, zon)
                 .where(candidatePredicates(prodId))
-                .orderBy(fefoOrder(inv.lot, inv.loc))
+                .orderBy(fefoOrder(lot, loc))
                 .fetch();
     }
 
@@ -289,19 +294,30 @@ public class OutbAllocRepositoryImpl implements OutbAllocRepositoryCustom {
         return queryFactory
                 .select(inv.id)
                 .from(inv)
-                .join(inv.loc)
-                .join(inv.lot)
+                .join(inv.loc, loc)
+                .join(inv.lot, lot)
+                .leftJoin(loc.zon, zon)
                 .where(candidatePredicates(prodId))
-                .orderBy(fefoOrder(inv.lot, inv.loc))
+                .orderBy(fefoOrder(lot, loc))
                 .fetch();
     }
 
+    /**
+     * 하드 가드 — 전략이 못 바꾸는 전제라 산정기가 아니라 조회가 갖는다.
+     * 미리보기 쪽 후보 조회({@code AlocQueryRepository.candidatesByProd})와 같은 조건이어야 한다 —
+     * 갈라지면 미리보기에 없던 재고가 실행에서 할당된다.
+     * <p>존 조인이 필요하므로 호출하는 쿼리가 {@code loc}·{@code zon} 별칭을 함께 걸어야 한다.
+     */
     private BooleanExpression[] candidatePredicates(Long prodId) {
         return new BooleanExpression[]{
                 inv.prod.id.eq(prodId),
                 // 스테이징 재고는 후보가 아니다 — 피킹이 「보관 → SHIP-STAGE」라
                 // 스테이징을 할당하면 피킹이 성립하지 않는다
-                inv.loc.locTyp.eq(LocTyp.STORAGE),
+                loc.locTyp.eq(LocTyp.STORAGE),
+                // 반품존 재고도 후보가 아니다 — 보류를 풀자마자 반품 불량이 FEFO 최우선으로 나가면 안 된다.
+                // 양품 재판정은 「보류 해제 → 재고 이동(보관존)」 두 단계다. 반품존 로케이션도 locTyp이
+                // STORAGE라 위 조건만으로는 걸리지 않는다. 존이 미등록이면(FK 없음) 업무유형이 null이라 남긴다
+                zon.bizDvsn.ne(BizDvsn.RTNGS).or(zon.bizDvsn.isNull()),
                 // 가용 = 보유 − 예약 − 보류. 보류분이 여기서 빠진다 (정의는 InvQueryExpressions 한 곳)
                 avalQty().gt(0L)
         };

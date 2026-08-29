@@ -36,6 +36,7 @@ import com.project.wmsback.strategy.allocation.service.AlocStgyService;
 import com.project.wmsback.strategy.core.entity.StgyTyp;
 import com.project.wmsback.strategy.core.entity.TrgrTyp;
 import com.project.wmsback.strategy.core.service.StgyExecLogService;
+import com.project.wmsback.warehouse.entity.BizDvsn;
 import com.project.wmsback.warehouse.entity.LocTyp;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -421,11 +422,19 @@ public class OutbAllocService {
             }
         }
 
-        // ④ 재고별 합계가 가용재고를 넘지 않는지 + 보관 재고인지 (역시 전 행 기준)
+        // ④ 재고별 합계가 가용재고를 넘지 않는지 + 보관 재고(반품존 제외)인지 (역시 전 행 기준)
+        Map<Long, String> bizDvsnByZon = alocQueryRepository.bizDvsnByZon();
         for (Map.Entry<Long, Long> entry : reqByInv.entrySet()) {
             Inv candidate = locked.get(entry.getKey());
             if (candidate.getLoc().getLocTyp() != LocTyp.STORAGE) {
                 throw new IllegalArgumentException("보관 로케이션의 재고만 할당할 수 있습니다: "
+                        + candidate.getLoc().getLocCd());
+            }
+            // 반품존은 후보 조회가 이미 빼지만(OutbAllocRepositoryImpl.candidatePredicates) 여기는
+            // 사람이 고른 invId를 그대로 받으므로 같은 가드를 다시 둔다 — 화면을 거치지 않는 호출이 남는다.
+            // 판정은 존 마스터 맵으로 한다 (자동할당과 같은 이유 — 존 프록시를 초기화하지 않는다)
+            if (BizDvsn.RTNGS.name().equals(bizDvsnOf(bizDvsnByZon, candidate))) {
+                throw new IllegalArgumentException("반품존 재고는 할당할 수 없습니다 — 보류 해제 후 재고이동으로 옮겨야 합니다: "
                         + candidate.getLoc().getLocCd());
             }
             if (entry.getValue() > candidate.avalQty()) {

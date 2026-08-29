@@ -12,12 +12,15 @@ import java.util.List;
  * 예약 대사 — {@code inv.aloc_qty}의 원장은 없다(물리 이동이 아니라 이력에 안 남긴다). 그래서 어긋남은
  * 원천별 미소진 잔량을 재고 키로 다시 합산해 장부와 견줘야만 드러난다. 그 쿼리가 여기 하나뿐이다.
  *
- * <p>원천 셋을 재고 키 (prod, loc, lot)로 모은다.
+ * <p>원천 넷을 재고 키 (prod, loc, lot)로 모은다.
  * <ul>
  *   <li>출고 할당 — {@code outb_alloc.aloc_qty − pikng_qty}, 키는 할당이 가리키는 {@code inv} 행.
  *       미소진분이 남은 할당은 보관 행이 살아 있다(예약이 행을 지키므로 join으로 충분).</li>
- *   <li>이동·적치지시 — {@code inv_mov_task.drct_qty − cmpl_qty} (DIRECTED), 키는 지시의 출발지 스냅샷.
+ *   <li>이동지시 — {@code inv_mov_task.drct_qty − cmpl_qty} (DIRECTED), 키는 지시의 출발지 스냅샷.
  *       수시보충(RPLN)은 뺀다 — 예약의 주인이 할당이라 할당 항이 이미 센다.</li>
+ *   <li>적치지시 — {@code putaway_task.drct_qty − cmpl_qty} (DIRECTED), 키는 라인의 상품 + RCV-STAGE + Lot.
+ *       출발지 컬럼이 없어(항상 스테이징) 로케이션을 코드로 붙인다. 이동지시와 같은 성격의 예약이라
+ *       같은 칸(mov_qty)에 합산한다.</li>
  *   <li>피킹된 물량 — {@code pikng_task.cmpl_qty} (살아 있는 지시 · 주문 미확정), 키는 지시의 상품·Lot 스냅샷
  *       + SHIP-STAGE. 피킹이 예약을 도착지로 옮기므로 이 몫이 스테이징 행의 {@code aloc_qty}여야 한다.</li>
  * </ul>
@@ -42,6 +45,14 @@ public class InvAlocRecRepository {
                   FROM inv_mov_task t
                  WHERE t.status = 'DIRECTED' AND t.drct_qty > t.cmpl_qty AND t.mov_dvsn <> 'RPLN'
                  GROUP BY t.prod_id, t.from_loc_id, t.lot_id
+                UNION ALL
+                SELECT l.prod_id, g.loc_id, t.lot_id,
+                       0, SUM(t.drct_qty - t.cmpl_qty), 0
+                  FROM putaway_task t
+                  JOIN ib_line l ON l.ib_line_id = t.ib_line_id
+                  CROSS JOIN (SELECT loc_id FROM loc WHERE loc_cd = 'RCV-STAGE') g
+                 WHERE t.status = 'DIRECTED' AND t.drct_qty > t.cmpl_qty
+                 GROUP BY l.prod_id, g.loc_id, t.lot_id
                 UNION ALL
                 SELECT p.prod_id, s.loc_id, p.lot_id,
                        0, 0, SUM(p.cmpl_qty)
