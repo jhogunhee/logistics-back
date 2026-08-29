@@ -114,6 +114,48 @@ class UsrServiceTest {
     }
 
     @Test
+    @DisplayName("관리자가 둘이어도 자기 자신의 ADMR은 뺄 수 없다 — 시스템은 멀쩡한데 누른 사람만 갇힌다")
+    void rejectsRemovingOwnAdmrRole() {
+        Usr me = usr("admin", "시스템관리자", Role.ADMR);
+        when(usrRepository.findById(1L)).thenReturn(Optional.of(me));
+        // 관리자가 둘이라 「마지막 관리자」 가드는 통과한다 — 그래도 막혀야 한다는 것이 이 테스트다
+        when(usrRepository.countByRole(Role.ADMR)).thenReturn(2L);
+        login("admin");
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> service.saveAll(List.of(row("U", 1L, "admin", "시스템관리자", null, List.of("INQ")))));
+
+        assertTrue(e.getMessage().contains("자기 자신"));
+        assertEquals(Set.of(Role.ADMR), me.getRoles());
+        verify(sessionRepository, never()).findByPrincipalName("admin");
+    }
+
+    @Test
+    @DisplayName("남의 ADMR은 뗄 수 있다 — 막는 것은 자기 것뿐이라 다른 관리자가 해주면 된다")
+    void allowsRemovingAnotherAdmrRole() {
+        Usr other = usr("admin2", "부관리자", Role.ADMR);
+        when(usrRepository.findById(2L)).thenReturn(Optional.of(other));
+        when(usrRepository.countByRole(Role.ADMR)).thenReturn(2L);
+        login("admin");
+
+        service.saveAll(List.of(row("U", 2L, "admin2", "부관리자", null, List.of("INQ"))));
+
+        assertEquals(Set.of(Role.INQ), other.getRoles());
+    }
+
+    @Test
+    @DisplayName("자기 계정이라도 ADMR을 그대로 둔 채 다른 역할을 더하는 것은 된다")
+    void allowsOwnRoleChangeThatKeepsAdmr() {
+        Usr me = usr("admin", "시스템관리자", Role.ADMR);
+        when(usrRepository.findById(1L)).thenReturn(Optional.of(me));
+        login("admin");
+
+        service.saveAll(List.of(row("U", 1L, "admin", "시스템관리자", null, List.of("ADMR", "INV_PIC"))));
+
+        assertEquals(Set.of(Role.ADMR, Role.INV_PIC), me.getRoles());
+    }
+
+    @Test
     @DisplayName("관리자가 둘이면 한 명의 역할은 바꿀 수 있다")
     void allowsRoleChangeWhenAnotherAdmrExists() {
         Usr usr = usr("admin2", "부관리자", Role.ADMR);
@@ -199,8 +241,26 @@ class UsrServiceTest {
     @Test
     @DisplayName("역할이 하나도 없는 행은 저장하지 않는다")
     void rejectsEmptyRoles() {
-        assertThrows(IllegalArgumentException.class,
-                () -> service.saveAll(List.of(row("C", null, "nobody", "역할없음", "1234", List.of()))));
+        // 메시지까지 본다 — 이 행은 비밀번호도 짧아서, 안 보면 「8자 이상」으로 통과해도 초록이다
+        assertTrue(assertThrows(IllegalArgumentException.class,
+                () -> service.saveAll(List.of(row("C", null, "nobody", "역할없음", "1234", List.of()))))
+                .getMessage().contains("역할은 하나 이상"));
+    }
+
+    @Test
+    @DisplayName("역할 목록이 아예 없어도 500이 아니라 사람 말로 거절한다 — 수정 판정이 검증보다 먼저 이 값을 본다")
+    void rejectsNullRoles() {
+        when(usrRepository.findById(3L)).thenReturn(Optional.of(usr("stock", "재고담당", Role.INV_PIC)));
+
+        // 신규 · 수정 두 경로 모두. 수정 쪽이 원래 NPE가 나던 자리다
+        // (UsrService.update가 「관리자 역할을 떼는가」를 보려고 updateEntity보다 먼저 toRoles를 부른다)
+        assertTrue(assertThrows(IllegalArgumentException.class,
+                () -> service.saveAll(List.of(row("C", null, "newbie", "신규", "GoodPwd!2026", null))))
+                .getMessage().contains("역할은 하나 이상"));
+
+        assertTrue(assertThrows(IllegalArgumentException.class,
+                () -> service.saveAll(List.of(row("U", 3L, "stock", "재고담당", null, null))))
+                .getMessage().contains("역할은 하나 이상"));
     }
 
     private Usr usr(String loginId, String usrNm, Role... roles) {

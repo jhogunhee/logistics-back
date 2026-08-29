@@ -61,8 +61,17 @@ public class UsrSaveRequest {
         }
     }
 
-    /** 수정·삭제 판정에 서비스도 새 역할을 봐야 해서 공개한다 */
+    /**
+     * 수정·삭제 판정에 서비스도 새 역할을 봐야 해서 공개한다.
+     * <p>
+     * <b>역할 규칙의 주인이 여기다.</b> {@code UsrService.update()}가 「관리자 역할을 떼는가」를
+     * 보려고 {@link #updateEntity}보다 <b>먼저</b> 이걸 부르므로, 규칙이 그쪽에만 있으면
+     * 빈 목록이 검사에 닿기 전에 여기서 터진다(400이어야 할 것이 500이 된다).
+     */
     public Set<Role> toRoles() {
+        if (roles == null || roles.isEmpty()) {
+            throw new IllegalArgumentException("역할은 하나 이상이어야 합니다.");
+        }
         Set<Role> parsed = new LinkedHashSet<>();
         for (String role : roles) {
             try {
@@ -78,8 +87,8 @@ public class UsrSaveRequest {
         if (usrNm == null || usrNm.isBlank()) {
             throw new IllegalArgumentException("사용자명은 필수입니다.");
         }
-        if (roles == null || roles.isEmpty()) {
-            throw new IllegalArgumentException("역할은 하나 이상이어야 합니다.");
-        }
+        // 규칙을 두 벌로 두지 않는다 — 주인은 toRoles()이고 여기서는 불러서 순서만 맞춘다
+        // (「사용자명 다음이 역할」이라 비밀번호 오류가 역할 오류를 앞지르지 않는다)
+        toRoles();
     }
 }

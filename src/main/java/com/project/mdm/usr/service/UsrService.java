@@ -61,6 +61,10 @@ public class UsrService {
         Set<Role> before = Set.copyOf(usr.getRoles());
         Set<Role> after = row.toRoles();
         if (before.contains(Role.ADMR) && !after.contains(Role.ADMR)) {
+            // 삭제와 같은 짝이다 — 아래 마지막 관리자 가드는 「시스템에 관리자가 0명이 되는 것」을 막지,
+            // 관리자가 둘일 때 자기 것을 떼는 것은 통과시킨다. 그러면 시스템은 멀쩡한데
+            // 누른 사람만 세션이 끊겨 이 화면에 다시 못 들어온다 (다른 관리자가 해주면 된다)
+            requireNotSelf(usr, "자기 자신의 시스템관리자 역할은 해제할 수 없습니다.");
             requireNotLastAdmr("역할을 해제할 수 없습니다");
         }
         row.updateEntity(usr, passwordEncoder);
@@ -74,16 +78,26 @@ public class UsrService {
 
     private void delete(UsrSaveRequest row) {
         Usr usr = find(row.getUsrId());
-        AuthUser.current().ifPresent(me -> {
-            if (me.loginId().equals(usr.getLoginId())) {
-                throw new IllegalArgumentException("자기 자신은 삭제할 수 없습니다.");
-            }
-        });
+        requireNotSelf(usr, "자기 자신은 삭제할 수 없습니다.");
         if (usr.hasRole(Role.ADMR)) {
             requireNotLastAdmr("삭제할 수 없습니다");
         }
         usrRepository.delete(usr);
         expireSessionsOf(usr.getLoginId());
+    }
+
+    /**
+     * 자기 발등 찍기 방지. 「시스템이 잠기는 것」을 막는 {@link #requireNotLastAdmr}와 걸리는 조건이
+     * 겹치지 않는다 — 관리자가 둘이어도 자기 권한을 떼면 자기만 갇힌다. 다른 관리자가 해주면 된다.
+     * <p>
+     * 인증 없이 도는 실행(스케줄러 · 시드)에서는 비교할 「나」가 없어 통과시킨다.
+     */
+    private void requireNotSelf(Usr usr, String message) {
+        AuthUser.current().ifPresent(me -> {
+            if (me.loginId().equals(usr.getLoginId())) {
+                throw new IllegalArgumentException(message);
+            }
+        });
     }
 
     /** 시스템관리자가 0명이 되면 사용자 관리 화면 자체에 들어갈 수 없다 — 마지막 한 명은 남긴다 */
