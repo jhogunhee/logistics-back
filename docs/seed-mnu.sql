@@ -10,6 +10,7 @@
 
 INSERT INTO mnu (mnu_cd, mnu_nm, dvsn, grp_nm, srt_seq, icon_nm, scrn_pth, api_prfx, kywd) VALUES
 ('DASHBOARD', '대시보드', 'WEB', '모니터링', 10, 'LayoutDashboard', '/', NULL, 'dashboard 홈 메인'),
+('WRK_ACRST', '작업자 실적', 'WEB', '모니터링', 20, 'Users', '/monitoring/worker', NULL, 'worker 작업자 실적 생산성 집계 건수 처리량 피킹 적치 검수 누가 담당자 productivity'),
 ('OMS_IB_ODR', '입고주문', 'WEB', 'OMS', 100, 'FileInput', '/oms/inbound-order', '/oms/inbound-orders', '발주 po purchase order 등록'),
 ('OMS_IB_ODR_LIST', '입고주문 관리', 'WEB', 'OMS', 110, 'ClipboardList', '/oms/inbound-orders', '/oms/inbound-orders', '발주 목록 확정 취소 삭제'),
 ('OMS_ATO_ODR', '자동발주 산정', 'WEB', 'OMS', 120, 'Sparkles', '/oms/ato-odr', '/oms/ato-odr', 'ato auto 자동 발주점 순재고 제안 스케줄'),
@@ -71,6 +72,7 @@ INSERT INTO mnu_role (mnu_cd, role) VALUES
 ('DASHBOARD', 'INV_PIC'),
 ('DASHBOARD', 'OUTB_PIC'),
 ('DASHBOARD', 'INQ'),
+('WRK_ACRST', 'CENT_ADMR'),
 ('OMS_IB_ODR', 'ODR_PIC'),
 ('OMS_IB_ODR', 'INQ'),
 ('OMS_IB_ODR_LIST', 'ODR_PIC'),

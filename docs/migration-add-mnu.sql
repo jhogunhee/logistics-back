@@ -90,6 +90,7 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM mnu) THEN
         INSERT INTO mnu (mnu_cd, mnu_nm, dvsn, grp_nm, srt_seq, icon_nm, scrn_pth, api_prfx, kywd) VALUES
         ('DASHBOARD', '대시보드', 'WEB', '모니터링', 10, 'LayoutDashboard', '/', NULL, 'dashboard 홈 메인'),
+('WRK_ACRST', '작업자 실적', 'WEB', '모니터링', 20, 'Users', '/monitoring/worker', NULL, 'worker 작업자 실적 생산성 집계 건수 처리량 피킹 적치 검수 누가 담당자 productivity'),
         ('OMS_IB_ODR', '입고주문', 'WEB', 'OMS', 100, 'FileInput', '/oms/inbound-order', '/oms/inbound-orders', '발주 po purchase order 등록'),
         ('OMS_IB_ODR_LIST', '입고주문 관리', 'WEB', 'OMS', 110, 'ClipboardList', '/oms/inbound-orders', '/oms/inbound-orders', '발주 목록 확정 취소 삭제'),
         ('OMS_ATO_ODR', '자동발주 산정', 'WEB', 'OMS', 120, 'Sparkles', '/oms/ato-odr', '/oms/ato-odr', 'ato auto 자동 발주점 순재고 제안 스케줄'),
@@ -151,6 +152,7 @@ BEGIN
         ('DASHBOARD', 'INV_PIC'),
         ('DASHBOARD', 'OUTB_PIC'),
         ('DASHBOARD', 'INQ'),
+('WRK_ACRST', 'CENT_ADMR'),
         ('OMS_IB_ODR', 'ODR_PIC'),
         ('OMS_IB_ODR', 'INQ'),
         ('OMS_IB_ODR_LIST', 'ODR_PIC'),
@@ -273,9 +275,21 @@ BEGIN
         ('PDA_SHMT', 'OUTB_PIC');
         -- MNU_MST · MNU_AUTH는 mnu_role 행이 하나도 없다 — 관리자 전용이고 ADMR은 매핑 대상이 아니다
 
-        RAISE NOTICE '메뉴 54건 · 메뉴 권한 126건 반영';
+        RAISE NOTICE '메뉴 55건 · 메뉴 권한 127건 반영';
     ELSE
         RAISE NOTICE 'mnu에 이미 행이 있음 — 시드 건너뜀 (관리자 편집분 보존)';
+    END IF;
+
+    -- 3. 시드가 이미 들어간 DB에 나중 화면을 더한다 -----------------------
+    --    위 시드는 mnu가 비어 있을 때만 도므로, 먼저 적용해 둔 DB에는 이 블록이 넣는다.
+    --    관리자가 지운 메뉴를 되살리지 않게 「그 코드가 아예 없을 때만」 넣는다.
+    IF NOT EXISTS (SELECT 1 FROM mnu WHERE mnu_cd = 'WRK_ACRST') THEN
+        INSERT INTO mnu (mnu_cd, mnu_nm, dvsn, grp_nm, srt_seq, icon_nm, scrn_pth, api_prfx, kywd) VALUES
+        ('WRK_ACRST', '작업자 실적', 'WEB', '모니터링', 20, 'Users', '/monitoring/worker', NULL,
+         'worker 작업자 실적 생산성 집계 건수 처리량 피킹 적치 검수 누가 담당자 productivity');
+        -- 개인별 생산성이라 조회(INQ)에게도 열지 않는다 — 백엔드 /wrkr 규칙과 같은 범위다
+        INSERT INTO mnu_role (mnu_cd, role) VALUES ('WRK_ACRST', 'CENT_ADMR');
+        RAISE NOTICE '작업자 실적 메뉴 추가';
     END IF;
 
     RAISE NOTICE '메뉴·역할 권한 마이그레이션 완료';

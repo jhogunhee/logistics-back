@@ -6,6 +6,7 @@ import com.project.mdm.usr.dto.AuthDtos.LoginRequest;
 import com.project.mdm.usr.dto.AuthDtos.LoginResponse;
 import com.project.mdm.usr.dto.AuthDtos.MeResponse;
 import com.project.mdm.usr.dto.AuthDtos.PwdChangeRequest;
+import com.project.mdm.usr.dto.AuthDtos.ScanLoginRequest;
 import com.project.mdm.usr.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -35,6 +36,17 @@ public class AuthController {
                                CsrfToken csrfToken) {
         AuthUser user = authService.login(request, httpRequest, httpResponse);
         // 토큰은 세션이 만들어진 뒤에 읽는다 — 새 세션에 저장돼야 이후 요청과 짝이 맞는다
+        return new LoginResponse(user.loginId(), user.usrNm(), user.roles(), csrfToken.getToken(),
+                mnuService.menusOf(user.roles()));
+    }
+
+    /** PDA 간편 로그인. 응답 형태를 /login과 같게 두어 프론트가 같은 처리를 쓴다 */
+    @PostMapping("/scan-login")
+    public LoginResponse scanLogin(@RequestBody ScanLoginRequest request,
+                                   HttpServletRequest httpRequest,
+                                   HttpServletResponse httpResponse,
+                                   CsrfToken csrfToken) {
+        AuthUser user = authService.scanLogin(request, httpRequest, httpResponse);
         return new LoginResponse(user.loginId(), user.usrNm(), user.roles(), csrfToken.getToken(),
                 mnuService.menusOf(user.roles()));
     }
