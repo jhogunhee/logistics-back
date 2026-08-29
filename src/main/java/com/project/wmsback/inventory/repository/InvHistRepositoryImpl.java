@@ -61,7 +61,10 @@ public class InvHistRepositoryImpl implements InvHistRepositoryCustom {
                 .select(Projections.constructor(InvHistResponse.class,
                         invHist.id, invHist.txTyp,
                         prod.prodCd, prod.prodNm,
-                        loc.locCd, loc.zon.zonCd, loc.tmpZon,
+                        // 온도대는 상품의 것이다 — 로케이션 온도대를 실으면 같은 상품의 이력이
+                        // 거쳐 간 존마다 다른 온도대로 보인다(스테이징은 DRY, 피킹존은 CHL).
+                        // 현재고 조회를 비롯한 다른 재고 화면도 전부 prod.tmp_zon을 쓴다
+                        loc.locCd, loc.zon.zonCd, prod.tmpZon,
                         lot.lotNo,
                         invHist.qty,
                         invHist.rfnDocTyp, invHist.rfnDocNo,
