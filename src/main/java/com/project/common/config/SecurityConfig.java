@@ -1,5 +1,6 @@
 package com.project.common.config;
 
+import com.project.common.security.SecurityRules;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
@@ -54,33 +55,25 @@ public class SecurityConfig {
                     .invalidateHttpSession(true)
                     .deleteCookies(SESSION_COOKIE)
                     .logoutSuccessHandler((rq, rs, auth) -> rs.setStatus(HttpServletResponse.SC_NO_CONTENT)))
-            .authorizeHttpRequests(auth -> auth
-                    // 컨트롤러 밖에서 터진 예외의 /error forward까지 denyAll에 걸리면 진짜 원인이 403으로 덮인다
-                    .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.ASYNC).permitAll()
-                    .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
-                    // /health는 로그인 전에 불린다 — 프론트의 기동 대기 게이트와 슬립 방지 크론이 쓴다.
-                    // 메서드를 걸지 않는 이유는 크론의 HEAD가 GET 매처에 안 걸려 denyAll까지 흘러서다
-                    .requestMatchers("/health").permitAll()
-                    // 사용자 목록은 조회도 관리자만이라 GET 규칙보다 앞에 둔다
-                    .requestMatchers("/master/usrs/**").hasRole("ADMR")
-                    .requestMatchers(HttpMethod.GET, "/**").authenticated()
-                    .requestMatchers("/auth/**").authenticated()
-                    // 아래 둘은 /master 접두를 쓰지만 마스터 권한(ADMR)과 성격이 다르다.
-                    // 접두가 같아 /master/** 보다 위에 둔다(먼저 걸리는 규칙이 이긴다)
-                    //
-                    // 고정로케이션은 창고 구조가 아니라 상품×로케이션 재보충 기준(min/max)이다 —
-                    // 이 값으로 도는 정기보충(/inventory/spmt)이 INV_PIC이라 짝을 맞춘다
-                    .requestMatchers("/master/fxng-locs/**").hasAnyRole("ADMR", "CENT_ADMR", "INV_PIC")
-                    // 존 · 로케이션은 창고 물리 구조라 센터 운영 업무다 —
-                    // 랙을 늘리는 데 시스템관리자를 부를 이유가 없다
-                    .requestMatchers("/master/zons/**", "/master/locs/**").hasAnyRole("ADMR", "CENT_ADMR")
-                    .requestMatchers("/master/**").hasRole("ADMR")
-                    .requestMatchers("/strategy/**").hasAnyRole("ADMR", "CENT_ADMR")
-                    .requestMatchers("/oms/**").hasAnyRole("ADMR", "ODR_PIC")
-                    .requestMatchers("/inbound/**").hasAnyRole("ADMR", "CENT_ADMR", "IB_PIC")
-                    .requestMatchers("/inventory/**").hasAnyRole("ADMR", "CENT_ADMR", "INV_PIC")
-                    .requestMatchers("/outbound/**").hasAnyRole("ADMR", "CENT_ADMR", "OUTB_PIC")
-                    .anyRequest().denyAll());
+            .authorizeHttpRequests(auth -> {
+                // 컨트롤러 밖에서 터진 예외의 /error forward까지 denyAll에 걸리면 진짜 원인이 403으로 덮인다
+                auth.dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.ASYNC).permitAll();
+                auth.requestMatchers(HttpMethod.POST, "/auth/login").permitAll();
+                // /health는 로그인 전에 불린다 — 프론트의 기동 대기 게이트와 슬립 방지 크론이 쓴다.
+                // 메서드를 걸지 않는 이유는 크론의 HEAD가 GET 매처에 안 걸려 denyAll까지 흘러서다
+                auth.requestMatchers("/health").permitAll();
+                // 사용자 목록은 조회도 관리자만이라 GET 규칙보다 앞에 둔다
+                auth.requestMatchers("/master/usrs/**").hasRole("ADMR");
+                auth.requestMatchers(HttpMethod.GET, "/**").authenticated();
+                auth.requestMatchers("/auth/**").authenticated();
+                // 쓰기 규칙은 SecurityRules가 갖는다 — 메뉴 권한 화면이 같은 표를 읽어야 해서 데이터로 꺼냈다.
+                // 등록 순서가 곧 규칙이라 목록 순서를 그대로 따른다
+                for (SecurityRules.Rule rule : SecurityRules.WRITE_RULES) {
+                    String[] roleNames = rule.roles().toArray(String[]::new);
+                    auth.requestMatchers(rule.patterns().toArray(String[]::new)).hasAnyRole(roleNames);
+                }
+                auth.anyRequest().denyAll();
+            });
         return http.build();
     }
 
