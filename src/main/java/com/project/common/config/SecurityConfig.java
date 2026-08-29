@@ -65,6 +65,15 @@ public class SecurityConfig {
                     .requestMatchers("/master/usrs/**").hasRole("ADMR")
                     .requestMatchers(HttpMethod.GET, "/**").authenticated()
                     .requestMatchers("/auth/**").authenticated()
+                    // 아래 둘은 /master 접두를 쓰지만 마스터 권한(ADMR)과 성격이 다르다.
+                    // 접두가 같아 /master/** 보다 위에 둔다(먼저 걸리는 규칙이 이긴다)
+                    //
+                    // 고정로케이션은 창고 구조가 아니라 상품×로케이션 재보충 기준(min/max)이다 —
+                    // 이 값으로 도는 정기보충(/inventory/spmt)이 INV_PIC이라 짝을 맞춘다
+                    .requestMatchers("/master/fxng-locs/**").hasAnyRole("ADMR", "CENT_ADMR", "INV_PIC")
+                    // 존 · 로케이션은 창고 물리 구조라 센터 운영 업무다 —
+                    // 랙을 늘리는 데 시스템관리자를 부를 이유가 없다
+                    .requestMatchers("/master/zons/**", "/master/locs/**").hasAnyRole("ADMR", "CENT_ADMR")
                     .requestMatchers("/master/**").hasRole("ADMR")
                     .requestMatchers("/strategy/**").hasAnyRole("ADMR", "CENT_ADMR")
                     .requestMatchers("/oms/**").hasAnyRole("ADMR", "ODR_PIC")

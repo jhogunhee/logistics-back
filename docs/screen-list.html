@@ -405,7 +405,7 @@
 </div>
 
 <h2 id="sidebar">7. 프론트 사이드바 구조 (2026-07-23 반영)</h2>
-<p class="note"><code>wms-front/src/layout/Sidebar.jsx</code> · <code>src/App.jsx</code>. 업무 흐름(OMS → 입고 → 재고 → 출고) 순으로 배치하고 마스터를 맨 아래로 내렸다. <strong>사이드바 항목 40개가 전부 실제 화면이다</strong>(대시보드 포함, 로그인 제외) — 예전에 <code>Placeholder</code>로 라우트만 잡아두었던 8개는 모두 구현되어 남아 있지 않다. 라우트는 42개로, 위 40개에 <code>/login</code>과 주문 상세 2개(<code>/oms/inbound-order/:omsIbOrderId</code> · <code>/oms/outbound-order/:omsOutbOrderId</code>)가 더 있다. (2026-08-26 실측 — 사용자 관리 1개 추가)<br><strong>메뉴는 역할로 걸러진다</strong>(<code>MENU</code> 항목의 <code>roles</code> + <code>hasRole</code>) — 조회(INQ)는 전 메뉴를 보고, 각 담당은 모니터링 + 자기 섹션, 센터관리자는 입고·재고·출고 + 전략, 사용자 관리는 시스템관리자만. 숨김은 편의일 뿐이고 막는 것은 백엔드다(URL로 들어가도 401/403).</p>
+<p class="note"><code>wms-front/src/layout/Sidebar.jsx</code> · <code>src/App.jsx</code>. 업무 흐름(OMS → 입고 → 재고 → 출고) 순으로 배치하고 마스터를 맨 아래로 내렸다. <strong>사이드바 항목 40개가 전부 실제 화면이다</strong>(대시보드 포함, 로그인 제외) — 예전에 <code>Placeholder</code>로 라우트만 잡아두었던 8개는 모두 구현되어 남아 있지 않다. 라우트는 42개로, 위 40개에 <code>/login</code>과 주문 상세 2개(<code>/oms/inbound-order/:omsIbOrderId</code> · <code>/oms/outbound-order/:omsOutbOrderId</code>)가 더 있다. (2026-08-26 실측 — 사용자 관리 1개 추가)<br><strong>메뉴는 역할로 걸러진다</strong>(<code>MENU</code> 항목의 <code>roles</code> + <code>hasRole</code>) — 조회(INQ)는 전 메뉴를 보고, 각 담당은 모니터링 + 자기 섹션, 센터관리자는 입고·재고·출고 + 전략 <strong>+ 창고</strong>(존·로케이션 — 랙을 늘리는 것은 센터 운영 업무라 2026-08-29에 마스터에서 떼어냈다), 마스터와 사용자 관리는 시스템관리자만. 고정 로케이션은 재보충점이라 창고가 아니라 <strong>재고</strong> 그룹이고 재고담당도 만진다. 숨김은 편의일 뿐이고 막는 것은 백엔드다(URL로 들어가도 401/403).<br><strong>PDA 홈(<code>MobileHome.jsx</code>)도 2026-08-29부터 역할로 걸러진다</strong> — 항목이 여덟뿐이라 그룹 단위 <code>roles</code> 없이 항목별로만 거르고, 빈 그룹은 제목째 뺀다. <strong>조회(INQ)에게는 PDA를 전부 닫았다</strong>(백엔드는 GET을 막지 않으므로 화면만의 판단이다) — PDA는 실물을 앞에 두는 현장 단말이고 INQ는 감사·교육처럼 창고에 들어가지 않는 사람의 역할이라, <code>/m</code>에 오면 데스크톱으로 보내는 안내가 뜬다.</p>
 <div class="tablebox">
 <table>
 <thead><tr><th style="width:110px">그룹</th><th style="width:170px">메뉴</th><th style="width:230px">라우트</th><th>화면 파일 / 상태</th></tr></thead>
@@ -424,13 +424,14 @@
 <tr><td>적치</td><td><code>/inbound/putaway</code></td><td><code>pages/inbound/Putaway.jsx</code> — 지시 실행 워크리스트</td></tr>
 <tr><td>입고확정</td><td><code>/inbound/confirm</code></td><td>Placeholder — 백엔드(<code>POST /inbound/asns/{id}/confirm</code>)는 구현 완료</td></tr>
 
-<tr><td class="name" rowspan="9">재고</td><td>현재고 조회</td><td><code>/stock/status</code></td><td><code>pages/stock/StockStatus.jsx</code> — 모니터링 그룹에서 이동</td></tr>
+<tr><td class="name" rowspan="10">재고</td><td>현재고 조회</td><td><code>/stock/status</code></td><td><code>pages/stock/StockStatus.jsx</code> — 모니터링 그룹에서 이동</td></tr>
 <tr><td>로케이션 점유 맵</td><td><code>/stock/loc-map</code></td><td><code>pages/stock/StockLocMap.jsx</code> — 2모드(구조도 · 랙 상세) + 상시 상세패널. <code>components/stock/</code>에서 승격(2026-08-23, 자체 필터·요약지표를 갖는 페이지라 모달만 있는 디렉터리에서 뺐다)</td></tr>
 <tr><td>재고 이력 조회</td><td><code>/stock/history</code></td><td><code>pages/stock/InvHistory.jsx</code></td></tr>
 <tr><td>재고 속성변경</td><td><code>/stock/attribute</code></td><td><code>pages/stock/StockAttr.jsx</code> — 탭 2개(속성 정정 <code>StockAttrChange.jsx</code> / 변경 이력 <code>StockAttrChngHist.jsx</code>)</td></tr>
 <tr><td>재고 로트변경</td><td><code>/stock/lot-change</code></td><td><code>pages/stock/StockLotChng.jsx</code> — 탭 2개(로트변경 <code>StockLotChngExec.jsx</code> / 변경 실적 <code>StockLotChngAcrst.jsx</code>)</td></tr>
 <tr><td>재고 보류</td><td><code>/stock/hold</code></td><td><code>pages/stock/StockHold.jsx</code> — 탭 3개(보류등록 <code>StockHoldRegister.jsx</code> / 보류 관리 <code>StockHoldList.jsx</code> / 실적 조회 <code>StockHoldAcrst.jsx</code>)</td></tr>
 <tr><td>재고 이동</td><td><code>/stock/move</code></td><td><code>pages/stock/StockMove.jsx</code> — 탭 2개(이동지시등록 <code>StockMoveOrder.jsx</code> / 이동지시 관리 <code>StockMoveTaskList.jsx</code>)</td></tr>
+<tr><td>고정 로케이션 관리</td><td><code>/master/fxng-loc</code></td><td><code>pages/master/FxngLocMaster.jsx</code> — 상품×로케이션 지정 + 보충 기준(min/max). <strong>마스터가 아니라 여기 있다</strong>(2026-08-29) — 이름은 「로케이션」이지만 담고 있는 것은 재보충점이고, 바로 아래 정기 보충이 그 값으로 돈다. 그래서 백엔드도 <code>/master/fxng-locs</code>만 재고담당(INV_PIC)까지 열려 있다</td></tr>
 <tr><td>정기 보충</td><td><code>/stock/spmt</code></td><td><code>pages/stock/StockSpmt.jsx</code></td></tr>
 <tr><td>재고조사</td><td><code>/stock/count</code></td><td><code>pages/stock/StockCount.jsx</code> — 탭 2개(조사 목록 <code>StockCountList.jsx</code> / 실사 입력·확정 <code>StockCountDetail.jsx</code>)</td></tr>
 <tr><td>재고조정</td><td><code>/stock/adjust</code></td><td><code>pages/stock/StockAdj.jsx</code> — 탭 2개(재고조정 <code>StockAdjExec.jsx</code> / 조정 실적 <code>StockAdjAcrst.jsx</code>)</td></tr>
@@ -443,12 +444,17 @@
 <tr><td>수시보충</td><td><code>/outbound/replenishment</code></td><td><code>pages/outbound/Replenishment.jsx</code> — 보충이 있는 발행 웨이브(미확정 건수 강조) + 보충지시(보관존 → 피킹존 · 수량 · 상태) 2단, 지시 상태 행만 체크, 확정(전량)·취소. 피킹지시·피킹 화면에 「보충」 열 — 피킹은 보충 미완료 행을 체크하지 못한다</td></tr>
 <tr><td>출고확정</td><td><code>/outbound/shipping</code></td><td><code>pages/outbound/Shipping.jsx</code> — 발행 웨이브(확정대상·작업중·확정완료 건수) + 주문(상태·주문/할당/피킹/결품 수량) 2단, 확정 가능 행만 체크, 확인 모달이 결품·웨이브 종료를 짚는다</td></tr>
 
-<tr><td class="name" rowspan="7">마스터</td><td>상품 관리</td><td><code>/master/prod</code></td><td><code>pages/master/ProdMaster.jsx</code></td></tr>
-<tr><td>존 관리</td><td><code>/master/zone</code></td><td><code>pages/master/ZonMaster.jsx</code></td></tr>
-<tr><td>로케이션 관리</td><td><code>/master/location</code></td><td><code>pages/master/LocMaster.jsx</code></td></tr>
-<tr><td>고정 로케이션 관리</td><td><code>/master/fxng-loc</code></td><td><code>pages/master/FxngLocMaster.jsx</code> — 상품×로케이션 지정 + 보충 기준(min/max)</td></tr>
+<tr><td class="name" rowspan="2">창고</td><td>존 관리</td><td><code>/master/zone</code></td><td><code>pages/master/ZonMaster.jsx</code></td></tr>
+<tr><td>로케이션 관리</td><td><code>/master/location</code></td><td><code>pages/master/LocMaster.jsx</code>. <strong>이 둘만 마스터에서 떼어낸 그룹이다</strong>(2026-08-29) — URL은 <code>/master/</code>지만 창고 물리 구조라 센터관리자가 만진다. 그룹이 백엔드 규칙(<code>/master/zons</code>·<code>/master/locs</code>)과 1:1이다</td></tr>
+
+<tr><td class="name" rowspan="9">마스터</td><td>상품 관리</td><td><code>/master/prod</code></td><td><code>pages/master/ProdMaster.jsx</code></td></tr>
+<tr><td>단위 관리</td><td><code>/master/uom</code></td><td><code>pages/master/UomMaster.jsx</code> — 상품별 포장단위(낱개수량·중량)</td></tr>
 <tr><td>상품 거래처 관리</td><td><code>/master/prod-vndr</code></td><td><code>pages/master/ProdVndrMaster.jsx</code> — 상품×거래처 발주 기준(발주점/상한/MOQ/리드타임/우선순위)</td></tr>
+<tr><td>벤더 관리</td><td><code>/master/vendor</code></td><td><code>pages/master/VendorMaster.jsx</code></td></tr>
 <tr><td>점포 관리</td><td><code>/master/store</code></td><td><code>pages/master/StoreMaster.jsx</code></td></tr>
+<tr><td>채번규칙 관리</td><td><code>/master/nbr-rules</code></td><td><code>pages/master/NbrRuleMaster.jsx</code> — 문서번호 패턴·시퀀스</td></tr>
+<tr><td>공통코드 관리</td><td><code>/master/codes</code></td><td><code>pages/master/CodeMaster.jsx</code> — 코드그룹·코드값 2단</td></tr>
+<tr><td>라벨 인쇄</td><td><code>/master/labels</code></td><td><code>pages/master/LabelPrint.jsx</code> — 로케이션·상품·Lot 바코드(Code128) 발행. PDA 스캔의 짝이고 조회 API만 쓴다</td></tr>
 <tr><td>사용자 관리</td><td><code>/master/usr</code></td><td><code>pages/master/UsrMaster.jsx</code> — 계정·역할. 백엔드 접두는 복수형(<code>/master/usrs</code>)이고 프론트 라우트는 다른 마스터와 같은 단수형이다. 시스템관리자에게만 보인다</td></tr>
 
 <tr><td class="name" rowspan="4">전략</td><td>검수 정책관리</td><td><code>/strategy/inspection</code></td><td><code>pages/strategy/InspectionPolicy.jsx</code> — 규칙 목록·미리보기·리비전</td></tr>

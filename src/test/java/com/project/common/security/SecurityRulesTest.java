@@ -59,6 +59,9 @@ class SecurityRulesTest {
         @PostMapping("/master/vendors/bulk") void vendorSave() {}
         @GetMapping("/master/usrs") void usrList() {}
         @PostMapping("/master/usrs/bulk") void usrSave() {}
+        // /master 접두를 쓰지만 규칙이 다른 둘 — 창고 물리 구조와 재보충 기준
+        @PostMapping("/master/locs/bulk") void locSave() {}
+        @PostMapping("/master/fxng-locs/bulk") void fxngLocSave() {}
         @PostMapping("/inbound/receivings") void receive() {}
         @PostMapping("/outbound/waves") void wave() {}
         @PostMapping("/nowhere") void unlistedPrefix() {}
@@ -166,6 +169,26 @@ class SecurityRulesTest {
     @DisplayName("센터관리자는 전략을 만지지만 마스터는 못 만진다")
     void centAdmrCannotTouchMaster() throws Exception {
         mvc.perform(post("/master/vendors/bulk").with(user("tester").roles("CENT_ADMR")).with(csrf()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("창고 물리 구조는 센터관리자도 만진다 — 같은 /master 접두라 위 규칙보다 먼저 걸려야 한다")
+    void centAdmrCanTouchWarehouseMaster() throws Exception {
+        mvc.perform(post("/master/locs/bulk").with(user("tester").roles("CENT_ADMR")).with(csrf()))
+                .andExpect(status().isOk());
+        // 넓힌 것은 센터관리자까지다 — 업무담당에게까지 열리면 규칙이 새는 것이다
+        mvc.perform(post("/master/locs/bulk").with(user("tester").roles("IB_PIC")).with(csrf()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("고정로케이션은 재고담당도 만진다 — 이 값으로 도는 정기보충이 INV_PIC이라 짝을 맞춘다")
+    void invPicCanTouchFxngLoc() throws Exception {
+        mvc.perform(post("/master/fxng-locs/bulk").with(user("tester").roles("INV_PIC")).with(csrf()))
+                .andExpect(status().isOk());
+        // 재고담당에게 열린 것은 고정로케이션 하나다 — 창고 구조까지 따라 열리면 안 된다
+        mvc.perform(post("/master/locs/bulk").with(user("tester").roles("INV_PIC")).with(csrf()))
                 .andExpect(status().isForbidden());
     }
 
