@@ -159,7 +159,10 @@ public final class SecurityRules {
 > **모든 비GET 엔드포인트는 적어도 한 메뉴의 `api_prfx` 아래 있다** (예외: `/auth/**`).
 > **겹치면 가장 긴 접두를 가진 메뉴가 그 엔드포인트의 주인이다.**
 
-이걸 테스트로 못 박는다. 그러면 위의 「통과시킨다」가 헐거운 기본값이 아니라 **일어날 수 없는 경우**가 된다 — 새 API가 어느 메뉴에도 안 속하면 빌드가 깨진다.
+이걸 **두 겹으로** 지킨다. 메뉴 목록이 DB에 있는데 테스트는 DB를 올리지 않으므로(`@WebMvcTest`로 Supabase 접속을 피하는 것이 이 프로젝트 방식) 한 겹으로는 안 된다.
+
+1. **빌드 시** — 시드가 모든 엔드포인트를 덮는지 검사한다. 시드를 `docs/seed-mnu.sql` 한 파일로 떼어내고 **한 줄에 한 행**인 형식으로 고정하면, 테스트가 그 파일에서 `api_prfx`를 뽑아 `RequestMappingHandlerMapping`과 대조할 수 있다. DB가 필요 없다. **새 컨트롤러를 만들고 시드에 메뉴를 안 넣으면 빌드가 깨진다** — 잡고 싶은 것이 정확히 이것이다.
+2. **실행 중** — 라이브 DB는 관리자가 편집하므로 시드와 갈라질 수 있다. 기동 시 주인 없는 비GET 엔드포인트를 **경고 로그**로 남기고, 메뉴 관리 화면에 **「주인 없는 엔드포인트」 패널**로 띄운다. 관리자가 배포 없이 메뉴를 고쳐 해결할 수 있다.
 
 「정확히 하나」가 아니라 「적어도 하나 + 가장 긴 것이 주인」인 이유는 접두가 **포개지는 것이 정상**이기 때문이다. `POST /master/mnus/roles`는 `/master/mnus`(메뉴 관리)와 `/master/mnus/roles`(권한별 메뉴 관리) 둘 다에 걸리지만, 긴 쪽이 주인이라 판정은 하나로 정해진다.
 
@@ -293,7 +296,9 @@ export const MENU_ICONS = { Repeat, MapPin, LayoutGrid, Box, ... };
 
 1. `docs/schema.sql`에 두 테이블을 추가한다(스키마의 주인).
 2. `docs/migration-add-mnu.sql` — 라이브 DB용 증분. 전체를 `DO $tag$ … $tag$` 한 블록으로 쓰고 존재 확인을 걸어 재실행 가능하게 만든다(`BEGIN;`을 쓰면 실패 시 `25P02`가 남는다).
-3. 시드는 **지금 코드에서 그대로 뽑는다** — `mnu` 52행은 `Sidebar.jsx`·`MobileHome.jsx`의 현재 배열에서, `mnu_role`은 현재 하드코딩된 `roles`에서. 그룹 단위 `roles`는 항목마다 펼쳐 넣는다.
+3. 시드는 **`docs/seed-mnu.sql` 한 파일**이 주인이다. `schema.sql` 적용 경로와 마이그레이션이 둘 다 이 파일을 쓰고, 5장의 빌드 시 불변식 테스트도 이 파일을 읽는다. 내용은 **지금 코드에서 그대로 뽑는다** — `mnu` 52행은 `Sidebar.jsx`·`MobileHome.jsx`의 현재 배열에서, `mnu_role`은 현재 하드코딩된 `roles`에서. 그룹 단위 `roles`는 항목마다 펼쳐 넣는다.
+
+   테스트가 파싱하므로 **형식을 고정한다** — `INSERT INTO mnu (...) VALUES` 뒤에 **한 줄에 한 행**, 컬럼 순서는 위 `CREATE TABLE`과 같게. 주석은 행 끝 `--`만 쓴다.
 4. **적용 직후 동작이 지금과 완전히 같아야 한다.** 이것이 시딩이 맞았는지 판정하는 기준이다.
 5. `docs/seed-dev.sql`에도 같은 내용을 넣어 새 DB가 바로 돈다.
 
@@ -305,7 +310,8 @@ export const MENU_ICONS = { Repeat, MapPin, LayoutGrid, Box, ... };
 |---|---|
 | `SecurityRulesTest` 15개 | **그대로 통과.** ②의 권한 조회원을 `@MockBean`으로 「전부 켜짐」으로 두면 지금 그대로 상한을 검증한다. 뜻만 「규칙표」에서 「상한」으로 바뀌므로 문구를 손본다 |
 | `MnuAccessFilterTest` (신규) | 메뉴가 꺼진 역할은 상한을 통과해도 403 · **GET은 메뉴가 꺼져 있어도 통과** · `ADMR`은 꺼져 있어도 통과 · 메뉴가 관장하지 않는 경로는 통과 |
-| `EndpointMenuCoverageTest` (신규) | **불변식.** `RequestMappingHandlerMapping`을 훑어 모든 비GET 엔드포인트가 **적어도 한** 메뉴의 `api_prfx`에 속하는지 검사한다(예외 `/auth/**`). 0개면 실패. 새 컨트롤러가 접두를 어기면 여기서 걸린다 |
+| `MnuSeedCoverageTest` (신규) | **불변식(빌드 시).** `docs/seed-mnu.sql`에서 `api_prfx`를 뽑아 `RequestMappingHandlerMapping`의 모든 비GET 엔드포인트와 대조한다(예외 `/auth/**`). 주인 없는 엔드포인트가 하나라도 있으면 실패. DB를 올리지 않는다 |
+| `MnuPrefixMatcherTest` (신규) | 접두 매칭 로직 단위테스트 — 가장 긴 접두가 이김 · 부분 세그먼트는 안 걸림(`/inventory/stocktakes`가 `/inventory/stock`에 걸리면 안 된다) |
 | `MnuServiceTest` (신규) | 코드·`scrn_pth` 중복 거부 · `dvsn` 값 검증 · 매핑 전량 교체가 여러 번 눌러도 같은 결과 · `ADMR` 행은 저장되지 않음 |
 | `SecurityRulesCanWriteTest` (신규) | `canWrite`가 체인과 같은 답을 낸다 — 「조회만 👁」이 거짓말하지 않는 근거 |
 | 시드 정합성 | 시드 적용 후 각 역할이 보는 메뉴 집합이 **개편 전 하드코딩 값과 일치** |
