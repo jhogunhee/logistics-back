@@ -60,6 +60,16 @@ public interface LocRepository extends JpaRepository<Loc, Long>, LocRepositoryCu
     List<Loc> findRtngsLocs(@Param("tmpZon") TmpZon tmpZon,
                             @Param("storage") LocTyp storage, @Param("rtngs") BizDvsn rtngs);
 
-    /** 적치 대상 로케이션 후보 (상품 온도대와 일치하는 STORAGE, 적치 우선순위 오름차순 추천) */
-    List<Loc> findAllByTmpZonAndLocTypOrderByPtawyPrtyAsc(TmpZon tmpZon, LocTyp locTyp);
+    /**
+     * 적치 대상 로케이션 후보 (상품 온도대와 일치하는 STORAGE, 적치 우선순위 오름차순 추천).
+     * <p>
+     * <b>존을 함께 읽는다</b> — 부르는 쪽이 후보마다 존을 본다(반품존 제외 판정 · 응답의 zonCd).
+     * {@code Loc.zon}이 LAZY라 fetch join이 없으면 후보 수만큼 쿼리가 더 나가고, 원격 DB에서는
+     * 자리 60개짜리 존 하나가 십수 초가 된다.
+     */
+    @Query("select l from Loc l join fetch l.zon"
+            + " where l.tmpZon = :tmpZon and l.locTyp = :locTyp"
+            + " order by l.ptawyPrty asc, l.locCd asc")
+    List<Loc> findAllByTmpZonAndLocTypOrderByPtawyPrtyAsc(@Param("tmpZon") TmpZon tmpZon,
+                                                          @Param("locTyp") LocTyp locTyp);
 }
