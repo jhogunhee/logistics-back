@@ -97,6 +97,11 @@
                 IF FOUND THEN
                     v_added := v_added + 1;
                 END IF;
+                -- 이미 있던 피킹 자리도 새 체계로 맞춘다 — 옛 값(9)이 보관존(111~)보다 작아
+                -- 적치 추천 1순위가 피킹존이 되어 버린다. 피킹 페이스는 보충이 채우는 자리이지
+                -- 입고 물량을 처음 내려놓는 자리가 아니다
+                UPDATE loc SET ptawy_prty = 900 + v_level
+                 WHERE loc_cd = v_cd AND ptawy_prty <> 900 + v_level;
             END LOOP;
         END LOOP;
         RAISE NOTICE '피킹 로케이션 % 자리 추가', v_added;
