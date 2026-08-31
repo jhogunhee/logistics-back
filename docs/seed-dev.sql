@@ -202,6 +202,90 @@ SELECT 'RTN-CHL-01', zon_id, 'CHL', 'STORAGE', 99, 99, 5000 FROM zon WHERE zon_c
 INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, ptawy_prty, max_qty)
 SELECT 'RTN-FRZ-01', zon_id, 'FRZ', 'STORAGE', 99, 99, 5000 FROM zon WHERE zon_cd = 'RTN-FRZ' ON CONFLICT (loc_cd) DO NOTHING;
 
+-- 로케이션 확장 — 통로 × 랙 × 층을 루프로 채운다. 위 개별 INSERT(옛 최소 구성)와 겹치는 자리는
+-- ON CONFLICT로 건너뛰므로 결과가 같다. 같은 블록이 docs/migration-expand-locs.sql에도 있다
+-- (기존 DB용). 규모: DRY 60 · CHL 24 · FRZ 12 · PIK-DRY 6 · PIK-CHL 4 · PIK-FRZ 4
+DO $loc$
+DECLARE
+    v_zon_id    BIGINT;
+    v_aisle     TEXT;
+    v_bay       INT;
+    v_level     INT;
+    v_cd        TEXT;
+    v_max       BIGINT;
+    v_prty      INT;
+    v_added     INT := 0;
+    r           RECORD;
+BEGIN
+    -- 1. 보관존 — 통로 × 랙 × 층 -------------------------------------
+    FOR r IN
+        SELECT * FROM (VALUES
+            ('DRY'::TEXT, ARRAY['A','B','C','D']::TEXT[], 5, 3),
+            ('CHL', ARRAY['A','B'],                     4, 3),
+            ('FRZ', ARRAY['A','B'],                     3, 2)
+        ) AS t(zon_cd, aisles, bays, levels)
+    LOOP
+        SELECT zon_id INTO v_zon_id FROM zon WHERE zon_cd = r.zon_cd;
+        IF v_zon_id IS NULL THEN
+            RAISE NOTICE '% 존이 없다 — 건너뜀', r.zon_cd;
+            CONTINUE;
+        END IF;
+
+        FOREACH v_aisle IN ARRAY r.aisles LOOP
+            FOR v_bay IN 1..r.bays LOOP
+                FOR v_level IN 1..r.levels LOOP
+                    v_cd := format('%s-%s-%s-%s', r.zon_cd, v_aisle,
+                                   lpad(v_bay::TEXT, 2, '0'), lpad(v_level::TEXT, 2, '0'));
+                    v_max := CASE v_level WHEN 1 THEN 1200 WHEN 2 THEN 1000 ELSE 800 END;
+                    -- 통로(A=1..) → 랙 → 층. 세 자리씩 띄워 나중에 사이에 끼울 여지를 남긴다
+                    v_prty := (ascii(v_aisle) - ascii('A') + 1) * 100 + v_bay * 10 + v_level;
+
+                    INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, ptawy_prty, max_qty)
+                    VALUES (v_cd, v_zon_id, r.zon_cd, 'STORAGE', v_prty, v_prty, v_max)
+                    ON CONFLICT (loc_cd) DO NOTHING;
+
+                    IF FOUND THEN
+                        v_added := v_added + 1;
+                    END IF;
+                    -- 이미 있던 자리는 우선순위만 새 체계로 맞춘다 — 옛 6자리가 늘 앞순위로 남지 않게
+                    UPDATE loc SET pikng_prty = v_prty, ptawy_prty = v_prty
+                     WHERE loc_cd = v_cd AND (pikng_prty <> v_prty OR ptawy_prty <> v_prty);
+                END LOOP;
+            END LOOP;
+        END LOOP;
+    END LOOP;
+    RAISE NOTICE '보관 로케이션 % 자리 추가', v_added;
+
+    -- 2. 피킹존 — 랙 하나에 층만 여럿 --------------------------------
+    --    pikng_prty 0: 보관(1~)보다 앞이라 FEFO 동순위에서 먼저 할당된다 (기존 시드 규칙)
+    --    ptawy_prty 900+: 적치 동선의 후순위 — 피킹 페이스는 보충으로 채우는 자리다
+    v_added := 0;
+    FOR r IN
+        SELECT * FROM (VALUES
+            ('PIK-DRY'::TEXT, 'DRY'::TEXT, 6),
+            ('PIK-CHL', 'CHL', 4),
+            ('PIK-FRZ', 'FRZ', 4)
+        ) AS t(zon_cd, tmp_zon, levels)
+    LOOP
+        SELECT zon_id INTO v_zon_id FROM zon WHERE zon_cd = r.zon_cd;
+        CONTINUE WHEN v_zon_id IS NULL;
+
+        FOR v_level IN 1..r.levels LOOP
+            v_cd := format('%s-01-%s', r.zon_cd, lpad(v_level::TEXT, 2, '0'));
+            INSERT INTO loc (loc_cd, zon_id, tmp_zon, loc_typ, pikng_prty, ptawy_prty, max_qty)
+            VALUES (v_cd, v_zon_id, r.tmp_zon, 'STORAGE', 0, 900 + v_level, 200)
+            ON CONFLICT (loc_cd) DO NOTHING;
+            IF FOUND THEN
+                v_added := v_added + 1;
+            END IF;
+        END LOOP;
+    END LOOP;
+    RAISE NOTICE '피킹 로케이션 % 자리 추가', v_added;
+
+    RAISE NOTICE '로케이션 확장 완료 — 전체 % 자리', (SELECT COUNT(*) FROM loc);
+END
+$loc$;
+
 -- 고정 로케이션 마스터 (상품×로케이션). uq_fxng_loc(loc_id)로 멱등 — 한 로케이션 = 한 상품 전용.
 -- min/max는 보충 기준(미구현) — max는 loc.max_qty(200) 이하.
 INSERT INTO fxng_loc (prod_id, loc_id, min_qty, max_qty)

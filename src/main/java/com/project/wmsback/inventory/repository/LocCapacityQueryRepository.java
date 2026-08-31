@@ -45,6 +45,21 @@ public class LocCapacityQueryRepository {
                 .fetchOne());
     }
 
+    /**
+     * 로케이션별 실물 수량 (재고가 있는 로케이션만). 후보 여러 개의 용량을 한 번에 셀 때 쓴다 —
+     * 후보마다 {@link #onHandQty(Long)}을 부르면 그대로 N+1이고, DB가 원격이라 왕복이 그대로 체감된다.
+     */
+    public Map<Long, Long> onHandQtyByLoc() {
+        Map<Long, Long> byLoc = new HashMap<>();
+        NumberExpression<Long> sum = inv.onHandQty.sum();
+        merge(byLoc, queryFactory
+                .select(inv.loc.id, sum)
+                .from(inv)
+                .groupBy(inv.loc.id)
+                .fetch(), inv.loc.id, sum);
+        return byLoc;
+    }
+
     /** 이 로케이션으로 들어올 미완료 잔량 (이동지시 + 적치지시) */
     public long openInflowQty(Long locId) {
         return sumOf(queryFactory

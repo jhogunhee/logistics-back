@@ -6,6 +6,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -46,6 +48,24 @@ public class LocCapacityService {
     /** 로케이션별 미완료 유입 잔량. 추천이 후보 전체의 용량을 한 번에 계산할 때 쓴다 */
     public Map<Long, Long> openInflowQtyByLoc() {
         return locCapacityQueryRepository.openInflowQtyByLoc();
+    }
+
+    /**
+     * 여러 로케이션의 적재가능수량을 한 번에. 위 두 오버로드와 <b>같은 식</b>이고 집계 조회만 다르다 —
+     * 후보 목록처럼 로케이션 여럿을 한꺼번에 답해야 하는 자리가 {@link #availCapacity(Loc)}를
+     * 반복하면 로케이션마다 쿼리 둘이 나가고, DB가 원격이라 그 왕복이 몇 초로 쌓인다.
+     */
+    public Map<Long, Long> availCapacityByLoc(List<Loc> locs) {
+        Map<Long, Long> onHandByLoc = locCapacityQueryRepository.onHandQtyByLoc();
+        Map<Long, Long> inflowByLoc = locCapacityQueryRepository.openInflowQtyByLoc();
+
+        Map<Long, Long> byLoc = new HashMap<>();
+        for (Loc loc : locs) {
+            long used = onHandByLoc.getOrDefault(loc.getId(), 0L) + inflowByLoc.getOrDefault(loc.getId(), 0L);
+            // 무제한(max_qty 없음)은 null이라 HashMap에 null 값으로 들어간다 — 부르는 쪽이 그대로 구분한다
+            byLoc.put(loc.getId(), availCapacity(loc.getMaxQty(), used));
+        }
+        return byLoc;
     }
 
     /**

@@ -64,12 +64,18 @@ public class PutawayService {
     public List<PutawayLocCandidateResponse> candidateLocs(Long ibLineId) {
         IbLine ibLine = ibLineRepository.findById(ibLineId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 입고 라인입니다: " + ibLineId));
-        return locRepository
+        List<Loc> candidates = locRepository
                 .findAllByTmpZonAndLocTypOrderByPtawyPrtyAsc(ibLine.getProd().getTmpZon(), LocTyp.STORAGE)
                 .stream()
                 // 반품존은 적치 후보가 아니다 — RtngsLocResolver.inRtngsZon 참고
                 .filter(loc -> !RtngsLocResolver.inRtngsZon(loc))
-                .map(loc -> PutawayLocCandidateResponse.of(loc, locCapacityService.availCapacity(loc)))
+                .toList();
+
+        // 후보마다 availCapacity(loc)를 부르면 로케이션당 쿼리 둘이라 원격 DB 왕복이 몇 초로 쌓인다.
+        // 적치 도면이 카드를 가리키는 즉시 이 목록을 쓰므로 집계 두 번으로 끝낸다
+        Map<Long, Long> availByLoc = locCapacityService.availCapacityByLoc(candidates);
+        return candidates.stream()
+                .map(loc -> PutawayLocCandidateResponse.of(loc, availByLoc.get(loc.getId())))
                 .toList();
     }
 
