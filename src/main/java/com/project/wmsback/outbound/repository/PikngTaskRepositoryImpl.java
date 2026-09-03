@@ -258,7 +258,8 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
                         cond.getExpctDeFrom() != null ? outbOrder.expctDe.goe(cond.getExpctDeFrom()) : null,
                         cond.getExpctDeTo() != null ? outbOrder.expctDe.loe(cond.getExpctDeTo()) : null,
                         matchingTaskProdExists(cond.getProdCd()),
-                        matchingTaskLocExists(cond.getLocCd())
+                        matchingTaskLocExists(cond.getLocCd()),
+                        matchingTaskStoreExists(cond.getStoreId())
                 )
                 .groupBy(outbWave.id, outbWave.wavNo, outbWave.issuedDt)
                 .orderBy(outbWave.id.desc())
@@ -318,6 +319,32 @@ public class PikngTaskRepositoryImpl implements PikngTaskRepositoryCustom {
     }
 
     /** 상품 조건 — 그 상품의 지시가 있는 웨이브를 통째로 고른다 (합계는 웨이브 전체) */
+    /**
+     * 점포 조건 — 상품·로케이션과 같은 EXISTS다. <b>웨이브를 거르고 합계는 웨이브 전체로</b> 낸다
+     * (지시 행이 아니라 웨이브가 걸리는 것은 이 화면 조건 전부의 규칙이다).
+     * 점포는 지시에 없고 주문에 있으므로 할당 → 라인 → 주문까지 타고 간다.
+     */
+    private BooleanExpression matchingTaskStoreExists(Long storeId) {
+        if (storeId == null) {
+            return null;
+        }
+        var task = new com.project.wmsback.outbound.entity.QPikngTask("storeMatchTask");
+        var alloc = new com.project.wmsback.outbound.entity.QOutbAlloc("storeMatchAlloc");
+        var line = new com.project.wmsback.outbound.entity.QOutbLine("storeMatchLine");
+        var order = new com.project.wmsback.outbound.entity.QOutbOrder("storeMatchOrder");
+        return JPAExpressions.selectOne()
+                .from(task)
+                .join(task.outbAlloc, alloc)
+                .join(alloc.outbLine, line)
+                .join(line.outbOrder, order)
+                .where(
+                        task.wave.eq(outbWave),
+                        task.status.ne(PikngTaskStatus.CANCELLED),
+                        order.store.id.eq(storeId)
+                )
+                .exists();
+    }
+
     private BooleanExpression matchingTaskProdExists(String prodCd) {
         if (!StringUtils.hasText(prodCd)) {
             return null;

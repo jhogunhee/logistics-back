@@ -26,4 +26,11 @@ public class OutbWaveSearchCond {
     /** 소속 주문의 출고예정일 (파생 조건 — 이 기간에 걸리는 주문이 하나라도 있으면 그 웨이브가 나온다) */
     private LocalDate expctDeFrom;
     private LocalDate expctDeTo;
+
+    /**
+     * 소속 주문의 점포 (파생 조건 — 출고예정일과 같은 EXISTS).
+     * 점포는 이미 <b>편성의 기준</b>이다 — 웨이브 전략이 납품처그룹·납품처유형으로 주문을 고른다
+     * ({@code WaveOrderField.STORE_GRP} · {@code STORE_TYP}). 수동 편성 화면에만 그 축이 없었다.
+     */
+    private Long storeId;
 }

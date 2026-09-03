@@ -23,6 +23,13 @@ public class PickingSearchCond {
     private String prodCd;
     /** 지시의 출발 로케이션 — 집품 구역을 나누는 축 */
     private String locCd;
+
+    /**
+     * 점포 — 이 화면의 <b>작업 단위</b>다. 지시 행을 점포로 묶어 「담을 곳」 칩과 색 도트로 보여주는데
+     * (`Picking.jsx`의 `buildStoreGroups`) 정작 점포로 찾을 수가 없었다.
+     * 상품·로케이션과 같은 라인 축이라 같은 EXISTS로 웨이브를 거른다.
+     */
+    private Long storeId;
     private LocalDate expctDeFrom;
     private LocalDate expctDeTo;
 }

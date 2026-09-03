@@ -28,7 +28,8 @@ public class OutbWaveRepositoryImpl implements OutbWaveRepositoryCustom {
                 .where(
                         waveNoContains(cond.getWavNo()),
                         statusIn(cond.getStatus()),
-                        withinExpctDe(cond)
+                        withinExpctDe(cond),
+                        hasStore(cond.getStoreId())
                 )
                 .orderBy(outbWave.id.desc())
                 .fetch();
@@ -68,6 +69,31 @@ public class OutbWaveRepositoryImpl implements OutbWaveRepositoryCustom {
                 .exists();
 
         QOutbOrder anyOrder = new QOutbOrder("deAnyOrder");
+        BooleanExpression empty = JPAExpressions.selectOne()
+                .from(anyOrder)
+                .where(anyOrder.wave.id.eq(outbWave.id))
+                .notExists();
+
+        return matching.or(empty);
+    }
+
+    /**
+     * 소속 주문의 점포 조건 — 출고예정일과 <b>같은 모양</b>이다(파생 조건이라 EXISTS, 빈 웨이브는 남긴다).
+     *
+     * <p>빈 웨이브를 남기는 이유도 같다 — 이 화면은 미편성 주문을 웨이브에 <b>담는</b> 곳이라,
+     * 점포로 좁혔을 때 담을 그릇이 목록에서 사라지면 안 된다.
+     */
+    private BooleanExpression hasStore(Long storeId) {
+        if (storeId == null) {
+            return null;
+        }
+        QOutbOrder matchOrder = new QOutbOrder("stMatchOrder");
+        BooleanExpression matching = JPAExpressions.selectOne()
+                .from(matchOrder)
+                .where(matchOrder.wave.id.eq(outbWave.id), matchOrder.store.id.eq(storeId))
+                .exists();
+
+        QOutbOrder anyOrder = new QOutbOrder("stAnyOrder");
         BooleanExpression empty = JPAExpressions.selectOne()
                 .from(anyOrder)
                 .where(anyOrder.wave.id.eq(outbWave.id))
