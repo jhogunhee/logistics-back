@@ -9,6 +9,9 @@ resource "aws_db_instance" "this" {
   storage_type      = "gp3"
   multi_az          = false
 
+  # 스냅샷이 암호화돼 있어 복원본도 암호화된다. 코드에 적지 않으면 Terraform이 차이로 보고 인스턴스를 교체한다.
+  storage_encrypted = true
+
   db_subnet_group_name   = local.p.db_subnet_group_name
   vpc_security_group_ids = [local.p.db_security_group_id]
   publicly_accessible    = var.db_public

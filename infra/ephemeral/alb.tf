@@ -14,6 +14,10 @@ resource "aws_lb_target_group" "app" {
   port        = 8080
   vpc_id      = local.p.vpc_id
 
+  # 기본값 300초. 배포할 때 옛 태스크가 그만큼 draining으로 남아 서비스 안정 판정이 늦어진다.
+  # 동시 사용자가 1명인 데모라 짧게 둔다.
+  deregistration_delay = 30
+
   health_check {
     path     = "/health"
     port     = "traffic-port"

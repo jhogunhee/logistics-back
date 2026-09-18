@@ -147,6 +147,7 @@ ALB 주소로 직접 호출하면 로그인 뒤 목록 조회가 401이 된다. 
 | 태스크 정의 | `PORT`를 넣지 않는다. `server.port=${PORT:8080}`이라 Fargate에서는 8080이 된다. 컨테이너·타겟그룹 포트를 8080으로 맞춘다 |
 | 태스크 정의 | `MaxRAMPercentage=60`. 75%면 힙 768MB에 Metaspace 128MB와 CodeCache 48MB가 절대값으로 더 붙어 1GB에 육박한다 |
 | 실행 역할 | `AmazonECSTaskExecutionRolePolicy`에는 SSM 읽기가 없다. 인라인 정책을 따로 붙이지 않으면 `ResourceInitializationError`로 죽는다 |
+| RDS | `storage_encrypted = true`를 코드에 적는다. 스냅샷이 암호화돼 있어 복원본은 `true`인데 코드에 값이 없으면 Terraform이 차이로 보고 **인스턴스를 교체**한다 |
 | 새 계정 | ECS·ELB의 서비스 연결 역할이 없어 첫 생성이 실패할 수 있다. `aws iam create-service-linked-role`로 먼저 만든다 |
 
 애플리케이션 코드(`Dockerfile`, `application.properties`)는 Render와 공유한다. **AWS에 맞춘 차이는 전부 환경변수로 준다.** 예를 들어 `Dockerfile`의 `ENV JAVA_TOOL_OPTIONS`는 Render 512MB에 맞춘 기본값이고, 태스크 정의가 같은 이름의 환경변수로 덮어쓴다.
