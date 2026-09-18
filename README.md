@@ -14,6 +14,7 @@
 
 - Java 17, Spring Boot 3.5
 - Spring Data JPA + QueryDSL 5
+- Spring Security + Spring Session JDBC (세션 인증)
 - PostgreSQL (Supabase)
 - p6spy (SQL 로그)
 
@@ -73,7 +74,7 @@ common  ←  mdm  ←  wmsback  ←  omsback
 
 ## 구현 범위
 
-테이블 44개, 전략 4종.
+테이블 52개(세션 2개 포함), 전략 4종.
 
 | 영역 | 내용 |
 |---|---|
@@ -112,6 +113,33 @@ Cloudflare Pages  →  Render  →  Supabase
 빌드는 [Dockerfile](Dockerfile)의 2단계 빌드를 쓰고, DB 접속정보와 CORS 허용 도메인은 환경변수로
 분리해 로컬과 배포가 같은 빌드를 쓴다.
 
+### AWS 구성 (Terraform)
+
+같은 애플리케이션을 AWS에도 한 벌 올린다. PaaS가 대신 해 주던 네트워크·비밀 관리·배포를 직접 설계해
+보는 것이 목적이고, 구성은 [infra/](infra/)에 Terraform으로 정의돼 있다.
+
+```
+CloudFront → ALB → ECS Fargate → RDS PostgreSQL
+  [상시]      [쓸 때만 — up.sh로 올리고 down.sh로 내린다]
+```
+
+- **스택을 둘로 나눈다.** 네트워크·ECR·IAM·CloudFront처럼 비용이 거의 없거나 만들고 지우는 데 오래
+  걸리는 것은 상시로 두고, RDS·ALB·Fargate는 필요할 때만 올린다. 올리는 데 약 10분 걸린다.
+- **RDS는 골든 스냅샷에서 매번 복원한다.** 데이터 적재도, private subnet에 접속 경로를 여는 일도
+  반복되지 않는다.
+- **도메인이 없어 CloudFront가 HTTPS를 맡는다.** ALB 인바운드는 CloudFront 관리형 접두사 목록으로 제한한다.
+- **애플리케이션 코드는 두 환경이 공유한다.** AWS에 맞춘 차이는 전부 환경변수로 준다 —
+  `Dockerfile`의 `JAVA_TOOL_OPTIONS`는 Render 512MB에 맞춘 기본값이고, ECS 태스크 정의가 같은 이름의
+  환경변수로 덮어쓴다.
+- AWS 배포 워크플로는 **수동 실행 전용**이다([.github/workflows/deploy-aws.yml](.github/workflows/deploy-aws.yml)).
+  GitHub Actions는 장기 액세스 키 대신 OIDC 역할을 맡는다.
+
+두 환경이 동시에 살아 있어 **같은 요청을 같은 시각에** 잴 수 있다. 로케이션 115건(28KB) 조회 기준으로
+Render+Supabase가 1,015 ms, Fargate+RDS가 83 ms였다. 이 중 리전 차이(싱가포르/서울)가 약 180 ms이고,
+나머지 약 740 ms는 **앱과 DB 사이의 거리**다 — 원격 DB는 쿼리 왕복이 그대로 응답 시간에 쌓인다.
+
+절차·변수·함정은 [infra/README.md](infra/README.md)에 정리돼 있다.
+
 ## 문서
 
 | 문서 | 내용 |
@@ -122,6 +150,17 @@ Cloudflare Pages  →  Render  →  Supabase
 | [docs/screen-list.html](docs/screen-list.html) | 화면 목록과 구현 현황 |
 | `docs/migration-*.sql` | 이미 만들어진 DB에 적용할 증분 |
 
-## 한계
+## 인증과 권한
 
-- 인증·권한 모델이 없다. 감사 컬럼의 작성자는 `admin` 고정이다.
+세션 인증이다. 토큰이 아니라 세션을 고른 이유는 권한을 화면에서 편집하기 때문이다 — 「역할이 바뀌면
+그 사람 세션을 끊는다」가 필요했다. 세션은 `spring-session-jdbc`로 DB에 저장한다.
+
+인가는 두 단계다.
+
+1. **URL 접두 표** — `SecurityConfig` 한 곳에 업무 구역 경계를 두고, 규칙에 없는 접두의 비GET은
+   `denyAll`이다. 컨트롤러에 `@PreAuthorize`를 흩뿌리지 않는다.
+2. **메뉴 권한** — `MnuAccessFilter`가 `mnu`·`mnu_role`을 보고 화면 단위로 실제 열림을 정한다.
+   권한별 메뉴는 관리 화면에서 편집한다.
+
+감사 컬럼의 작성자(`created_by`/`updated_by`)는 로그인 아이디로 채운다. 인증 없이 도는 스케줄러
+(정기보충·자동발주)는 `system`으로 남는다. 「작업자 실적」 화면이 이 값을 작업 종류별로 집계한다.
