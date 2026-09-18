@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 330" width="900" role="img" aria-label="WareFlow AWS 구성: Cloudflare Pages에서 CloudFront를 거쳐 VPC 안의 ALB, Fargate, RDS로 이어지는 요청 경로. CloudFront는 상시 스택, ALB와 Fargate와 RDS는 쓸 때만 스택.">
+  <defs>
+    <marker id="arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/>
+    </marker>
+  </defs>
+
+  <!-- VPC -->
+  <rect x="385" y="20" width="400" height="250" rx="10" fill="none" stroke="#9ca3af" stroke-width="1" stroke-dasharray="5 4"/>
+  <text x="397" y="40" font-family="sans-serif" font-size="12" fill="#6b7280">VPC 10.0.0.0/16</text>
+
+  <rect x="400" y="50" width="370" height="86" rx="8" fill="none" stroke="#9ca3af" stroke-width="1" stroke-dasharray="3 3"/>
+  <text x="758" y="130" text-anchor="end" font-family="sans-serif" font-size="11" fill="#6b7280">public subnet · 2 AZ</text>
+
+  <rect x="400" y="160" width="370" height="86" rx="8" fill="none" stroke="#9ca3af" stroke-width="1" stroke-dasharray="3 3"/>
+  <text x="758" y="240" text-anchor="end" font-family="sans-serif" font-size="11" fill="#6b7280">private subnet · 2 AZ</text>
+
+  <!-- 프론트 -->
+  <rect x="10" y="62" width="160" height="58" rx="7" fill="#f3f4f6" stroke="#6b7280" stroke-width="1.5"/>
+  <text x="90" y="86" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="600" fill="#111827">Cloudflare Pages</text>
+  <text x="90" y="104" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#4b5563">직접 업로드</text>
+
+  <!-- CloudFront -->
+  <rect x="215" y="62" width="150" height="58" rx="7" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="290" y="86" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="600" fill="#111827">CloudFront</text>
+  <text x="290" y="104" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#4b5563">HTTPS 입구</text>
+
+  <!-- ALB -->
+  <rect x="415" y="62" width="150" height="58" rx="7" fill="#fef3c7" stroke="#b45309" stroke-width="1.5"/>
+  <text x="490" y="86" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="600" fill="#111827">ALB</text>
+  <text x="490" y="104" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#4b5563">타겟그룹 200-299</text>
+
+  <!-- Fargate -->
+  <rect x="600" y="62" width="150" height="58" rx="7" fill="#fef3c7" stroke="#b45309" stroke-width="1.5"/>
+  <text x="675" y="86" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="600" fill="#111827">ECS Fargate</text>
+  <text x="675" y="104" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#4b5563">공인 IP · 0.5vCPU/1GB</text>
+
+  <!-- RDS -->
+  <rect x="600" y="172" width="150" height="58" rx="7" fill="#fef3c7" stroke="#b45309" stroke-width="1.5"/>
+  <text x="675" y="196" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="600" fill="#111827">RDS PostgreSQL</text>
+  <text x="675" y="214" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#4b5563">스냅샷에서 복원</text>
+
+  <!-- 화살표 -->
+  <path d="M170,91 H211" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arw)"/>
+  <text x="190" y="83" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#6b7280">HTTPS</text>
+
+  <path d="M365,91 H411" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arw)"/>
+  <text x="388" y="83" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#6b7280">HTTP</text>
+
+  <path d="M565,91 H596" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arw)"/>
+  <text x="580" y="83" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#6b7280">8080</text>
+
+  <path d="M675,120 V168" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arw)"/>
+  <text x="685" y="148" font-family="sans-serif" font-size="11" fill="#6b7280">5432</text>
+
+  <!-- 인바운드 제한 메모 -->
+  <text x="490" y="130" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#6b7280">인바운드: CloudFront 접두사 목록만</text>
+
+  <!-- 범례 -->
+  <rect x="10" y="288" width="22" height="14" rx="3" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="40" y="300" font-family="sans-serif" font-size="12" fill="#4b5563">상시 (persistent) · 월 $1 미만</text>
+
+  <rect x="240" y="288" width="22" height="14" rx="3" fill="#fef3c7" stroke="#b45309" stroke-width="1.5"/>
+  <text x="270" y="300" font-family="sans-serif" font-size="12" fill="#4b5563">쓸 때만 (ephemeral) · 시간당 약 $0.09</text>
+
+  <rect x="540" y="288" width="22" height="14" rx="3" fill="#f3f4f6" stroke="#6b7280" stroke-width="1.5"/>
+  <text x="570" y="300" font-family="sans-serif" font-size="12" fill="#4b5563">Terraform 관리 밖</text>
+</svg>

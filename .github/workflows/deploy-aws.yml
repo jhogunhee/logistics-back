@@ -1,0 +1,99 @@
+# AWS 배포는 수동 실행만 한다.
+# main 푸시로 돌면 안 된다 — AWS가 내려가 있으면 워크플로가 실패하고, 올라가 있으면 의도치 않게 배포된다.
+# Render 배포(deploy.yml)는 지금 그대로 둔다.
+name: Deploy to AWS (manual)
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-aws
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPOSITORY: wareflow-back
+  ECS_CLUSTER: wareflow-cluster
+  ECS_SERVICE: wareflow-svc
+  ECS_TASK_FAMILY: wareflow-back
+  CONTAINER_NAME: app
+
+permissions:
+  id-token: write # OIDC 토큰 발급 — 장기 액세스 키를 두지 않기 위한 핵심 설정
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 이미지 태그 정하기 (커밋 SHA)
+        id: tag
+        run: echo "tag=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: AWS 자격증명 (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::721274598949:role/wareflow-gha-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: ECR 로그인
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: 같은 태그가 이미 있는지 확인
+        id: exists
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          if aws ecr describe-images --repository-name "$ECR_REPOSITORY" --image-ids imageTag="$TAG" >/dev/null 2>&1; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "이미 올라간 태그다. 리포지토리가 IMMUTABLE이라 push를 건너뛴다."
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 빌드 & push
+        if: steps.exists.outputs.found == 'false'
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          docker build -t "$REGISTRY/$ECR_REPOSITORY:$TAG" .
+          docker push "$REGISTRY/$ECR_REPOSITORY:$TAG"
+
+      # 태스크 정의는 Terraform이 만든 것을 그대로 가져와 이미지만 바꾼다.
+      # 환경변수·비밀값·로그 설정을 워크플로에 중복해서 적지 않기 위해서다.
+      - name: 현재 태스크 정의 내려받기
+        run: |
+          # describe 응답에는 register가 받지 않는 필드가 섞여 있어 걷어낸다.
+          aws ecs describe-task-definition \
+            --task-definition "$ECS_TASK_FAMILY" \
+            --query taskDefinition \
+          | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                    .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)' \
+          > task-definition.json
+
+      - name: 이미지 교체
+        id: render
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.tag.outputs.tag }}
+
+      # 서비스가 없으면(= AWS가 내려가 있으면) 여기서 실패한다. 의도한 동작이다 — up.sh로 먼저 올린다.
+      - name: 새 리비전 등록 & 서비스 갱신
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render.outputs.task-definition }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          service: ${{ env.ECS_SERVICE }}
+          wait-for-service-stability: true
+
+      - name: 배포 결과
+        run: |
+          echo "이미지 태그: ${{ steps.tag.outputs.tag }}"
+          echo "다음에 up.sh를 돌릴 때도 이 태그를 넘기면 같은 이미지로 뜬다."
