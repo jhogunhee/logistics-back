@@ -134,9 +134,9 @@ CloudFront → ALB → ECS Fargate → RDS PostgreSQL
 - AWS 배포 워크플로는 **수동 실행 전용**이다([.github/workflows/deploy-aws.yml](.github/workflows/deploy-aws.yml)).
   GitHub Actions는 장기 액세스 키 대신 OIDC 역할을 맡는다.
 
-두 환경이 동시에 살아 있어 **같은 요청을 같은 시각에** 잴 수 있다. 로케이션 115건(28KB) 조회 기준으로
-Render+Supabase가 1,015 ms, Fargate+RDS가 83 ms였다. 이 중 리전 차이(싱가포르/서울)가 약 180 ms이고,
-나머지 약 740 ms는 **앱과 DB 사이의 거리**다 — 원격 DB는 쿼리 왕복이 그대로 응답 시간에 쌓인다.
+두 환경이 동시에 살아 있어 **같은 요청을 같은 시각에** 잴 수 있다. 로케이션 115건(28KB) 조회를
+번갈아 20번 호출한 중앙값은 Render+Supabase가 535 ms, Fargate+RDS가 78 ms다. 이 중 리전 차이(싱가포르/서울)가
+약 210 ms이고, 나머지 약 250 ms는 **앱과 DB 사이 구간**에서 생긴다 — RDS는 앱과 같은 VPC 안에 있다.
 
 절차·변수·함정은 [infra/README.md](infra/README.md)에 정리돼 있다.
 
