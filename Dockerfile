@@ -10,7 +10,7 @@ COPY src src
 RUN mvn -q -B package -DskipTests
 
 # ===== Run stage =====
-FROM eclipse-temurin:17.0.20_8-jre
+FROM eclipse-temurin:17-jre
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 
