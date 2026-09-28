@@ -44,11 +44,46 @@ resource "aws_ecs_task_definition" "app" {
 
         # 75%면 힙 768MB에 Metaspace·CodeCache가 절대값으로 더 붙어 1GB에 육박한다.
         { name = "JAVA_TOOL_OPTIONS", value = "-XX:MaxRAMPercentage=60 -XX:MaxMetaspaceSize=128m -XX:ReservedCodeCacheSize=48m -Xss512k" },
+
+        # 로그인 시도 제한. 아래 redis 컨테이너와 같은 태스크라 REDIS_HOST 기본값(localhost)이 그대로 맞는다
+        { name = "LOGIN_GUARD_REDIS_ENABLED", value = "true" },
+      ]
+
+      dependsOn = [
+        { containerName = "redis", condition = "START" }
       ]
 
       secrets = [
         { name = "DB_PASSWORD", valueFrom = local.db_password_param_arn }
       ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = local.p.log_group_name
+          "awslogs-region"        = var.region
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
+    },
+
+    # 로그인 시도 제한 카운터. 별도 서비스(ElastiCache)를 두지 않고 같은 태스크에 붙인다 —
+    # 담기는 것이 TTL 5분짜리 카운터뿐이라 태스크와 함께 사라져도 잃을 게 없고, 그래서
+    # ephemeral 스택의 시간당 비용이 그대로다. Docker Hub는 pull 한도가 있어 ECR Public을 쓴다.
+    {
+      name  = "redis"
+      image = "public.ecr.aws/docker/library/redis:7-alpine"
+      # 죽어도 태스크를 내리지 않는다. 가드는 Redis가 없으면 통과시키므로 로그인은 계속 된다
+      essential = false
+      command = [
+        "redis-server",
+        "--save", "",
+        "--appendonly", "no",
+        "--maxmemory", "32mb",
+        "--maxmemory-policy", "allkeys-lru",
+      ]
+      # 앱 힙(태스크 메모리의 60%)을 침범하지 않도록 상한을 둔다
+      memory = 64
 
       logConfiguration = {
         logDriver = "awslogs"
