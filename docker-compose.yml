@@ -21,5 +21,17 @@ services:
       timeout: 5s
       retries: 20
 
+  # 로그인 시도 제한 카운터. wms.login-guard.redis.enabled=true로 켰을 때만 쓴다
+  redis:
+    image: redis:7-alpine
+    container_name: wms-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
 volumes:
   postgres-data:

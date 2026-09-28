@@ -1,6 +1,7 @@
 package com.project.mdm.usr.service;
 
 import com.project.common.security.AuthUser;
+import com.project.common.security.LoginAttemptGuard;
 import com.project.mdm.usr.dto.AuthDtos.LoginRequest;
 import com.project.mdm.usr.dto.AuthDtos.PwdChangeRequest;
 import com.project.mdm.usr.dto.AuthDtos.ScanLoginRequest;
@@ -39,6 +40,7 @@ public class AuthService {
     private final UsrRepository usrRepository;
     private final PasswordEncoder passwordEncoder;
     private final SecurityContextRepository securityContextRepository;
+    private final LoginAttemptGuard loginAttemptGuard;
 
     /**
      * 스캔 세션의 유휴 만료. 전체 세션(12h)과 따로 두는 이유 — 비밀번호를 묻지 않고 연 세션이라
@@ -59,10 +61,16 @@ public class AuthService {
         if (request == null || request.loginId() == null || request.loginId().isBlank() || request.pwd() == null) {
             throw new IllegalArgumentException("아이디 또는 비밀번호가 올바르지 않습니다.");
         }
-        Usr usr = usrRepository.findByLoginId(request.loginId().trim())
+        String loginId = request.loginId().trim();
+        loginAttemptGuard.assertNotBlocked(loginId);
+        Usr usr = usrRepository.findByLoginId(loginId)
                 .filter(found -> passwordEncoder.matches(request.pwd(), found.getPwd()))
-                .orElseThrow(() -> new IllegalArgumentException("아이디 또는 비밀번호가 올바르지 않습니다."));
+                .orElseThrow(() -> {
+                    loginAttemptGuard.recordFailure(loginId);
+                    return new IllegalArgumentException("아이디 또는 비밀번호가 올바르지 않습니다.");
+                });
 
+        loginAttemptGuard.reset(loginId);
         AuthUser authUser = toAuthUser(usr);
         establishSession(authUser, httpRequest, httpResponse);
         return authUser;
@@ -86,10 +94,16 @@ public class AuthService {
         if (request == null || request.loginId() == null || request.loginId().isBlank()) {
             throw new IllegalArgumentException(SCAN_LOGIN_FAILED);
         }
-        Usr usr = usrRepository.findByLoginId(request.loginId().trim())
+        String loginId = request.loginId().trim();
+        loginAttemptGuard.assertNotBlocked(loginId);
+        Usr usr = usrRepository.findByLoginId(loginId)
                 .filter(AuthService::scannable)
-                .orElseThrow(() -> new IllegalArgumentException(SCAN_LOGIN_FAILED));
+                .orElseThrow(() -> {
+                    loginAttemptGuard.recordFailure(loginId);
+                    return new IllegalArgumentException(SCAN_LOGIN_FAILED);
+                });
 
+        loginAttemptGuard.reset(loginId);
         AuthUser authUser = toAuthUser(usr);
         establishSession(authUser, httpRequest, httpResponse);
         // 세션이 만들어진 뒤라야 만료를 걸 수 있다. 스캔 세션만 짧게 두는 이유 —

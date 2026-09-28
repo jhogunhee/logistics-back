@@ -1,10 +1,28 @@
 services:
+  # 로그인 시도 제한 카운터. 무료는 영속성이 없지만 5분짜리 카운터라 상관없다.
+  - type: keyvalue
+    name: logistics-kv
+    plan: free
+    region: singapore
+    # 빈 목록은 외부 접속만 막는다. 내부 연결은 allowlist를 보지 않는다
+    ipAllowList: []
+    # noeviction으로 두면 메모리가 찼을 때 쓰기가 에러가 되고, fail-open이라 가드가 조용히 죽는다
+    maxmemoryPolicy: allkeys-lru
+
   - type: web
     name: logistics-back
     runtime: docker
     plan: free
     region: singapore
     envVars:
+      - key: LOGIN_GUARD_REDIS_ENABLED
+        value: "true"
+      # Key Value는 host/port가 아니라 연결 문자열을 준다. 이 이름이 spring.data.redis.url로 바인딩된다
+      - key: SPRING_DATA_REDIS_URL
+        fromService:
+          type: keyvalue
+          name: logistics-kv
+          property: connectionString
       - key: DB_URL
         sync: false
       - key: DB_USERNAME
