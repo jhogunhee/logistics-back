@@ -16,6 +16,7 @@
 - Spring Data JPA + QueryDSL 5
 - Spring Security + Spring Session JDBC (세션 인증)
 - PostgreSQL (Supabase)
+- Redis (로그인 시도 제한)
 - p6spy (SQL 로그)
 
 ## 실행
@@ -24,7 +25,7 @@ PostgreSQL이 필요하다. [docker-compose.yml](docker-compose.yml)로 로컬 �
 [docs/schema.sql](docs/schema.sql)과 [docs/seed-dev.sql](docs/seed-dev.sql)이 최초 기동 때 함께 적용된다.
 
 ```bash
-docker compose up -d          # PostgreSQL (스키마 · 시드 자동 적용)
+docker compose up -d          # PostgreSQL (스키마 · 시드 자동 적용) · Redis
 ./mvnw spring-boot:run        # http://localhost:8080
 ```
 
@@ -37,6 +38,11 @@ Supabase 같은 원격 DB를 쓰려면 스키마와 시드를 직접 적용하�
 | `DB_USERNAME` | `postgres` |
 | `DB_PASSWORD` | (빈 값) |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` 외 |
+| `LOGIN_GUARD_REDIS_ENABLED` | `false` |
+| `REDIS_HOST` / `REDIS_PORT` | `localhost` / `6379` |
+
+로그인 시도 제한은 기본으로 꺼져 있다. `LOGIN_GUARD_REDIS_ENABLED=true`로 켜면 같은 아이디로 5번 틀릴 때
+5분 동안 막는다. 실패 횟수는 앱이 재시작돼도 남아야 해서 Redis에 센다. Redis에 닿지 않으면 막지 않고 통과시킨다.
 
 `spring.jpa.hibernate.ddl-auto=none` — **Hibernate는 테이블을 만들지도 바꾸지도 않는다.**
 스키마의 주인은 [docs/schema.sql](docs/schema.sql)이고 엔티티를 거기에 맞춘다. 이미 만들어 둔 DB는
@@ -111,7 +117,8 @@ Cloudflare Pages  →  Render  →  Supabase
 
 `main`에 push하면 GitHub Actions가 Render 배포 훅을 호출한다([.github/workflows/deploy.yml](.github/workflows/deploy.yml)).
 빌드는 [Dockerfile](Dockerfile)의 2단계 빌드를 쓰고, DB 접속정보와 CORS 허용 도메인은 환경변수로
-분리해 로컬과 배포가 같은 빌드를 쓴다.
+분리해 로컬과 배포가 같은 빌드를 쓴다. Redis는 Render Key Value(무료)를 쓰고, 접속 정보는
+[render.yaml](render.yaml)이 `SPRING_DATA_REDIS_URL`로 넘긴다.
 
 ### AWS 구성 (Terraform)
 
@@ -131,6 +138,8 @@ CloudFront → ALB → ECS Fargate → RDS PostgreSQL
 - **애플리케이션 코드는 두 환경이 공유한다.** AWS에 맞춘 차이는 전부 환경변수로 준다 —
   `Dockerfile`의 `JAVA_TOOL_OPTIONS`는 Render 512MB에 맞춘 기본값이고, ECS 태스크 정의가 같은 이름의
   환경변수로 덮어쓴다.
+- **Redis는 앱과 같은 태스크에 컨테이너로 붙인다.** 담기는 것이 5분짜리 카운터뿐이라 태스크와 함께
+  사라져도 잃을 게 없고, ElastiCache를 따로 두지 않아 시간당 비용이 그대로다.
 - AWS 배포 워크플로는 **수동 실행 전용**이다([.github/workflows/deploy-aws.yml](.github/workflows/deploy-aws.yml)).
   GitHub Actions는 장기 액세스 키 대신 OIDC 역할을 맡는다.
 
